@@ -10,7 +10,7 @@ import {
   ViewerProtocolPolicy
 } from 'aws-cdk-lib/aws-cloudfront';
 import { HttpOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
-import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
+import { Certificate, CertificateValidation } from 'aws-cdk-lib/aws-certificatemanager';
 
 export interface CloudfrontConstructProps {
   domain: string;
@@ -29,6 +29,7 @@ export class CloudfrontConstruct extends Construct {
       domainNames: [props.domain],
       certificate: new Certificate(this, 'DistributionCert', {
         domainName: props.domain,
+        validation: CertificateValidation.fromDns(),
       }),
       minimumProtocolVersion: SecurityPolicyProtocol.TLS_V1_2_2021,
       defaultBehavior: {
