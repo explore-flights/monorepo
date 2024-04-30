@@ -1,0 +1,73 @@
+name: 'Deploy'
+
+on:
+  push:
+    branches:
+      - 'main'
+    paths-ignore:
+      - '.github/**'
+
+env:
+  WORKSPACE_ARTIFACT_CDK: 'explore_flights_cdk_artifact'
+
+jobs:
+  build_and_synth_cdk:
+    name: 'Build and synth cdk'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+      - name: 'Setup node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 'Install npm dependencies'
+        working-directory: './cdk'
+        run: 'npm install'
+      - name: 'Build'
+        working-directory: './cdk'
+        run: 'npm run build'
+      - name: 'Install cdk'
+        working-directory: './cdk'
+        run: 'npm install -g aws-cdk'
+      - name: 'Synth cdk'
+        working-directory: './cdk'
+        run: 'cdk synth --app bin/cdk.js'
+      - name: 'Store cdk synth artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.WORKSPACE_ARTIFACT_CDK }}
+          path: |
+            cdk/cdk.out/
+            cdk/cdk.json
+          retention-days: 1
+
+  deploy:
+    name: 'Deploy'
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: 'prod'
+    permissions:
+      id-token: write
+    needs:
+      - build_and_synth_cdk
+    steps:
+      - name: 'Download cdk synth artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.WORKSPACE_ARTIFACT_CDK }}
+          path: .
+      - name: 'Setup node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 'Install cdk'
+        run: 'npm install -g aws-cdk'
+      - name: 'AWS Credentials'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_CDK_ROLE }}
+          aws-region: ${{ secrets.AWS_CDK_REGION }}
+      - name: 'Deploy'
+        run: 'cdk --app ./cdk.out deploy --require-approval never "Route53-Prod"'
