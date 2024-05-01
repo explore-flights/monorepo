@@ -21,13 +21,13 @@ jobs:
       - name: 'Setup go'
         uses: actions/setup-go@v5
         with:
-          go-version-file: './api/go.mod'
-          cache-dependency-path: './api/go.sum'
+          go-version-file: 'api/go.mod'
+          cache-dependency-path: 'api/go.sum'
       - name: 'Test'
-        working-directory: './api'
-        run: 'go test ./...'
+        working-directory: 'api'
+        run: 'go test ...'
       - name: 'Build'
-        working-directory: './api'
+        working-directory: 'api'
         env:
           GOOS: 'linux'
           GOARCH: 'arm64' # keep this in sync with the arch configured in CDK!
@@ -54,22 +54,22 @@ jobs:
           name: ${{ env.WORKSPACE_ARTIFACT_API }}
           path: .
       - name: 'Prepare lambda bundle'
-        run: '(chmod +x bootstrap && zip -q api_lambda_bundle.zip bootstrap && rm bootstrap)'
+        run: '(chmod +x bootstrap && zip -q cdk/api_lambda_bundle.zip bootstrap && rm bootstrap)'
       - name: 'Setup node'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
       - name: 'Install npm dependencies'
-        working-directory: './cdk'
+        working-directory: 'cdk'
         run: 'npm install'
       - name: 'Build'
-        working-directory: './cdk'
+        working-directory: 'cdk'
         run: 'npm run build'
       - name: 'Install cdk'
-        working-directory: './cdk'
+        working-directory: 'cdk'
         run: 'npm install -g aws-cdk'
       - name: 'Synth cdk'
-        working-directory: './cdk'
+        working-directory: 'cdk'
         run: 'cdk synth --app bin/cdk.js'
       - name: 'Store cdk synth artifact'
         uses: actions/upload-artifact@v4
