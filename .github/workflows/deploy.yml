@@ -70,4 +70,4 @@ jobs:
           role-to-assume: ${{ secrets.AWS_CDK_ROLE }}
           aws-region: ${{ secrets.AWS_CDK_REGION }}
       - name: 'Deploy'
-        run: 'cdk --app ./cdk.out deploy --require-approval never "Website-Prod" "Route53-Prod"'
+        run: 'cdk --app ./cdk.out deploy --require-approval never "Data-Prod" "Website-Prod" "Route53-Prod"'
