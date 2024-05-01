@@ -1,11 +1,17 @@
 import { Construct } from 'constructs';
 import {
-  AllowedMethods, CachePolicy,
+  AllowedMethods,
+  CachePolicy,
   Distribution,
   HttpVersion,
   IDistribution,
-  OriginProtocolPolicy, OriginRequestPolicy,
-  PriceClass, ResponseHeadersPolicy,
+  OriginProtocolPolicy,
+  OriginRequestCookieBehavior,
+  OriginRequestHeaderBehavior,
+  OriginRequestPolicy,
+  OriginRequestQueryStringBehavior,
+  PriceClass,
+  ResponseHeadersPolicy,
   SecurityPolicyProtocol,
   ViewerProtocolPolicy
 } from 'aws-cdk-lib/aws-cloudfront';
@@ -23,6 +29,20 @@ export class CloudfrontConstruct extends Construct {
 
   constructor(scope: Construct, id: string, props: CloudfrontConstructProps) {
     super(scope, id);
+
+    const allExceptHostOriginRequestPolicy = new OriginRequestPolicy(this, 'AllExceptHostORP', {
+      headerBehavior: OriginRequestHeaderBehavior.denyList('Host'),
+      cookieBehavior: OriginRequestCookieBehavior.all(),
+      queryStringBehavior: OriginRequestQueryStringBehavior.all(),
+    });
+
+    const noCacheResponseHeadersPolicy = new ResponseHeadersPolicy(this, 'NoCacheResponseHeadersPolicy', {
+      customHeadersBehavior: {
+        customHeaders: [
+          { header: 'Cache-Control', value: 'private, no-cache, no-store, max-age=0, must-revalidate', override: true, }
+        ],
+      },
+    });
 
     this.distribution = new Distribution(this, 'Distribution', {
       priceClass: PriceClass.PRICE_CLASS_ALL,
@@ -49,14 +69,8 @@ export class CloudfrontConstruct extends Construct {
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: AllowedMethods.ALLOW_ALL,
         cachePolicy: CachePolicy.CACHING_DISABLED,
-        originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_AND_CLOUDFRONT_2022,
-        responseHeadersPolicy: new ResponseHeadersPolicy(this, 'NoCacheResponseHeadersPolicy', {
-          customHeadersBehavior: {
-            customHeaders: [
-              { header: 'Cache-Control', value: 'private, no-cache, no-store, max-age=0, must-revalidate', override: true, }
-            ],
-          },
-        }),
+        originRequestPolicy: allExceptHostOriginRequestPolicy,
+        responseHeadersPolicy: noCacheResponseHeadersPolicy,
       },
       additionalBehaviors: {},
       enableLogging: false,
