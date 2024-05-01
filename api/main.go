@@ -27,7 +27,10 @@ func main() {
 
 	e := echo.New()
 	e.Any("/*", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello world!")
+		c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextPlainCharsetUTF8)
+		c.Response().WriteHeader(http.StatusOK)
+
+		return c.Request().Header.Write(c.Response())
 	})
 
 	if err := run(ctx, e); err != nil {
