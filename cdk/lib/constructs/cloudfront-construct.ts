@@ -3,34 +3,32 @@ import {
   AllowedMethods, CachePolicy,
   Distribution,
   HttpVersion,
-  IDistribution,
   OriginProtocolPolicy, OriginRequestPolicy,
   PriceClass, ResponseHeadersPolicy,
   SecurityPolicyProtocol,
   ViewerProtocolPolicy
 } from 'aws-cdk-lib/aws-cloudfront';
 import { HttpOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
-import { Certificate, CertificateValidation } from 'aws-cdk-lib/aws-certificatemanager';
+import { ICertificate } from 'aws-cdk-lib/aws-certificatemanager';
+import { AaaaRecord, ARecord, IHostedZone, RecordTarget } from 'aws-cdk-lib/aws-route53';
+import { CloudFrontTarget } from 'aws-cdk-lib/aws-route53-targets';
 
 export interface CloudfrontConstructProps {
   domain: string;
+  hostedZone: IHostedZone;
+  certificate: ICertificate;
 }
 
 export class CloudfrontConstruct extends Construct {
-  readonly distribution: IDistribution;
-
   constructor(scope: Construct, id: string, props: CloudfrontConstructProps) {
     super(scope, id);
 
-    this.distribution = new Distribution(this, 'Distribution', {
+    const distribution = new Distribution(this, 'Distribution', {
       priceClass: PriceClass.PRICE_CLASS_ALL,
       httpVersion: HttpVersion.HTTP2_AND_3,
       enableIpv6: true,
       domainNames: [props.domain],
-      certificate: new Certificate(this, 'DistributionCert', {
-        domainName: props.domain,
-        validation: CertificateValidation.fromDns(),
-      }),
+      certificate: props.certificate,
       minimumProtocolVersion: SecurityPolicyProtocol.TLS_V1_2_2021,
       defaultBehavior: {
         origin: new HttpOrigin('httpbin.org', {
@@ -53,6 +51,16 @@ export class CloudfrontConstruct extends Construct {
       additionalBehaviors: {},
       enableLogging: false,
       enabled: true,
+    });
+
+    new ARecord(this, 'WebsiteAliasARecord', {
+      zone: props.hostedZone,
+      target: RecordTarget.fromAlias(new CloudFrontTarget(distribution)),
+    });
+
+    new AaaaRecord(this, 'WebsiteAliasAAAARecord', {
+      zone: props.hostedZone,
+      target: RecordTarget.fromAlias(new CloudFrontTarget(distribution)),
     });
   }
 }

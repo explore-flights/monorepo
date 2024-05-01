@@ -6,11 +6,14 @@ import { WebsiteStack } from '../lib/stacks/website-stack';
 
 const app = new cdk.App();
 
-const websiteStack = new WebsiteStack(app, 'Website-Prod', {
-  domain: 'explore.flights',
+const r53 = new Route53Stack(app, 'Route53-Prod', {
+  env: { region: 'eu-central-1' },
+  zoneName: 'explore.flights',
 });
 
-new Route53Stack(app, 'Route53-Prod', {
-  zoneName: 'explore.flights',
-  websiteDistribution: websiteStack.distribution,
+new WebsiteStack(app, 'Website-Prod', {
+  env: { region: 'eu-central-1' },
+  crossRegionReferences: true,
+  domain: 'explore.flights',
+  hostedZone: r53.zone,
 });
