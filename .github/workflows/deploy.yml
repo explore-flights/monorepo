@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - 'main'
-    paths-ignore:
-      - '.github/**'
 
 env:
   WORKSPACE_ARTIFACT_API: 'explore_flights_api_artifact'
@@ -25,7 +23,7 @@ jobs:
           cache-dependency-path: 'api/go.sum'
       - name: 'Test'
         working-directory: 'api'
-        run: 'go test ...'
+        run: 'go test ./...'
       - name: 'Build'
         working-directory: 'api'
         env:
