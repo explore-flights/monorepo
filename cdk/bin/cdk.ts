@@ -10,6 +10,7 @@ const app = new cdk.App();
 const websiteStack = new WebsiteStack(app, 'Website-Prod', {
   domain: 'explore.flights',
   certificateId: 'a96a703e-5454-4fc5-98eb-43b2f881be37',
+  apiLambdaZipPath: 'api_lambda_bundle.zip',
 });
 
 new DataStack(app, 'Data-Prod', {});

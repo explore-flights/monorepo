@@ -17,11 +17,13 @@ import {
 } from 'aws-cdk-lib/aws-cloudfront';
 import { HttpOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
-import { Stack } from 'aws-cdk-lib';
+import { Fn, Stack } from 'aws-cdk-lib';
+import { IFunctionUrl } from 'aws-cdk-lib/aws-lambda';
 
 export interface CloudfrontConstructProps {
   domain: string;
   certificateId: string;
+  apiLambdaFunctionURL: IFunctionUrl;
 }
 
 export class CloudfrontConstruct extends Construct {
@@ -61,9 +63,11 @@ export class CloudfrontConstruct extends Construct {
       ),
       minimumProtocolVersion: SecurityPolicyProtocol.TLS_V1_2_2021,
       defaultBehavior: {
-        origin: new HttpOrigin('httpbin.org', {
+        origin: new HttpOrigin(Fn.select(2, Fn.split('/', props.apiLambdaFunctionURL.url)), {
           protocolPolicy: OriginProtocolPolicy.HTTPS_ONLY,
-          originPath: '/get'
+          customHeaders: { Forwarded: `host=${props.domain};proto=https` },
+          originShieldEnabled: true,
+          originShieldRegion: Stack.of(this).region,
         }),
         compress: true,
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
