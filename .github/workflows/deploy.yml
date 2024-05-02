@@ -18,7 +18,7 @@ jobs:
       GOOS: 'linux'
       GOARCH: 'arm64' # keep this in sync with the arch configured in CDK!
       CGO_ENABLED: '1' # required by graphviz
-      CC: 'aarch64-unknown-linux-gnu'
+      CC: 'aarch64-linux-gnu-gcc'
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
