@@ -14,6 +14,11 @@ jobs:
   build_and_test_api:
     name: 'Build and test API'
     runs-on: ubuntu-latest
+    env:
+      GOOS: 'linux'
+      GOARCH: 'arm64' # keep this in sync with the arch configured in CDK!
+      CGO_ENABLED: '1' # required by graphviz
+      CC: 'aarch64-unknown-linux-gnu'
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
@@ -22,18 +27,16 @@ jobs:
         with:
           go-version-file: 'go/api/go.mod'
           cache-dependency-path: 'go/api/go.sum'
+      - name: 'Install cross-compilation tools'
+        uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: 'aarch64-unknown-linux-gnu'
       - name: 'Test'
         working-directory: 'go/api'
         run: 'go test ./...'
       - name: 'Build'
         working-directory: 'go/api'
-        env:
-          GOOS: 'linux'
-          GOARCH: 'arm64' # keep this in sync with the arch configured in CDK!
-          CGO_ENABLED: '0'
-          # CGO_ENABLED: '1' # required by graphviz
-          # CC: 'aarch64-linux-gnu-gcc'
-        run: 'go build -o bootstrap -tags "lambda.norpc"'
+        run: 'go build -o bootstrap'
       - name: 'Store API artifact'
         uses: actions/upload-artifact@v4
         with:
