@@ -11,9 +11,11 @@ import {
 } from 'aws-cdk-lib/aws-lambda';
 import { ArnFormat, Duration, Stack } from 'aws-cdk-lib';
 import { Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { IBucket } from 'aws-cdk-lib/aws-s3';
 
 export interface ApiLambdaConstructProps {
   apiLambdaZipPath: string;
+  dataBucket: IBucket;
 }
 
 export class ApiLambdaConstruct extends Construct {
@@ -25,7 +27,7 @@ export class ApiLambdaConstruct extends Construct {
     const lambda = new Function(this, 'ApiLambda', {
       runtime: Runtime.PROVIDED_AL2023,
       architecture: Architecture.ARM_64,
-      memorySize: 256,
+      memorySize: 1024,
       timeout: Duration.seconds(30),
       code: Code.fromAsset(props.apiLambdaZipPath),
       handler: 'bootstrap',
@@ -33,6 +35,7 @@ export class ApiLambdaConstruct extends Construct {
         AWS_LWA_PORT: '8080',
         AWS_LWA_ASYNC_INIT: 'true',
         AWS_LWA_INVOKE_MODE: 'response_stream',
+        FLIGHTS_DATA_BUCKET: props.dataBucket.bucketName,
       },
       layers: [
         LayerVersion.fromLayerVersionArn(
@@ -53,6 +56,8 @@ export class ApiLambdaConstruct extends Construct {
         managedPolicies: [{ managedPolicyArn: 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole' }],
       }),
     });
+
+    props.dataBucket.grantRead(lambda, '*');
 
     this.functionURL = new FunctionUrl(this, 'ApiLambdaFunctionUrl', {
       function: lambda,
