@@ -110,30 +110,15 @@ func main() {
 			return echo.NewHTTPError(http.StatusInternalServerError)
 		}
 
+		c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextPlainCharsetUTF8)
+		c.Response().WriteHeader(http.StatusOK)
+
 		switch c.Param("export") {
-		/*
-			case "svg":
-				c.Response().Header().Set(echo.HeaderContentType, "image/svg+xml")
-				c.Response().WriteHeader(http.StatusOK)
-				return search.ExportConnectionsImage(c.Response(), conns, graphviz.SVG)
-
-			case "jpg":
-				c.Response().Header().Set(echo.HeaderContentType, "image/jpeg")
-				c.Response().WriteHeader(http.StatusOK)
-				return search.ExportConnectionsImage(c.Response(), conns, graphviz.JPG)
-
-			case "png":
-				c.Response().Header().Set(echo.HeaderContentType, "image/png")
-				c.Response().WriteHeader(http.StatusOK)
-				return search.ExportConnectionsImage(c.Response(), conns, graphviz.PNG)
-
-		*/
+		case "dot":
+			return search.ExportConnectionsImage(c.Response(), conns)
 
 		default:
-			c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextPlainCharsetUTF8)
-			c.Response().WriteHeader(http.StatusOK)
-			_, err = search.ExportConnectionsText(c.Response(), conns)
-			return err
+			return search.ExportConnectionsText(c.Response(), conns)
 		}
 	})
 

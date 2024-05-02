@@ -2,14 +2,18 @@ package search
 
 import (
 	"fmt"
+	"github.com/dominikbraun/graph"
+	"github.com/dominikbraun/graph/draw"
+	"github.com/explore-flights/monorepo/go/common"
 	"io"
 	"slices"
 	"strings"
 	"time"
 )
 
-func ExportConnectionsText(w io.Writer, conns []Connection) (int, error) {
-	return printConnections(w, conns, time.Time{}, 0)
+func ExportConnectionsText(w io.Writer, conns []Connection) error {
+	_, err := printConnections(w, conns, time.Time{}, 0)
+	return err
 }
 
 func printConnections(w io.Writer, conns []Connection, prevArrive time.Time, indent int) (int, error) {
@@ -47,55 +51,30 @@ func printConnections(w io.Writer, conns []Connection, prevArrive time.Time, ind
 	return total, nil
 }
 
-/*
-func ExportConnectionsImage(w io.Writer, conns []Connection, format graphviz.Format) error {
-	g := graphviz.New()
-	defer g.Close()
+func ExportConnectionsImage(w io.Writer, conns []Connection) error {
+	g := graph.New((*common.Flight).Number, graph.Directed())
 
-	graph, err := g.Graph()
-	if err != nil {
+	if err := buildGraph(nil, conns, g); err != nil {
 		return err
 	}
 
-	if err = drawImage(nil, conns, graph, make(map[*common.Flight]*cgraph.Node)); err != nil {
-		return err
-	}
-
-	return g.Render(graph, format, w)
+	return draw.DOT(g, w)
 }
 
-func drawImage(parent *common.Flight, conns []Connection, graph *cgraph.Graph, lookup map[*common.Flight]*cgraph.Node) error {
+func buildGraph(parent *common.Flight, conns []Connection, g graph.Graph[common.FlightNumber, *common.Flight]) error {
 	var err error
 
 	for _, conn := range conns {
-		var node *cgraph.Node
-		var ok bool
+		_ = g.AddVertex(conn.Flight, graph.VertexAttribute("label", fmt.Sprintf("%s\n%s-%s\n%s", conn.Flight.Number().String(), conn.Flight.DepartureAirport, conn.Flight.ArrivalAirport, conn.Flight.AircraftType)))
 
-		if node, ok = lookup[conn.Flight]; !ok {
-			node, err = graph.CreateNode(conn.Flight.Number().String())
-			if err != nil {
-				return err
-			}
-
-			node.SetLabel(fmt.Sprintf("%s\n%s-%s\n%s", conn.Flight.Number().String(), conn.Flight.DepartureAirport, conn.Flight.ArrivalAirport, conn.Flight.AircraftType))
-			lookup[conn.Flight] = node
+		if parent != nil {
+			_ = g.AddEdge(parent.Number(), conn.Flight.Number(), graph.EdgeAttribute("label", conn.Flight.DepartureTime.Sub(parent.ArrivalTime).String()))
 		}
 
-		if parentNode, ok := lookup[parent]; ok {
-			var edge *cgraph.Edge
-			edge, err = graph.CreateEdge("", parentNode, node)
-			if err != nil {
-				return err
-			}
-
-			edge.SetLabel(conn.Flight.DepartureTime.Sub(parent.ArrivalTime).String())
-		}
-
-		if err = drawImage(conn.Flight, conn.Outgoing, graph, lookup); err != nil {
+		if err = buildGraph(conn.Flight, conn.Outgoing, g); err != nil {
 			return err
 		}
 	}
 
 	return nil
 }
-*/
