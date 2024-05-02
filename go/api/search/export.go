@@ -2,9 +2,6 @@ package search
 
 import (
 	"fmt"
-	"github.com/explore-flights/monorepo/go/common"
-	"github.com/goccy/go-graphviz"
-	"github.com/goccy/go-graphviz/cgraph"
 	"io"
 	"slices"
 	"strings"
@@ -50,6 +47,7 @@ func printConnections(w io.Writer, conns []Connection, prevArrive time.Time, ind
 	return total, nil
 }
 
+/*
 func ExportConnectionsImage(w io.Writer, conns []Connection, format graphviz.Format) error {
 	g := graphviz.New()
 	defer g.Close()
@@ -100,3 +98,4 @@ func drawImage(parent *common.Flight, conns []Connection, graph *cgraph.Graph, l
 
 	return nil
 }
+*/
