@@ -47,6 +47,18 @@ func (ld LocalDate) Compare(other LocalDate) int {
 	return ld.Time(nil).Compare(other.Time(nil))
 }
 
+func (ld LocalDate) Until(endInclusive LocalDate) []LocalDate {
+	r := make([]LocalDate, 0)
+
+	curr := ld
+	for curr.Compare(endInclusive) <= 0 {
+		r = append(r, curr)
+		curr = curr.Next()
+	}
+
+	return r
+}
+
 func (ld *LocalDate) UnmarshalJSON(data []byte) error {
 	var v string
 	if err := json.Unmarshal(data, &v); err != nil {

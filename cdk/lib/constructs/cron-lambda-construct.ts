@@ -1,3 +1,4 @@
+import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import {
   Architecture,
@@ -14,6 +15,8 @@ import { IBucket } from 'aws-cdk-lib/aws-s3';
 export interface CronLambdaConstructProps {
   cronLambdaZipPath: string;
   dataBucket: IBucket;
+  lhApiClientId: cdk.SecretValue;
+  lhApiClientSecret: cdk.SecretValue;
 }
 
 export class CronLambdaConstruct extends Construct {
@@ -29,7 +32,10 @@ export class CronLambdaConstruct extends Construct {
       timeout: Duration.minutes(15),
       code: Code.fromAsset(props.cronLambdaZipPath),
       handler: 'bootstrap',
-      environment: {},
+      environment: {
+        FLIGHTS_LH_API_CLIENT_ID: props.lhApiClientId.unsafeUnwrap(),
+        FLIGHTS_LH_API_CLIENT_SECRET: props.lhApiClientSecret.unsafeUnwrap(),
+      },
       tracing: Tracing.DISABLED,
       role: new Role(this, 'CronLambdaRole', {
         assumedBy: new ServicePrincipal('lambda.amazonaws.com'),

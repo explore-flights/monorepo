@@ -8,9 +8,28 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/cron/action"
+	"github.com/explore-flights/monorepo/go/cron/lufthansa"
+	"golang.org/x/time/rate"
+	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
+
+var lhClientId string
+var lhClientSecret string
+
+func init() {
+	lhClientId = os.Getenv("FLIGHTS_LH_API_CLIENT_ID")
+	if lhClientId == "" {
+		panic("env variable FLIGHTS_LH_API_CLIENT_ID required")
+	}
+
+	lhClientSecret = os.Getenv("FLIGHTS_LH_API_CLIENT_SECRET")
+	if lhClientSecret == "" {
+		panic("env variable FLIGHTS_LH_API_CLIENT_SECRET required")
+	}
+}
 
 type InputEvent struct {
 	Action string          `json:"action"`
@@ -30,10 +49,20 @@ func main() {
 }
 
 func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) ([]byte, error) {
+	lhc := lufthansa.NewClient(
+		lhClientId,
+		lhClientSecret,
+		lufthansa.WithRateLimiter(rate.NewLimiter(rate.Every(time.Hour), 990)),
+	)
+
+	lfsAction := action.NewLoadFlightSchedulesAction(s3c, lhc)
 	cfsAction := action.NewConvertFlightSchedulesAction(s3c)
 
 	return func(ctx context.Context, event InputEvent) ([]byte, error) {
 		switch event.Action {
+		case "load_flight_schedules":
+			return handle(ctx, lfsAction, event.Params)
+
 		case "convert_flight_schedules":
 			return handle(ctx, cfsAction, event.Params)
 		}

@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1
 	github.com/explore-flights/monorepo/go/common v0.0.0
 	golang.org/x/sync v0.7.0
+	golang.org/x/time v0.5.0
 )
 
 require (
