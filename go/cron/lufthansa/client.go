@@ -154,27 +154,51 @@ func (c *Client) doRequest(ctx context.Context, method, surl string, q url.Value
 }
 
 func (c *Client) Countries(ctx context.Context) ([]Country, error) {
-	return doRequestPaged[countryResource](ctx, c, http.MethodGet, "/v1/mds-references/countries", nil, 100)
+	return doRequestPaged[countryResource[Country]](ctx, c, http.MethodGet, "/v1/mds-references/countries", nil, 100)
+}
+
+func (c *Client) CountriesRaw(ctx context.Context) ([]json.RawMessage, error) {
+	return doRequestPaged[countryResource[json.RawMessage]](ctx, c, http.MethodGet, "/v1/mds-references/countries", nil, 100)
 }
 
 func (c *Client) Cities(ctx context.Context) ([]City, error) {
-	return doRequestPaged[cityResource](ctx, c, http.MethodGet, "/v1/mds-references/cities", nil, 100)
+	return doRequestPaged[cityResource[City]](ctx, c, http.MethodGet, "/v1/mds-references/cities", nil, 100)
+}
+
+func (c *Client) CitiesRaw(ctx context.Context) ([]json.RawMessage, error) {
+	return doRequestPaged[cityResource[json.RawMessage]](ctx, c, http.MethodGet, "/v1/mds-references/cities", nil, 100)
 }
 
 func (c *Client) Airport(ctx context.Context, airportCode string) (Airport, error) {
 	return doRequest[Airport](ctx, c, http.MethodGet, "/v1/mds-references/airports/"+url.PathEscape(airportCode), nil, nil, readJsonFunc[Airport]())
 }
 
+func (c *Client) AirportRaw(ctx context.Context, airportCode string) (json.RawMessage, error) {
+	return doRequest[json.RawMessage](ctx, c, http.MethodGet, "/v1/mds-references/airports/"+url.PathEscape(airportCode), nil, nil, readJsonFunc[json.RawMessage]())
+}
+
 func (c *Client) Airports(ctx context.Context) ([]Airport, error) {
-	return doRequestPaged[airportResource](ctx, c, http.MethodGet, "/v1/mds-references/airports", nil, 100)
+	return doRequestPaged[airportResource[Airport]](ctx, c, http.MethodGet, "/v1/mds-references/airports", nil, 100)
+}
+
+func (c *Client) AirportsRaw(ctx context.Context) ([]json.RawMessage, error) {
+	return doRequestPaged[airportResource[json.RawMessage]](ctx, c, http.MethodGet, "/v1/mds-references/airports", nil, 100)
 }
 
 func (c *Client) Airlines(ctx context.Context) ([]Airline, error) {
-	return doRequestPaged[airlineResource](ctx, c, http.MethodGet, "/v1/mds-references/airlines", nil, 100)
+	return doRequestPaged[airlineResource[Airline]](ctx, c, http.MethodGet, "/v1/mds-references/airlines", nil, 100)
+}
+
+func (c *Client) AirlinesRaw(ctx context.Context) ([]json.RawMessage, error) {
+	return doRequestPaged[airlineResource[json.RawMessage]](ctx, c, http.MethodGet, "/v1/mds-references/airlines", nil, 100)
 }
 
 func (c *Client) Aircraft(ctx context.Context) ([]Aircraft, error) {
-	return doRequestPaged[aircraftResource](ctx, c, http.MethodGet, "/v1/mds-references/aircraft", nil, 100)
+	return doRequestPaged[aircraftResource[Aircraft]](ctx, c, http.MethodGet, "/v1/mds-references/aircraft", nil, 100)
+}
+
+func (c *Client) AircraftRaw(ctx context.Context) ([]json.RawMessage, error) {
+	return doRequestPaged[aircraftResource[json.RawMessage]](ctx, c, http.MethodGet, "/v1/mds-references/aircraft", nil, 100)
 }
 
 func (c *Client) FlightSchedules(ctx context.Context, airlines []common.AirlineIdentifier, startDate, endDate common.LocalDate, daysOfOperation []time.Weekday, options ...FlightSchedulesOption) ([]FlightSchedule, error) {

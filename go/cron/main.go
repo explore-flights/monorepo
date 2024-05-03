@@ -55,11 +55,31 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) ([]b
 		lufthansa.WithRateLimiter(rate.NewLimiter(rate.Every(time.Hour)*990, 3)),
 	)
 
+	lCountriesAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).CountriesRaw, "countries")
+	lCitiesAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).CitiesRaw, "cities")
+	lAirportsAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).AirportsRaw, "airports")
+	lAirlinesAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).AirlinesRaw, "airlines")
+	lAircraftAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).AircraftRaw, "aircraft")
 	lfsAction := action.NewLoadFlightSchedulesAction(s3c, lhc)
 	cfsAction := action.NewConvertFlightSchedulesAction(s3c)
 
 	return func(ctx context.Context, event InputEvent) ([]byte, error) {
 		switch event.Action {
+		case "load_countries":
+			return handle(ctx, lCountriesAction, event.Params)
+
+		case "load_cities":
+			return handle(ctx, lCitiesAction, event.Params)
+
+		case "load_airports":
+			return handle(ctx, lAirportsAction, event.Params)
+
+		case "load_airlines":
+			return handle(ctx, lAirlinesAction, event.Params)
+
+		case "load_aircraft":
+			return handle(ctx, lAircraftAction, event.Params)
+
 		case "load_flight_schedules":
 			return handle(ctx, lfsAction, event.Params)
 
