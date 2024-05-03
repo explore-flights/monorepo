@@ -43,6 +43,8 @@ export class CronLambdaConstruct extends Construct {
       }),
     });
 
-    props.dataBucket.grantRead(this.lambda, '*');
+    props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/flightschedules/*');
+    props.dataBucket.grantWrite(this.lambda, 'raw/LH_Public_Data/*');
+    props.dataBucket.grantWrite(this.lambda, 'processed/flights/*');
   }
 }
