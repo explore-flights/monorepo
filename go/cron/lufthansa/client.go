@@ -153,26 +153,6 @@ func (c *Client) doRequest(ctx context.Context, method, surl string, q url.Value
 	return c.httpClient.Do(req)
 }
 
-func doRequest[T any](ctx context.Context, c *Client, method, path string, q url.Values, body io.Reader) (T, error) {
-	var r T
-
-	resp, err := c.doRequest(ctx, method, c.baseUrl+path, q, body)
-	if err != nil {
-		return r, err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return r, responseStatusErr{
-			StatusCode: resp.StatusCode,
-			Status:     resp.Status,
-		}
-	}
-
-	return r, json.NewDecoder(resp.Body).Decode(&r)
-}
-
 func (c *Client) Countries(ctx context.Context) ([]Country, error) {
 	return doRequestPaged[countryResource](ctx, c, http.MethodGet, "/v1/mds-references/countries", nil, 100)
 }
@@ -182,7 +162,7 @@ func (c *Client) Cities(ctx context.Context) ([]City, error) {
 }
 
 func (c *Client) Airport(ctx context.Context, airportCode string) (Airport, error) {
-	return doRequest[Airport](ctx, c, http.MethodGet, "/v1/mds-references/airports/"+url.PathEscape(airportCode), nil, nil)
+	return doRequest[Airport](ctx, c, http.MethodGet, "/v1/mds-references/airports/"+url.PathEscape(airportCode), nil, nil, readJsonFunc[Airport]())
 }
 
 func (c *Client) Airports(ctx context.Context) ([]Airport, error) {
@@ -198,6 +178,15 @@ func (c *Client) Aircraft(ctx context.Context) ([]Aircraft, error) {
 }
 
 func (c *Client) FlightSchedules(ctx context.Context, airlines []common.AirlineIdentifier, startDate, endDate common.LocalDate, daysOfOperation []time.Weekday, options ...FlightSchedulesOption) ([]FlightSchedule, error) {
+	return doRequestFlightSchedules[[]FlightSchedule](ctx, c, airlines, startDate, endDate, daysOfOperation, readJsonFunc[[]FlightSchedule](), options...)
+}
+
+func (c *Client) FlightSchedulesRaw(ctx context.Context, airlines []common.AirlineIdentifier, startDate, endDate common.LocalDate, daysOfOperation []time.Weekday, w io.Writer, options ...FlightSchedulesOption) error {
+	_, err := doRequestFlightSchedules[int64](ctx, c, airlines, startDate, endDate, daysOfOperation, copyFunc(w), options...)
+	return err
+}
+
+func doRequestFlightSchedules[T any](ctx context.Context, c *Client, airlines []common.AirlineIdentifier, startDate, endDate common.LocalDate, daysOfOperation []time.Weekday, f func(r io.Reader) (T, error), options ...FlightSchedulesOption) (T, error) {
 	options = append(options, WithAirlines(airlines))
 	options = append(options, WithStartDate(startDate))
 	options = append(options, WithEndDate(endDate))
@@ -214,21 +203,43 @@ func (c *Client) FlightSchedules(ctx context.Context, airlines []common.AirlineI
 	errs := make([]error, 0, maxRetries)
 
 	for len(errs) < maxRetries {
-		r, err := doRequest[[]FlightSchedule](ctx, c, http.MethodGet, "/v1/flight-schedules/flightschedules/passenger", q, nil)
+		r, err := doRequest[T](ctx, c, http.MethodGet, "/v1/flight-schedules/flightschedules/passenger", q, nil, f)
 		if err != nil {
 			var statusErr responseStatusErr
-			if errors.As(err, &statusErr) && isBadElementStatus(statusErr.StatusCode) {
+			if errors.As(err, &statusErr) && (isBadElementStatus(statusErr.StatusCode) || isRetryableStatus(statusErr.StatusCode)) {
 				errs = append(errs, err)
 				continue
 			}
 
-			return nil, err
+			var def T
+			return def, err
 		}
 
 		return r, nil
 	}
 
-	return nil, errors.Join(errs...)
+	var def T
+	return def, errors.Join(errs...)
+}
+
+func doRequest[T any](ctx context.Context, c *Client, method, path string, q url.Values, body io.Reader, f func(r io.Reader) (T, error)) (T, error) {
+	resp, err := c.doRequest(ctx, method, c.baseUrl+path, q, body)
+	if err != nil {
+		var def T
+		return def, err
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var def T
+		return def, responseStatusErr{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+		}
+	}
+
+	return f(resp.Body)
 }
 
 func doRequestPaged[T pagedResource[D], D any](ctx context.Context, c *Client, method, path string, q url.Values, pageSize int) ([]D, error) {
@@ -327,6 +338,19 @@ func doRequestPage[T pagedResource[D], D any](ctx context.Context, c *Client, me
 
 		nextPageOffset := offset + pageSize
 		return results, nextPageOffset, nextPageOffset < r.Meta().TotalCount, nil
+	}
+}
+
+func readJsonFunc[T any]() func(r io.Reader) (T, error) {
+	return func(r io.Reader) (T, error) {
+		var res T
+		return res, json.NewDecoder(r).Decode(&res)
+	}
+}
+
+func copyFunc(w io.Writer) func(r io.Reader) (int64, error) {
+	return func(r io.Reader) (int64, error) {
+		return io.Copy(w, r)
 	}
 }
 

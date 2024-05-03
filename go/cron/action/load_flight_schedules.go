@@ -3,7 +3,6 @@ package action
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
@@ -47,29 +46,22 @@ func (a *lfsAction) Handle(ctx context.Context, params LoadFlightSchedulesParams
 	return LoadFlightSchedulesOutput{}, nil
 }
 
-func (a *lfsAction) loadSingle(ctx context.Context, outputBucket, outputPrefix string, d common.LocalDate) error {
-	schedules, err := a.lhc.FlightSchedules(
+func (a *lfsAction) loadSingle(ctx context.Context, bucket, prefix string, d common.LocalDate) error {
+	var b bytes.Buffer
+	err := a.lhc.FlightSchedulesRaw(
 		ctx,
 		[]common.AirlineIdentifier{common.Lufthansa, common.AirDolomiti, common.Swiss, common.Austrian, common.Edelweiss, common.Brussels, common.EurowingsDiscover},
 		d,
 		d,
 		[]time.Weekday{time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday, time.Sunday},
+		&b,
 	)
 
 	if err != nil {
 		return err
 	}
 
-	return a.saveSchedules(ctx, outputBucket, outputPrefix, d, schedules)
-}
-
-func (a *lfsAction) saveSchedules(ctx context.Context, bucket, prefix string, d common.LocalDate, schedules []lufthansa.FlightSchedule) error {
-	var b bytes.Buffer
-	if err := json.NewEncoder(&b).Encode(schedules); err != nil {
-		return err
-	}
-
-	_, err := a.s3c.PutObject(ctx, &s3.PutObjectInput{
+	_, err = a.s3c.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(bucket),
 		Key:         aws.String(prefix + d.Time(nil).Format("2006/01/02") + ".json"),
 		ContentType: aws.String("application/json"),

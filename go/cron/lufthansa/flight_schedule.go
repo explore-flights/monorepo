@@ -2,6 +2,7 @@ package lufthansa
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -20,6 +21,10 @@ func (d *UTCDate) UnmarshalJSON(bytes []byte) error {
 
 	*d = UTCDate(t)
 	return nil
+}
+
+func (d UTCDate) MarshalJSON() ([]byte, error) {
+	return json.Marshal(strings.ToUpper(time.Time(d).Format("02Jan06")))
 }
 
 type DaysOfOperation []time.Weekday
