@@ -1,0 +1,43 @@
+{
+  "name": "explore.flights-ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "repository": "git@github.com:explore-flights/monorepo.git",
+  "homepage": "https://explore.flights",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ignore-path .gitignore"
+  },
+  "dependencies": {
+    "@cloudscape-design/collection-hooks": "^1.0.45",
+    "@cloudscape-design/components": "^3.0.625",
+    "@cloudscape-design/code-view": "^3.0.15",
+    "@cloudscape-design/design-tokens": "^3.0.36",
+    "@cloudscape-design/global-styles": "^1.0.27",
+    "@fortawesome/fontawesome-svg-core": "^6.5.2",
+    "@fortawesome/free-brands-svg-icons": "^6.5.2",
+    "@fortawesome/react-fontawesome": "^0.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.8",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.8.0",
+    "@typescript-eslint/parser": "^7.8.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.57.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-airbnb-typescript-base": "^5.0.1",
+    "eslint-plugin-react": "^7.34.1",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "sass": "^1.76.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
+  }
+}

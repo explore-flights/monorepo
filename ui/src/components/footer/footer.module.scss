@@ -1,0 +1,12 @@
+@use '@cloudscape-design/design-tokens' as cs;
+
+.flights-footer {
+  position: relative;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding-top: cs.$space-static-s;
+  padding-bottom: cs.$space-static-xs;
+  padding-left: cs.$space-scaled-xl;
+  background-color: cs.$color-background-layout-main;
+}
