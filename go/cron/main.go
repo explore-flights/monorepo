@@ -52,7 +52,7 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) ([]b
 	lhc := lufthansa.NewClient(
 		lhClientId,
 		lhClientSecret,
-		lufthansa.WithRateLimiter(rate.NewLimiter(rate.Every(990*time.Hour), 4)),
+		lufthansa.WithRateLimiter(rate.NewLimiter(rate.Every(time.Hour)/990, 4)),
 	)
 
 	lfsAction := action.NewLoadFlightSchedulesAction(s3c, lhc)
