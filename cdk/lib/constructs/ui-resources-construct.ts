@@ -38,7 +38,7 @@ export class UIResourcesConstruct extends Construct {
       sid: 'AllowCloudFrontServicePrincipalGet',
       effect: Effect.ALLOW,
       actions: ['s3:GetObject'],
-      principals: [new ServicePrincipal('cloudfront')],
+      principals: [new ServicePrincipal('cloudfront.amazonaws.com')],
       resources: [this.bucket.arnForObjects('*')],
       conditions: { StringEquals: { 'AWS:SourceArn': distributionArn } },
     }));
@@ -47,7 +47,7 @@ export class UIResourcesConstruct extends Construct {
       sid: 'AllowCloudFrontServicePrincipalList',
       effect: Effect.ALLOW,
       actions: ['s3:ListBucket'],
-      principals: [new ServicePrincipal('cloudfront')],
+      principals: [new ServicePrincipal('cloudfront.amazonaws.com')],
       resources: [this.bucket.bucketArn],
       conditions: { StringEquals: { 'AWS:SourceArn': distributionArn } },
     }));
