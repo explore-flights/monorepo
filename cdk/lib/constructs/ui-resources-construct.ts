@@ -35,6 +35,7 @@ export class UIResourcesConstruct extends Construct {
 
   private grantReadInternal(distributionArn: string): void {
     this.bucket.addToResourcePolicy(new PolicyStatement({
+      sid: 'AllowCloudFrontServicePrincipalGet',
       effect: Effect.ALLOW,
       actions: ['s3:GetObject'],
       principals: [new ServicePrincipal('cloudfront')],
@@ -43,6 +44,7 @@ export class UIResourcesConstruct extends Construct {
     }));
 
     this.bucket.addToResourcePolicy(new PolicyStatement({
+      sid: 'AllowCloudFrontServicePrincipalList',
       effect: Effect.ALLOW,
       actions: ['s3:ListBucket'],
       principals: [new ServicePrincipal('cloudfront')],
