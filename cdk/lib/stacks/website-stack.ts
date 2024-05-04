@@ -34,8 +34,8 @@ export class WebsiteStack extends cdk.Stack {
       apiLambdaFunctionURL: api.functionURL,
     });
 
-    uiResources.grantRead(cf.distribution);
-    uiResources.deployResourcesZip(props.uiResourcesZipPath, cf.distribution);
+    // uiResources.grantRead(cf.distribution);
+    // uiResources.deployResourcesZip(props.uiResourcesZipPath, cf.distribution);
 
     this.distribution = cf.distribution;
   }
