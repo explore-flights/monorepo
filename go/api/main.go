@@ -46,11 +46,11 @@ func main() {
 	handler := search.NewConnectionsHandler(fr)
 
 	e := echo.New()
-	e.GET("/", func(c echo.Context) error {
+	e.GET("/api/hello", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello world!")
 	})
 
-	e.GET("/connections/:export", func(c echo.Context) error {
+	e.GET("/api/connections/:export", func(c echo.Context) error {
 		ctx := c.Request().Context()
 
 		origin := c.QueryParam("origin")
