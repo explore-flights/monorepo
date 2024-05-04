@@ -1,7 +1,7 @@
 import { Construct } from 'constructs';
 import {
   AllowedMethods,
-  CachePolicy, CfnDistribution, CfnOriginAccessControl,
+  CachePolicy, CfnOriginAccessControl,
   Distribution, Function, FunctionCode, FunctionEventType, FunctionRuntime, HeadersFrameOption,
   HttpVersion,
   IDistribution,
@@ -15,11 +15,12 @@ import {
   SecurityPolicyProtocol,
   ViewerProtocolPolicy
 } from 'aws-cdk-lib/aws-cloudfront';
-import { HttpOrigin, S3Origin } from 'aws-cdk-lib/aws-cloudfront-origins';
+import { HttpOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
 import { Duration, Fn, Stack } from 'aws-cdk-lib';
 import { IFunctionUrl } from 'aws-cdk-lib/aws-lambda';
-import { IBucket } from 'aws-cdk-lib/aws-s3';
+import { Bucket, IBucket } from 'aws-cdk-lib/aws-s3';
+import { S3OriginWithOAC } from './s3-origin-with-oac';
 
 export interface CloudfrontConstructProps {
   domain: string;
@@ -78,8 +79,16 @@ export class CloudfrontConstruct extends Construct {
     });
     // endregion
 
-    // region
-    // endregion
+    const uiResourcesOAC = new CfnOriginAccessControl(this, 'UIResourcesOAC', {
+      originAccessControlConfig: {
+        // these names must be unique
+        name: `${this.node.path.replace('/', '-')}-UIResourcesOAC`,
+        description: 'OAC to access UI resources bucket',
+        originAccessControlOriginType: 's3',
+        signingBehavior: 'always',
+        signingProtocol: 'sigv4',
+      },
+    });
 
     this.distribution = new Distribution(this, 'Distribution', {
       priceClass: PriceClass.PRICE_CLASS_ALL,
@@ -98,7 +107,11 @@ export class CloudfrontConstruct extends Construct {
       ),
       minimumProtocolVersion: SecurityPolicyProtocol.TLS_V1_2_2021,
       defaultBehavior: {
-        origin: new S3Origin(props.uiResourcesBucket),
+        origin: new S3OriginWithOAC(
+          // prevent CF from adding its OriginAccessIdentity to the BucketPolicy since we're using OriginAccessControl (see below)
+          Bucket.fromBucketName(this, 'UIResourcesBucketCopy', props.uiResourcesBucket.bucketName),
+          { oacId: uiResourcesOAC.getAtt('Id') },
+        ),
         compress: true,
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: AllowedMethods.ALLOW_GET_HEAD,
@@ -141,22 +154,6 @@ export class CloudfrontConstruct extends Construct {
       enableLogging: false,
       enabled: true,
     });
-
-    const uiResourcesOAC = new CfnOriginAccessControl(this, 'UIResourcesOAC', {
-      originAccessControlConfig: {
-        // these names must be unique
-        name: `${this.node.path.replace('/', '-')}-UIResourcesOAC`,
-        description: 'OAC to access UI resources bucket',
-        originAccessControlOriginType: 's3',
-        signingBehavior: 'always',
-        signingProtocol: 'sigv4',
-      },
-    });
-
-    // https://github.com/aws/aws-cdk/issues/21771
-    const cfnDistribution = this.distribution.node.defaultChild as CfnDistribution;
-    cfnDistribution.addPropertyOverride('DistributionConfig.Origins.0.OriginAccessControlId', uiResourcesOAC.getAtt('Id'));
-    cfnDistribution.addPropertyOverride('DistributionConfig.Origins.0.S3OriginConfig.OriginAccessIdentity', '');
   }
 }
 
