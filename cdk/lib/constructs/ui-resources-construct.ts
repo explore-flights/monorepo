@@ -1,4 +1,4 @@
-import { ArnFormat, Stack } from 'aws-cdk-lib';
+import { ArnFormat, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { IDistribution } from 'aws-cdk-lib/aws-cloudfront';
 import { Effect, PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { BlockPublicAccess, Bucket, BucketEncryption, IBucket } from 'aws-cdk-lib/aws-s3';
@@ -15,7 +15,9 @@ export class UIResourcesConstruct extends Construct {
 
     this.bucket = new Bucket(this, 'Bucket', {
       encryption: BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+      removalPolicy: RemovalPolicy.DESTROY,
     });
   }
 

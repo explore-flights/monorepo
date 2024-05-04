@@ -1,6 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { Bucket, BucketEncryption, IBucket } from 'aws-cdk-lib/aws-s3';
+import { BlockPublicAccess, Bucket, BucketEncryption, IBucket } from 'aws-cdk-lib/aws-s3';
 import { Duration, RemovalPolicy } from 'aws-cdk-lib';
 
 export interface DataStackProps extends cdk.StackProps {
@@ -16,6 +16,7 @@ export class DataStack extends cdk.Stack {
     this.bucket = new Bucket(this, 'DataBucket', {
       encryption: BucketEncryption.S3_MANAGED,
       enforceSSL: true,
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
       removalPolicy: RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE,
       versioned: true,
       lifecycleRules: [
