@@ -2,7 +2,7 @@ import { HTTPClient } from '../http';
 import {
   isJsonObject,
   JsonType,
-  ApiErrorBody,
+  ApiErrorBody, Connections
 } from './api.model';
 
 const KindSuccess = 0;
@@ -44,6 +44,20 @@ export type ApiResponse<T> = SuccessResponse<T> | ApiErrorResponse<T> | ErrorRes
 
 export class ApiClient {
   constructor(private readonly httpClient: HTTPClient) {}
+
+  getConnections(origin: string, destination: string, minDeparture: Date, maxDeparture: Date, maxFlights: number, minLayover: number, maxLayover: number, maxDuration: number): Promise<ApiResponse<Connections>> {
+    const params = new URLSearchParams();
+    params.set('origin', origin);
+    params.set('destination', destination);
+    params.set('minDeparture', minDeparture.toISOString());
+    params.set('maxDeparture', maxDeparture.toISOString());
+    params.set('maxFlights', maxFlights.toString());
+    params.set('minLayover', `${minLayover}s`);
+    params.set('maxLayover', `${maxLayover}s`);
+    params.set('maxDuration', `${maxDuration}s`);
+
+    return transform(this.httpClient.fetch(`/api/connections/reactflow?${params.toString()}`));
+  }
 }
 
 async function transform<T>(resPromise: Promise<Response>, parseFn: (status: number, body: string) => T = (_, body) => JSON.parse(body) as T, successCode = 200, ...successCodes: Array<number>): Promise<ApiResponse<T>> {

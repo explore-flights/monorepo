@@ -132,6 +132,9 @@ func main() {
 			c.Response().WriteHeader(http.StatusOK)
 			return search.ExportConnectionsImage(c.Response(), conns, graphviz.PNG)
 
+		case "reactflow":
+			return c.JSON(http.StatusOK, search.ExportConnectionsReactflow(conns))
+
 		default:
 			c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextPlainCharsetUTF8)
 			c.Response().WriteHeader(http.StatusOK)

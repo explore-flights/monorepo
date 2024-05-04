@@ -18,3 +18,21 @@ export interface AuthInfo {
   issuer: Issuer;
   idAtIssuer: string;
 }
+
+export interface Connections {
+  nodes: ReadonlyArray<Node>;
+  edges: ReadonlyArray<Edge>;
+}
+
+export interface Node {
+  id: number;
+  x: number;
+  y: number;
+  label: string;
+}
+
+export interface Edge {
+  source: number;
+  target: number;
+  label: string;
+}

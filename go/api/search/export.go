@@ -11,6 +11,24 @@ import (
 	"time"
 )
 
+type Reactflow struct {
+	Nodes []Node `json:"nodes"`
+	Edges []Edge `json:"edges"`
+}
+
+type Node struct {
+	Id    int    `json:"id"`
+	X     int    `json:"x"`
+	Y     int    `json:"y"`
+	Label string `json:"label"`
+}
+
+type Edge struct {
+	Source int    `json:"source"`
+	Target int    `json:"target"`
+	Label  string `json:"label"`
+}
+
 func ExportConnectionsText(w io.Writer, conns []Connection) error {
 	_, err := printConnections(w, conns, time.Time{}, 0)
 	return err
@@ -100,4 +118,48 @@ func buildGraph(parent *common.Flight, conns []Connection, graph *cgraph.Graph, 
 	}
 
 	return nil
+}
+
+func ExportConnectionsReactflow(conns []Connection) Reactflow {
+	var rf Reactflow
+	buildReactFlow(conns, &rf, 0, 0, nil, make(map[*common.Flight]int))
+	return rf
+}
+
+func buildReactFlow(conns []Connection, rf *Reactflow, id, y int, parent *common.Flight, lookup map[*common.Flight]int) int {
+	const xIncr = 200
+	const yIncr = 100
+
+	x := 0
+
+	for _, conn := range conns {
+		var nodeId int
+		var ok bool
+
+		if nodeId, ok = lookup[conn.Flight]; !ok {
+			nodeId = id
+			lookup[conn.Flight] = nodeId
+			rf.Nodes = append(rf.Nodes, Node{
+				Id:    nodeId,
+				X:     x,
+				Y:     y,
+				Label: fmt.Sprintf("%s\n%s-%s\n%s", conn.Flight.Number().String(), conn.Flight.DepartureAirport, conn.Flight.ArrivalAirport, conn.Flight.AircraftType),
+			})
+
+			id++
+		}
+
+		if parent != nil {
+			rf.Edges = append(rf.Edges, Edge{
+				Source: lookup[parent],
+				Target: nodeId,
+				Label:  conn.Flight.DepartureTime.Sub(parent.ArrivalTime).String(),
+			})
+		}
+
+		id = buildReactFlow(conn.Outgoing, rf, id, y+yIncr, conn.Flight, lookup)
+		x += xIncr
+	}
+
+	return id
 }
