@@ -14,7 +14,7 @@ import (
 )
 
 func echoPort() int {
-	port, _ = strconv.Atoi(os.Getenv("AWS_LWA_PORT"))
+	port, _ := strconv.Atoi(os.Getenv("AWS_LWA_PORT"))
 	return cmp.Or(port, 8080)
 }
 
