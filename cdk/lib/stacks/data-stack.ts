@@ -25,7 +25,8 @@ export class DataStack extends cdk.Stack {
           abortIncompleteMultipartUploadAfter: Duration.days(1),
         },
         {
-          enabled: false,
+          enabled: true,
+          noncurrentVersionExpiration: Duration.days(1),
           noncurrentVersionsToRetain: 2,
         },
       ],
