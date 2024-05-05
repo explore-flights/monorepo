@@ -13,13 +13,6 @@ type CronParams struct {
 		OutputPrefix string `json:"outputPrefix"`
 		Schedule     string `json:"schedule"`
 	} `json:"loadFlightSchedules,omitempty"`
-	ConvertFlightSchedules *struct {
-		InputBucket  string `json:"inputBucket"`
-		InputPrefix  string `json:"inputPrefix"`
-		OutputBucket string `json:"outputBucket"`
-		OutputPrefix string `json:"outputPrefix"`
-		Schedule     string `json:"schedule"`
-	} `json:"convertFlightSchedules,omitempty"`
 }
 
 type CronOutput struct {
@@ -83,38 +76,6 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 		}
 
 		output.LoadFlightSchedules = &lfsInOut
-	}
-
-	if params.ConvertFlightSchedules != nil {
-		cfsInOut := InputOutput[ConvertFlightSchedulesParams, ConvertFlightSchedulesOutput]{
-			Input: ConvertFlightSchedulesParams{
-				InputBucket:  params.ConvertFlightSchedules.InputBucket,
-				InputPrefix:  params.ConvertFlightSchedules.InputPrefix,
-				OutputBucket: params.ConvertFlightSchedules.OutputBucket,
-				OutputPrefix: params.ConvertFlightSchedules.OutputPrefix,
-				DateRanges:   nil,
-			},
-		}
-
-		switch params.LoadFlightSchedules.Schedule {
-		case "daily":
-			start := time.Now()
-			end := start.AddDate(0, 0, 7)
-
-			cfsInOut.Input.DateRanges = append(cfsInOut.Input.DateRanges, [2]common.LocalDate{
-				common.NewLocalDate(start),
-				common.NewLocalDate(end),
-			})
-
-		default:
-			return output, errors.New("invalid schedule")
-		}
-
-		if cfsInOut.Output, err = c.cfsA.Handle(ctx, cfsInOut.Input); err != nil {
-			return output, err
-		}
-
-		output.ConvertFlightSchedules = &cfsInOut
 	}
 
 	return output, nil
