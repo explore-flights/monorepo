@@ -48,7 +48,7 @@ func main() {
 	lambda.StartWithOptions(newHandler(s3.NewFromConfig(cfg)), lambda.WithContext(ctx))
 }
 
-func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) ([]byte, error) {
+func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
 	lhc := lufthansa.NewClient(
 		lhClientId,
 		lhClientSecret,
@@ -62,8 +62,9 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) ([]b
 	lAircraftAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).AircraftRaw, "aircraft")
 	lfsAction := action.NewLoadFlightSchedulesAction(s3c, lhc)
 	cfsAction := action.NewConvertFlightSchedulesAction(s3c)
+	cronAction := action.NewCronAction(lfsAction, cfsAction)
 
-	return func(ctx context.Context, event InputEvent) ([]byte, error) {
+	return func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
 		switch event.Action {
 		case "load_countries":
 			return handle(ctx, lCountriesAction, event.Params)
@@ -85,13 +86,16 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) ([]b
 
 		case "convert_flight_schedules":
 			return handle(ctx, cfsAction, event.Params)
+
+		case "cron":
+			return handle(ctx, cronAction, event.Params)
 		}
 
 		return nil, fmt.Errorf("unsupported action: %v", event.Action)
 	}
 }
 
-func handle[IN any, OUT any](ctx context.Context, act action.Action[IN, OUT], params json.RawMessage) ([]byte, error) {
+func handle[IN any, OUT any](ctx context.Context, act action.Action[IN, OUT], params json.RawMessage) (json.RawMessage, error) {
 	var input IN
 	if err := json.Unmarshal(params, &input); err != nil {
 		return nil, err
@@ -102,5 +106,10 @@ func handle[IN any, OUT any](ctx context.Context, act action.Action[IN, OUT], pa
 		return nil, err
 	}
 
-	return json.Marshal(output)
+	b, err := json.Marshal(output)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
 }
