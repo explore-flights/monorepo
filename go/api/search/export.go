@@ -11,22 +11,32 @@ import (
 	"time"
 )
 
-type Reactflow struct {
-	Nodes []Node `json:"nodes"`
-	Edges []Edge `json:"edges"`
+type ConnectionsResponse struct {
+	Connections []ConnectionResponse      `json:"connections"`
+	Flights     map[string]FlightResponse `json:"flights"`
 }
 
-type Node struct {
-	Id    int    `json:"id"`
-	X     int    `json:"x"`
-	Y     int    `json:"y"`
-	Label string `json:"label"`
+type ConnectionResponse struct {
+	FlightId string               `json:"flightId"`
+	Outgoing []ConnectionResponse `json:"outgoing"`
 }
 
-type Edge struct {
-	Source int    `json:"source"`
-	Target int    `json:"target"`
-	Label  string `json:"label"`
+type FlightResponse struct {
+	FlightNumber     FlightNumberResponse   `json:"flightNumber"`
+	DepartureTime    time.Time              `json:"departureTime"`
+	DepartureAirport string                 `json:"departureAirport"`
+	ArrivalTime      time.Time              `json:"arrivalTime"`
+	ArrivalAirport   string                 `json:"arrivalAirport"`
+	AircraftOwner    string                 `json:"aircraftOwner"`
+	AircraftType     string                 `json:"aircraftType"`
+	Registration     string                 `json:"registration,omitempty"`
+	CodeShares       []FlightNumberResponse `json:"codeShares"`
+}
+
+type FlightNumberResponse struct {
+	Airline string `json:"airline"`
+	Number  int    `json:"number"`
+	Suffix  string `json:"suffix,omitempty"`
 }
 
 func ExportConnectionsText(w io.Writer, conns []Connection) error {
@@ -120,46 +130,57 @@ func buildGraph(parent *common.Flight, conns []Connection, graph *cgraph.Graph, 
 	return nil
 }
 
-func ExportConnectionsReactflow(conns []Connection) Reactflow {
-	var rf Reactflow
-	buildReactFlow(conns, &rf, 0, 0, nil, make(map[*common.Flight]int))
-	return rf
+func ExportConnectionsJson(conns []Connection) ConnectionsResponse {
+	flights := make(map[string]FlightResponse)
+	connections := buildConnectionsResponse(conns, flights)
+
+	return ConnectionsResponse{
+		Connections: connections,
+		Flights:     flights,
+	}
 }
 
-func buildReactFlow(conns []Connection, rf *Reactflow, id, y int, parent *common.Flight, lookup map[*common.Flight]int) int {
-	const xIncr = 200
-	const yIncr = 100
-
-	x := 0
+func buildConnectionsResponse(conns []Connection, flights map[string]FlightResponse) []ConnectionResponse {
+	r := make([]ConnectionResponse, 0, len(conns))
 
 	for _, conn := range conns {
-		var nodeId int
-		var ok bool
-
-		if nodeId, ok = lookup[conn.Flight]; !ok {
-			nodeId = id
-			lookup[conn.Flight] = nodeId
-			rf.Nodes = append(rf.Nodes, Node{
-				Id:    nodeId,
-				X:     x,
-				Y:     y,
-				Label: fmt.Sprintf("%s\n%s-%s\n%s", conn.Flight.Number().String(), conn.Flight.DepartureAirport, conn.Flight.ArrivalAirport, conn.Flight.AircraftType),
-			})
-
-			id++
+		flightId := fmt.Sprintf("%v@%v@%v", conn.Flight.Number(), conn.Flight.DepartureAirport, conn.Flight.DepartureDate())
+		if _, ok := flights[flightId]; !ok {
+			flights[flightId] = FlightResponse{
+				FlightNumber: FlightNumberResponse{
+					Airline: string(conn.Flight.Airline),
+					Number:  conn.Flight.FlightNumber,
+					Suffix:  conn.Flight.Suffix,
+				},
+				DepartureTime:    conn.Flight.DepartureTime,
+				DepartureAirport: conn.Flight.DepartureAirport,
+				ArrivalTime:      conn.Flight.ArrivalTime,
+				ArrivalAirport:   conn.Flight.ArrivalAirport,
+				AircraftOwner:    string(conn.Flight.AircraftOwner),
+				AircraftType:     conn.Flight.AircraftType,
+				Registration:     conn.Flight.Registration,
+				CodeShares:       convertCodeShares(conn.Flight.CodeShares),
+			}
 		}
 
-		if parent != nil {
-			rf.Edges = append(rf.Edges, Edge{
-				Source: lookup[parent],
-				Target: nodeId,
-				Label:  conn.Flight.DepartureTime.Sub(parent.ArrivalTime).String(),
-			})
-		}
-
-		id = buildReactFlow(conn.Outgoing, rf, id, y+yIncr, conn.Flight, lookup)
-		x += xIncr
+		r = append(r, ConnectionResponse{
+			FlightId: flightId,
+			Outgoing: buildConnectionsResponse(conn.Outgoing, flights),
+		})
 	}
 
-	return id
+	return r
+}
+
+func convertCodeShares(inp []common.FlightNumber) []FlightNumberResponse {
+	r := make([]FlightNumberResponse, 0, len(inp))
+	for _, fn := range inp {
+		r = append(r, FlightNumberResponse{
+			Airline: string(fn.Airline),
+			Number:  fn.Number,
+			Suffix:  fn.Suffix,
+		})
+	}
+
+	return r
 }

@@ -20,19 +20,29 @@ export interface AuthInfo {
 }
 
 export interface Connections {
-  nodes: ReadonlyArray<Node>;
-  edges: ReadonlyArray<Edge>;
+  connections: ReadonlyArray<Connection>;
+  flights: Record<string, Flight>;
 }
 
-export interface Node {
-  id: number;
-  x: number;
-  y: number;
-  label: string;
+export interface Connection {
+  flightId: string;
+  outgoing: ReadonlyArray<Connection>;
 }
 
-export interface Edge {
-  source: number;
-  target: number;
-  label: string;
+export interface Flight {
+  flightNumber: FlightNumber;
+  departureTime: string;
+  departureAirport: string;
+  arrivalTime: string;
+  arrivalAirport: string;
+  aircraftOwner: string;
+  aircraftType: string;
+  registration?: string;
+  codeShares: ReadonlyArray<FlightNumber>;
+}
+
+export interface FlightNumber {
+  airline: string;
+  number: number;
+  suffix?: string;
 }

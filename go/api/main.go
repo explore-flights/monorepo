@@ -1,12 +1,9 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/goccy/go-graphviz"
 	"github.com/labstack/echo/v4"
@@ -19,37 +16,18 @@ import (
 	"time"
 )
 
-var port int
-var dataBucket string
-
-func init() {
-	port, _ = strconv.Atoi(os.Getenv("AWS_LWA_PORT"))
-	port = cmp.Or(port, 8080)
-
-	dataBucket = os.Getenv("FLIGHTS_DATA_BUCKET")
-	if dataBucket == "" {
-		panic("env variable FLIGHTS_DATA_BUCKET required")
-	}
-}
-
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	cfg, err := config.LoadDefaultConfig(ctx)
+	fr, err := flightRepo(ctx)
 	if err != nil {
 		panic(err)
 	}
 
-	s3c := s3.NewFromConfig(cfg)
-	fr := search.NewFlightRepo(s3c, dataBucket)
 	handler := search.NewConnectionsHandler(fr)
 
 	e := echo.New()
-	e.GET("/api/hello", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello world!")
-	})
-
 	e.GET("/api/connections/:export", func(c echo.Context) error {
 		ctx := c.Request().Context()
 
@@ -132,8 +110,8 @@ func main() {
 			c.Response().WriteHeader(http.StatusOK)
 			return search.ExportConnectionsImage(c.Response(), conns, graphviz.PNG)
 
-		case "reactflow":
-			return c.JSON(http.StatusOK, search.ExportConnectionsReactflow(conns))
+		case "json":
+			return c.JSON(http.StatusOK, search.ExportConnectionsJson(conns))
 
 		default:
 			c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextPlainCharsetUTF8)
@@ -158,7 +136,7 @@ func run(ctx context.Context, e *echo.Echo) error {
 		}
 	}()
 
-	if err := e.Start(fmt.Sprintf(":%d", port)); err != nil {
+	if err := e.Start(fmt.Sprintf(":%d", echoPort())); err != nil {
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}

@@ -56,7 +56,7 @@ export class ApiClient {
     params.set('maxLayover', `${maxLayover}s`);
     params.set('maxDuration', `${maxDuration}s`);
 
-    return transform(this.httpClient.fetch(`/api/connections/reactflow?${params.toString()}`));
+    return transform(this.httpClient.fetch(`/api/connections/json?${params.toString()}`));
   }
 }
 

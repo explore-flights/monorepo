@@ -6,49 +6,26 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/concurrent"
 	"golang.org/x/sync/errgroup"
 	"sync"
 )
 
-type concurrentMap[K comparable, V any] struct {
-	m   map[K]V
-	mtx *sync.RWMutex
-}
-
-func (cm concurrentMap[K, V]) Get(k K) (V, bool) {
-	cm.mtx.RLock()
-	defer cm.mtx.RUnlock()
-
-	v, ok := cm.m[k]
-	return v, ok
-}
-
-func (cm concurrentMap[K, V]) Set(k K, v V) {
-	cm.mtx.Lock()
-	defer cm.mtx.Unlock()
-	cm.m[k] = v
-}
-
-func (cm concurrentMap[K, V]) Del(k K) {
-	cm.mtx.Lock()
-	defer cm.mtx.Unlock()
-	delete(cm.m, k)
+type MinimalS3Client interface {
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 }
 
 type FlightRepo struct {
-	s3c    *s3.Client
+	s3c    MinimalS3Client
 	bucket string
-	cache  concurrentMap[common.LocalDate, []*common.Flight]
+	cache  concurrent.Map[common.LocalDate, []*common.Flight]
 }
 
-func NewFlightRepo(s3c *s3.Client, bucket string) *FlightRepo {
+func NewFlightRepo(s3c MinimalS3Client, bucket string) *FlightRepo {
 	return &FlightRepo{
 		s3c:    s3c,
 		bucket: bucket,
-		cache: concurrentMap[common.LocalDate, []*common.Flight]{
-			m:   make(map[common.LocalDate][]*common.Flight),
-			mtx: new(sync.RWMutex),
-		},
+		cache:  concurrent.NewMap[common.LocalDate, []*common.Flight](),
 	}
 }
 
@@ -82,7 +59,7 @@ func (fr *FlightRepo) Flights(ctx context.Context, start, end common.LocalDate) 
 }
 
 func (fr *FlightRepo) flightsInternal(ctx context.Context, d common.LocalDate) ([]*common.Flight, error) {
-	if flights, ok := fr.cache.Get(d); ok {
+	if flights, ok := fr.cache.Load(d); ok {
 		return flights, nil
 	}
 
@@ -91,7 +68,7 @@ func (fr *FlightRepo) flightsInternal(ctx context.Context, d common.LocalDate) (
 		return nil, err
 	}
 
-	fr.cache.Set(d, flights)
+	fr.cache.Store(d, flights)
 	return flights, nil
 }
 

@@ -38,7 +38,7 @@ jobs:
       - name: 'Build'
         working-directory: 'go/api'
         run: |
-          go build --ldflags '-extldflags "-static"' -o bootstrap
+          go build --ldflags '-extldflags "-static"' -o bootstrap -tags "lambda"
       - name: 'Store API artifact'
         uses: actions/upload-artifact@v4
         with:
