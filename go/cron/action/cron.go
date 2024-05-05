@@ -59,14 +59,15 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 
 		switch params.LoadFlightSchedules.Schedule {
 		case "daily":
-			now := time.Now()
+			now := time.Now().UTC()
 			dates := []common.LocalDate{
-				common.NewLocalDate(now.AddDate(1, 0, 0)),
-				common.NewLocalDate(now.AddDate(0, 8, 0)),
-				common.NewLocalDate(now.AddDate(0, 6, 0)),
-				common.NewLocalDate(now.AddDate(0, 4, 0)),
-				common.NewLocalDate(now.AddDate(0, 2, 0)),
-				common.NewLocalDate(now.AddDate(0, 1, 0)),
+				common.NewLocalDate(now.AddDate(0, 0, 30*12)),
+				common.NewLocalDate(now.AddDate(0, 0, 30*8)),
+				common.NewLocalDate(now.AddDate(0, 0, 30*6)),
+				common.NewLocalDate(now.AddDate(0, 0, 30*4)),
+				common.NewLocalDate(now.AddDate(0, 0, 30*2)),
+				common.NewLocalDate(now.AddDate(0, 0, 30)),
+				common.NewLocalDate(now.AddDate(0, 0, 7)),
 			}
 
 			for _, d := range dates {
