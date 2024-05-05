@@ -2,7 +2,6 @@ package action
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"github.com/explore-flights/monorepo/go/common"
 	"time"
@@ -60,13 +59,19 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 
 		switch params.LoadFlightSchedules.Schedule {
 		case "daily":
-			start := time.Now()
-			end := start.AddDate(0, 0, 7)
+			now := time.Now()
+			dates := []common.LocalDate{
+				common.NewLocalDate(now.AddDate(1, 0, 0)),
+				common.NewLocalDate(now.AddDate(0, 8, 0)),
+				common.NewLocalDate(now.AddDate(0, 6, 0)),
+				common.NewLocalDate(now.AddDate(0, 4, 0)),
+				common.NewLocalDate(now.AddDate(0, 2, 0)),
+				common.NewLocalDate(now.AddDate(0, 1, 0)),
+			}
 
-			lfsInOut.Input.DateRanges = append(lfsInOut.Input.DateRanges, [2]common.LocalDate{
-				common.NewLocalDate(start),
-				common.NewLocalDate(end),
-			})
+			for _, d := range dates {
+				lfsInOut.Input.DateRanges = append(lfsInOut.Input.DateRanges, [2]common.LocalDate{d, d})
+			}
 
 		default:
 			return output, errors.New("invalid schedule")
@@ -112,18 +117,4 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 	}
 
 	return output, nil
-}
-
-func handle[IN any, OUT any](ctx context.Context, act Action[IN, OUT], params json.RawMessage) ([]byte, error) {
-	var input IN
-	if err := json.Unmarshal(params, &input); err != nil {
-		return nil, err
-	}
-
-	output, err := act.Handle(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-
-	return json.Marshal(output)
 }
