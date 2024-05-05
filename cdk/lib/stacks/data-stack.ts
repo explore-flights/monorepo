@@ -24,6 +24,10 @@ export class DataStack extends cdk.Stack {
           enabled: true,
           abortIncompleteMultipartUploadAfter: Duration.days(1),
         },
+        {
+          enabled: false,
+          noncurrentVersionsToRetain: 2,
+        },
       ],
     });
   }
