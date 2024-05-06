@@ -92,9 +92,9 @@ type City struct {
 	Names       Names  `json:"Names"`
 	UtcOffset   string `json:"UtcOffset"`
 	TimeZoneId  string `json:"TimeZoneId"`
-	Airports    Array[struct {
-		AirportCode string `json:"AirportCode"`
-	}] `json:"Airports"`
+	Airports    struct {
+		AirportCode Array[string] `json:"AirportCode"`
+	} `json:"Airports"`
 }
 
 type Airline struct {
@@ -125,14 +125,12 @@ func unmarshalArray[T any](data []byte) ([]T, error) {
 
 	var values []any
 	switch v := v.(type) {
-	case map[string]any:
-		values = []any{v}
 	case []any:
 		values = v
 	case nil:
 		values = nil
 	default:
-		return nil, fmt.Errorf("invalid type: %v", reflect.TypeOf(v))
+		values = []any{v}
 	}
 
 	s := make([]T, 0, len(values))
