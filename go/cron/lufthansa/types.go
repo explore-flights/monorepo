@@ -2,8 +2,6 @@ package lufthansa
 
 import (
 	"encoding/json"
-	"fmt"
-	"reflect"
 )
 
 type Coordinate struct {
@@ -20,54 +18,8 @@ type Name struct {
 	Name         string
 }
 
-type Names []Name
-
-func (n *Names) UnmarshalJSON(data []byte) error {
-	var v struct {
-		Name any `json:"Name"`
-	}
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-
-	var names []any
-	switch name := v.Name.(type) {
-	case map[string]any:
-		names = []any{name}
-	case []any:
-		names = name
-	case nil:
-		names = nil
-	default:
-		return fmt.Errorf("invalid type for name: %v (%v)", v.Name, reflect.TypeOf(v.Name))
-	}
-
-	for _, nEntry := range names {
-		entry, ok := nEntry.(map[string]any)
-		if !ok {
-			return fmt.Errorf("invalid type for name entry: %v (%v)", nEntry, reflect.TypeOf(nEntry))
-		}
-
-		languageCode, ok := entry["@LanguageCode"].(string)
-		if !ok {
-			return fmt.Errorf("invalid type for Name.@LanguageCode: %v (%v)", entry["@LanguageCode"], reflect.TypeOf(entry["@LanguageCode"]))
-		}
-
-		name, ok := entry["$"].(string)
-		if !ok {
-			return fmt.Errorf("invalid type for Name.$: %v (%v)", entry["$"], reflect.TypeOf(entry["$"]))
-		}
-
-		*n = append(
-			*n,
-			Name{
-				LanguageCode: languageCode,
-				Name:         name,
-			},
-		)
-	}
-
-	return nil
+type Names struct {
+	Name Array[Name] `json:"Name"`
 }
 
 type Airport struct {
@@ -86,15 +38,17 @@ type Country struct {
 	Names       Names  `json:"Names"`
 }
 
+type Airports struct {
+	AirportCode Array[string] `json:"AirportCode"`
+}
+
 type City struct {
-	CountryCode string `json:"CountryCode"`
-	CityCode    string `json:"CityCode"`
-	Names       Names  `json:"Names"`
-	UtcOffset   string `json:"UtcOffset"`
-	TimeZoneId  string `json:"TimeZoneId"`
-	Airports    struct {
-		AirportCode Array[string] `json:"AirportCode"`
-	} `json:"Airports"`
+	CountryCode string   `json:"CountryCode"`
+	CityCode    string   `json:"CityCode"`
+	Names       Names    `json:"Names"`
+	UtcOffset   string   `json:"UtcOffset"`
+	TimeZoneId  string   `json:"TimeZoneId"`
+	Airports    Airports `json:"Airports"`
 }
 
 type Airline struct {
