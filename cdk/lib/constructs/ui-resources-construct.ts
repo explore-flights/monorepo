@@ -1,9 +1,9 @@
-import { ArnFormat, RemovalPolicy, Stack } from 'aws-cdk-lib';
+import { RemovalPolicy } from 'aws-cdk-lib';
 import { IDistribution } from 'aws-cdk-lib/aws-cloudfront';
-import { Effect, PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { BlockPublicAccess, Bucket, BucketEncryption, IBucket } from 'aws-cdk-lib/aws-s3';
 import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
 import { Construct } from 'constructs';
+import { CloudfrontUtil } from '../util/util';
 
 export type UIResourcesConstructProps = Record<string, unknown>;
 
@@ -22,36 +22,8 @@ export class UIResourcesConstruct extends Construct {
     });
   }
 
-  public grantRead(distribution: IDistribution): void {
-    const distributionArn = Stack.of(this).formatArn({
-      service: 'cloudfront',
-      region: '',
-      resource: 'distribution',
-      resourceName: distribution.distributionId,
-      arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
-    });
-
-    this.grantReadInternal(distributionArn);
-  }
-
-  private grantReadInternal(distributionArn: string): void {
-    this.bucket.addToResourcePolicy(new PolicyStatement({
-      sid: 'AllowCloudFrontServicePrincipalGet',
-      effect: Effect.ALLOW,
-      actions: ['s3:GetObject'],
-      principals: [new ServicePrincipal('cloudfront.amazonaws.com')],
-      resources: [this.bucket.arnForObjects('*')],
-      conditions: { StringEquals: { 'AWS:SourceArn': distributionArn } },
-    }));
-
-    this.bucket.addToResourcePolicy(new PolicyStatement({
-      sid: 'AllowCloudFrontServicePrincipalList',
-      effect: Effect.ALLOW,
-      actions: ['s3:ListBucket'],
-      principals: [new ServicePrincipal('cloudfront.amazonaws.com')],
-      resources: [this.bucket.bucketArn],
-      conditions: { StringEquals: { 'AWS:SourceArn': distributionArn } },
-    }));
+  public grantRead(distribution: IDistribution, prefix: string = ''): void {
+    CloudfrontUtil.addCloudfrontOACToResourcePolicy(this.bucket, distribution, prefix, true);
   }
 
   public deployResourcesZip(resourcesZipPath: string, distribution: IDistribution): void {
