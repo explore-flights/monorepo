@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"github.com/explore-flights/monorepo/go/common"
+	"slices"
 	"time"
 )
 
@@ -19,7 +20,7 @@ func NewConnectionsHandler(fr *FlightRepo) *ConnectionsHandler {
 	return &ConnectionsHandler{fr}
 }
 
-func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origin, destination string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration) ([]Connection, error) {
+func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration) ([]Connection, error) {
 	minDate := common.NewLocalDate(minDeparture.UTC())
 	maxDate := common.NewLocalDate(maxDeparture.Add(maxDuration).UTC())
 
@@ -36,8 +37,8 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origin, desti
 	return collectCtx(ctx, findConnections(
 		ctx,
 		flightsByDeparture,
-		origin,
-		destination,
+		origins,
+		destinations,
 		minDeparture,
 		maxDeparture,
 		maxFlights,
@@ -48,7 +49,7 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origin, desti
 	))
 }
 
-func findConnections(ctx context.Context, flightsByDeparture map[common.Departure][]*common.Flight, origin, destination string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration, initial bool) <-chan Connection {
+func findConnections(ctx context.Context, flightsByDeparture map[common.Departure][]*common.Flight, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration, initial bool) <-chan Connection {
 	if maxFlights < 1 || maxDuration < 1 {
 		ch := make(chan Connection)
 		close(ch)
@@ -69,56 +70,58 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 
 		currDate := common.NewLocalDate(minDeparture.UTC())
 		for currDate.Compare(common.NewLocalDate(maxDeparture.UTC())) <= 0 {
-			d := common.Departure{
-				Airport: origin,
-				Date:    currDate,
-			}
-
-			for _, f := range flightsByDeparture[d] {
-				if f.ServiceType != "J" || f.Duration() > maxDuration || f.DepartureTime.Compare(minDeparture) < 0 || f.DepartureTime.Compare(maxDeparture) > 0 {
-					continue
+			for _, origin := range origins {
+				d := common.Departure{
+					Airport: origin,
+					Date:    currDate,
 				}
 
-				maxDuration := maxDuration
-				if !initial {
-					maxDuration = maxDuration - f.DepartureTime.Sub(minDeparture)
-					if f.Duration() > maxDuration {
+				for _, f := range flightsByDeparture[d] {
+					if f.ServiceType != "J" || f.Duration() > maxDuration || f.DepartureTime.Compare(minDeparture) < 0 || f.DepartureTime.Compare(maxDeparture) > 0 {
 						continue
 					}
-				}
 
-				if f.ArrivalAirport == destination {
-					conn := Connection{
-						Flight:   f,
-						Outgoing: nil,
+					maxDuration := maxDuration
+					if !initial {
+						maxDuration = maxDuration - f.DepartureTime.Sub(minDeparture)
+						if f.Duration() > maxDuration {
+							continue
+						}
 					}
 
-					select {
-					case ch <- conn:
-						break
+					if slices.Contains(destinations, f.ArrivalAirport) {
+						conn := Connection{
+							Flight:   f,
+							Outgoing: nil,
+						}
 
-					case <-ctx.Done():
-						return
+						select {
+						case ch <- conn:
+							break
+
+						case <-ctx.Done():
+							return
+						}
+					} else {
+						subConns := findConnections(
+							ctx,
+							flightsByDeparture,
+							[]string{f.ArrivalAirport},
+							destinations,
+							f.ArrivalTime.Add(minLayover),
+							f.ArrivalTime.Add(maxLayover),
+							maxFlights-1,
+							minLayover,
+							maxLayover,
+							maxDuration-(f.Duration()+minLayover),
+							false,
+						)
+
+						working = append(working, struct {
+							f  *common.Flight
+							ch <-chan Connection
+						}{f: f, ch: subConns})
 					}
-				} else {
-					subConns := findConnections(
-						ctx,
-						flightsByDeparture,
-						f.ArrivalAirport,
-						destination,
-						f.ArrivalTime.Add(minLayover),
-						f.ArrivalTime.Add(maxLayover),
-						maxFlights-1,
-						minLayover,
-						maxLayover,
-						maxDuration-(f.Duration()+minLayover),
-						false,
-					)
-
-					working = append(working, struct {
-						f  *common.Flight
-						ch <-chan Connection
-					}{f: f, ch: subConns})
 				}
 			}
 

@@ -31,39 +31,45 @@ func main() {
 	e.GET("/api/connections/:export", func(c echo.Context) error {
 		ctx := c.Request().Context()
 
-		origin := c.QueryParam("origin")
-		destination := c.QueryParam("destination")
-		minDeparture, err := time.Parse(time.RFC3339, c.QueryParam("minDeparture"))
+		q := c.QueryParams()
+
+		origins := q["origin"]
+		destinations := q["destination"]
+		minDeparture, err := time.Parse(time.RFC3339, q.Get("minDeparture"))
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		maxDeparture, err := time.Parse(time.RFC3339, c.QueryParam("maxDeparture"))
+		maxDeparture, err := time.Parse(time.RFC3339, q.Get("maxDeparture"))
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		maxFlights, err := strconv.Atoi(c.QueryParam("maxFlights"))
+		maxFlights, err := strconv.Atoi(q.Get("maxFlights"))
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		minLayover, err := time.ParseDuration(c.QueryParam("minLayover"))
+		minLayover, err := time.ParseDuration(q.Get("minLayover"))
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		maxLayover, err := time.ParseDuration(c.QueryParam("maxLayover"))
+		maxLayover, err := time.ParseDuration(q.Get("maxLayover"))
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		maxDuration, err := time.ParseDuration(c.QueryParam("maxDuration"))
+		maxDuration, err := time.ParseDuration(q.Get("maxDuration"))
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		if maxFlights > 4 {
+		if len(origins) < 1 || len(origins) > 10 {
+			return echo.NewHTTPError(http.StatusBadRequest, "len(origins) must be between 1 and 10")
+		} else if len(destinations) < 1 || len(destinations) > 10 {
+			return echo.NewHTTPError(http.StatusBadRequest, "len(destinations) must be between 1 and 10")
+		} else if maxFlights > 4 {
 			return echo.NewHTTPError(http.StatusBadRequest, "maxFlights must be <=4")
 		} else if maxDeparture.Add(maxDuration).Sub(minDeparture) > time.Hour*24*14 {
 			return echo.NewHTTPError(http.StatusBadRequest, "range must be <=14d")
@@ -71,8 +77,8 @@ func main() {
 
 		conns, err := handler.FindConnections(
 			ctx,
-			origin,
-			destination,
+			origins,
+			destinations,
 			minDeparture,
 			maxDeparture,
 			maxFlights,
