@@ -18,7 +18,7 @@ import {
   useNodesState,
   Node,
   Edge,
-  ReactFlowProvider, Position, Handle, NodeProps
+  ReactFlowProvider, Position, Handle, NodeProps, getConnectedEdges
 } from 'reactflow';
 import { DateTime, Duration } from 'luxon';
 import 'reactflow/dist/style.css';
@@ -78,6 +78,15 @@ export function Home() {
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               nodeTypes={nodeTypes}
+              onNodeClick={(_, node) => {
+                const connectedEdges = getConnectedEdges([node], edges);
+                const ids = connectedEdges.map((v) => v.id);
+
+                setEdges((prev) => prev.map((edge) => {
+                  edge.animated = ids.includes(edge.id);
+                  return edge;
+                }));
+              }}
             >
               <Controls />
               <Background />
