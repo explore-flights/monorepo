@@ -180,8 +180,6 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
     const flight = flights[connection.flightId];
 
     if (!nodeLookup.has(connection.flightId)) {
-      maxX[depth + 1] += 250;
-
       const node = {
         id: connection.flightId,
         type: 'flight',
@@ -194,6 +192,8 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
 
       nodeLookup.set(connection.flightId, node);
       nodes.push(node);
+
+      maxX[depth + 1] += 180;
     }
 
     if (parent === undefined) {
@@ -201,8 +201,6 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
       const departureDate = departure.toISODate()!;
 
       if (!nodeLookup.has(departureDate)) {
-        maxX[0] += 250;
-
         const node = {
           id: departureDate,
           type: 'input',
@@ -212,6 +210,8 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
 
         nodeLookup.set(departureDate, node);
         nodes.push(node);
+
+        maxX[0] += 180;
       }
 
       edges.push({
