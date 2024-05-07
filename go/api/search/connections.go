@@ -44,10 +44,11 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origin, desti
 		minLayover,
 		maxLayover,
 		maxDuration,
+		true,
 	))
 }
 
-func findConnections(ctx context.Context, flightsByDeparture map[common.Departure][]*common.Flight, origin, destination string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration) <-chan Connection {
+func findConnections(ctx context.Context, flightsByDeparture map[common.Departure][]*common.Flight, origin, destination string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration, initial bool) <-chan Connection {
 	if maxFlights < 1 || maxDuration < 1 {
 		ch := make(chan Connection)
 		close(ch)
@@ -78,6 +79,14 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 					continue
 				}
 
+				maxDuration := maxDuration
+				if !initial {
+					maxDuration = maxDuration - f.DepartureTime.Sub(minDeparture)
+					if f.Duration() > maxDuration {
+						continue
+					}
+				}
+
 				if f.ArrivalAirport == destination {
 					conn := Connection{
 						Flight:   f,
@@ -103,6 +112,7 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 						minLayover,
 						maxLayover,
 						maxDuration-(f.Duration()+minLayover),
+						false,
 					)
 
 					working = append(working, struct {
