@@ -38,7 +38,7 @@ type Client struct {
 	oauth2Client *oauth2.Client
 	limiter      *rate.Limiter
 	mtx          *sync.Mutex
-	cred         atomic.Pointer[credentials]
+	cred         *atomic.Pointer[credentials]
 	baseUrl      string
 	leeway       time.Duration
 }
@@ -71,7 +71,8 @@ func WithLeeway(leeway time.Duration) ClientOption {
 
 func NewClient(clientId, clientSecret string, opts ...ClientOption) *Client {
 	c := &Client{
-		mtx: new(sync.Mutex),
+		mtx:  new(sync.Mutex),
+		cred: new(atomic.Pointer[credentials]),
 	}
 
 	for _, opt := range opts {
