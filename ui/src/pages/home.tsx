@@ -49,6 +49,9 @@ export function Home() {
 
   function onClickSearch() {
     setLoading(true);
+    setEdges([]);
+    setNodes([]);
+
     (async () => {
       const { body } = expectSuccess(await apiClient.getConnections(
         origin,
@@ -71,90 +74,89 @@ export function Home() {
 
   return (
     <ContentLayout header={<Header variant={'h1'}>Welcome to explore.flights</Header>}>
-      <Container>
-        <SpaceBetween size={'xxl'} direction={'vertical'}>
-          <Form actions={<Button onClick={onClickSearch} loading={isLoading}>Search</Button>}>
-            <ColumnLayout columns={4}>
-              <FormField label={'Origin'}>
-                <Input value={origin} onChange={(e) => setOrigin(e.detail.value)} disabled={isLoading} />
-              </FormField>
+      <Container variant={'stacked'}>
+        <Form actions={<Button onClick={onClickSearch} loading={isLoading}>Search</Button>}>
+          <ColumnLayout columns={4}>
+            <FormField label={'Origin'}>
+              <Input value={origin} onChange={(e) => setOrigin(e.detail.value)} disabled={isLoading} />
+            </FormField>
 
-              <FormField label={'Destination'}>
-                <Input value={destination} onChange={(e) => setDestination(e.detail.value)} disabled={isLoading} />
-              </FormField>
+            <FormField label={'Destination'}>
+              <Input value={destination} onChange={(e) => setDestination(e.detail.value)} disabled={isLoading} />
+            </FormField>
 
-              <FormField label={'Min Departure'}>
-                <DatePicker value={minDeparture} onChange={(e) => setMinDeparture(e.detail.value)} disabled={isLoading} />
-              </FormField>
+            <FormField label={'Min Departure'}>
+              <DatePicker value={minDeparture} onChange={(e) => setMinDeparture(e.detail.value)} disabled={isLoading} />
+            </FormField>
 
-              <FormField label={'Max Departure'}>
-                <DatePicker value={maxDeparture} onChange={(e) => setMaxDeparture(e.detail.value)} disabled={isLoading} />
-              </FormField>
+            <FormField label={'Max Departure'}>
+              <DatePicker value={maxDeparture} onChange={(e) => setMaxDeparture(e.detail.value)} disabled={isLoading} />
+            </FormField>
 
-              <FormField label={'Max Flights'}>
-                <Slider
-                  min={1}
-                  max={4}
-                  referenceValues={[2, 3]}
-                  value={maxFlights}
-                  onChange={(e) => setMaxFlights(e.detail.value)}
-                  disabled={isLoading}
-                />
-              </FormField>
+            <FormField label={'Max Flights'}>
+              <Slider
+                min={1}
+                max={4}
+                referenceValues={[2, 3]}
+                value={maxFlights}
+                onChange={(e) => setMaxFlights(e.detail.value)}
+                disabled={isLoading}
+              />
+            </FormField>
 
-              <FormField label={'Min Layover'}>
-                <Slider
-                  min={0}
-                  max={60*60*24}
-                  step={60*5}
-                  valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
-                  value={minLayover}
-                  onChange={(e) => setMinLayover(e.detail.value)}
-                  disabled={isLoading}
-                />
-              </FormField>
+            <FormField label={'Min Layover'}>
+              <Slider
+                min={0}
+                max={60*60*24}
+                step={60*5}
+                valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
+                value={minLayover}
+                onChange={(e) => setMinLayover(e.detail.value)}
+                disabled={isLoading}
+              />
+            </FormField>
 
-              <FormField label={'Max Layover'}>
-                <Slider
-                  min={0}
-                  max={60*60*24}
-                  step={60*5}
-                  valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
-                  value={maxLayover}
-                  onChange={(e) => setMaxLayover(e.detail.value)}
-                  disabled={isLoading}
-                />
-              </FormField>
+            <FormField label={'Max Layover'}>
+              <Slider
+                min={0}
+                max={60*60*24}
+                step={60*5}
+                valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
+                value={maxLayover}
+                onChange={(e) => setMaxLayover(e.detail.value)}
+                disabled={isLoading}
+              />
+            </FormField>
 
-              <FormField label={'Max Duration'}>
-                <Slider
-                  min={0}
-                  max={60*60*24*3}
-                  step={60*30}
-                  valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
-                  value={maxDuration}
-                  onChange={(e) => setMaxDuration(e.detail.value)}
-                  disabled={isLoading}
-                />
-              </FormField>
-            </ColumnLayout>
-          </Form>
-
+            <FormField label={'Max Duration'}>
+              <Slider
+                min={0}
+                max={60*60*24*3}
+                step={60*30}
+                valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
+                value={maxDuration}
+                onChange={(e) => setMaxDuration(e.detail.value)}
+                disabled={isLoading}
+              />
+            </FormField>
+          </ColumnLayout>
+        </Form>
+      </Container>
+      <Container variant={'stacked'}>
+        <div style={{ height: '750px' }}>
           <ReactFlowProvider>
-            <div style={{ width: '100%', height: '500px' }}>
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                nodeTypes={nodeTypes}
-              >
-                <Controls />
-                <Background />
-              </ReactFlow>
-            </div>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              nodeTypes={nodeTypes}
+            >
+              <Controls />
+              <Background />
+            </ReactFlow>
           </ReactFlowProvider>
-        </SpaceBetween>
+        </div>
       </Container>
     </ContentLayout>
   );
