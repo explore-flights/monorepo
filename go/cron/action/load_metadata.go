@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/explore-flights/monorepo/go/cron/lufthansa"
+	"github.com/explore-flights/monorepo/go/common/lufthansa"
 )
 
 type LoadMetadataParams struct {

@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/common"
-	"github.com/explore-flights/monorepo/go/cron/oauth2"
+	"github.com/explore-flights/monorepo/go/common/oauth2"
 	"golang.org/x/time/rate"
 	"io"
 	"maps"
