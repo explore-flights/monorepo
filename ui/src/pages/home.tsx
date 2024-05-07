@@ -6,7 +6,8 @@ import {
   ContentLayout,
   DatePicker, Form, FormField,
   Header,
-  Input, Slider,
+  Input,
+  Slider,
   SpaceBetween
 } from '@cloudscape-design/components';
 import {
@@ -35,33 +36,24 @@ export function Home() {
   }), []);
 
   const [isLoading, setLoading] = useState(false);
-  const [origin, setOrigin] = useState('BER');
-  const [destination, setDestination] = useState('JFK');
-  const [minDeparture, setMinDeparture] = useState('2024-05-04');
-  const [maxDeparture, setMaxDeparture] = useState('2024-05-05');
-  const [maxFlights, setMaxFlights] = useState(2);
-  const [minLayover, setMinLayover] = useState(60*60);
-  const [maxLayover, setMaxLayover] = useState(60*60*6);
-  const [maxDuration, setMaxDuration] = useState(60*60*26);
+  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-
-  function onClickSearch() {
+  function onSearch(params: ConnectionSearchParams) {
     setLoading(true);
     setEdges([]);
     setNodes([]);
 
     (async () => {
       const { body } = expectSuccess(await apiClient.getConnections(
-        origin,
-        destination,
-        new Date(minDeparture),
-        new Date(maxDeparture),
-        maxFlights,
-        minLayover,
-        maxLayover,
-        maxDuration,
+        params.origin,
+        params.destination,
+        params.minDeparture.toJSDate(),
+        params.maxDeparture.toJSDate(),
+        params.maxFlights,
+        params.minLayover.toMillis() / 1000,
+        params.maxLayover.toMillis() / 1000,
+        params.maxDuration.toMillis() / 1000,
       ));
 
       const [nodes, edges] = convertToGraph(body);
@@ -75,72 +67,7 @@ export function Home() {
   return (
     <ContentLayout header={<Header variant={'h1'}>Welcome to explore.flights</Header>}>
       <Container variant={'stacked'}>
-        <Form actions={<Button onClick={onClickSearch} loading={isLoading}>Search</Button>}>
-          <ColumnLayout columns={4}>
-            <FormField label={'Origin'}>
-              <Input value={origin} onChange={(e) => setOrigin(e.detail.value)} disabled={isLoading} />
-            </FormField>
-
-            <FormField label={'Destination'}>
-              <Input value={destination} onChange={(e) => setDestination(e.detail.value)} disabled={isLoading} />
-            </FormField>
-
-            <FormField label={'Min Departure'}>
-              <DatePicker value={minDeparture} onChange={(e) => setMinDeparture(e.detail.value)} disabled={isLoading} />
-            </FormField>
-
-            <FormField label={'Max Departure'}>
-              <DatePicker value={maxDeparture} onChange={(e) => setMaxDeparture(e.detail.value)} disabled={isLoading} />
-            </FormField>
-
-            <FormField label={'Max Flights'}>
-              <Slider
-                min={1}
-                max={4}
-                referenceValues={[2, 3]}
-                value={maxFlights}
-                onChange={(e) => setMaxFlights(e.detail.value)}
-                disabled={isLoading}
-              />
-            </FormField>
-
-            <FormField label={'Min Layover'}>
-              <Slider
-                min={0}
-                max={60*60*24}
-                step={60*5}
-                valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
-                value={minLayover}
-                onChange={(e) => setMinLayover(e.detail.value)}
-                disabled={isLoading}
-              />
-            </FormField>
-
-            <FormField label={'Max Layover'}>
-              <Slider
-                min={0}
-                max={60*60*24}
-                step={60*5}
-                valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
-                value={maxLayover}
-                onChange={(e) => setMaxLayover(e.detail.value)}
-                disabled={isLoading}
-              />
-            </FormField>
-
-            <FormField label={'Max Duration'}>
-              <Slider
-                min={0}
-                max={60*60*24*3}
-                step={60*30}
-                valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
-                value={maxDuration}
-                onChange={(e) => setMaxDuration(e.detail.value)}
-                disabled={isLoading}
-              />
-            </FormField>
-          </ColumnLayout>
-        </Form>
+        <ConnectionSearchForm isLoading={isLoading} onSearch={onSearch} />
       </Container>
       <Container variant={'stacked'}>
         <div style={{ height: '750px' }}>
@@ -162,16 +89,147 @@ export function Home() {
   );
 }
 
-function convertToGraph(conns: Connections): [Array<Node<unknown>>, Array<Edge<unknown>>] {
-  const nodes: Array<Node<unknown>> = [];
-  const edges: Array<Edge<unknown>> = [];
+interface ConnectionSearchParams {
+  readonly origin: string;
+  readonly destination: string;
+  readonly minDeparture: DateTime;
+  readonly maxDeparture: DateTime;
+  readonly maxFlights: number;
+  readonly minLayover: Duration;
+  readonly maxLayover: Duration;
+  readonly maxDuration: Duration;
+}
 
-  buildGraph(conns.connections, conns.flights, nodes, edges, new Map(), 0, [0]);
+function ConnectionSearchForm({ isLoading, onSearch }: { isLoading: boolean, onSearch: (v: ConnectionSearchParams) => void }) {
+  const [origin, setOrigin] = useState('BER');
+  const [destination, setDestination] = useState('JFK');
+  const [minDeparture, setMinDeparture] = useState('2024-05-04');
+  const [maxDeparture, setMaxDeparture] = useState('2024-05-05');
+  const [maxFlights, setMaxFlights] = useState(2);
+  const [minLayover, setMinLayover] = useState(60*60);
+  const [maxLayover, setMaxLayover] = useState(60*60*6);
+  const [maxDuration, setMaxDuration] = useState(60*60*26);
+
+  function onClickSearch() {
+    onSearch({
+      origin: origin,
+      destination: destination,
+      minDeparture: DateTime.fromISO(minDeparture),
+      maxDeparture: DateTime.fromISO(maxDeparture),
+      maxFlights: maxFlights,
+      minLayover: Duration.fromMillis(minLayover * 1000),
+      maxLayover: Duration.fromMillis(maxLayover * 1000),
+      maxDuration: Duration.fromMillis(maxDuration * 1000),
+    });
+  }
+
+  return (
+    <Form variant={'embedded'} actions={<Button onClick={onClickSearch} loading={isLoading}>Search</Button>}>
+      <ColumnLayout columns={4}>
+        <FormField label={'Origin'}>
+          <Input value={origin} onChange={(e) => setOrigin(e.detail.value)} disabled={isLoading} />
+        </FormField>
+
+        <FormField label={'Destination'}>
+          <Input value={destination} onChange={(e) => setDestination(e.detail.value)} disabled={isLoading} />
+        </FormField>
+
+        <FormField label={'Min Departure'}>
+          <DatePicker value={minDeparture} onChange={(e) => setMinDeparture(e.detail.value)} disabled={isLoading} />
+        </FormField>
+
+        <FormField label={'Max Departure'}>
+          <DatePicker value={maxDeparture} onChange={(e) => setMaxDeparture(e.detail.value)} disabled={isLoading} />
+        </FormField>
+
+        <FormField label={'Max Flights'}>
+          <Slider
+            min={1}
+            max={4}
+            referenceValues={[2, 3]}
+            value={maxFlights}
+            onChange={(e) => setMaxFlights(e.detail.value)}
+            disabled={isLoading}
+          />
+        </FormField>
+
+        <FormField label={'Min Layover'}>
+          <Slider
+            min={0}
+            max={60*60*24}
+            step={60*5}
+            valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
+            value={minLayover}
+            onChange={(e) => setMinLayover(e.detail.value)}
+            disabled={isLoading}
+          />
+        </FormField>
+
+        <FormField label={'Max Layover'}>
+          <Slider
+            min={0}
+            max={60*60*24}
+            step={60*5}
+            valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
+            value={maxLayover}
+            onChange={(e) => setMaxLayover(e.detail.value)}
+            disabled={isLoading}
+          />
+        </FormField>
+
+        <FormField label={'Max Duration'}>
+          <Slider
+            min={0}
+            max={60*60*24*3}
+            step={60*30}
+            valueFormatter={(v) => Duration.fromMillis(v*1000).rescale().toHuman({ unitDisplay: 'short' })}
+            value={maxDuration}
+            onChange={(e) => setMaxDuration(e.detail.value)}
+            disabled={isLoading}
+          />
+        </FormField>
+      </ColumnLayout>
+    </Form>
+  );
+}
+
+interface FlightNodeData {
+  readonly type: 'flight';
+  readonly flight: Flight;
+  readonly hasOutgoing: boolean;
+}
+
+interface DateNodeData {
+  readonly type: 'date';
+  readonly date: string;
+  readonly label: string;
+}
+
+type NodeData = FlightNodeData | DateNodeData;
+
+interface EdgeData {
+  source?: Flight;
+  target: Flight;
+}
+
+function convertToGraph(conns: Connections): [Array<Node<NodeData>>, Array<Edge<EdgeData>>] {
+  const nodes: Array<Node<NodeData>> = [];
+  const edges: Array<Edge<EdgeData>> = [];
+
+  buildGraph(
+    conns.connections,
+    conns.flights,
+    nodes,
+    edges,
+    new Map(),
+    0,
+    [0]
+  );
 
   return [nodes, edges];
 }
 
-function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<string, Flight>, nodes: Array<Node<unknown>>, edges: Array<Edge<unknown>>, nodeLookup: Map<string, Node<unknown>>, depth: number, maxX: Array<number>, parent?: string) {
+function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<string, Flight>, nodes: Array<Node<NodeData>>, edges: Array<Edge<EdgeData>>, nodeLookup: Map<string, Node<unknown>>, depth: number, maxX: Array<number>, parent?: string) {
   if (maxX.length <= depth + 1) {
     maxX.push(0);
   }
@@ -185,10 +243,11 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
         type: 'flight',
         position: { x: maxX[depth + 1], y: (depth + 1) * 180 },
         data: {
+          type: 'flight',
           flight: flight,
           hasOutgoing: connection.outgoing.length > 0,
         },
-      } satisfies Node<FlightNodeProps>;
+      } satisfies Node<FlightNodeData>;
 
       nodeLookup.set(connection.flightId, node);
       nodes.push(node);
@@ -205,8 +264,12 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
           id: departureDate,
           type: 'input',
           position: { x: maxX[0], y: 0 },
-          data: { label: departure.toLocaleString(DateTime.DATE_FULL) },
-        } satisfies Node<unknown>;
+          data: {
+            type: 'date',
+            date: departureDate,
+            label: departure.toLocaleString(DateTime.DATE_FULL)
+          },
+        } satisfies Node<DateNodeData>;
 
         nodeLookup.set(departureDate, node);
         nodes.push(node);
@@ -219,6 +282,9 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
         source: departureDate,
         target: connection.flightId,
         label: departure.toLocaleString(DateTime.TIME_24_SIMPLE),
+        data: {
+          target: flight,
+        },
       });
     } else {
       const parentFlight = flights[parent];
@@ -231,19 +297,27 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
         source: parent,
         target: connection.flightId,
         label: layover.toHuman({ unitDisplay: 'short' }),
+        data: {
+          source: parentFlight,
+          target: flight,
+        },
       });
     }
 
-    buildGraph(connection.outgoing, flights, nodes, edges, nodeLookup, depth + 1, maxX, connection.flightId);
+    buildGraph(
+      connection.outgoing,
+      flights,
+      nodes,
+      edges,
+      nodeLookup,
+      depth + 1,
+      maxX,
+      connection.flightId,
+    );
   }
 }
 
-interface FlightNodeProps {
-  flight: Flight;
-  hasOutgoing: boolean;
-}
-
-function FlightNode({ data }: NodeProps<FlightNodeProps>) {
+function FlightNode({ data }: NodeProps<FlightNodeData>) {
   const { flight, hasOutgoing } = data;
   const departure = DateTime.fromISO(flight.departureTime, { setZone: true });
   const arrival = DateTime.fromISO(flight.arrivalTime, { setZone: true });
