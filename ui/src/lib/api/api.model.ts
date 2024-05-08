@@ -19,6 +19,23 @@ export interface AuthInfo {
   idAtIssuer: string;
 }
 
+export interface Country {
+  code: string;
+  name: string;
+  cities: ReadonlyArray<City>;
+}
+
+export interface City {
+  code: string;
+  name: string;
+  airports: ReadonlyArray<Airport>;
+}
+
+export interface Airport {
+  code: string;
+  name: string;
+}
+
 export interface Connections {
   connections: ReadonlyArray<Connection>;
   flights: Record<string, Flight>;

@@ -18,6 +18,7 @@ function localTarget(target: string): ProxyOptions {
 
 const proxyConfig: Record<string, string | ProxyOptions> = {
   '/api/': localTarget('http://127.0.0.1:8080'),
+  '/data/': localTarget('http://127.0.0.1:8080'),
 };
 
 export default defineConfig({

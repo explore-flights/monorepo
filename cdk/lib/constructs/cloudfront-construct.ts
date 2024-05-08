@@ -69,6 +69,14 @@ export class CloudfrontConstruct extends Construct {
         ],
       },
     });
+
+    const cacheOverridableResponseHeadersPolicy = new ResponseHeadersPolicy(this, 'CacheOverridableResponseHeadersPolicy', {
+      customHeadersBehavior: {
+        customHeaders: [
+          { header: 'Cache-Control', value: 'public, max-age=604800, stale-while-revalidate=86400', override: false, }
+        ],
+      },
+    });
     // endregion
 
     // region OriginRequestPolicy -  which headers, cookies and query params should be forwarded to the origin
@@ -76,6 +84,15 @@ export class CloudfrontConstruct extends Construct {
       headerBehavior: OriginRequestHeaderBehavior.denyList('Host'),
       cookieBehavior: OriginRequestCookieBehavior.all(),
       queryStringBehavior: OriginRequestQueryStringBehavior.all(),
+    });
+    // endregion
+
+    // region origins
+    const apiLambdaOrigin = new HttpOrigin(Fn.select(2, Fn.split('/', props.apiLambdaFunctionURL.url)), {
+      protocolPolicy: OriginProtocolPolicy.HTTPS_ONLY,
+      customHeaders: { Forwarded: `host=${props.domain};proto=https` },
+      originShieldEnabled: true,
+      originShieldRegion: Stack.of(this).region,
     });
     // endregion
 
@@ -137,18 +154,22 @@ export class CloudfrontConstruct extends Construct {
       },
       additionalBehaviors: {
         '/api/*': {
-          origin: new HttpOrigin(Fn.select(2, Fn.split('/', props.apiLambdaFunctionURL.url)), {
-            protocolPolicy: OriginProtocolPolicy.HTTPS_ONLY,
-            customHeaders: { Forwarded: `host=${props.domain};proto=https` },
-            originShieldEnabled: true,
-            originShieldRegion: Stack.of(this).region,
-          }),
+          origin: apiLambdaOrigin,
           compress: true,
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: AllowedMethods.ALLOW_ALL,
           cachePolicy: CachePolicy.CACHING_DISABLED,
           originRequestPolicy: allExceptHostOriginRequestPolicy,
           responseHeadersPolicy: noCacheResponseHeadersPolicy,
+        },
+        '/data/*': {
+          origin: apiLambdaOrigin,
+          compress: true,
+          viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+          cachePolicy: CachePolicy.CACHING_OPTIMIZED,
+          originRequestPolicy: allExceptHostOriginRequestPolicy,
+          responseHeadersPolicy: cacheOverridableResponseHeadersPolicy,
         },
       },
       enableLogging: false,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/goccy/go-graphviz"
 	"github.com/labstack/echo/v4"
@@ -20,12 +21,23 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	fr, err := flightRepo(ctx)
+	s3c, err := s3Client(ctx)
 	if err != nil {
 		panic(err)
 	}
 
-	handler := search.NewConnectionsHandler(fr)
+	fr, err := flightRepo(ctx, s3c)
+	if err != nil {
+		panic(err)
+	}
+
+	dr, err := dataRepo(ctx, s3c)
+	if err != nil {
+		panic(err)
+	}
+
+	connHandler := search.NewConnectionsHandler(fr)
+	dataHandler := data.NewHandler(dr)
 
 	e := echo.New()
 	e.GET("/api/connections/:export", func(c echo.Context) error {
@@ -75,7 +87,7 @@ func main() {
 			return echo.NewHTTPError(http.StatusBadRequest, "range must be <=14d")
 		}
 
-		conns, err := handler.FindConnections(
+		conns, err := connHandler.FindConnections(
 			ctx,
 			origins,
 			destinations,
@@ -124,6 +136,19 @@ func main() {
 			c.Response().WriteHeader(http.StatusOK)
 			return search.ExportConnectionsText(c.Response(), conns)
 		}
+	})
+
+	e.GET("/data/:lang/locations.json", func(c echo.Context) error {
+		locs, err := dataHandler.Locations(c.Request().Context(), c.Param("lang"))
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return echo.NewHTTPError(http.StatusRequestTimeout, err)
+			}
+
+			return echo.NewHTTPError(http.StatusInternalServerError)
+		}
+
+		return c.JSON(http.StatusOK, locs)
 	})
 
 	if err := run(ctx, e); err != nil {

@@ -2,7 +2,7 @@ import { HTTPClient } from '../http';
 import {
   isJsonObject,
   JsonType,
-  ApiErrorBody, Connections
+  ApiErrorBody, Connections, Country
 } from './api.model';
 
 const KindSuccess = 0;
@@ -45,10 +45,20 @@ export type ApiResponse<T> = SuccessResponse<T> | ApiErrorResponse<T> | ErrorRes
 export class ApiClient {
   constructor(private readonly httpClient: HTTPClient) {}
 
-  getConnections(origin: string, destination: string, minDeparture: Date, maxDeparture: Date, maxFlights: number, minLayover: number, maxLayover: number, maxDuration: number): Promise<ApiResponse<Connections>> {
+  getLocations(): Promise<ApiResponse<ReadonlyArray<Country>>> {
+    return transform(this.httpClient.fetch('/data/EN/locations.json'));
+  }
+
+  getConnections(origins: ReadonlyArray<string>, destinations: ReadonlyArray<string>, minDeparture: Date, maxDeparture: Date, maxFlights: number, minLayover: number, maxLayover: number, maxDuration: number): Promise<ApiResponse<Connections>> {
     const params = new URLSearchParams();
-    params.set('origin', origin);
-    params.set('destination', destination);
+    for (const origin of origins) {
+      params.append('origin', origin);
+    }
+
+    for (const destination of destinations) {
+      params.append('destination', destination);
+    }
+
     params.set('minDeparture', minDeparture.toISOString());
     params.set('maxDeparture', maxDeparture.toISOString());
     params.set('maxFlights', maxFlights.toString());

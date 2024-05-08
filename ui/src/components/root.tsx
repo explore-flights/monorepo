@@ -121,7 +121,6 @@ export function RootLayout({
         stickyNotifications={true}
         notifications={<Flashbar stackItems={true} items={appControlsState.notification.messages} />}
         breadcrumbs={breadcrumbsHide ? undefined : <Breadcrumb />}
-        navigationHide={authInfo === undefined || authInfo === null}
         navigation={<SideNav />}
         navigationOpen={isNavigationOpen}
         onNavigationChange={(e) => setNavigationOpen(e.detail.open)}
