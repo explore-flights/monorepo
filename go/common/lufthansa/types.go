@@ -18,6 +18,18 @@ type Name struct {
 	Name         string
 }
 
+func (n *Name) UnmarshalJSON(b []byte) error {
+	var v map[string]string
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+
+	n.LanguageCode = v["@LanguageCode"]
+	n.Name = v["$"]
+
+	return nil
+}
+
 type Names struct {
 	Name Array[Name] `json:"Name"`
 }
