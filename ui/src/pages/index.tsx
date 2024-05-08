@@ -8,8 +8,6 @@ import { ErrorPage } from './error-page';
 import { BaseProviders, RootLayout } from '../components/root';
 import { Legal } from './legal';
 import { PrivacyPolicy } from './privacy-policy';
-import { CreditCardSpendingPoints } from './tools/cc-spending-points';
-import { MilesAndMoreFlightAwardFinder } from './tools/mm-flight-award-finder';
 
 // region router
 const router = createBrowserRouter([
@@ -30,14 +28,6 @@ const router = createBrowserRouter([
       {
         path: 'privacy-policy',
         element: <PrivacyPolicy />,
-      },
-      {
-        path: 'tools/cc-spending-points',
-        element: <CreditCardSpendingPoints />,
-      },
-      {
-        path: 'tools/mm-flight-award-finder',
-        element: <MilesAndMoreFlightAwardFinder />,
       },
     ],
   },
