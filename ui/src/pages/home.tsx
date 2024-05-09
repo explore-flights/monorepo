@@ -533,9 +533,9 @@ function FlightNode({ data }: NodeProps<FlightNodeData>) {
 
   return (
     <>
-      <SpaceBetween size={'xxs'} direction={'vertical'}>
+      <SpaceBetween size={'xxl'} direction={'vertical'}>
         <Handle type="target" position={Position.Left} />
-        <Popover header={flightNumberFull} size={'large'} content={<FlightPopoverContent flight={flight} />} fixedWidth={true}>
+        <Popover header={flightNumberFull} size={'large'} content={<FlightPopoverContent flight={flight} />} fixedWidth={true} renderWithPortal={true}>
           <Box textAlign={'center'}>
             <Box>{flightNumberFull}</Box>
             <Box>{`${flight.departureAirport} - ${flight.arrivalAirport}`}</Box>
