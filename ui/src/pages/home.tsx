@@ -592,6 +592,7 @@ function AirportMultiselect({ airports, loading, disabled, onChange }: { airport
       keepOpen={true}
       virtualScroll={true}
       filteringType={'auto'}
+      tokenLimit={2}
       disabled={disabled}
       statusType={loading ? 'loading' : 'finished'}
     />
