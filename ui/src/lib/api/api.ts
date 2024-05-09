@@ -4,6 +4,7 @@ import {
   JsonType,
   ApiErrorBody, Airports, Connections,
 } from './api.model';
+import { DateTime, Duration } from 'luxon';
 
 const KindSuccess = 0;
 const KindApiError = 1;
@@ -49,7 +50,7 @@ export class ApiClient {
     return transform(this.httpClient.fetch('/data/airports.json'));
   }
 
-  getConnections(origins: ReadonlyArray<string>, destinations: ReadonlyArray<string>, minDeparture: Date, maxDeparture: Date, maxFlights: number, minLayover: number, maxLayover: number, maxDuration: number): Promise<ApiResponse<Connections>> {
+  getConnections(origins: ReadonlyArray<string>, destinations: ReadonlyArray<string>, minDeparture: DateTime<true>, maxDeparture: DateTime<true>, maxFlights: number, minLayover: Duration<true>, maxLayover: Duration<true>, maxDuration: Duration<true>): Promise<ApiResponse<Connections>> {
     const params = new URLSearchParams();
     for (const origin of origins) {
       params.append('origin', origin);
@@ -59,12 +60,12 @@ export class ApiClient {
       params.append('destination', destination);
     }
 
-    params.set('minDeparture', minDeparture.toISOString());
-    params.set('maxDeparture', maxDeparture.toISOString());
+    params.set('minDeparture', minDeparture.toISO());
+    params.set('maxDeparture', maxDeparture.toISO());
     params.set('maxFlights', maxFlights.toString());
-    params.set('minLayover', `${minLayover}s`);
-    params.set('maxLayover', `${maxLayover}s`);
-    params.set('maxDuration', `${maxDuration}s`);
+    params.set('minLayover', `${minLayover.toMillis()}ms`);
+    params.set('maxLayover', `${maxLayover.toMillis()}ms`);
+    params.set('maxDuration', `${maxDuration.toMillis()}ms`);
 
     return transform(this.httpClient.fetch(`/api/connections/json?${params.toString()}`));
   }
