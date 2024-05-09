@@ -19,13 +19,12 @@ export interface AuthInfo {
   idAtIssuer: string;
 }
 
-export interface Country {
-  code: string;
-  name: string;
-  cities: ReadonlyArray<City>;
+export interface Airports {
+  airports: ReadonlyArray<Airport>;
+  metropolitanAreas: ReadonlyArray<MetropolitanArea>;
 }
 
-export interface City {
+export interface MetropolitanArea {
   code: string;
   name: string;
   airports: ReadonlyArray<Airport>;

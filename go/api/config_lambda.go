@@ -8,7 +8,6 @@ import (
 	"errors"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/search"
 	"os"
 	"strconv"
@@ -28,20 +27,15 @@ func s3Client(ctx context.Context) (*s3.Client, error) {
 	return s3.NewFromConfig(cfg), nil
 }
 
-func dataRepo(ctx context.Context, s3c data.MinimalS3Client) (*data.Repo, error) {
-	dataBucket := os.Getenv("FLIGHTS_DATA_BUCKET")
-	if dataBucket == "" {
-		return nil, errors.New("env variable FLIGHTS_DATA_BUCKET required")
+func dataBucket() (string, error) {
+	bucket := os.Getenv("FLIGHTS_DATA_BUCKET")
+	if bucket == "" {
+		return "", errors.New("env variable FLIGHTS_DATA_BUCKET required")
 	}
 
-	return data.NewRepo(s3c, dataBucket), nil
+	return bucket, nil
 }
 
-func flightRepo(ctx context.Context, s3c search.MinimalS3Client) (*search.FlightRepo, error) {
-	dataBucket := os.Getenv("FLIGHTS_DATA_BUCKET")
-	if dataBucket == "" {
-		return nil, errors.New("env variable FLIGHTS_DATA_BUCKET required")
-	}
-
-	return search.NewFlightRepo(s3c, dataBucket), nil
+func flightRepo(ctx context.Context, s3c search.MinimalS3Client, bucket string) (*search.FlightRepo, error) {
+	return search.NewFlightRepo(s3c, bucket), nil
 }

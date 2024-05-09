@@ -1,21 +1,136 @@
 package data
 
 import (
+	"cmp"
 	"context"
-	"github.com/explore-flights/monorepo/go/common/lufthansa"
-	"slices"
+	"encoding/csv"
+	"errors"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"io"
+	"strings"
 )
 
-type Country struct {
-	Code   string  `json:"code"`
-	Name   string  `json:"name"`
-	Cities []*City `json:"cities"`
+var metroAreaMapping map[string][2]string = map[string][2]string{
+	// region Asia
+	"PEK": {"BJS", "Beijing, China"},
+	"PKX": {"BJS", "Beijing, China"},
+
+	"CGK": {"JKT", "Jakarta, Indonesia"},
+	"HLP": {"JKT", "Jakarta, Indonesia"},
+
+	"KIX": {"OSA", "Osaka, Japan"},
+	"ITM": {"OSA", "Osaka, Japan"},
+
+	"CTS": {"SPK", "Sapporo, Japan"},
+	"OKD": {"SPK", "Sapporo, Japan"},
+
+	"ICN": {"SEL", "Seoul, South Korea"},
+	"GMP": {"SEL", "Seoul, South Korea"},
+
+	"NRT": {"TYO", "Tokyo, Japan"},
+	"HND": {"TYO", "Tokyo, Japan"},
+	// endregion
+	// region Europe
+	"BER": {"BER", "Berlin, Germany"},
+
+	"OTP": {"BUH", "Bucharest, Romania"},
+	"BBU": {"BUH", "Bucharest, Romania"},
+
+	"BSL": {"EAP", "Basel, Switzerland & Mulhouse, France"},
+	"MLH": {"EAP", "Basel, Switzerland & Mulhouse, France"},
+
+	"BQH": {"LON", "London, United Kingdom"},
+	"LCY": {"LON", "London, United Kingdom"},
+	"LGW": {"LON", "London, United Kingdom"},
+	"LTN": {"LON", "London, United Kingdom"},
+	"LHR": {"LON", "London, United Kingdom"},
+	"ZLS": {"LON", "London, United Kingdom"},
+	"QQP": {"LON", "London, United Kingdom"},
+	"QQS": {"LON", "London, United Kingdom"},
+	"SEN": {"LON", "London, United Kingdom"},
+	"STN": {"LON", "London, United Kingdom"},
+	"ZEP": {"LON", "London, United Kingdom"},
+	"QQW": {"LON", "London, United Kingdom"},
+
+	"MXP": {"MIL", "Milan, Italy"},
+	"LIN": {"MIL", "Milan, Italy"},
+
+	"SVO": {"MOW", "Moscow, Russia"},
+	"DME": {"MOW", "Moscow, Russia"},
+	"VKO": {"MOW", "Moscow, Russia"},
+
+	"CDG": {"PAR", "Paris, France"},
+	"ORY": {"PAR", "Paris, France"},
+	"LBG": {"PAR", "Paris, France"},
+
+	"FCO": {"ROM", "Rome, Italy"},
+	"CIA": {"ROM", "Rome, Italy"},
+
+	"ARN": {"STO", "Stockholm, Sweden"},
+	"NYO": {"STO", "Stockholm, Sweden"},
+	"BMA": {"STO", "Stockholm, Sweden"},
+	// endregion
+	// region NA
+	"ORD": {"CHI", "Chicago, USA"},
+	"MDW": {"CHI", "Chicago, USA"},
+
+	"DTW": {"DTT", "Detroit, USA"},
+	"YIP": {"DTT", "Detroit, USA"},
+
+	"IAH": {"QHO", "Houston, USA"},
+	"HOU": {"QHO", "Houston, USA"},
+
+	"LAX": {"QLA", "Los Angeles, USA"},
+	"ONT": {"QLA", "Los Angeles, USA"},
+	"SNA": {"QLA", "Los Angeles, USA"},
+	"BUR": {"QLA", "Los Angeles, USA"},
+
+	"MIA": {"QMI", "Miami, USA"},
+	"FLL": {"QMI", "Miami, USA"},
+	"PBI": {"QMI", "Miami, USA"},
+
+	"YUL": {"YMQ", "Montreal, Canada"},
+	"YMY": {"YMQ", "Montreal, Canada"},
+
+	"JFK": {"NYC", "New York City, USA"},
+	"EWR": {"NYC", "New York City, USA"},
+	"LGA": {"NYC", "New York City, USA"},
+	"HPN": {"NYC", "New York City, USA"},
+
+	"SFO": {"QSF", "San Francisco Bay Area, USA"},
+	"OAK": {"QSF", "San Francisco Bay Area, USA"},
+	"SJC": {"QSF", "San Francisco Bay Area, USA"},
+
+	"YYZ": {"YTO", "Toronto, Canada"},
+	"YTZ": {"YTO", "Toronto, Canada"},
+
+	"IAD": {"WAS", "Washington DC, USA"},
+	"DCA": {"WAS", "Washington DC, USA"},
+	"BWI": {"WAS", "Washington DC, USA"},
+	// endregion
+	// region SA
+	"EZE": {"BUE", "Buenos Aires, Argentina"},
+	"AEP": {"BUE", "Buenos Aires, Argentina"},
+
+	"GIG": {"RIO", "Rio de Janeiro, Brazil"},
+	"SDU": {"RIO", "Rio de Janeiro, Brazil"},
+
+	"GRU": {"SAO", "São Paulo, Brazil"},
+	"CGH": {"SAO", "São Paulo, Brazil"},
+	"VCP": {"SAO", "São Paulo, Brazil"},
+	// endregion
 }
 
-type City struct {
-	Code     string     `json:"code"`
-	Name     string     `json:"name"`
-	Airports []*Airport `json:"airports"`
+type AirportsResponse struct {
+	Airports          []Airport          `json:"airports"`
+	MetropolitanAreas []MetropolitanArea `json:"metropolitanAreas"`
+}
+
+type MetropolitanArea struct {
+	Code     string    `json:"code"`
+	Name     string    `json:"name"`
+	Airports []Airport `json:"airports"`
 }
 
 type Airport struct {
@@ -23,138 +138,127 @@ type Airport struct {
 	Name string `json:"name"`
 }
 
+type MinimalS3Client interface {
+	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
+}
+
 type Handler struct {
-	r *Repo
+	s3c    MinimalS3Client
+	bucket string
 }
 
-func NewHandler(r *Repo) *Handler {
-	return &Handler{r}
+func NewHandler(s3c MinimalS3Client, bucket string) *Handler {
+	return &Handler{
+		s3c:    s3c,
+		bucket: bucket,
+	}
 }
 
-func (h *Handler) Locations(ctx context.Context, lang string) ([]*Country, error) {
-	airports, err := h.r.Airports(ctx)
+func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
+	r, err := h.loadCsv(ctx, "airports")
 	if err != nil {
-		return nil, err
+		return AirportsResponse{}, err
 	}
 
-	airports = addMissingAirports(airports)
+	defer r.Close()
 
-	citiesByCode, err := h.cities(ctx, lang)
-	if err != nil {
-		return nil, err
+	metroAreas := make(map[string]MetropolitanArea)
+	resp := AirportsResponse{
+		Airports:          make([]Airport, 0),
+		MetropolitanAreas: make([]MetropolitanArea, 0),
 	}
 
-	countriesByCode, err := h.countries(ctx, lang)
-	if err != nil {
-		return nil, err
-	}
-
-	r := make([]*Country, 0, len(countriesByCode))
-	for _, airport := range airports {
-		country, ok := countriesByCode[airport.CountryCode]
-		if !ok {
-			country = &Country{
-				Code:   airport.CountryCode,
-				Name:   airport.CountryCode,
-				Cities: make([]*City, 0),
+	for {
+		row, err := r.Read()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
 			}
 
-			countriesByCode[airport.CountryCode] = country
+			return AirportsResponse{}, err
 		}
 
-		if !slices.Contains(r, country) {
-			r = append(r, country)
+		if !strings.HasSuffix(strings.TrimSpace(row["type"]), "_airport") {
+			continue
+		} else if strings.TrimSpace(row["scheduled_service"]) != "yes" {
+			continue
 		}
 
-		city, ok := citiesByCode[airport.CityCode]
-		if !ok {
-			city = &City{
-				Code:     airport.CityCode,
-				Name:     airport.CityCode,
-				Airports: make([]*Airport, 0),
-			}
+		var airport Airport
+		airport.Code = strings.TrimSpace(row["iata_code"])
+		airport.Name = cmp.Or(strings.TrimSpace(row["name"]), airport.Code)
 
-			citiesByCode[airport.CityCode] = city
+		if airport.Code == "" {
+			continue
 		}
 
-		if !slices.Contains(country.Cities, city) {
-			country.Cities = append(country.Cities, city)
-		}
+		if metroAreaValues, ok := metroAreaMapping[airport.Code]; ok {
+			metroArea := metroAreas[metroAreaValues[0]]
+			metroArea.Code = metroAreaValues[0]
+			metroArea.Name = metroAreaValues[1]
+			metroArea.Airports = append(metroArea.Airports, airport)
 
-		city.Airports = append(city.Airports, &Airport{
-			Code: airport.Code,
-			Name: findName(airport.Names.Name, lang),
-		})
+			metroAreas[metroArea.Code] = metroArea
+		} else {
+			resp.Airports = append(resp.Airports, airport)
+		}
 	}
 
-	return r, nil
+	for _, v := range metroAreas {
+		resp.MetropolitanAreas = append(resp.MetropolitanAreas, v)
+	}
+
+	return resp, nil
 }
 
-func (h *Handler) countries(ctx context.Context, lang string) (map[string]*Country, error) {
-	countries, err := h.r.Countries(ctx)
+func (h *Handler) loadCsv(ctx context.Context, name string) (*csvReader, error) {
+	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(h.bucket),
+		Key:    aws.String("raw/ourairports_data/" + name + ".csv"),
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	r := make(map[string]*Country, len(countries))
-	for _, v := range countries {
-		r[v.CountryCode] = &Country{
-			Code:   v.CountryCode,
-			Name:   findName(v.Names.Name, lang),
-			Cities: make([]*City, 0),
-		}
-	}
-
-	return r, nil
+	return &csvReader{
+		r: csv.NewReader(resp.Body),
+		c: resp.Body,
+	}, nil
 }
 
-func (h *Handler) cities(ctx context.Context, lang string) (map[string]*City, error) {
-	cities, err := h.r.Cities(ctx)
+type csvReader struct {
+	r      *csv.Reader
+	c      io.Closer
+	header []string
+}
+
+func (r *csvReader) Read() (map[string]string, error) {
+	row, err := r.r.Read()
 	if err != nil {
 		return nil, err
 	}
 
-	r := make(map[string]*City, len(cities))
-	for _, v := range cities {
-		r[v.CityCode] = &City{
-			Code:     v.CityCode,
-			Name:     findName(v.Names.Name, lang),
-			Airports: make([]*Airport, 0),
+	if r.header == nil {
+		r.header = make([]string, 0)
+		for _, v := range row {
+			r.header = append(r.header, v)
+		}
+
+		row, err = r.r.Read()
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return r, nil
-}
-
-func findName(n []lufthansa.Name, lang string) string {
-	if len(n) < 1 {
-		return ""
+	result := make(map[string]string, len(r.header))
+	for i, v := range row {
+		result[r.header[i]] = v
 	}
 
-	r := n[0].Name
-	for _, v := range n {
-		if v.LanguageCode == lang {
-			return v.Name
-		} else if v.LanguageCode == "EN" {
-			r = v.Name
-		}
-	}
-
-	return r
+	return result, nil
 }
 
-func addMissingAirports(airports []lufthansa.Airport) []lufthansa.Airport {
-	return append(
-		airports,
-		lufthansa.Airport{
-			Code:        "BER",
-			CityCode:    "BER",
-			CountryCode: "DE",
-			Names: lufthansa.Names{
-				Name: lufthansa.Array[lufthansa.Name]{
-					{LanguageCode: "EN", Name: "Berlin/Brandenburg"},
-				},
-			},
-		},
-	)
+func (r *csvReader) Close() error {
+	return r.c.Close()
 }

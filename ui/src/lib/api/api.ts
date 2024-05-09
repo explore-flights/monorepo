@@ -2,7 +2,7 @@ import { HTTPClient } from '../http';
 import {
   isJsonObject,
   JsonType,
-  ApiErrorBody, Connections, Country
+  ApiErrorBody, Airports, Connections,
 } from './api.model';
 
 const KindSuccess = 0;
@@ -45,8 +45,8 @@ export type ApiResponse<T> = SuccessResponse<T> | ApiErrorResponse<T> | ErrorRes
 export class ApiClient {
   constructor(private readonly httpClient: HTTPClient) {}
 
-  getLocations(): Promise<ApiResponse<ReadonlyArray<Country>>> {
-    return transform(this.httpClient.fetch('/data/EN/locations.json'));
+  getLocations(): Promise<ApiResponse<Airports>> {
+    return transform(this.httpClient.fetch('/data/airports.json'));
   }
 
   getConnections(origins: ReadonlyArray<string>, destinations: ReadonlyArray<string>, minDeparture: Date, maxDeparture: Date, maxFlights: number, minLayover: number, maxLayover: number, maxDuration: number): Promise<ApiResponse<Connections>> {

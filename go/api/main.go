@@ -26,18 +26,18 @@ func main() {
 		panic(err)
 	}
 
-	fr, err := flightRepo(ctx, s3c)
+	bucket, err := dataBucket()
 	if err != nil {
 		panic(err)
 	}
 
-	dr, err := dataRepo(ctx, s3c)
+	fr, err := flightRepo(ctx, s3c, bucket)
 	if err != nil {
 		panic(err)
 	}
 
 	connHandler := search.NewConnectionsHandler(fr)
-	dataHandler := data.NewHandler(dr)
+	dataHandler := data.NewHandler(s3c, bucket)
 
 	e := echo.New()
 	e.GET("/api/connections/:export", func(c echo.Context) error {
@@ -138,8 +138,8 @@ func main() {
 		}
 	})
 
-	e.GET("/data/:lang/locations.json", func(c echo.Context) error {
-		locs, err := dataHandler.Locations(c.Request().Context(), c.Param("lang"))
+	e.GET("/data/airports.json", func(c echo.Context) error {
+		airports, err := dataHandler.Airports(c.Request().Context())
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				return echo.NewHTTPError(http.StatusRequestTimeout, err)
@@ -148,7 +148,7 @@ func main() {
 			return echo.NewHTTPError(http.StatusInternalServerError)
 		}
 
-		return c.JSON(http.StatusOK, locs)
+		return c.JSON(http.StatusOK, airports)
 	})
 
 	if err := run(ctx, e); err != nil {

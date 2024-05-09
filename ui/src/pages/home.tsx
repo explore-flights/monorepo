@@ -35,7 +35,7 @@ import 'reactflow/dist/style.css';
 import { useHttpClient } from '../components/util/context/http-client';
 import { catchNotify, useAppControls } from '../components/util/context/app-controls';
 import { expectSuccess } from '../lib/api/api';
-import { Connection, Connections, Country, Flight } from '../lib/api/api.model';
+import { Airports, Connection, Connections, Flight } from '../lib/api/api.model';
 
 export function Home() {
   const { apiClient } = useHttpClient();
@@ -95,8 +95,11 @@ function ConnectionSearchForm({ isLoading, onSearch }: { isLoading: boolean, onS
   const { notification } = useAppControls();
   const { apiClient } = useHttpClient();
 
-  const [locationsLoading, setLocationsLoading] = useState(true)
-  const [locations, setLocations] = useState<ReadonlyArray<Country>>([]);
+  const [airportsLoading, setAirportsLoading] = useState(true)
+  const [airports, setAirports] = useState<Airports>({
+    airports: [],
+    metropolitanAreas: [],
+  });
 
   const [origins, setOrigins] = useState<ReadonlyArray<string>>([]);
   const [destinations, setDestinations] = useState<ReadonlyArray<string>>([]);
@@ -108,14 +111,14 @@ function ConnectionSearchForm({ isLoading, onSearch }: { isLoading: boolean, onS
   const [maxDuration, setMaxDuration] = useState(60*60*26);
 
   useEffect(() => {
-    setLocationsLoading(true);
+    setAirportsLoading(true);
     (async () => {
       const { body } = expectSuccess(await apiClient.getLocations());
-      setLocations(body);
+      setAirports(body);
     })()
       .catch(catchNotify(notification))
-      .finally(() => setLocationsLoading(false));
-  }, [apiClient]);
+      .finally(() => setAirportsLoading(false));
+  }, []);
 
   function onClickSearch() {
     onSearch({
@@ -134,11 +137,11 @@ function ConnectionSearchForm({ isLoading, onSearch }: { isLoading: boolean, onS
     <Form variant={'embedded'} actions={<Button onClick={onClickSearch} loading={isLoading}>Search</Button>}>
       <ColumnLayout columns={4}>
         <FormField label={'Origin'}>
-          <LocationMultiselect locations={locations} loading={locationsLoading} disabled={isLoading} onChange={setOrigins} />
+          <AirportMultiselect airports={airports} loading={airportsLoading} disabled={isLoading} onChange={setOrigins} />
         </FormField>
 
         <FormField label={'Destination'}>
-          <LocationMultiselect locations={locations} loading={locationsLoading} disabled={isLoading} onChange={setDestinations} />
+          <AirportMultiselect airports={airports} loading={airportsLoading} disabled={isLoading} onChange={setDestinations} />
         </FormField>
 
         <FormField label={'Min Departure'}>
@@ -432,42 +435,38 @@ function FlightNode({ data }: NodeProps<FlightNodeData>) {
   )
 }
 
-function LocationMultiselect({ locations, loading, disabled, onChange }: { locations: ReadonlyArray<Country>, loading: boolean, disabled: boolean, onChange: (options: ReadonlyArray<string>) => void }) {
+function AirportMultiselect({ airports, loading, disabled, onChange }: { airports: Airports, loading: boolean, disabled: boolean, onChange: (options: ReadonlyArray<string>) => void }) {
   const options = useMemo<MultiselectProps.Options>(() => {
     const options: Array<MultiselectProps.Option | MultiselectProps.OptionGroup> = [];
 
-    for (const country of locations) {
-      for (const city of country.cities) {
-        const airportOptions: Array<MultiselectProps.Option> = [];
+    for (const airport of airports.airports) {
+      options.push({
+        label: airport.code,
+        value: airport.code,
+        description: airport.name,
+      });
+    }
 
-        for (const airport of city.airports) {
-          airportOptions.push({
-            label: airport.code,
-            description: airport.name,
-            value: airport.code,
-          });
-        }
+    for (const metroArea of airports.metropolitanAreas) {
+      const airportOptions: Array<MultiselectProps.Option> = [];
 
-        if (airportOptions.length > 0) {
-          if (airportOptions.length == 1) {
-            options.push({
-              ...airportOptions[0],
-              filteringTags: [country.name, country.code],
-            });
-          } else {
-            options.push({
-              label: city.code,
-              description: city.name,
-              options: airportOptions,
-              filteringTags: [country.name, country.code],
-            });
-          }
-        }
+      for (const airport of metroArea.airports) {
+        airportOptions.push({
+          label: airport.code,
+          value: airport.code,
+          description: airport.name,
+        });
       }
+
+      options.push({
+        label: metroArea.code,
+        description: metroArea.name,
+        options: airportOptions,
+      });
     }
 
     return options;
-  }, [locations]);
+  }, [airports]);
 
   const [selectedOptions, setSelectedOptions] = useState<ReadonlyArray<MultiselectProps.Option>>([]);
 
