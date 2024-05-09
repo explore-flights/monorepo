@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"golang.org/x/sync/errgroup"
@@ -50,6 +51,10 @@ func (a *loa) Handle(ctx context.Context, params LoadOurAirportsDataParams) (Loa
 			}
 
 			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("invalid StatusCode: %v (%v)", resp.StatusCode, resp.Status)
+			}
 
 			var b bytes.Buffer
 			if _, err = io.Copy(&b, resp.Body); err != nil {
