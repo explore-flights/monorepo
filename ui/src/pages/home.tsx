@@ -9,7 +9,7 @@ import {
   FormField, Grid,
   Header,
   Multiselect,
-  MultiselectProps,
+  MultiselectProps, Popover,
   Slider,
   SpaceBetween
 } from '@cloudscape-design/components';
@@ -34,7 +34,8 @@ import 'reactflow/dist/style.css';
 import { useHttpClient } from '../components/util/context/http-client';
 import { catchNotify, useAppControls } from '../components/util/context/app-controls';
 import { expectSuccess } from '../lib/api/api';
-import { Airports, Connection, Connections, Flight } from '../lib/api/api.model';
+import { Airports, Connection, Connections, Flight, FlightNumber } from '../lib/api/api.model';
+import { KeyValuePairs, ValueWithLabel } from '../components/common/key-value-pairs';
 
 export function Home() {
   const { apiClient } = useHttpClient();
@@ -301,7 +302,7 @@ function ConnectionSearchForm({ isLoading, onSearch }: { isLoading: boolean, onS
           <Slider
             min={1000*60*5}
             max={1000*60*60*24*3}
-            step={1000*60*30}
+            step={1000*60*5}
             valueFormatter={(v) => Duration.fromMillis(v).rescale().toHuman({ unitDisplay: 'short' })}
             value={maxDuration.toMillis()}
             onChange={(e) => setMaxDuration(Duration.fromMillis(e.detail.value))}
@@ -528,21 +529,44 @@ function FlightNode({ data }: NodeProps<FlightNodeData>) {
   const departure = DateTime.fromISO(flight.departureTime, { setZone: true });
   const arrival = DateTime.fromISO(flight.arrivalTime, { setZone: true });
   const duration = arrival.diff(departure).rescale();
+  const flightNumberFull = flightNumberToString(flight.flightNumber);
 
   return (
     <>
       <SpaceBetween size={'xxs'} direction={'vertical'}>
         <Handle type="target" position={Position.Left} />
-        <Box textAlign={'center'}>
-          <Box>{`${flight.flightNumber.airline}${flight.flightNumber.number}${flight.flightNumber.suffix ?? ''}`}</Box>
-          <Box>{`${flight.departureAirport} - ${flight.arrivalAirport}`}</Box>
-          <Box>{duration.toHuman({ unitDisplay: 'short' })}</Box>
-          <Box>{flight.aircraftType}</Box>
-        </Box>
+        <Popover header={flightNumberFull} size={'large'} content={<FlightPopoverContent flight={flight} />} fixedWidth={true}>
+          <Box textAlign={'center'}>
+            <Box>{flightNumberFull}</Box>
+            <Box>{`${flight.departureAirport} - ${flight.arrivalAirport}`}</Box>
+            <Box>{duration.toHuman({ unitDisplay: 'short' })}</Box>
+          </Box>
+        </Popover>
         {hasOutgoing && <Handle type="source" position={Position.Right} />}
       </SpaceBetween>
     </>
   )
+}
+
+function FlightPopoverContent({ flight }: { flight: Flight }) {
+  const codeSharesStr = flight.codeShares.map(flightNumberToString).join(', ');
+
+  return (
+    <KeyValuePairs columns={2}>
+      <ValueWithLabel label={'Departure Airport'}>{flight.departureAirport}</ValueWithLabel>
+      <ValueWithLabel label={'Departure Time'}>{DateTime.fromISO(flight.departureTime, { setZone: true }).toLocaleString(DateTime.DATETIME_FULL)}</ValueWithLabel>
+      <ValueWithLabel label={'Arrival Airport'}>{flight.arrivalAirport}</ValueWithLabel>
+      <ValueWithLabel label={'Arrival Time'}>{DateTime.fromISO(flight.arrivalTime, { setZone: true }).toLocaleString(DateTime.DATETIME_FULL)}</ValueWithLabel>
+      <ValueWithLabel label={'Aircraft Type'}>{flight.aircraftType}</ValueWithLabel>
+      <ValueWithLabel label={'Aircraft Owner'}>{flight.aircraftOwner}</ValueWithLabel>
+      <ValueWithLabel label={'Registration'}>{flight.registration ?? 'UNKNOWN'}</ValueWithLabel>
+      <ValueWithLabel label={'Code Shares'}>{codeSharesStr}</ValueWithLabel>
+    </KeyValuePairs>
+  );
+}
+
+function flightNumberToString(fn: FlightNumber): string {
+  return `${fn.airline}${fn.number}${fn.suffix ?? ''}`;
 }
 
 function AirportMultiselect({ airports, loading, disabled, onChange }: { airports: Airports, loading: boolean, disabled: boolean, onChange: (options: ReadonlyArray<string>) => void }) {
