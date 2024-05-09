@@ -1,24 +1,34 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
-  Button, ColumnLayout,
+  Button,
+  ColumnLayout,
   Container,
   ContentLayout,
-  DatePicker, Form, FormField,
+  DatePicker,
+  Form,
+  FormField,
   Header,
-  Multiselect, MultiselectProps,
+  Multiselect,
+  MultiselectProps,
   Slider,
   SpaceBetween
 } from '@cloudscape-design/components';
+import Dagre from '@dagrejs/dagre';
 import {
   Background,
   Controls,
+  Edge,
+  getConnectedEdges,
+  Handle,
+  Node,
+  NodeProps,
+  Position,
   ReactFlow,
+  ReactFlowProvider,
   useEdgesState,
   useNodesState,
-  Node,
-  Edge,
-  ReactFlowProvider, Position, Handle, NodeProps, getConnectedEdges
+  useReactFlow
 } from 'reactflow';
 import { DateTime, Duration } from 'luxon';
 import 'reactflow/dist/style.css';
@@ -31,18 +41,12 @@ export function Home() {
   const { apiClient } = useHttpClient();
   const { notification } = useAppControls();
 
-  const nodeTypes = useMemo(() => ({
-    flight: FlightNode,
-  }), []);
-
   const [isLoading, setLoading] = useState(false);
-  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([]);
+  const [connections, setConnections] = useState<Connections>();
 
   function onSearch(params: ConnectionSearchParams) {
     setLoading(true);
-    setEdges([]);
-    setNodes([]);
+    setConnections(undefined);
 
     (async () => {
       const { body } = expectSuccess(await apiClient.getConnections(
@@ -56,9 +60,7 @@ export function Home() {
         params.maxDuration.toMillis() / 1000,
       ));
 
-      const [nodes, edges] = convertToGraph(body);
-      setNodes(nodes);
-      setEdges(edges);
+      setConnections(body);
     })()
       .catch(catchNotify(notification))
       .finally(() => setLoading(false));
@@ -70,29 +72,9 @@ export function Home() {
         <ConnectionSearchForm isLoading={isLoading} onSearch={onSearch} />
       </Container>
       <Container variant={'stacked'}>
-        <div style={{ height: '750px' }}>
-          <ReactFlowProvider>
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              nodeTypes={nodeTypes}
-              onNodeClick={(_, node) => {
-                const connectedEdges = getConnectedEdges([node], edges);
-                const ids = connectedEdges.map((v) => v.id);
-
-                setEdges((prev) => prev.map((edge) => {
-                  edge.animated = ids.includes(edge.id);
-                  return edge;
-                }));
-              }}
-            >
-              <Controls />
-              <Background />
-            </ReactFlow>
-          </ReactFlowProvider>
-        </div>
+        <ReactFlowProvider>
+          <ConnectionsGraph connections={connections} />
+        </ReactFlowProvider>
       </Container>
     </ContentLayout>
   );
@@ -247,18 +229,21 @@ function convertToGraph(conns: Connections): [Array<Node<NodeData>>, Array<Edge<
     nodes,
     edges,
     new Map(),
-    0,
-    [0]
+    new Map(),
   );
 
   return [nodes, edges];
 }
 
-function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<string, Flight>, nodes: Array<Node<NodeData>>, edges: Array<Edge<EdgeData>>, nodeLookup: Map<string, Node<unknown>>, depth: number, maxX: Array<number>, parent?: string) {
-  if (maxX.length <= depth + 1) {
-    maxX.push(0);
-  }
-
+function buildGraph(
+  connections: ReadonlyArray<Connection>,
+  flights: Record<string, Flight>,
+  nodes: Array<Node<NodeData>>,
+  edges: Array<Edge<EdgeData>>,
+  nodeLookup: Map<string, Node<NodeData>>,
+  edgeLookup: Map<string, Edge<EdgeData>>,
+  parent?: string
+) {
   for (const connection of connections) {
     const flight = flights[connection.flightId];
 
@@ -266,7 +251,9 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
       const node = {
         id: connection.flightId,
         type: 'flight',
-        position: { x: maxX[depth + 1], y: (depth + 1) * 180 },
+        position: { x: 0, y: 0 },
+        width: 137,
+        height: 103,
         data: {
           type: 'flight',
           flight: flight,
@@ -276,8 +263,6 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
 
       nodeLookup.set(connection.flightId, node);
       nodes.push(node);
-
-      maxX[depth + 1] += 180;
     }
 
     if (parent === undefined) {
@@ -288,7 +273,10 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
         const node = {
           id: departureDate,
           type: 'input',
-          position: { x: maxX[0], y: 0 },
+          sourcePosition: Position.Right,
+          position: { x: 0, y: 0 },
+          width: 200,
+          height: 50,
           data: {
             type: 'date',
             date: departureDate,
@@ -298,35 +286,45 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
 
         nodeLookup.set(departureDate, node);
         nodes.push(node);
-
-        maxX[0] += 180;
       }
 
-      edges.push({
-        id: `${departureDate}-${connection.flightId}`,
-        source: departureDate,
-        target: connection.flightId,
-        label: departure.toLocaleString(DateTime.TIME_24_SIMPLE),
-        data: {
-          target: flight,
-        },
-      });
+      const edgeId = `${departureDate}-${connection.flightId}`;
+      if (!edgeLookup.has(edgeId)) {
+        const edge = {
+          id: edgeId,
+          source: departureDate,
+          target: connection.flightId,
+          label: departure.toLocaleString(DateTime.TIME_24_SIMPLE),
+          data: {
+            target: flight,
+          },
+        };
+
+        edgeLookup.set(edgeId, edge);
+        edges.push(edge);
+      }
     } else {
       const parentFlight = flights[parent];
       const arrival = DateTime.fromISO(parentFlight.arrivalTime, { setZone: true });
       const departure = DateTime.fromISO(flight.departureTime, { setZone: true });
       const layover = departure.diff(arrival).rescale();
+      const edgeId = `${parent}-${connection.flightId}`;
 
-      edges.push({
-        id: `${parent}-${connection.flightId}`,
-        source: parent,
-        target: connection.flightId,
-        label: layover.toHuman({ unitDisplay: 'short' }),
-        data: {
-          source: parentFlight,
-          target: flight,
-        },
-      });
+      if (!edgeLookup.has(edgeId)) {
+        const edge = {
+          id: edgeId,
+          source: parent,
+          target: connection.flightId,
+          label: layover.toHuman({ unitDisplay: 'short' }),
+          data: {
+            source: parentFlight,
+            target: flight,
+          },
+        };
+
+        edgeLookup.set(edgeId, edge);
+        edges.push(edge);
+      }
     }
 
     buildGraph(
@@ -335,11 +333,81 @@ function buildGraph(connections: ReadonlyArray<Connection>, flights: Record<stri
       nodes,
       edges,
       nodeLookup,
-      depth + 1,
-      maxX,
+      edgeLookup,
       connection.flightId,
     );
   }
+}
+
+function ConnectionsGraph({ connections }: { connections?: Connections }) {
+  const { fitView } = useReactFlow();
+  const getLayoutedElements = useCallback((nodes: ReadonlyArray<Node<NodeData>>, edges: ReadonlyArray<Edge<EdgeData>>) => {
+    const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+    g.setGraph({ rankdir: 'LR', ranksep: 250 });
+
+    edges.forEach((edge) => g.setEdge(edge.source, edge.target));
+    nodes.forEach((node) => g.setNode(node.id, node as Dagre.Label));
+
+    Dagre.layout(g);
+
+    return {
+      nodes: nodes.map((node) => {
+        const { x, y } = g.node(node.id);
+        return { ...node, position: { x, y } };
+      }),
+      edges: edges,
+    };
+  }, []);
+
+  const nodeTypes = useMemo(() => ({
+    flight: FlightNode,
+  }), []);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([]);
+
+  useEffect(() => {
+    if (connections === undefined) {
+      setEdges([]);
+      setNodes([]);
+      return;
+    }
+
+    const [nodes, edges] = convertToGraph(connections);
+    const layouted = getLayoutedElements(nodes, edges);
+
+    setNodes([...layouted.nodes]);
+    setEdges([...layouted.edges]);
+
+    window.requestAnimationFrame(() => {
+      fitView();
+    });
+  }, [getLayoutedElements, connections]);
+
+  return (
+    <div style={{ height: '750px' }}>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        nodeTypes={nodeTypes}
+        fitView={true}
+        onNodeClick={(_, node) => {
+          const connectedEdges = getConnectedEdges([node], edges);
+          const ids = connectedEdges.map((v) => v.id);
+
+          setEdges((prev) => prev.map((edge) => {
+            edge.animated = ids.includes(edge.id);
+            return edge;
+          }));
+        }}
+      >
+        <Controls />
+        <Background />
+      </ReactFlow>
+    </div>
+  );
 }
 
 function FlightNode({ data }: NodeProps<FlightNodeData>) {
@@ -351,14 +419,14 @@ function FlightNode({ data }: NodeProps<FlightNodeData>) {
   return (
     <>
       <SpaceBetween size={'xxs'} direction={'vertical'}>
-        <Handle type="target" position={Position.Top} />
+        <Handle type="target" position={Position.Left} />
         <Box textAlign={'center'}>
           <Box>{`${flight.flightNumber.airline}${flight.flightNumber.number}${flight.flightNumber.suffix ?? ''}`}</Box>
           <Box>{`${flight.departureAirport} - ${flight.arrivalAirport}`}</Box>
           <Box>{duration.toHuman({ unitDisplay: 'short' })}</Box>
           <Box>{flight.aircraftType}</Box>
         </Box>
-        {hasOutgoing && <Handle type="source" position={Position.Bottom} />}
+        {hasOutgoing && <Handle type="source" position={Position.Right} />}
       </SpaceBetween>
     </>
   )

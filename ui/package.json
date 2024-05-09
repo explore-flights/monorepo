@@ -24,7 +24,8 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.23.0",
     "reactflow": "^11.11.3",
-    "luxon": "^3.4.4"
+    "luxon": "^3.4.4",
+    "@dagrejs/dagre": "^1.1.2"
   },
   "devDependencies": {
     "@types/node": "^20.12.8",
