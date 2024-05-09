@@ -48,7 +48,6 @@ func (a *lfsAction) Handle(ctx context.Context, params LoadFlightSchedulesParams
 
 func (a *lfsAction) loadSingle(ctx context.Context, bucket, prefix string, d common.LocalDate) error {
 	var b bytes.Buffer
-	b.Bytes()
 	err := a.lhc.FlightSchedulesRaw(
 		ctx,
 		[]common.AirlineIdentifier{common.Lufthansa, common.AirDolomiti, common.Swiss, common.Austrian, common.Edelweiss, common.Brussels, common.EurowingsDiscover},

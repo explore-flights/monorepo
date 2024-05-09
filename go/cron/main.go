@@ -63,6 +63,7 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) (jso
 	lfsAction := action.NewLoadFlightSchedulesAction(s3c, lhc)
 	cfsAction := action.NewConvertFlightSchedulesAction(s3c)
 	cronAction := action.NewCronAction(lfsAction, cfsAction)
+	loaAction := action.NewLoadOurAirportsDataAction(s3c, nil)
 
 	return func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
 		switch event.Action {
@@ -89,6 +90,9 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) (jso
 
 		case "cron":
 			return handle(ctx, cronAction, event.Params)
+
+		case "load_our_airports_data":
+			return handle(ctx, loaAction, event.Params)
 		}
 
 		return nil, fmt.Errorf("unsupported action: %v", event.Action)
