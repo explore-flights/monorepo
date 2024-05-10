@@ -363,17 +363,23 @@ interface FlightNodeData {
   readonly hasOutgoing: boolean;
 }
 
-interface DateNodeData {
-  readonly type: 'date';
-  readonly date: string;
+interface DepartureNodeData {
+  readonly type: 'departure';
+  readonly airport: string;
   readonly label: string;
 }
 
-type NodeData = FlightNodeData | DateNodeData;
+interface ArrivalNodeData {
+  readonly type: 'arrival';
+  readonly airport: string;
+  readonly label: string;
+}
+
+type NodeData = FlightNodeData | DepartureNodeData | ArrivalNodeData;
 
 interface EdgeData {
   source?: Flight;
-  target: Flight;
+  target?: Flight;
 }
 
 function convertToGraph(conns: Connections): [Array<Node<NodeData>>, Array<Edge<EdgeData>>] {
@@ -422,49 +428,49 @@ function buildGraph(
       nodes.push(node);
     }
 
-    if (parent === undefined) {
-      const departure = DateTime.fromISO(flight.departureTime, { setZone: true });
-      const departureDate = departure.toISODate()!;
+    const departure = DateTime.fromISO(flight.departureTime, { setZone: true });
 
-      if (!nodeLookup.has(departureDate)) {
+    if (parent === undefined) {
+      const departureNodeId = `DEP-${flight.departureAirport}`;
+
+      if (!nodeLookup.has(departureNodeId)) {
         const node = {
-          id: departureDate,
+          id: departureNodeId,
           type: 'input',
           sourcePosition: Position.Right,
           position: { x: 0, y: 0 },
           width: 200,
           height: 50,
           data: {
-            type: 'date',
-            date: departureDate,
-            label: departure.toLocaleString(DateTime.DATE_FULL),
+            type: 'departure',
+            airport: flight.departureAirport,
+            label: flight.departureAirport,
           },
-        } satisfies Node<DateNodeData>;
+        } satisfies Node<DepartureNodeData>;
 
-        nodeLookup.set(departureDate, node);
+        nodeLookup.set(departureNodeId, node);
         nodes.push(node);
       }
 
-      const edgeId = `${departureDate}-${connection.flightId}`;
+      const edgeId = `${departureNodeId}-${connection.flightId}`;
       if (!edgeLookup.has(edgeId)) {
         const edge = {
           id: edgeId,
-          source: departureDate,
+          source: departureNodeId,
           target: connection.flightId,
           label: departure.toLocaleString(DateTime.TIME_24_SIMPLE),
           data: {
             target: flight,
           },
-        };
+        } satisfies Edge<EdgeData>;
 
         edgeLookup.set(edgeId, edge);
         edges.push(edge);
       }
     } else {
       const parentFlight = flights[parent];
-      const arrival = DateTime.fromISO(parentFlight.arrivalTime, { setZone: true });
-      const departure = DateTime.fromISO(flight.departureTime, { setZone: true });
-      const layover = departure.diff(arrival).rescale();
+      const parentArrival = DateTime.fromISO(parentFlight.arrivalTime, { setZone: true });
+      const layover = departure.diff(parentArrival).rescale();
       const edgeId = `${parent}-${connection.flightId}`;
 
       if (!edgeLookup.has(edgeId)) {
@@ -477,22 +483,62 @@ function buildGraph(
             source: parentFlight,
             target: flight,
           },
-        };
+        } satisfies Edge<EdgeData>;
 
         edgeLookup.set(edgeId, edge);
         edges.push(edge);
       }
     }
 
-    buildGraph(
-      connection.outgoing,
-      flights,
-      nodes,
-      edges,
-      nodeLookup,
-      edgeLookup,
-      connection.flightId,
-    );
+    if (connection.outgoing.length > 0) {
+      buildGraph(
+        connection.outgoing,
+        flights,
+        nodes,
+        edges,
+        nodeLookup,
+        edgeLookup,
+        connection.flightId,
+      );
+    } else {
+      const arrivalNodeId = `ARR-${flight.arrivalAirport}`;
+
+      if (!nodeLookup.has(arrivalNodeId)) {
+        const node = {
+          id: arrivalNodeId,
+          type: 'output',
+          targetPosition: Position.Left,
+          position: { x: 0, y: 0 },
+          width: 200,
+          height: 50,
+          data: {
+            type: 'arrival',
+            airport: flight.arrivalAirport,
+            label: flight.arrivalAirport,
+          },
+        } satisfies Node<ArrivalNodeData>;
+
+        nodeLookup.set(arrivalNodeId, node);
+        nodes.push(node);
+      }
+
+      const edgeId = `${connection.flightId}-${arrivalNodeId}`;
+      if (!edgeLookup.has(edgeId)) {
+        const arrival = DateTime.fromISO(flight.arrivalTime, { setZone: true });
+        const edge = {
+          id: edgeId,
+          source: connection.flightId,
+          target: arrivalNodeId,
+          label: arrival.toLocaleString(DateTime.TIME_24_SIMPLE),
+          data: {
+            source: flight,
+          },
+        } satisfies Edge<EdgeData>;
+
+        edgeLookup.set(edgeId, edge);
+        edges.push(edge);
+      }
+    }
   }
 }
 
@@ -579,7 +625,7 @@ function FlightNode({ data }: NodeProps<FlightNodeData>) {
             <Box>{duration.toHuman({ unitDisplay: 'short' })}</Box>
           </Box>
         </Popover>
-        {hasOutgoing && <Handle type="source" position={Position.Right} />}
+        <Handle type="source" position={Position.Right} />
       </SpaceBetween>
     </>
   )
