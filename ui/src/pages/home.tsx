@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
-  Button,
+  Button, ColumnLayout,
   Container,
   ContentLayout,
   DateRangePicker,
@@ -11,7 +11,7 @@ import {
   Multiselect,
   MultiselectProps, Popover,
   Slider,
-  SpaceBetween, Table
+  SpaceBetween, Table, Tabs, TabsProps
 } from '@cloudscape-design/components';
 import Dagre from '@dagrejs/dagre';
 import {
@@ -47,8 +47,6 @@ export function Home() {
 
   function onSearch(params: ConnectionSearchParams) {
     setLoading(true);
-    setConnections(undefined);
-
     (async () => {
       const { body } = expectSuccess(await apiClient.getConnections(
         params.origins,
@@ -69,15 +67,12 @@ export function Home() {
 
   return (
     <ContentLayout header={<Header variant={'h1'}>Welcome to explore.flights</Header>}>
-      <Container variant={'stacked'}>
-        <ConnectionSearchForm isLoading={isLoading} onSearch={onSearch} />
-      </Container>
-      <Container variant={'stacked'}>
-        <ReactFlowProvider>
-          <ConnectionsGraph connections={connections} />
-        </ReactFlowProvider>
-      </Container>
-      <ConnectionsTable connections={connections} />
+      <ColumnLayout columns={1}>
+        <Container>
+          <ConnectionSearchForm isLoading={isLoading} onSearch={onSearch} />
+        </Container>
+        <ConnectionsTabs connections={connections} />
+      </ColumnLayout>
     </ContentLayout>
   );
 }
@@ -316,6 +311,52 @@ function ConnectionSearchForm({ isLoading, onSearch }: { isLoading: boolean, onS
   );
 }
 
+function groupByDepartureDate(connections: Connections): Record<string, Connections> {
+  const result: Record<string, Connections> = {};
+
+  for (const connection of connections.connections) {
+    const flight = connections.flights[connection.flightId];
+    const departureDate = DateTime.fromISO(flight.departureTime, { setZone: true }).toISODate()!;
+
+    result[departureDate] = {
+      connections: [
+        ...(result[departureDate]?.connections ?? []),
+        connection,
+      ],
+      flights: connections.flights,
+    };
+  }
+
+  return result;
+}
+
+function ConnectionsTabs({ connections }: { connections?: Connections }) {
+  if (connections === undefined) {
+    return undefined;
+  }
+
+  const tabs = useMemo(() => {
+    return Object.entries(groupByDepartureDate(connections))
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, connections]) => ({
+        id: date,
+        label: DateTime.fromISO(date).toLocaleString(DateTime.DATE_FULL),
+        content: (
+          <ColumnLayout columns={1}>
+            <ReactFlowProvider>
+              <ConnectionsGraph connections={connections} />
+            </ReactFlowProvider>
+            <ConnectionsTable connections={connections} />
+          </ColumnLayout>
+        ),
+      } satisfies TabsProps.Tab))
+  }, [connections]);
+
+  return (
+    <Tabs variant={'container'} tabs={tabs} />
+  );
+}
+
 interface FlightNodeData {
   readonly type: 'flight';
   readonly flight: Flight;
@@ -396,7 +437,7 @@ function buildGraph(
           data: {
             type: 'date',
             date: departureDate,
-            label: departure.toLocaleString(DateTime.DATE_FULL)
+            label: departure.toLocaleString(DateTime.DATE_FULL),
           },
         } satisfies Node<DateNodeData>;
 
@@ -455,7 +496,7 @@ function buildGraph(
   }
 }
 
-function ConnectionsGraph({ connections }: { connections?: Connections }) {
+function ConnectionsGraph({ connections }: { connections: Connections }) {
   const { fitView } = useReactFlow();
   const getLayoutedElements = useCallback((nodes: ReadonlyArray<Node<NodeData>>, edges: ReadonlyArray<Edge<EdgeData>>) => {
     const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
@@ -483,12 +524,6 @@ function ConnectionsGraph({ connections }: { connections?: Connections }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([]);
 
   useEffect(() => {
-    if (connections === undefined) {
-      setEdges([]);
-      setNodes([]);
-      return;
-    }
-
     const [nodes, edges] = convertToGraph(connections);
     const layouted = getLayoutedElements(nodes, edges);
 
@@ -501,7 +536,7 @@ function ConnectionsGraph({ connections }: { connections?: Connections }) {
   }, [getLayoutedElements, connections]);
 
   return (
-    <div style={{ height: '750px' }}>
+    <div style={{ width: '100%', height: '750px' }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -724,14 +759,8 @@ function expandConnections(conns: ReadonlyArray<Connection>, flights: Record<str
   return result;
 }
 
-function ConnectionsTable({ connections }: { connections?: Connections }) {
-  const rawItems = useMemo(() => {
-    if (connections === undefined) {
-      return [];
-    }
-
-    return connectionsToTableItems(connections.connections, connections.flights);
-  }, [connections]);
+function ConnectionsTable({ connections }: { connections: Connections }) {
+  const rawItems = useMemo(() => connectionsToTableItems(connections.connections, connections.flights), [connections]);
   const { items, collectionProps } = useCollection(rawItems, { sorting: {} });
   const [expandedItems, setExpandedItems] = useState<ReadonlyArray<ConnectionsTableItem>>([]);
 
@@ -817,7 +846,7 @@ function ConnectionsTable({ connections }: { connections?: Connections }) {
           });
         },
       }}
-      variant={'stacked'}
+      variant={'borderless'}
     />
   );
 }
