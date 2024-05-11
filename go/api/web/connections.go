@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"github.com/explore-flights/monorepo/go/api/search"
-	"github.com/goccy/go-graphviz"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"strconv"
@@ -80,26 +79,6 @@ func NewConnectionsEndpoint(ch *search.ConnectionsHandler) echo.HandlerFunc {
 		}
 
 		switch c.Param("export") {
-		case "dot":
-			c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextPlainCharsetUTF8)
-			c.Response().WriteHeader(http.StatusOK)
-			return search.ExportConnectionsImage(c.Response(), conns, graphviz.XDOT)
-
-		case "svg":
-			c.Response().Header().Set(echo.HeaderContentType, "image/svg+xml")
-			c.Response().WriteHeader(http.StatusOK)
-			return search.ExportConnectionsImage(c.Response(), conns, graphviz.SVG)
-
-		case "jpg":
-			c.Response().Header().Set(echo.HeaderContentType, "image/jpeg")
-			c.Response().WriteHeader(http.StatusOK)
-			return search.ExportConnectionsImage(c.Response(), conns, graphviz.JPG)
-
-		case "png":
-			c.Response().Header().Set(echo.HeaderContentType, "image/png")
-			c.Response().WriteHeader(http.StatusOK)
-			return search.ExportConnectionsImage(c.Response(), conns, graphviz.PNG)
-
 		case "json":
 			return c.JSON(http.StatusOK, search.ExportConnectionsJson(conns))
 
