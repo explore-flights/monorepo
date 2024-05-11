@@ -2,7 +2,6 @@ import {
   Box, Link, LinkProps, SpaceBetween,
 } from '@cloudscape-design/components';
 import React from 'react';
-import { useI18n } from '../util/context/i18n';
 import { useMobile } from '../util/state/common';
 import classes from './footer.module.scss';
 import { RouterLink } from '../common/router-link';
@@ -12,7 +11,6 @@ export interface FlightsFooterProps {
 }
 
 export default function FlightsFooter(props: FlightsFooterProps) {
-  const i18n = useI18n();
   const isMobile = useMobile();
 
   return (

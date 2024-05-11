@@ -12,7 +12,6 @@ import {
 } from '@cloudscape-design/components';
 import React, { useEffect, useState } from 'react';
 import { ConsentLevel } from '../../lib/consent.model';
-import { useI18n } from '../util/context/i18n';
 import { useConsent, useHasConsent } from '../util/state/use-consent';
 import { RouterLink } from '../common/router-link';
 
@@ -23,8 +22,6 @@ interface CategoryProps {
 }
 
 function Category({ name, description, checkbox }: CategoryProps) {
-  const i18n = useI18n();
-
   return (
     <>
       <Header variant={'h3'}>{name}</Header>
@@ -42,7 +39,6 @@ function Category({ name, description, checkbox }: CategoryProps) {
 }
 
 export default function CookiePreferences({ onDismiss, ...modalProps }: ModalProps) {
-  const i18n = useI18n();
   const hasConsent = useHasConsent();
   const [consentLevels, setConsentLevels] = useConsent();
   const [consent, setConsent] = useState({

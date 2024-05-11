@@ -9,7 +9,6 @@ import {
   SplitPanel,
 } from '@cloudscape-design/components';
 import { I18nProvider as CSI18nProvider } from '@cloudscape-design/components/i18n';
-import deMessages from '@cloudscape-design/components/i18n/messages/all.de';
 import enMessages from '@cloudscape-design/components/i18n/messages/all.en';
 import {
   applyDensity, applyMode, Density, Mode,
@@ -18,7 +17,7 @@ import React, {
   createContext, useContext, useEffect, useMemo, useState,
 } from 'react';
 import { AuthInfo } from '../lib/api/api.model';
-import { customI18nMessages, I18N_FLIGHTS } from '../lib/i18n/i18n-strings';
+import { customI18nMessages } from '../lib/i18n/i18n-strings';
 import { ColorScheme, UIDensity } from '../lib/preferences.model';
 import { Breadcrumb } from './breadcrumb/breadcrumb';
 import CookiePreferences from './cookie-preferences/cookie-preferences';
@@ -28,8 +27,7 @@ import { SideNav } from './sidenav/sidenav';
 import { AppControlsProvider } from './util/context/app-controls';
 import { AuthInfoProvider, useAuthInfo } from './util/context/auth-info';
 import { BrowserStoreProvider } from './util/context/browser-store';
-import { HttpClientProvider, useHttpClient } from './util/context/http-client';
-import { I18nProvider } from './util/context/i18n';
+import { HttpClientProvider } from './util/context/http-client';
 import { useMobile } from './util/state/common';
 import { useHasConsent } from './util/state/use-consent';
 import { useDependentState } from './util/state/use-dependent-state';
@@ -159,7 +157,6 @@ export function BaseProviders({ children }: React.PropsWithChildren) {
 }
 
 function InternalBaseProviders({ children }: React.PropsWithChildren) {
-  const { apiClient } = useHttpClient();
   const [preferences] = usePreferences();
   const [authInfo, setAuthInfo] = useState<AuthInfo | null | undefined>(undefined);
   const [,setPreviousIssuer] = usePreviousIssuer();
@@ -215,21 +212,19 @@ function InternalBaseProviders({ children }: React.PropsWithChildren) {
   }), [tools, toolsOpen, splitPanel, notificationMessages]);
 
   return (
-    <CSI18nProvider locale={preferences.effectiveLocale} messages={[enMessages, deMessages, customI18nMessages]}>
-      <I18nProvider locale={preferences.effectiveLocale} messages={I18N_FLIGHTS}>
-        <AuthInfoProvider value={[authInfo, setAuthInfoInternal]}>
-          <AppControlsProvider
-            setTools={setTools}
-            setToolsOpen={setToolsOpen}
-            setSplitPanel={setSplitPanel}
-            setNotificationMessages={setNotificationMessages}
-          >
-            <AppControlsStateContext.Provider value={appControlsState}>
-              {children}
-            </AppControlsStateContext.Provider>
-          </AppControlsProvider>
-        </AuthInfoProvider>
-      </I18nProvider>
+    <CSI18nProvider locale={'en'} messages={[enMessages, customI18nMessages]}>
+      <AuthInfoProvider value={[authInfo, setAuthInfoInternal]}>
+        <AppControlsProvider
+          setTools={setTools}
+          setToolsOpen={setToolsOpen}
+          setSplitPanel={setSplitPanel}
+          setNotificationMessages={setNotificationMessages}
+        >
+          <AppControlsStateContext.Provider value={appControlsState}>
+            {children}
+          </AppControlsStateContext.Provider>
+        </AppControlsProvider>
+      </AuthInfoProvider>
     </CSI18nProvider>
   );
 }

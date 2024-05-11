@@ -2,11 +2,8 @@ import { Box, Link } from '@cloudscape-design/components';
 import React from 'react';
 import { Copy } from '../common/copy';
 import { KeyValuePairs, ValueWithLabel } from '../common/key-value-pairs';
-import { useI18n } from '../util/context/i18n';
 
 export function Contact() {
-  const i18n = useI18n();
-
   return (
     <KeyValuePairs columns={1}>
       <ValueWithLabel label={'E-Mail'}>

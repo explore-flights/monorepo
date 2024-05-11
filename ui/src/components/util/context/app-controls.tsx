@@ -9,7 +9,6 @@ import React, {
 import { ApiError } from '../../../lib/api/api';
 import { Copy } from '../../common/copy';
 import { KeyValuePairs, ValueWithLabel } from '../../common/key-value-pairs';
-import { useI18n } from './i18n';
 
 export interface AppControls {
   readonly tools: {
@@ -195,8 +194,6 @@ export function catchNotify(notifications: AppControls['notification'] | Dispatc
 }
 
 function ErrorNotificationContent({ errText, error: e }: { errText?: string, error: unknown }) {
-  const i18n = useI18n();
-
   let errMessage: string | undefined;
   let errDetails: React.ReactNode;
 

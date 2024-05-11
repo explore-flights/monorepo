@@ -1,59 +1,34 @@
 import { BreadcrumbGroupProps } from '@cloudscape-design/components';
 import { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { I18nFormats, I18nRoute } from '../../../lib/i18n/i18n.model';
-import { useI18n } from '../context/i18n';
 
 interface RouteElement {
   path: string | RegExp;
-  title?: string | ((part: string, i18n: I18nFormats) => string);
-  breadcrumb?: string | ((part: string, i18n: I18nFormats) => string);
+  title?: string | ((part: string) => string);
+  breadcrumb?: string | ((part: string) => string);
   children?: readonly RouteElement[];
-}
-
-function i18nTitle(fn: (i18n: I18nFormats) => I18nRoute) {
-  return (_: string, i18n: I18nFormats) => {
-    const v = fn(i18n);
-    if (typeof v === 'string') {
-      return v;
-    }
-
-    return v.title;
-  };
-}
-
-function i18nBreadcrumb(fn: (i18n: I18nFormats) => I18nRoute) {
-  return (_: string, i18n: I18nFormats) => {
-    const v = fn(i18n);
-    if (typeof v === 'string') {
-      return v;
-    }
-
-    return v.breadcrumb;
-  };
 }
 
 const ROUTES = [{
   path: '',
-  breadcrumb: i18nBreadcrumb((i18n) => i18n.routes.home),
+  breadcrumb: 'Home',
   children: [
     // region general
     {
       path: 'legal',
-      title: i18nTitle((i18n) => i18n.routes.legal),
-      breadcrumb: i18nBreadcrumb((i18n) => i18n.routes.legal),
+      title: 'Legal',
+      breadcrumb: 'Legal',
     },
     {
       path: 'privacy-policy',
-      title: i18nTitle((i18n) => i18n.routes.privacyPolicy),
-      breadcrumb: i18nBreadcrumb((i18n) => i18n.routes.privacyPolicy),
+      title: 'Privacy Policy',
+      breadcrumb: 'Privacy Policy',
     },
     // endregion
   ],
 }] satisfies readonly RouteElement[];
 
 export function useRouteContext() {
-  const i18n = useI18n();
   const location = useLocation();
   
   return useMemo(() => {
@@ -87,7 +62,7 @@ export function useRouteContext() {
           if (matchedRoute !== undefined) {
             if (matchedRoute.title !== undefined) {
               if (typeof matchedRoute.title === 'function') {
-                titlePrefix = matchedRoute.title(part, i18n);
+                titlePrefix = matchedRoute.title(part);
               } else {
                 titlePrefix = matchedRoute.title;
               }
@@ -96,7 +71,7 @@ export function useRouteContext() {
             if (matchedRoute.breadcrumb !== undefined) {
               let text: string;
               if (typeof matchedRoute.breadcrumb === 'function') {
-                text = matchedRoute.breadcrumb(part, i18n);
+                text = matchedRoute.breadcrumb(part);
               } else {
                 text = matchedRoute.breadcrumb;
               }
@@ -128,7 +103,7 @@ export function useRouteContext() {
       documentTitle: titlePrefix !== undefined ? `${titlePrefix} • explore.flights` : 'explore.flights',
       breadcrumbItems: breadcrumbItems,
     } as const;
-  }, [location, i18n]);
+  }, [location]);
 }
 
 export function useDocumentTitle() {
