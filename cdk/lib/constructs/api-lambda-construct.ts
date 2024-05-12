@@ -61,6 +61,7 @@ export class ApiLambdaConstruct extends Construct {
     props.dataBucket.grantRead(lambda, 'raw/ourairports_data/airports.csv');
     props.dataBucket.grantRead(lambda, 'raw/ourairports_data/countries.csv');
     props.dataBucket.grantRead(lambda, 'raw/ourairports_data/regions.csv');
+    props.dataBucket.grantRead(lambda, 'raw/LH_Public_Data/aircraft.json');
 
     this.functionURL = new FunctionUrl(this, 'ApiLambdaFunctionUrl', {
       function: lambda,

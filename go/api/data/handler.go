@@ -4,10 +4,13 @@ import (
 	"cmp"
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"io"
+	"slices"
 	"strings"
 )
 
@@ -138,6 +141,12 @@ type Airport struct {
 	Name string `json:"name"`
 }
 
+type Aircraft struct {
+	Code      string `json:"code"`
+	EquipCode string `json:"equipCode"`
+	Name      string `json:"name"`
+}
+
 type MinimalS3Client interface {
 	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 }
@@ -211,6 +220,42 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 	return resp, nil
 }
 
+func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
+	excludeNames := []string{
+		"freighter",
+		"gulfstream",
+		"cessna",
+		"hawker",
+		"fokker",
+	}
+
+	aircraft, err := loadJson[[]lufthansa.Aircraft](ctx, h, "raw/LH_Public_Data/aircraft.json")
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]Aircraft, 0, len(aircraft))
+	for _, a := range aircraft {
+		if a.AirlineEquipCode == "" || a.AirlineEquipCode == "*" || len(a.Names.Name) < 1 {
+			continue
+		}
+
+		name := findName(a.Names, "EN")
+		lName := strings.ToLower(name)
+		if slices.ContainsFunc(excludeNames, func(s string) bool { return strings.Contains(lName, s) }) {
+			continue
+		}
+
+		result = append(result, Aircraft{
+			Code:      a.AircraftCode,
+			EquipCode: a.AirlineEquipCode,
+			Name:      name,
+		})
+	}
+
+	return result, err
+}
+
 func (h *Handler) loadCsv(ctx context.Context, name string) (*csvReader, error) {
 	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(h.bucket),
@@ -225,6 +270,40 @@ func (h *Handler) loadCsv(ctx context.Context, name string) (*csvReader, error) 
 		r: csv.NewReader(resp.Body),
 		c: resp.Body,
 	}, nil
+}
+
+func loadJson[T any](ctx context.Context, h *Handler, key string) (T, error) {
+	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(h.bucket),
+		Key:    aws.String(key),
+	})
+
+	if err != nil {
+		var def T
+		return def, err
+	}
+
+	defer resp.Body.Close()
+
+	var r T
+	return r, json.NewDecoder(resp.Body).Decode(&r)
+}
+
+func findName(names lufthansa.Names, lang string) string {
+	if len(names.Name) < 1 {
+		return ""
+	}
+
+	r := names.Name[0].Name
+	for _, n := range names.Name {
+		if n.LanguageCode == lang {
+			return n.Name
+		} else if n.LanguageCode == "EN" {
+			r = n.Name
+		}
+	}
+
+	return r
 }
 
 type csvReader struct {

@@ -38,8 +38,9 @@ func main() {
 	dataHandler := data.NewHandler(s3c, bucket)
 
 	e := echo.New()
-	e.GET("/api/connections/:export", web.NewConnectionsEndpoint(connHandler))
+	e.POST("/api/connections/:export", web.NewConnectionsEndpoint(connHandler))
 	e.GET("/data/airports.json", web.NewAirportsHandler(dataHandler))
+	e.GET("/data/aircraft.json", web.NewAircraftHandler(dataHandler))
 
 	if err := run(ctx, e); err != nil {
 		panic(err)

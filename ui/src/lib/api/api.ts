@@ -2,7 +2,7 @@ import { HTTPClient } from '../http';
 import {
   isJsonObject,
   JsonType,
-  ApiErrorBody, Airports, Connections,
+  ApiErrorBody, Airports, Connections, Aircraft
 } from './api.model';
 import { DateTime, Duration } from 'luxon';
 
@@ -50,24 +50,41 @@ export class ApiClient {
     return transform(this.httpClient.fetch('/data/airports.json'));
   }
 
-  getConnections(origins: ReadonlyArray<string>, destinations: ReadonlyArray<string>, minDeparture: DateTime<true>, maxDeparture: DateTime<true>, maxFlights: number, minLayover: Duration<true>, maxLayover: Duration<true>, maxDuration: Duration<true>): Promise<ApiResponse<Connections>> {
-    const params = new URLSearchParams();
-    for (const origin of origins) {
-      params.append('origin', origin);
-    }
+  getAircraft(): Promise<ApiResponse<ReadonlyArray<Aircraft>>> {
+    return transform(this.httpClient.fetch('/data/aircraft.json'));
+  }
 
-    for (const destination of destinations) {
-      params.append('destination', destination);
-    }
+  getConnections(
+    origins: ReadonlyArray<string>,
+    destinations: ReadonlyArray<string>,
+    minDeparture: DateTime<true>,
+    maxDeparture: DateTime<true>,
+    maxFlights: number,
+    minLayover: Duration<true>,
+    maxLayover: Duration<true>,
+    maxDuration: Duration<true>,
+    includeAircraft: ReadonlyArray<string> | null,
+    excludeAircraft: ReadonlyArray<string> | null,
+  ): Promise<ApiResponse<Connections>> {
 
-    params.set('minDeparture', minDeparture.toISO());
-    params.set('maxDeparture', maxDeparture.toISO());
-    params.set('maxFlights', maxFlights.toString());
-    params.set('minLayover', `${minLayover.toMillis()}ms`);
-    params.set('maxLayover', `${maxLayover.toMillis()}ms`);
-    params.set('maxDuration', `${maxDuration.toMillis()}ms`);
-
-    return transform(this.httpClient.fetch(`/api/connections/json?${params.toString()}`));
+    return transform(this.httpClient.fetch(
+      '/api/connections/json',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          origins: origins,
+          destinations: destinations,
+          minDeparture: minDeparture.toISO(),
+          maxDeparture: maxDeparture.toISO(),
+          maxFlights: maxFlights,
+          minLayoverMS: minLayover.toMillis(),
+          maxLayoverMS: maxLayover.toMillis(),
+          maxDurationMS: maxDuration.toMillis(),
+          includeAircraft: includeAircraft ? includeAircraft : undefined,
+          excludeAircraft: excludeAircraft ? excludeAircraft : undefined,
+        }),
+      },
+    ));
   }
 }
 

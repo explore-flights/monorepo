@@ -4,14 +4,14 @@ import {
   Button, ColumnLayout,
   Container,
   ContentLayout,
-  DateRangePicker,
+  DateRangePicker, ExpandableSection,
   Form,
   FormField, Grid,
   Header,
   Multiselect,
   MultiselectProps, Popover,
   Slider,
-  SpaceBetween, Table, Tabs, TabsProps
+  SpaceBetween, Table, Tabs, TabsProps, Toggle
 } from '@cloudscape-design/components';
 import Dagre from '@dagrejs/dagre';
 import {
@@ -34,13 +34,26 @@ import 'reactflow/dist/style.css';
 import { useHttpClient } from '../components/util/context/http-client';
 import { catchNotify, useAppControls } from '../components/util/context/app-controls';
 import { expectSuccess } from '../lib/api/api';
-import { Airports, Connection, Connections, Flight, FlightNumber } from '../lib/api/api.model';
+import { Aircraft, Airports, Connection, Connections, Flight, FlightNumber } from '../lib/api/api.model';
 import { KeyValuePairs, ValueWithLabel } from '../components/common/key-value-pairs';
 import { useCollection } from '@cloudscape-design/collection-hooks';
+import { useAsync } from '../components/util/state/use-async';
 
 export function Home() {
   const { apiClient } = useHttpClient();
   const { notification } = useAppControls();
+
+  const [airports, airportsState] = useAsync(
+    { airports: [], metropolitanAreas: [] },
+    async () => expectSuccess(await apiClient.getLocations()).body,
+    [],
+  );
+
+  const [aircraft, aircraftState] = useAsync(
+    [],
+    async () => expectSuccess(await apiClient.getAircraft()).body,
+    [],
+  );
 
   const [isLoading, setLoading] = useState(false);
   const [connections, setConnections] = useState<Connections>();
@@ -57,6 +70,8 @@ export function Home() {
         params.minLayover,
         params.maxLayover,
         params.maxDuration,
+        params.includeAircraft ?? null,
+        params.excludeAircraft ?? null,
       ));
 
       setConnections(body);
@@ -69,9 +84,16 @@ export function Home() {
     <ContentLayout header={<Header variant={'h1'}>Welcome to explore.flights</Header>}>
       <ColumnLayout columns={1}>
         <Container>
-          <ConnectionSearchForm isLoading={isLoading} onSearch={onSearch} />
+          <ConnectionSearchForm
+            airports={airports}
+            airportsLoading={airportsState.loading}
+            aircraft={aircraft}
+            aircraftLoading={aircraftState.loading}
+            isDisabled={isLoading}
+            onSearch={onSearch}
+          />
         </Container>
-        <ConnectionsTabs connections={connections} />
+        <ConnectionsTabs aircraft={aircraft} connections={connections} />
       </ColumnLayout>
     </ContentLayout>
   );
@@ -86,6 +108,8 @@ interface ConnectionSearchParams {
   readonly minLayover: Duration<true>;
   readonly maxLayover: Duration<true>;
   readonly maxDuration: Duration<true>;
+  readonly includeAircraft?: ReadonlyArray<string>;
+  readonly excludeAircraft?: ReadonlyArray<string>;
 }
 
 interface ConnectionSearchFormErrors {
@@ -98,16 +122,7 @@ interface ConnectionSearchFormErrors {
   maxDuration?: string;
 }
 
-function ConnectionSearchForm({ isLoading, onSearch }: { isLoading: boolean, onSearch: (v: ConnectionSearchParams) => void }) {
-  const { notification } = useAppControls();
-  const { apiClient } = useHttpClient();
-
-  const [airportsLoading, setAirportsLoading] = useState(true)
-  const [airports, setAirports] = useState<Airports>({
-    airports: [],
-    metropolitanAreas: [],
-  });
-
+function ConnectionSearchForm({ airports, airportsLoading, aircraft, aircraftLoading, isDisabled, onSearch }: { airports: Airports, airportsLoading: boolean, aircraft: ReadonlyArray<Aircraft>, aircraftLoading: boolean, isDisabled: boolean, onSearch: (v: ConnectionSearchParams) => void }) {
   const [origins, setOrigins] = useState<ReadonlyArray<string>>([]);
   const [destinations, setDestinations] = useState<ReadonlyArray<string>>([]);
   const [departure, setDeparture] = useState<[DateTime<true>, DateTime<true>] | null>([
@@ -118,6 +133,10 @@ function ConnectionSearchForm({ isLoading, onSearch }: { isLoading: boolean, onS
   const [minLayover, setMinLayover] = useState(Duration.fromMillis(1000*60*60));
   const [maxLayover, setMaxLayover] = useState(Duration.fromMillis(1000*60*60*6));
   const [maxDuration, setMaxDuration] = useState(Duration.fromMillis(1000*60*60*26));
+  const [includeAircraftEnabled, setIncludeAircraftEnabled] = useState(false);
+  const [includeAircraft, setIncludeAircraft] = useState<ReadonlyArray<string>>([]);
+  const [excludeAircraftEnabled, setExcludeAircraftEnabled] = useState(false);
+  const [excludeAircraft, setExcludeAircraft] = useState<ReadonlyArray<string>>([]);
   const errors = useMemo<ConnectionSearchFormErrors | null>(() => {
     const e: ConnectionSearchFormErrors = {};
     let anyError = false;
@@ -161,16 +180,6 @@ function ConnectionSearchForm({ isLoading, onSearch }: { isLoading: boolean, onS
     return anyError ? e : null;
   }, [origins, destinations, departure, maxFlights, minLayover, maxLayover, maxDuration]);
 
-  useEffect(() => {
-    setAirportsLoading(true);
-    (async () => {
-      const { body } = expectSuccess(await apiClient.getLocations());
-      setAirports(body);
-    })()
-      .catch(catchNotify(notification))
-      .finally(() => setAirportsLoading(false));
-  }, []);
-
   function onClickSearch() {
     if (departure === null) {
       return;
@@ -185,128 +194,154 @@ function ConnectionSearchForm({ isLoading, onSearch }: { isLoading: boolean, onS
       minLayover: minLayover,
       maxLayover: maxLayover,
       maxDuration: maxDuration,
+      includeAircraft: includeAircraftEnabled ? includeAircraft : undefined,
+      excludeAircraft: excludeAircraftEnabled ? excludeAircraft : undefined,
     });
   }
 
   return (
-    <Form variant={'embedded'} actions={<Button onClick={onClickSearch} loading={isLoading} disabled={errors !== null}>Search</Button>}>
-      <Grid
-        gridDefinition={[
-          { colspan: { default: 12, xs: 6, m: 3 } },
-          { colspan: { default: 12, xs: 6, m: 3 } },
-          { colspan: { default: 12, xs: 12, m: 6 } },
-          { colspan: { default: 12, xs: 6, m: 3 } },
-          { colspan: { default: 12, xs: 6, m: 3 } },
-          { colspan: { default: 12, xs: 6, m: 3 } },
-          { colspan: { default: 12, xs: 6, m: 3 } },
-        ]}
-      >
-        <FormField label={'Origin'} errorText={errors?.origins}>
-          <AirportMultiselect airports={airports} loading={airportsLoading} disabled={isLoading} onChange={setOrigins} />
-        </FormField>
+    <Form variant={'embedded'} actions={<Button onClick={onClickSearch} loading={isDisabled} disabled={errors !== null}>Search</Button>}>
+      <ColumnLayout columns={1}>
+        <Grid
+          gridDefinition={[
+            { colspan: { default: 12, xs: 6, m: 3 } },
+            { colspan: { default: 12, xs: 6, m: 3 } },
+            { colspan: { default: 12, xs: 12, m: 6 } },
+            { colspan: { default: 12, xs: 6, m: 3 } },
+            { colspan: { default: 12, xs: 6, m: 3 } },
+            { colspan: { default: 12, xs: 6, m: 3 } },
+            { colspan: { default: 12, xs: 6, m: 3 } },
+          ]}
+        >
+          <FormField label={'Origin'} errorText={errors?.origins}>
+            <AirportMultiselect airports={airports} loading={airportsLoading} disabled={isDisabled} onChange={setOrigins} />
+          </FormField>
 
-        <FormField label={'Destination'} errorText={errors?.destinations}>
-          <AirportMultiselect airports={airports} loading={airportsLoading} disabled={isLoading} onChange={setDestinations} />
-        </FormField>
+          <FormField label={'Destination'} errorText={errors?.destinations}>
+            <AirportMultiselect airports={airports} loading={airportsLoading} disabled={isDisabled} onChange={setDestinations} />
+          </FormField>
 
-        <FormField label={'Departure'} errorText={errors?.departure}>
-          <DateRangePicker
-            value={departure !== null ? { type: 'absolute', startDate: departure[0].toISO(), endDate: departure[1].toISO() } : null}
-            onChange={(e) => {
-              const value = e.detail.value;
-              if (value === null || value.type !== 'absolute') {
-                setDeparture(null);
-                return;
-              }
+          <FormField label={'Departure'} errorText={errors?.departure}>
+            <DateRangePicker
+              value={departure !== null ? { type: 'absolute', startDate: departure[0].toISO(), endDate: departure[1].toISO() } : null}
+              onChange={(e) => {
+                const value = e.detail.value;
+                if (value === null || value.type !== 'absolute') {
+                  setDeparture(null);
+                  return;
+                }
 
-              const start = DateTime.fromISO(value.startDate, { setZone: true });
-              const end = DateTime.fromISO(value.endDate, { setZone: true });
-              if (!start.isValid || !end.isValid) {
-                setDeparture(null);
-                return;
-              }
+                const start = DateTime.fromISO(value.startDate, { setZone: true });
+                const end = DateTime.fromISO(value.endDate, { setZone: true });
+                if (!start.isValid || !end.isValid) {
+                  setDeparture(null);
+                  return;
+                }
 
-              setDeparture([start, end]);
-            }}
-            relativeOptions={[]}
-            isValidRange={(v) => {
-              if (v === null || v.type !== 'absolute') {
-                return {
-                  valid: false,
-                  errorMessage: 'Absolute range is required',
-                };
-              }
+                setDeparture([start, end]);
+              }}
+              relativeOptions={[]}
+              isValidRange={(v) => {
+                if (v === null || v.type !== 'absolute') {
+                  return {
+                    valid: false,
+                    errorMessage: 'Absolute range is required',
+                  };
+                }
 
-              const start = DateTime.fromISO(v.startDate, { setZone: true });
-              const end = DateTime.fromISO(v.endDate, { setZone: true });
-              if (!start.isValid || !end.isValid) {
-                return {
-                  valid: false,
-                  errorMessage: 'Invalid dates',
-                };
-              }
+                const start = DateTime.fromISO(v.startDate, { setZone: true });
+                const end = DateTime.fromISO(v.endDate, { setZone: true });
+                if (!start.isValid || !end.isValid) {
+                  return {
+                    valid: false,
+                    errorMessage: 'Invalid dates',
+                  };
+                }
 
-              if (end.diff(start).toMillis() > 1000*60*60*24*14) {
-                return {
-                  valid: false,
-                  errorMessage: 'At most 14 days can be searched',
-                };
-              }
+                if (end.diff(start).toMillis() > 1000*60*60*24*14) {
+                  return {
+                    valid: false,
+                    errorMessage: 'At most 14 days can be searched',
+                  };
+                }
 
-              return { valid: true };
-            }}
-            rangeSelectorMode={'absolute-only'}
-            disabled={isLoading}
-          />
-        </FormField>
+                return { valid: true };
+              }}
+              rangeSelectorMode={'absolute-only'}
+              disabled={isDisabled}
+            />
+          </FormField>
 
-        <FormField label={'Max Flights'} errorText={errors?.maxFlights}>
-          <Slider
-            min={1}
-            max={4}
-            referenceValues={[2, 3]}
-            value={maxFlights}
-            onChange={(e) => setMaxFlights(e.detail.value)}
-            disabled={isLoading}
-          />
-        </FormField>
+          <FormField label={'Max Flights'} errorText={errors?.maxFlights}>
+            <Slider
+              min={1}
+              max={4}
+              referenceValues={[2, 3]}
+              value={maxFlights}
+              onChange={(e) => setMaxFlights(e.detail.value)}
+              disabled={isDisabled}
+            />
+          </FormField>
 
-        <FormField label={'Min Layover'} errorText={errors?.minLayover}>
-          <Slider
-            min={1000*60*5}
-            max={1000*60*60*24}
-            step={1000*60*5}
-            valueFormatter={(v) => Duration.fromMillis(v).rescale().toHuman({ unitDisplay: 'short' })}
-            value={minLayover.toMillis()}
-            onChange={(e) => setMinLayover(Duration.fromMillis(e.detail.value))}
-            disabled={isLoading}
-          />
-        </FormField>
+          <FormField label={'Min Layover'} errorText={errors?.minLayover}>
+            <Slider
+              min={1000*60*5}
+              max={1000*60*60*24}
+              step={1000*60*5}
+              valueFormatter={(v) => Duration.fromMillis(v).rescale().toHuman({ unitDisplay: 'short' })}
+              value={minLayover.toMillis()}
+              onChange={(e) => setMinLayover(Duration.fromMillis(e.detail.value))}
+              disabled={isDisabled}
+            />
+          </FormField>
 
-        <FormField label={'Max Layover'} errorText={errors?.maxLayover}>
-          <Slider
-            min={1000*60*5}
-            max={1000*60*60*24}
-            step={1000*60*5}
-            valueFormatter={(v) => Duration.fromMillis(v).rescale().toHuman({ unitDisplay: 'short' })}
-            value={maxLayover.toMillis()}
-            onChange={(e) => setMaxLayover(Duration.fromMillis(e.detail.value))}
-            disabled={isLoading}
-          />
-        </FormField>
+          <FormField label={'Max Layover'} errorText={errors?.maxLayover}>
+            <Slider
+              min={1000*60*5}
+              max={1000*60*60*24}
+              step={1000*60*5}
+              valueFormatter={(v) => Duration.fromMillis(v).rescale().toHuman({ unitDisplay: 'short' })}
+              value={maxLayover.toMillis()}
+              onChange={(e) => setMaxLayover(Duration.fromMillis(e.detail.value))}
+              disabled={isDisabled}
+            />
+          </FormField>
 
-        <FormField label={'Max Duration'} errorText={errors?.maxDuration}>
-          <Slider
-            min={1000*60*5}
-            max={1000*60*60*24*3}
-            step={1000*60*5}
-            valueFormatter={(v) => Duration.fromMillis(v).rescale().toHuman({ unitDisplay: 'short' })}
-            value={maxDuration.toMillis()}
-            onChange={(e) => setMaxDuration(Duration.fromMillis(e.detail.value))}
-            disabled={isLoading}
-          />
-        </FormField>
-      </Grid>
+          <FormField label={'Max Duration'} errorText={errors?.maxDuration}>
+            <Slider
+              min={1000*60*5}
+              max={1000*60*60*24*3}
+              step={1000*60*5}
+              valueFormatter={(v) => Duration.fromMillis(v).rescale().toHuman({ unitDisplay: 'short' })}
+              value={maxDuration.toMillis()}
+              onChange={(e) => setMaxDuration(Duration.fromMillis(e.detail.value))}
+              disabled={isDisabled}
+            />
+          </FormField>
+        </Grid>
+
+        <ExpandableSection headerText={'Additional options'} variant={'footer'}>
+          <ColumnLayout columns={2}>
+            <FormField label={<Toggle checked={includeAircraftEnabled} onChange={(e) => setIncludeAircraftEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Include Aircraft</Box></Toggle>}>
+              <AircraftMultiselect
+                aircraft={aircraft}
+                loading={aircraftLoading}
+                disabled={isDisabled || !includeAircraftEnabled}
+                onChange={setIncludeAircraft}
+              />
+            </FormField>
+
+            <FormField label={<Toggle checked={excludeAircraftEnabled} onChange={(e) => setExcludeAircraftEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Exclude Aircraft</Box></Toggle>}>
+              <AircraftMultiselect
+                aircraft={aircraft}
+                loading={aircraftLoading}
+                disabled={isDisabled || !excludeAircraftEnabled}
+                onChange={setExcludeAircraft}
+              />
+            </FormField>
+          </ColumnLayout>
+        </ExpandableSection>
+      </ColumnLayout>
     </Form>
   );
 }
@@ -330,10 +365,19 @@ function groupByDepartureDate(connections: Connections): Record<string, Connecti
   return result;
 }
 
-function ConnectionsTabs({ connections }: { connections?: Connections }) {
+function ConnectionsTabs({ aircraft, connections }: { aircraft: ReadonlyArray<Aircraft>, connections?: Connections }) {
   if (connections === undefined) {
     return undefined;
   }
+
+  const aircraftLookup = useMemo<Record<string, Aircraft>>(() => {
+    const lookup: Record<string, Aircraft> = {};
+    for (const a of aircraft) {
+      lookup[a.code] = a;
+    }
+
+    return lookup;
+  }, [aircraft]);
 
   const tabs = useMemo(() => {
     return Object.entries(groupByDepartureDate(connections))
@@ -344,13 +388,13 @@ function ConnectionsTabs({ connections }: { connections?: Connections }) {
         content: (
           <ColumnLayout columns={1}>
             <ReactFlowProvider>
-              <ConnectionsGraph connections={connections} />
+              <ConnectionsGraph aircraft={aircraftLookup} connections={connections} />
             </ReactFlowProvider>
-            <ConnectionsTable connections={connections} />
+            <ConnectionsTable aircraft={aircraftLookup} connections={connections} />
           </ColumnLayout>
         ),
       } satisfies TabsProps.Tab))
-  }, [connections]);
+  }, [aircraftLookup, connections]);
 
   return (
     <Tabs variant={'container'} tabs={tabs} />
@@ -360,7 +404,7 @@ function ConnectionsTabs({ connections }: { connections?: Connections }) {
 interface FlightNodeData {
   readonly type: 'flight';
   readonly flight: Flight;
-  readonly hasOutgoing: boolean;
+  readonly aircraft?: Aircraft;
 }
 
 interface DepartureNodeData {
@@ -382,7 +426,7 @@ interface EdgeData {
   target?: Flight;
 }
 
-function convertToGraph(conns: Connections): [Array<Node<NodeData>>, Array<Edge<EdgeData>>] {
+function convertToGraph(conns: Connections, aircraft: Record<string, Aircraft>): [Array<Node<NodeData>>, Array<Edge<EdgeData>>] {
   const nodes: Array<Node<NodeData>> = [];
   const edges: Array<Edge<EdgeData>> = [];
 
@@ -393,6 +437,7 @@ function convertToGraph(conns: Connections): [Array<Node<NodeData>>, Array<Edge<
     edges,
     new Map(),
     new Map(),
+    aircraft,
   );
 
   return [nodes, edges];
@@ -405,6 +450,7 @@ function buildGraph(
   edges: Array<Edge<EdgeData>>,
   nodeLookup: Map<string, Node<NodeData>>,
   edgeLookup: Map<string, Edge<EdgeData>>,
+  aircraft: Record<string, Aircraft>,
   parent?: string
 ) {
   for (const connection of connections) {
@@ -420,7 +466,7 @@ function buildGraph(
         data: {
           type: 'flight',
           flight: flight,
-          hasOutgoing: connection.outgoing.length > 0,
+          aircraft: aircraft[flight.aircraftType] ?? undefined,
         },
       } satisfies Node<FlightNodeData>;
 
@@ -498,6 +544,7 @@ function buildGraph(
         edges,
         nodeLookup,
         edgeLookup,
+        aircraft,
         connection.flightId,
       );
     } else {
@@ -542,7 +589,7 @@ function buildGraph(
   }
 }
 
-function ConnectionsGraph({ connections }: { connections: Connections }) {
+function ConnectionsGraph({ aircraft, connections }: { aircraft: Record<string, Aircraft>, connections: Connections }) {
   const { fitView } = useReactFlow();
   const getLayoutedElements = useCallback((nodes: ReadonlyArray<Node<NodeData>>, edges: ReadonlyArray<Edge<EdgeData>>) => {
     const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
@@ -570,7 +617,7 @@ function ConnectionsGraph({ connections }: { connections: Connections }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([]);
 
   useEffect(() => {
-    const [nodes, edges] = convertToGraph(connections);
+    const [nodes, edges] = convertToGraph(connections, aircraft);
     const layouted = getLayoutedElements(nodes, edges);
 
     setNodes([...layouted.nodes]);
@@ -579,7 +626,7 @@ function ConnectionsGraph({ connections }: { connections: Connections }) {
     window.requestAnimationFrame(() => {
       fitView();
     });
-  }, [getLayoutedElements, connections]);
+  }, [getLayoutedElements, aircraft, connections]);
 
   return (
     <div style={{ width: '100%', height: '750px' }}>
@@ -608,7 +655,7 @@ function ConnectionsGraph({ connections }: { connections: Connections }) {
 }
 
 function FlightNode({ data }: NodeProps<FlightNodeData>) {
-  const { flight, hasOutgoing } = data;
+  const { flight, aircraft } = data;
   const departure = DateTime.fromISO(flight.departureTime, { setZone: true });
   const arrival = DateTime.fromISO(flight.arrivalTime, { setZone: true });
   const duration = arrival.diff(departure).rescale();
@@ -618,7 +665,7 @@ function FlightNode({ data }: NodeProps<FlightNodeData>) {
     <>
       <SpaceBetween size={'xxl'} direction={'vertical'}>
         <Handle type="target" position={Position.Left} />
-        <Popover header={flightNumberFull} size={'large'} content={<FlightPopoverContent flight={flight} />} fixedWidth={true} renderWithPortal={true}>
+        <Popover header={flightNumberFull} size={'large'} content={<FlightPopoverContent flight={flight} aircraft={aircraft} />} fixedWidth={true} renderWithPortal={true}>
           <Box textAlign={'center'}>
             <Box>{flightNumberFull}</Box>
             <Box>{`${flight.departureAirport} - ${flight.arrivalAirport}`}</Box>
@@ -631,8 +678,13 @@ function FlightNode({ data }: NodeProps<FlightNodeData>) {
   )
 }
 
-function FlightPopoverContent({ flight }: { flight: Flight }) {
+function FlightPopoverContent({ flight, aircraft }: { flight: Flight, aircraft?: Aircraft }) {
   const codeSharesStr = flight.codeShares.map(flightNumberToString).join(', ');
+  let aircraftStr = flight.aircraftType;
+
+  if (aircraft) {
+    aircraftStr += ` (${aircraft.name})`;
+  }
 
   return (
     <KeyValuePairs columns={2}>
@@ -640,7 +692,7 @@ function FlightPopoverContent({ flight }: { flight: Flight }) {
       <ValueWithLabel label={'Departure Time'}>{DateTime.fromISO(flight.departureTime, { setZone: true }).toLocaleString(DateTime.DATETIME_FULL)}</ValueWithLabel>
       <ValueWithLabel label={'Arrival Airport'}>{flight.arrivalAirport}</ValueWithLabel>
       <ValueWithLabel label={'Arrival Time'}>{DateTime.fromISO(flight.arrivalTime, { setZone: true }).toLocaleString(DateTime.DATETIME_FULL)}</ValueWithLabel>
-      <ValueWithLabel label={'Aircraft Type'}>{flight.aircraftType}</ValueWithLabel>
+      <ValueWithLabel label={'Aircraft Type'}>{aircraftStr}</ValueWithLabel>
       <ValueWithLabel label={'Aircraft Owner'}>{flight.aircraftOwner}</ValueWithLabel>
       <ValueWithLabel label={'Registration'}>{flight.registration ?? 'UNKNOWN'}</ValueWithLabel>
       <ValueWithLabel label={'Code Shares'}>{codeSharesStr}</ValueWithLabel>
@@ -650,6 +702,75 @@ function FlightPopoverContent({ flight }: { flight: Flight }) {
 
 function flightNumberToString(fn: FlightNumber): string {
   return `${fn.airline}${fn.number}${fn.suffix ?? ''}`;
+}
+
+function AircraftMultiselect({ aircraft, loading, disabled, onChange }: { aircraft: ReadonlyArray<Aircraft>, loading: boolean, disabled: boolean, onChange: (options: ReadonlyArray<string>) => void }) {
+  const options = useMemo<MultiselectProps.Options>(() => {
+    const otherOptions: Array<MultiselectProps.Option> = [];
+    const groups: ReadonlyArray<{ name: string, options: Array<MultiselectProps.Option> }> = [
+      { name: 'Airbus', options: [] },
+      { name: 'Boeing', options: [] },
+      { name: 'Embraer', options: [] },
+      { name: 'BAE Systems', options: [] },
+      { name: 'Antonov', options: [] },
+      { name: 'Bombardier', options: [] },
+      { name: 'Tupolev', options: [] },
+    ];
+
+    for (const a of aircraft) {
+      const option = {
+        label: a.name,
+        value: a.code,
+        description: a.equipCode,
+      } satisfies MultiselectProps.Option;
+
+      let addedToGroup = false;
+      for (const group of groups) {
+        if (a.name.toLowerCase().includes(group.name.toLowerCase())) {
+          group.options.push(option);
+          addedToGroup = true;
+          break;
+        }
+      }
+
+      if (!addedToGroup) {
+        otherOptions.push(option);
+      }
+    }
+
+    const options: Array<MultiselectProps.Option | MultiselectProps.OptionGroup> = [];
+    for (const group of groups) {
+      if (group.options.length > 0) {
+        options.push({
+          label: group.name,
+          options: group.options,
+        });
+      }
+    }
+
+    options.push(...otherOptions);
+
+    return options;
+  }, [aircraft]);
+
+  const [selectedOptions, setSelectedOptions] = useState<ReadonlyArray<MultiselectProps.Option>>([]);
+
+  useEffect(() => {
+    onChange(selectedOptions.map((v) => v.value!));
+  }, [selectedOptions]);
+
+  return (
+    <Multiselect
+      options={options}
+      selectedOptions={selectedOptions}
+      onChange={(e) => setSelectedOptions(e.detail.selectedOptions)}
+      keepOpen={true}
+      filteringType={'auto'}
+      tokenLimit={2}
+      disabled={disabled}
+      statusType={loading ? 'loading' : 'finished'}
+    />
+  );
 }
 
 function AirportMultiselect({ airports, loading, disabled, onChange }: { airports: Airports, loading: boolean, disabled: boolean, onChange: (options: ReadonlyArray<string>) => void }) {
@@ -805,7 +926,7 @@ function expandConnections(conns: ReadonlyArray<Connection>, flights: Record<str
   return result;
 }
 
-function ConnectionsTable({ connections }: { connections: Connections }) {
+function ConnectionsTable({ aircraft, connections }: { aircraft: Record<string, Aircraft>, connections: Connections }) {
   const rawItems = useMemo(() => connectionsToTableItems(connections.connections, connections.flights), [connections]);
   const { items, collectionProps } = useCollection(rawItems, { sorting: {} });
   const [expandedItems, setExpandedItems] = useState<ReadonlyArray<ConnectionsTableItem>>([]);
@@ -857,7 +978,11 @@ function ConnectionsTable({ connections }: { connections: Connections }) {
         {
           id: 'aircraft_type',
           header: 'Aircraft Type',
-          cell: (v) => v.aircraftType,
+          cell: (v) => (
+            v.aircraftType
+              ? <AircraftType aircraft={aircraft[v.aircraftType]} aircraftType={v.aircraftType} />
+              : undefined
+          ),
         },
         {
           id: 'registration',
@@ -894,5 +1019,15 @@ function ConnectionsTable({ connections }: { connections: Connections }) {
       }}
       variant={'borderless'}
     />
+  );
+}
+
+function AircraftType({ aircraft, aircraftType }: { aircraft?: Aircraft, aircraftType: string }) {
+  if (!aircraft) {
+    return aircraftType;
+  }
+
+  return (
+    <Popover content={aircraft.name}>{aircraftType}</Popover>
   );
 }

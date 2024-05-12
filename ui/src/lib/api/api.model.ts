@@ -62,3 +62,9 @@ export interface FlightNumber {
   number: number;
   suffix?: string;
 }
+
+export interface Aircraft {
+  code: string;
+  equipCode: string;
+  name: string;
+}
