@@ -12,22 +12,6 @@ type Connection struct {
 	Outgoing []Connection
 }
 
-type ConnectionOption interface {
-	Matches(f *common.Flight) bool
-}
-
-type WithIncludeAircraft []string
-
-func (a WithIncludeAircraft) Matches(f *common.Flight) bool {
-	return slices.Contains(a, f.AircraftType)
-}
-
-type WithExcludeAircraft []string
-
-func (a WithExcludeAircraft) Matches(f *common.Flight) bool {
-	return !slices.Contains(a, f.AircraftType)
-}
-
 type ConnectionsHandler struct {
 	fr *FlightRepo
 }
@@ -47,7 +31,7 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 			return nil, err
 		}
 
-		flightsByDeparture = groupByDeparture(flightsByDate)
+		flightsByDeparture = groupByDeparture(flightsByDate, options)
 	}
 
 	return collectCtx(ctx, findConnections(
@@ -61,12 +45,11 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 		minLayover,
 		maxLayover,
 		maxDuration,
-		options,
 		true,
 	))
 }
 
-func findConnections(ctx context.Context, flightsByDeparture map[common.Departure][]*common.Flight, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration, options []ConnectionOption, initial bool) <-chan Connection {
+func findConnections(ctx context.Context, flightsByDeparture map[common.Departure][]*common.Flight, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration, initial bool) <-chan Connection {
 	if maxFlights < 1 || maxDuration < 1 {
 		ch := make(chan Connection)
 		close(ch)
@@ -94,7 +77,7 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 				}
 
 				for _, f := range flightsByDeparture[d] {
-					if f.ServiceType != "J" || f.Duration() > maxDuration || f.DepartureTime.Compare(minDeparture) < 0 || f.DepartureTime.Compare(maxDeparture) > 0 || !allMatch(options, f) {
+					if f.ServiceType != "J" || f.Duration() > maxDuration || f.DepartureTime.Compare(minDeparture) < 0 || f.DepartureTime.Compare(maxDeparture) > 0 {
 						continue
 					}
 
@@ -131,7 +114,6 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 							minLayover,
 							maxLayover,
 							maxDuration-(f.Duration()+minLayover),
-							options,
 							false,
 						)
 
@@ -182,25 +164,18 @@ func allMatch(options []ConnectionOption, f *common.Flight) bool {
 	return true
 }
 
-func groupByDeparture(flightsByDate map[common.LocalDate][]*common.Flight) map[common.Departure][]*common.Flight {
+func groupByDeparture(flightsByDate map[common.LocalDate][]*common.Flight, options []ConnectionOption) map[common.Departure][]*common.Flight {
 	result := make(map[common.Departure][]*common.Flight)
 	for _, flights := range flightsByDate {
 		for _, f := range flights {
-			d := f.Departure()
-			result[d] = append(result[d], f)
+			if allMatch(options, f) {
+				d := f.Departure()
+				result[d] = append(result[d], f)
+			}
 		}
 	}
 
 	return result
-}
-
-func collect[T any](ch <-chan T) []T {
-	var r []T
-	for v := range ch {
-		r = append(r, v)
-	}
-
-	return r
 }
 
 func collectCtx[T any](ctx context.Context, ch <-chan T) ([]T, error) {

@@ -1,16 +1,18 @@
 import { Aircraft } from '../../lib/api/api.model';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Multiselect, MultiselectProps } from '@cloudscape-design/components';
 
 export interface AircraftMultiselectProps {
   aircraft: ReadonlyArray<Aircraft>;
+  selectedAircraftCodes: ReadonlyArray<string>;
   loading: boolean;
   disabled: boolean;
   onChange: (options: ReadonlyArray<string>) => void;
 }
 
-export function AircraftMultiselect({ aircraft, loading, disabled, onChange }: AircraftMultiselectProps) {
-  const options = useMemo<MultiselectProps.Options>(() => {
+export function AircraftMultiselect({ aircraft, selectedAircraftCodes, loading, disabled, onChange }: AircraftMultiselectProps) {
+  const [options, optionByAircraftCode] = useMemo(() => {
+    const optionByAircraftCode: Record<string, MultiselectProps.Option> = {};
     const otherOptions: Array<MultiselectProps.Option> = [];
     const groups: ReadonlyArray<{ name: string, options: Array<MultiselectProps.Option> }> = [
       { name: 'Airbus', options: [] },
@@ -41,6 +43,8 @@ export function AircraftMultiselect({ aircraft, loading, disabled, onChange }: A
       if (!addedToGroup) {
         otherOptions.push(option);
       }
+
+      optionByAircraftCode[a.code] = option;
     }
 
     const options: Array<MultiselectProps.Option | MultiselectProps.OptionGroup> = [];
@@ -55,20 +59,26 @@ export function AircraftMultiselect({ aircraft, loading, disabled, onChange }: A
 
     options.push(...otherOptions);
 
-    return options;
+    return [options, optionByAircraftCode];
   }, [aircraft]);
 
-  const [selectedOptions, setSelectedOptions] = useState<ReadonlyArray<MultiselectProps.Option>>([]);
+  const selectedOptions = useMemo(() => {
+    const result: Array<MultiselectProps.Option> = [];
+    for (const aircraftCode of selectedAircraftCodes) {
+      const option = optionByAircraftCode[aircraftCode];
+      if (option) {
+        result.push(option);
+      }
+    }
 
-  useEffect(() => {
-    onChange(selectedOptions.map((v) => v.value!));
-  }, [selectedOptions]);
+    return result;
+  }, [optionByAircraftCode, selectedAircraftCodes]);
 
   return (
     <Multiselect
       options={options}
       selectedOptions={selectedOptions}
-      onChange={(e) => setSelectedOptions(e.detail.selectedOptions)}
+      onChange={(e) => onChange(e.detail.selectedOptions.flatMap((v) => v.value ? [v.value] : []))}
       keepOpen={true}
       filteringType={'auto'}
       tokenLimit={2}

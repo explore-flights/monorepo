@@ -45,6 +45,10 @@ export function Home() {
         params.minLayover,
         params.maxLayover,
         params.maxDuration,
+        params.includeAirport ?? null,
+        params.excludeAirport ?? null,
+        params.includeFlightNumber ?? null,
+        params.excludeFlightNumber ?? null,
         params.includeAircraft ?? null,
         params.excludeAircraft ?? null,
       ));

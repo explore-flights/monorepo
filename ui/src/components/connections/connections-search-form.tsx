@@ -14,6 +14,7 @@ import {
 } from '@cloudscape-design/components';
 import { AirportMultiselect } from '../select/airport-multiselect';
 import { AircraftMultiselect } from '../select/aircraft-multiselect';
+import { ValueMultilineEditor } from './value-multiline-editor';
 
 export interface ConnectionSearchParams {
   readonly origins: ReadonlyArray<string>;
@@ -24,6 +25,10 @@ export interface ConnectionSearchParams {
   readonly minLayover: Duration<true>;
   readonly maxLayover: Duration<true>;
   readonly maxDuration: Duration<true>;
+  readonly includeAirport?: ReadonlyArray<string>;
+  readonly excludeAirport?: ReadonlyArray<string>;
+  readonly includeFlightNumber?: ReadonlyArray<string>;
+  readonly excludeFlightNumber?: ReadonlyArray<string>;
   readonly includeAircraft?: ReadonlyArray<string>;
   readonly excludeAircraft?: ReadonlyArray<string>;
 }
@@ -58,6 +63,14 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
   const [minLayover, setMinLayover] = useState(Duration.fromMillis(1000*60*60));
   const [maxLayover, setMaxLayover] = useState(Duration.fromMillis(1000*60*60*6));
   const [maxDuration, setMaxDuration] = useState(Duration.fromMillis(1000*60*60*26));
+  const [includeAirportEnabled, setIncludeAirportEnabled] = useState(false);
+  const [includeAirport, setIncludeAirport] = useState<ReadonlyArray<string>>([]);
+  const [excludeAirportEnabled, setExcludeAirportEnabled] = useState(false);
+  const [excludeAirport, setExcludeAirport] = useState<ReadonlyArray<string>>([]);
+  const [includeFlightNumberEnabled, setIncludeFlightNumberEnabled] = useState(false);
+  const [includeFlightNumber, setIncludeFlightNumber] = useState<ReadonlyArray<string>>([]);
+  const [excludeFlightNumberEnabled, setExcludeFlightNumberEnabled] = useState(false);
+  const [excludeFlightNumber, setExcludeFlightNumber] = useState<ReadonlyArray<string>>([]);
   const [includeAircraftEnabled, setIncludeAircraftEnabled] = useState(false);
   const [includeAircraft, setIncludeAircraft] = useState<ReadonlyArray<string>>([]);
   const [excludeAircraftEnabled, setExcludeAircraftEnabled] = useState(false);
@@ -119,6 +132,10 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
       minLayover: minLayover,
       maxLayover: maxLayover,
       maxDuration: maxDuration,
+      includeAirport: includeAirportEnabled ? includeAirport : undefined,
+      excludeAirport: excludeAirportEnabled ? excludeAirport : undefined,
+      includeFlightNumber: includeFlightNumberEnabled ? includeFlightNumber : undefined,
+      excludeFlightNumber: excludeFlightNumberEnabled ? excludeFlightNumber : undefined,
       includeAircraft: includeAircraftEnabled ? includeAircraft : undefined,
       excludeAircraft: excludeAircraftEnabled ? excludeAircraft : undefined,
     });
@@ -139,11 +156,23 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
           ]}
         >
           <FormField label={'Origin'} errorText={errors?.origins}>
-            <AirportMultiselect airports={airports} loading={airportsLoading} disabled={isDisabled} onChange={setOrigins} />
+            <AirportMultiselect
+              airports={airports}
+              selectedAirportCodes={origins}
+              loading={airportsLoading}
+              disabled={isDisabled}
+              onChange={setOrigins}
+            />
           </FormField>
 
           <FormField label={'Destination'} errorText={errors?.destinations}>
-            <AirportMultiselect airports={airports} loading={airportsLoading} disabled={isDisabled} onChange={setDestinations} />
+            <AirportMultiselect
+              airports={airports}
+              selectedAirportCodes={destinations}
+              loading={airportsLoading}
+              disabled={isDisabled}
+              onChange={setDestinations}
+            />
           </FormField>
 
           <FormField label={'Departure'} errorText={errors?.departure}>
@@ -245,28 +274,137 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
           </FormField>
         </Grid>
 
-        <ExpandableSection headerText={'Additional options'} variant={'footer'}>
+        <ExpandableSection headerText={'Advanced options'} variant={'footer'}>
           <ColumnLayout columns={2}>
+            <FormField label={<Toggle checked={includeAirportEnabled} onChange={(e) => setIncludeAirportEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Include Airport</Box></Toggle>}>
+              <AirportMultiselectOrEditor
+                airports={airports}
+                selectedAirportCodes={includeAirport}
+                setSelectedAirportCodes={setIncludeAirport}
+                loading={airportsLoading}
+                disabled={isDisabled || !includeAirportEnabled}
+              />
+            </FormField>
+
+            <FormField label={<Toggle checked={excludeAirportEnabled} onChange={(e) => setExcludeAirportEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Exclude Airport</Box></Toggle>}>
+              <AirportMultiselectOrEditor
+                airports={airports}
+                selectedAirportCodes={excludeAirport}
+                setSelectedAirportCodes={setExcludeAirport}
+                loading={airportsLoading}
+                disabled={isDisabled || !excludeAirportEnabled}
+              />
+            </FormField>
+
+            <FormField label={<Toggle checked={includeFlightNumberEnabled} onChange={(e) => setIncludeFlightNumberEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Include Flightnumber</Box></Toggle>}>
+              <ValueMultilineEditor
+                values={includeFlightNumber}
+                setValues={setIncludeFlightNumber}
+                disabled={isDisabled || !includeFlightNumberEnabled}
+                placeholder={'SX???*'}
+              />
+            </FormField>
+
+            <FormField label={<Toggle checked={excludeFlightNumberEnabled} onChange={(e) => setExcludeFlightNumberEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Exclude Flightnumber</Box></Toggle>}>
+              <ValueMultilineEditor
+                values={excludeFlightNumber}
+                setValues={setExcludeFlightNumber}
+                disabled={isDisabled || !excludeFlightNumberEnabled}
+                placeholder={'SX???*'}
+              />
+            </FormField>
+
             <FormField label={<Toggle checked={includeAircraftEnabled} onChange={(e) => setIncludeAircraftEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Include Aircraft</Box></Toggle>}>
-              <AircraftMultiselect
+              <AircraftMultiselectOrEditor
                 aircraft={aircraft}
+                selectedAircraftCodes={includeAircraft}
+                setSelectedAircraftCodes={setIncludeAircraft}
                 loading={aircraftLoading}
                 disabled={isDisabled || !includeAircraftEnabled}
-                onChange={setIncludeAircraft}
               />
             </FormField>
 
             <FormField label={<Toggle checked={excludeAircraftEnabled} onChange={(e) => setExcludeAircraftEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Exclude Aircraft</Box></Toggle>}>
-              <AircraftMultiselect
+              <AircraftMultiselectOrEditor
                 aircraft={aircraft}
+                selectedAircraftCodes={excludeAircraft}
+                setSelectedAircraftCodes={setExcludeAircraft}
                 loading={aircraftLoading}
                 disabled={isDisabled || !excludeAircraftEnabled}
-                onChange={setExcludeAircraft}
               />
             </FormField>
           </ColumnLayout>
         </ExpandableSection>
       </ColumnLayout>
     </Form>
+  );
+}
+
+interface AirportMultiselectOrEditorProps {
+  airports: Airports;
+  selectedAirportCodes: ReadonlyArray<string>;
+  setSelectedAirportCodes: React.Dispatch<React.SetStateAction<ReadonlyArray<string>>>;
+  loading: boolean;
+  disabled: boolean;
+}
+
+function AirportMultiselectOrEditor({ airports, selectedAirportCodes, setSelectedAirportCodes, loading, disabled }: AirportMultiselectOrEditorProps) {
+  return (
+    <StandardOrMultilineEditor values={selectedAirportCodes} setValues={setSelectedAirportCodes} disabled={disabled}>
+      <AirportMultiselect
+        airports={airports}
+        selectedAirportCodes={selectedAirportCodes}
+        loading={loading}
+        disabled={disabled}
+        onChange={setSelectedAirportCodes}
+      />
+    </StandardOrMultilineEditor>
+  );
+}
+
+interface AircraftMultiselectOrEditorProps {
+  aircraft: ReadonlyArray<Aircraft>;
+  selectedAircraftCodes: ReadonlyArray<string>;
+  setSelectedAircraftCodes: React.Dispatch<React.SetStateAction<ReadonlyArray<string>>>;
+  loading: boolean;
+  disabled: boolean;
+}
+
+function AircraftMultiselectOrEditor({ aircraft, selectedAircraftCodes, setSelectedAircraftCodes, loading, disabled }: AircraftMultiselectOrEditorProps) {
+  return (
+    <StandardOrMultilineEditor values={selectedAircraftCodes} setValues={setSelectedAircraftCodes} disabled={disabled}>
+      <AircraftMultiselect
+        aircraft={aircraft}
+        selectedAircraftCodes={selectedAircraftCodes}
+        loading={loading}
+        disabled={disabled}
+        onChange={setSelectedAircraftCodes}
+      />
+    </StandardOrMultilineEditor>
+  );
+}
+
+interface StandardOrMultilineEditorProps {
+  values: ReadonlyArray<string>;
+  setValues: React.Dispatch<React.SetStateAction<ReadonlyArray<string>>>;
+  disabled: boolean;
+}
+
+function StandardOrMultilineEditor({ values, setValues, disabled, children }: React.PropsWithChildren<StandardOrMultilineEditorProps>) {
+  const [useEditor, setUseEditor] = useState(false);
+  const editor = (
+    <ValueMultilineEditor
+      values={values}
+      setValues={setValues}
+      disabled={disabled}
+      placeholder={'7??'}
+    />
+  );
+
+  return (
+    <ColumnLayout columns={1}>
+      <Toggle checked={useEditor} disabled={disabled} onChange={(e) => setUseEditor(e.detail.checked)}>Raw Edit</Toggle>
+      {useEditor ? editor : children}
+    </ColumnLayout>
   );
 }
