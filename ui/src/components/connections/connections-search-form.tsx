@@ -9,7 +9,7 @@ import {
   ExpandableSection,
   Form,
   FormField,
-  Grid,
+  Grid, Header,
   Slider, Toggle
 } from '@cloudscape-design/components';
 import { AirportMultiselect } from '../select/airport-multiselect';
@@ -276,6 +276,9 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
 
         <ExpandableSection headerText={'Advanced options'} variant={'footer'}>
           <ColumnLayout columns={2}>
+            <Header variant={'h3'} description={'Apply inclusions on whole connections. The result will only contain connections for which every given inclusion is matched by at least one flight.'}>Include</Header>
+            <Header variant={'h3'} description={'Apply exclusions on flights taken into consideration. Exclusions will result in no flight of the result matching any of the supplied values.'}>Exclude</Header>
+
             <FormField label={<Toggle checked={includeAirportEnabled} onChange={(e) => setIncludeAirportEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Include Airport</Box></Toggle>}>
               <AirportMultiselectOrEditor
                 airports={airports}

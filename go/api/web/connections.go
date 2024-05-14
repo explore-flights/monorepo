@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/explore-flights/monorepo/go/api/search"
-	"github.com/explore-flights/monorepo/go/common"
 	"github.com/labstack/echo/v4"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 )
@@ -63,29 +63,29 @@ func NewConnectionsEndpoint(ch *search.ConnectionsHandler) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusBadRequest, "len(ExcludeAircraft) must be <= 100")
 		}
 
-		options := make([]search.ConnectionOption, 0)
+		options := make([]search.FilterOption, 0)
 		if req.IncludeAirport != nil {
-			options = appendOptions[search.WithIncludeAirport, search.WithIncludeAirportGlob](options, *req.IncludeAirport)
+			options = appendStringOptions[search.WithIncludeAirport, search.WithIncludeAirportGlob](options, *req.IncludeAirport)
 		}
 
 		if req.ExcludeAirport != nil {
-			options = appendOptions[search.WithExcludeAirport, search.WithExcludeAirportGlob](options, *req.ExcludeAirport)
+			options = appendSliceOptions[search.WithExcludeAirport, search.WithExcludeAirportGlob](options, *req.ExcludeAirport)
 		}
 
 		if req.IncludeFlightNumber != nil {
-			options = appendOptions[search.WithIncludeFlightNumber, search.WithIncludeFlightNumberGlob](options, *req.IncludeFlightNumber)
+			options = appendStringOptions[search.WithIncludeFlightNumber, search.WithIncludeFlightNumberGlob](options, *req.IncludeFlightNumber)
 		}
 
 		if req.ExcludeFlightNumber != nil {
-			options = appendOptions[search.WithExcludeFlightNumber, search.WithExcludeFlightNumberGlob](options, *req.ExcludeFlightNumber)
+			options = appendSliceOptions[search.WithExcludeFlightNumber, search.WithExcludeFlightNumberGlob](options, *req.ExcludeFlightNumber)
 		}
 
 		if req.IncludeAircraft != nil {
-			options = appendOptions[search.WithIncludeAircraft, search.WithIncludeAircraftGlob](options, *req.IncludeAircraft)
+			options = appendStringOptions[search.WithIncludeAircraft, search.WithIncludeAircraftGlob](options, *req.IncludeAircraft)
 		}
 
 		if req.ExcludeAircraft != nil {
-			options = appendOptions[search.WithExcludeAircraft, search.WithExcludeAircraftGlob](options, *req.ExcludeAircraft)
+			options = appendSliceOptions[search.WithExcludeAircraft, search.WithExcludeAircraftGlob](options, *req.ExcludeAircraft)
 		}
 
 		conns, err := ch.FindConnections(
@@ -121,21 +121,28 @@ func NewConnectionsEndpoint(ch *search.ConnectionsHandler) echo.HandlerFunc {
 	}
 }
 
-type restr interface {
+type sliceRestr interface {
 	~[]string
-	Matches(f *common.Flight) bool
+	search.FilterOption
 }
 
-func appendOptions[Reg restr, Glob restr](options []search.ConnectionOption, values []string) []search.ConnectionOption {
+func appendSliceOptions[Reg sliceRestr, Glob sliceRestr](options []search.FilterOption, values []string) []search.FilterOption {
+	unique := make(map[string]struct{})
 	regular := make(Reg, 0)
 	glob := make(Glob, 0)
 
 	for _, v := range values {
-		if hasMeta(v) {
+		if _, ok := unique[v]; ok {
+			continue
+		}
+
+		if hasMeta(v) && isValidGlob(v) {
 			glob = append(glob, v)
 		} else {
 			regular = append(regular, v)
 		}
+
+		unique[v] = struct{}{}
 	}
 
 	if len(regular) > 0 {
@@ -149,6 +156,36 @@ func appendOptions[Reg restr, Glob restr](options []search.ConnectionOption, val
 	return options
 }
 
+type stringRestr interface {
+	~string
+	search.FilterOption
+}
+
+func appendStringOptions[Reg stringRestr, Glob stringRestr](options []search.FilterOption, values []string) []search.FilterOption {
+	unique := make(map[string]struct{})
+
+	for _, v := range values {
+		if _, ok := unique[v]; ok {
+			continue
+		}
+
+		if hasMeta(v) && isValidGlob(v) {
+			options = append(options, Glob(v))
+		} else {
+			options = append(options, Reg(v))
+		}
+
+		unique[v] = struct{}{}
+	}
+
+	return options
+}
+
 func hasMeta(pattern string) bool {
 	return strings.ContainsAny(pattern, "*?[\\")
+}
+
+func isValidGlob(pattern string) bool {
+	_, err := path.Match(pattern, "")
+	return err == nil
 }

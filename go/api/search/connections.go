@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type flightPredicate func(f *common.Flight) bool
+
+type Filters struct {
+	all []flightPredicate
+	any []flightPredicate
+}
+
 type Connection struct {
 	Flight   *common.Flight
 	Outgoing []Connection
@@ -20,7 +27,12 @@ func NewConnectionsHandler(fr *FlightRepo) *ConnectionsHandler {
 	return &ConnectionsHandler{fr}
 }
 
-func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration, options ...ConnectionOption) ([]Connection, error) {
+func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration, options ...FilterOption) ([]Connection, error) {
+	var f Filters
+	for _, opt := range options {
+		opt.Apply(&f)
+	}
+
 	minDate := common.NewLocalDate(minDeparture.UTC())
 	maxDate := common.NewLocalDate(maxDeparture.Add(maxDuration).UTC())
 
@@ -31,7 +43,7 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 			return nil, err
 		}
 
-		flightsByDeparture = groupByDeparture(flightsByDate, options)
+		flightsByDeparture = groupByDeparture(flightsByDate, f.all)
 	}
 
 	return collectCtx(ctx, findConnections(
@@ -45,11 +57,12 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 		minLayover,
 		maxLayover,
 		maxDuration,
+		f.any,
 		true,
 	))
 }
 
-func findConnections(ctx context.Context, flightsByDeparture map[common.Departure][]*common.Flight, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration, initial bool) <-chan Connection {
+func findConnections(ctx context.Context, flightsByDeparture map[common.Departure][]*common.Flight, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration, predicates []flightPredicate, initial bool) <-chan Connection {
 	if maxFlights < 1 || maxDuration < 1 {
 		ch := make(chan Connection)
 		close(ch)
@@ -89,18 +102,27 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 						}
 					}
 
-					if slices.Contains(destinations, f.ArrivalAirport) {
-						conn := Connection{
-							Flight:   f,
-							Outgoing: nil,
+					remPredicates := make([]flightPredicate, 0, len(predicates))
+					for _, p := range predicates {
+						if !p(f) {
+							remPredicates = append(remPredicates, p)
 						}
+					}
 
-						select {
-						case ch <- conn:
-							break
+					if slices.Contains(destinations, f.ArrivalAirport) {
+						if len(remPredicates) < 1 {
+							conn := Connection{
+								Flight:   f,
+								Outgoing: nil,
+							}
 
-						case <-ctx.Done():
-							return
+							select {
+							case ch <- conn:
+								break
+
+							case <-ctx.Done():
+								return
+							}
 						}
 					} else {
 						subConns := findConnections(
@@ -114,6 +136,7 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 							minLayover,
 							maxLayover,
 							maxDuration-(f.Duration()+minLayover),
+							remPredicates,
 							false,
 						)
 
@@ -154,9 +177,9 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 	return ch
 }
 
-func allMatch(options []ConnectionOption, f *common.Flight) bool {
-	for _, opt := range options {
-		if !opt.Matches(f) {
+func allMatch(predicates []flightPredicate, f *common.Flight) bool {
+	for _, p := range predicates {
+		if !p(f) {
 			return false
 		}
 	}
@@ -164,11 +187,11 @@ func allMatch(options []ConnectionOption, f *common.Flight) bool {
 	return true
 }
 
-func groupByDeparture(flightsByDate map[common.LocalDate][]*common.Flight, options []ConnectionOption) map[common.Departure][]*common.Flight {
+func groupByDeparture(flightsByDate map[common.LocalDate][]*common.Flight, predicates []flightPredicate) map[common.Departure][]*common.Flight {
 	result := make(map[common.Departure][]*common.Flight)
 	for _, flights := range flightsByDate {
 		for _, f := range flights {
-			if allMatch(options, f) {
+			if allMatch(predicates, f) {
 				d := f.Departure()
 				result[d] = append(result[d], f)
 			}
