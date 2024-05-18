@@ -32,10 +32,10 @@ export class ApiLambdaConstruct extends Construct {
       ssmSessionIdRsa,
       ssmSessionIdRsaPub,
     ] = [
-      StringParameter.fromStringParameterName(this, 'SSMGoogleClientId', '/google/client-id'),
-      StringParameter.fromStringParameterName(this, 'SSMGoogleClientSecret', '/google/client-secret'),
-      StringParameter.fromStringParameterName(this, 'SSMSessionIdRsa', '/api/session/id_rsa'),
-      StringParameter.fromStringParameterName(this, 'SSMSessionIdRsaPub', '/api/session/id_rsa.pub'),
+      StringParameter.fromSecureStringParameterAttributes(this, 'SSMGoogleClientId', { parameterName: '/google/client-id' }),
+      StringParameter.fromSecureStringParameterAttributes(this, 'SSMGoogleClientSecret', { parameterName: '/google/client-secret' }),
+      StringParameter.fromSecureStringParameterAttributes(this, 'SSMSessionIdRsa', { parameterName: '/api/session/id_rsa' }),
+      StringParameter.fromSecureStringParameterAttributes(this, 'SSMSessionIdRsaPub', { parameterName: '/api/session/id_rsa.pub' }),
     ];
 
     const lambda = new Function(this, 'ApiLambda', {
