@@ -13,6 +13,7 @@ import {
 import { ArnFormat, Duration, Stack } from 'aws-cdk-lib';
 import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
+import { IStringParameter, StringParameter } from 'aws-cdk-lib/aws-ssm';
 
 export interface ApiLambdaConstructProps {
   apiLambdaZipPath: string;
@@ -25,6 +26,18 @@ export class ApiLambdaConstruct extends Construct {
 
   constructor(scope: Construct, id: string, props: ApiLambdaConstructProps) {
     super(scope, id);
+
+    const [
+      ssmGoogleClientId,
+      ssmGoogleClientSecret,
+      ssmSessionRsaPriv,
+      ssmSessionRsaPub,
+    ] = [
+      this.ssmSecureString('/google/client-id'),
+      this.ssmSecureString('/google/client-secret'),
+      this.ssmSecureString('/api/session/id_rsa'),
+      this.ssmSecureString('/api/session/id_rsa.pub'),
+    ];
 
     const lambda = new Function(this, 'ApiLambda', {
       runtime: Runtime.PROVIDED_AL2023,
@@ -39,10 +52,10 @@ export class ApiLambdaConstruct extends Construct {
         AWS_LWA_INVOKE_MODE: 'response_stream',
         FLIGHTS_DATA_BUCKET: props.dataBucket.bucketName,
         FLIGHTS_AUTH_BUCKET: props.authBucket.bucketName,
-        FLIGHTS_SSM_GOOGLE_CLIENT_ID: '/google/client-id',
-        FLIGHTS_SSM_GOOGLE_CLIENT_SECRET: '/google/client-secret',
-        FLIGHTS_SSM_SESSION_RSA_PRIV: '/api/session/id_rsa',
-        FLIGHTS_SSM_SESSION_RSA_PUB: '/api/session/id_rsa.pub',
+        FLIGHTS_SSM_GOOGLE_CLIENT_ID: ssmGoogleClientId.parameterName,
+        FLIGHTS_SSM_GOOGLE_CLIENT_SECRET: ssmGoogleClientSecret.parameterName,
+        FLIGHTS_SSM_SESSION_RSA_PRIV: ssmSessionRsaPriv.parameterName,
+        FLIGHTS_SSM_SESSION_RSA_PUB: ssmSessionRsaPub.parameterName,
       },
       layers: [
         LayerVersion.fromLayerVersionArn(
@@ -67,7 +80,7 @@ export class ApiLambdaConstruct extends Construct {
     lambda.addToRolePolicy(new PolicyStatement({
       effect: Effect.ALLOW,
       actions: ['ssm:GetParameters'],
-      resources: ['*'],
+      resources: [ssmGoogleClientId, ssmGoogleClientSecret, ssmSessionRsaPriv, ssmSessionRsaPub].map((v) => v.parameterArn),
     }));
 
     props.dataBucket.grantRead(lambda, 'processed/flights/*');
@@ -86,5 +99,9 @@ export class ApiLambdaConstruct extends Construct {
       authType: FunctionUrlAuthType.NONE,
       invokeMode: InvokeMode.RESPONSE_STREAM,
     });
+  }
+
+  private ssmSecureString(name: string): IStringParameter {
+    return StringParameter.fromSecureStringParameterAttributes(this, name, { parameterName: name });
   }
 }
