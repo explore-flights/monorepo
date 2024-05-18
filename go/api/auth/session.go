@@ -12,8 +12,8 @@ const issuer = "explore.flights"
 
 type SessionJwtClaims struct {
 	jwt.RegisteredClaims
-	Issuer     string `json:"fiss"`
-	IdAtIssuer string `json:"fid"`
+	FederationIssuer     string `json:"fiss"`
+	FederationIdAtIssuer string `json:"fid"`
 }
 
 type SessionJwtConverter struct {
@@ -53,11 +53,11 @@ func (c *SessionJwtConverter) ReadJWT(jwtStr string) (SessionJwtClaims, error) {
 	return *(tk.Claims.(*SessionJwtClaims)), nil
 }
 
-func (c *SessionJwtConverter) WriteJWT(accId, issuer, idAtIssuer string, exp time.Time) (string, error) {
+func (c *SessionJwtConverter) WriteJWT(accId, fedIssuer, idAtIssuer string, exp time.Time) (string, error) {
 	now := time.Now()
 	tk := jwt.NewWithClaims(jwt.SigningMethodRS256, SessionJwtClaims{
-		Issuer:     issuer,
-		IdAtIssuer: idAtIssuer,
+		FederationIssuer:     fedIssuer,
+		FederationIdAtIssuer: idAtIssuer,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ID:        "",
 			Issuer:    issuer,

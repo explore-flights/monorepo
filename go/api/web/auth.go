@@ -53,10 +53,21 @@ func NewAuthorizationHandler(clientId, clientSecret string, repo *auth.Repo, con
 }
 
 func (ah *AuthorizationHandler) AuthInfo(c echo.Context) error {
-	_, err := ah.jwtFromCookie(c)
-	if err != nil {
-		return c.NoContent(http.StatusUnauthorized)
+	if _, ok := c.Request().Context().Value(sessionContextKey{}).(auth.SessionJwtClaims); !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized)
 	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (ah *AuthorizationHandler) Logout(c echo.Context) error {
+	c.SetCookie(&http.Cookie{
+		Name:     sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+	})
 
 	return c.NoContent(http.StatusNoContent)
 }

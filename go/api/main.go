@@ -48,6 +48,7 @@ func main() {
 	e.POST("/api/connections/:export", web.NewConnectionsEndpoint(connHandler))
 
 	e.HEAD("/auth/info", authHandler.AuthInfo)
+	e.POST("/auth/logout", authHandler.Logout)
 	e.GET("/auth/oauth2/register/:issuer", authHandler.Register)
 	e.GET("/auth/oauth2/login/:issuer", authHandler.Login)
 	e.GET("/auth/oauth2/code/:issuer", authHandler.Code)

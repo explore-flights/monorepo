@@ -27,12 +27,11 @@ import { SideNav } from './sidenav/sidenav';
 import { AppControlsProvider } from './util/context/app-controls';
 import { AuthInfoProvider, useAuthInfo } from './util/context/auth-info';
 import { BrowserStoreProvider } from './util/context/browser-store';
-import { HttpClientProvider } from './util/context/http-client';
+import { HttpClientProvider, useHttpClient } from './util/context/http-client';
 import { useMobile } from './util/state/common';
 import { useHasConsent } from './util/state/use-consent';
 import { useDependentState } from './util/state/use-dependent-state';
 import { usePreferences } from './util/state/use-preferences';
-import { usePreviousIssuer } from './util/state/use-previous-issuer';
 import { useDocumentTitle } from './util/state/use-route-context';
 
 interface AppControlsState {
@@ -157,9 +156,9 @@ export function BaseProviders({ children }: React.PropsWithChildren) {
 }
 
 function InternalBaseProviders({ children }: React.PropsWithChildren) {
+  const { apiClient } = useHttpClient();
   const [preferences] = usePreferences();
   const [authInfo, setAuthInfo] = useState<AuthInfo | null | undefined>(undefined);
-  const [,setPreviousIssuer] = usePreviousIssuer();
   const [tools, setTools] = useState<React.ReactNode>();
   const [toolsOpen, setToolsOpen] = useState(false);
   const [splitPanel, setSplitPanel] = useState<[string, React.ReactNode]>();
@@ -178,7 +177,6 @@ function InternalBaseProviders({ children }: React.PropsWithChildren) {
     applyDensity(preferences.uiDensity === UIDensity.COMFORTABLE ? Density.Comfortable : Density.Compact, document.documentElement);
   }, [preferences]);
 
-  /*
   useEffect(() => {
     (async () => {
       const resp = await apiClient.getAuthInfo();
@@ -189,13 +187,7 @@ function InternalBaseProviders({ children }: React.PropsWithChildren) {
       }
     })().catch(() => setAuthInfo(null));
   }, [apiClient]);
-   */
 
-  useEffect(() => {
-    if (authInfo !== undefined && authInfo !== null) {
-      setPreviousIssuer(authInfo.issuer);
-    }
-  }, [authInfo]);
 
   const appControlsState = useMemo<AppControlsState>(() => ({
     tools: {

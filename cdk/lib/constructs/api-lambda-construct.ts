@@ -12,10 +12,12 @@ import {
 import { ArnFormat, Duration, Stack } from 'aws-cdk-lib';
 import { Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
+import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 
 export interface ApiLambdaConstructProps {
   apiLambdaZipPath: string;
   dataBucket: IBucket;
+  authBucket: IBucket;
 }
 
 export class ApiLambdaConstruct extends Construct {
@@ -23,6 +25,18 @@ export class ApiLambdaConstruct extends Construct {
 
   constructor(scope: Construct, id: string, props: ApiLambdaConstructProps) {
     super(scope, id);
+
+    const [
+      ssmGoogleClientId,
+      ssmGoogleClientSecret,
+      ssmSessionIdRsa,
+      ssmSessionIdRsaPub,
+    ] = [
+      StringParameter.fromStringParameterName(this, 'SSMGoogleClientId', '/google/client-id'),
+      StringParameter.fromStringParameterName(this, 'SSMGoogleClientSecret', '/google/client-secret'),
+      StringParameter.fromStringParameterName(this, 'SSMSessionIdRsa', '/api/session/id_rsa'),
+      StringParameter.fromStringParameterName(this, 'SSMSessionIdRsaPub', '/api/session/id_rsa.pub'),
+    ];
 
     const lambda = new Function(this, 'ApiLambda', {
       runtime: Runtime.PROVIDED_AL2023,
@@ -36,6 +50,11 @@ export class ApiLambdaConstruct extends Construct {
         AWS_LWA_ASYNC_INIT: 'true',
         AWS_LWA_INVOKE_MODE: 'response_stream',
         FLIGHTS_DATA_BUCKET: props.dataBucket.bucketName,
+        FLIGHTS_AUTH_BUCKET: props.authBucket.bucketName,
+        FLIGHTS_SSM_GOOGLE_CLIENT_ID: ssmGoogleClientId.parameterName,
+        FLIGHTS_SSM_GOOGLE_CLIENT_SECRET: ssmGoogleClientSecret.parameterName,
+        FLIGHTS_SSM_SESSION_RSA_PRIV: ssmSessionIdRsa.parameterName,
+        FLIGHTS_SSM_SESSION_RSA_PUB: ssmSessionIdRsaPub.parameterName,
       },
       layers: [
         LayerVersion.fromLayerVersionArn(
@@ -57,11 +76,20 @@ export class ApiLambdaConstruct extends Construct {
       }),
     });
 
+    ssmGoogleClientId.grantRead(lambda);
+    ssmGoogleClientSecret.grantRead(lambda);
+    ssmSessionIdRsa.grantRead(lambda);
+    ssmSessionIdRsaPub.grantRead(lambda);
+
     props.dataBucket.grantRead(lambda, 'processed/flights/*');
     props.dataBucket.grantRead(lambda, 'raw/ourairports_data/airports.csv');
     props.dataBucket.grantRead(lambda, 'raw/ourairports_data/countries.csv');
     props.dataBucket.grantRead(lambda, 'raw/ourairports_data/regions.csv');
     props.dataBucket.grantRead(lambda, 'raw/LH_Public_Data/aircraft.json');
+
+    props.authBucket.grantReadWrite(lambda, 'authreq/*');
+    props.authBucket.grantReadWrite(lambda, 'federation/*');
+    props.authBucket.grantReadWrite(lambda, 'account/*');
 
     this.functionURL = new FunctionUrl(this, 'ApiLambdaFunctionUrl', {
       function: lambda,

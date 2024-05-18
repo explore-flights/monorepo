@@ -3,8 +3,9 @@ import { Construct } from 'constructs';
 import { CloudfrontConstruct } from '../constructs/cloudfront-construct';
 import { IDistribution } from 'aws-cdk-lib/aws-cloudfront';
 import { ApiLambdaConstruct } from '../constructs/api-lambda-construct';
-import { IBucket } from 'aws-cdk-lib/aws-s3';
+import { BlockPublicAccess, Bucket, BucketEncryption, IBucket } from 'aws-cdk-lib/aws-s3';
 import { UIResourcesConstruct } from '../constructs/ui-resources-construct';
+import { Duration, RemovalPolicy } from 'aws-cdk-lib';
 
 export interface WebsiteStackProps extends cdk.StackProps {
   domain: string;
@@ -20,9 +21,28 @@ export class WebsiteStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: WebsiteStackProps) {
     super(scope, id, props);
 
+    const authBucket = new Bucket(this, 'AuthBucket', {
+      encryption: BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+      removalPolicy: RemovalPolicy.RETAIN_ON_UPDATE_OR_DELETE,
+      lifecycleRules: [
+        {
+          enabled: true,
+          abortIncompleteMultipartUploadAfter: Duration.days(1),
+        },
+        {
+          enabled: true,
+          prefix: 'authreq/',
+          noncurrentVersionExpiration: Duration.days(1),
+        },
+      ],
+    });
+
     const api = new ApiLambdaConstruct(this, 'ApiLambda', {
       apiLambdaZipPath: props.apiLambdaZipPath,
       dataBucket: props.dataBucket,
+      authBucket: authBucket,
     });
 
     const uiResources = new UIResourcesConstruct(this, 'UIResources', {});

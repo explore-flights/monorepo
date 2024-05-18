@@ -2,7 +2,7 @@ import { HTTPClient } from '../http';
 import {
   isJsonObject,
   JsonType,
-  ApiErrorBody, Airports, Connections, Aircraft
+  ApiErrorBody, Airports, Connections, Aircraft, AuthInfo
 } from './api.model';
 import { DateTime, Duration } from 'luxon';
 
@@ -45,6 +45,14 @@ export type ApiResponse<T> = SuccessResponse<T> | ApiErrorResponse<T> | ErrorRes
 
 export class ApiClient {
   constructor(private readonly httpClient: HTTPClient) {}
+
+  getAuthInfo(): Promise<ApiResponse<AuthInfo | null>> {
+    return transform(
+      this.httpClient.fetch('/auth/info', { method: 'HEAD' }),
+      (status) => status >= 200 && status < 300 ? {} : null,
+      204,
+    );
+  }
 
   getLocations(): Promise<ApiResponse<Airports>> {
     return transform(this.httpClient.fetch('/data/airports.json'));
@@ -93,6 +101,10 @@ export class ApiClient {
         }),
       },
     ));
+  }
+
+  logout(): Promise<ApiResponse<unknown>> {
+    return transform(this.httpClient.fetch('/auth/logout', { method: 'POST' }));
   }
 }
 

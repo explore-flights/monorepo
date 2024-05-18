@@ -12,12 +12,7 @@ export interface ApiErrorBody {
 
 export type Issuer = string;
 
-export interface AuthInfo {
-  sessionId: string;
-  sessionCreationTime: string;
-  issuer: Issuer;
-  idAtIssuer: string;
-}
+export interface AuthInfo {}
 
 export interface Airports {
   airports: ReadonlyArray<Airport>;
