@@ -116,7 +116,7 @@ func loadSsmParams(ctx context.Context, envNames ...string) (map[string]string, 
 	}
 
 	resp, err := ssmc.GetParameters(ctx, &ssm.GetParametersInput{
-		Names:          []string{os.Getenv("FLIGHTS_SSM_")},
+		Names:          reqNames,
 		WithDecryption: aws.Bool(true),
 	})
 
