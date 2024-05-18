@@ -5,14 +5,14 @@ import {
   Function,
   FunctionUrl,
   FunctionUrlAuthType,
-  InvokeMode, LayerVersion,
+  InvokeMode,
+  LayerVersion,
   Runtime,
   Tracing
 } from 'aws-cdk-lib/aws-lambda';
 import { ArnFormat, Duration, Stack } from 'aws-cdk-lib';
-import { Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
-import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 
 export interface ApiLambdaConstructProps {
   apiLambdaZipPath: string;
@@ -25,18 +25,6 @@ export class ApiLambdaConstruct extends Construct {
 
   constructor(scope: Construct, id: string, props: ApiLambdaConstructProps) {
     super(scope, id);
-
-    const [
-      ssmGoogleClientId,
-      ssmGoogleClientSecret,
-      ssmSessionIdRsa,
-      ssmSessionIdRsaPub,
-    ] = [
-      StringParameter.fromSecureStringParameterAttributes(this, 'SSMGoogleClientId', { parameterName: '/google/client-id' }),
-      StringParameter.fromSecureStringParameterAttributes(this, 'SSMGoogleClientSecret', { parameterName: '/google/client-secret' }),
-      StringParameter.fromSecureStringParameterAttributes(this, 'SSMSessionIdRsa', { parameterName: '/api/session/id_rsa' }),
-      StringParameter.fromSecureStringParameterAttributes(this, 'SSMSessionIdRsaPub', { parameterName: '/api/session/id_rsa.pub' }),
-    ];
 
     const lambda = new Function(this, 'ApiLambda', {
       runtime: Runtime.PROVIDED_AL2023,
@@ -51,10 +39,10 @@ export class ApiLambdaConstruct extends Construct {
         AWS_LWA_INVOKE_MODE: 'response_stream',
         FLIGHTS_DATA_BUCKET: props.dataBucket.bucketName,
         FLIGHTS_AUTH_BUCKET: props.authBucket.bucketName,
-        FLIGHTS_SSM_GOOGLE_CLIENT_ID: ssmGoogleClientId.parameterName,
-        FLIGHTS_SSM_GOOGLE_CLIENT_SECRET: ssmGoogleClientSecret.parameterName,
-        FLIGHTS_SSM_SESSION_RSA_PRIV: ssmSessionIdRsa.parameterName,
-        FLIGHTS_SSM_SESSION_RSA_PUB: ssmSessionIdRsaPub.parameterName,
+        FLIGHTS_SSM_GOOGLE_CLIENT_ID: '/google/client-id',
+        FLIGHTS_SSM_GOOGLE_CLIENT_SECRET: '/google/client-secret',
+        FLIGHTS_SSM_SESSION_RSA_PRIV: '/api/session/id_rsa',
+        FLIGHTS_SSM_SESSION_RSA_PUB: '/api/session/id_rsa.pub',
       },
       layers: [
         LayerVersion.fromLayerVersionArn(
@@ -76,10 +64,11 @@ export class ApiLambdaConstruct extends Construct {
       }),
     });
 
-    ssmGoogleClientId.grantRead(lambda);
-    ssmGoogleClientSecret.grantRead(lambda);
-    ssmSessionIdRsa.grantRead(lambda);
-    ssmSessionIdRsaPub.grantRead(lambda);
+    lambda.addToRolePolicy(new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['ssm:GetParameters'],
+      resources: ['*'],
+    }));
 
     props.dataBucket.grantRead(lambda, 'processed/flights/*');
     props.dataBucket.grantRead(lambda, 'raw/ourairports_data/airports.csv');
