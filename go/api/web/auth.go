@@ -239,34 +239,6 @@ func redirectUrl(c echo.Context, issuer string) string {
 	return baseUrl(c) + "/auth/oauth2/code/" + url.PathEscape(issuer)
 }
 
-func baseUrl(c echo.Context) string {
-	req := c.Request()
-	if forwarded := req.Header.Get("Forwarded"); forwarded != "" {
-		var host string
-		var proto string
-
-		for _, value := range strings.Split(forwarded, ";") {
-			if value, ok := strings.CutPrefix(value, "host="); ok {
-				host = value
-			} else if value, ok := strings.CutPrefix(value, "proto="); ok {
-				proto = value
-			}
-		}
-
-		if host != "" && proto != "" {
-			return proto + "://" + host
-		}
-	}
-
-	if host := req.Header.Get("X-Forwarded-Host"); host != "" {
-		if proto := req.Header.Get(echo.HeaderXForwardedProto); proto != "" {
-			return proto + "://" + host
-		}
-	}
-
-	return c.Scheme() + "://" + req.Host
-}
-
 func isSecure(c echo.Context) bool {
 	if c.IsTLS() || c.Scheme() == "https" {
 		return true

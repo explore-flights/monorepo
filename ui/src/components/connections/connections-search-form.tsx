@@ -10,7 +10,7 @@ import {
   Form,
   FormField,
   Grid, Header,
-  Slider, Toggle
+  Slider, SpaceBetween, Toggle
 } from '@cloudscape-design/components';
 import { AirportMultiselect } from '../select/airport-multiselect';
 import { AircraftMultiselect } from '../select/aircraft-multiselect';
@@ -50,9 +50,10 @@ export interface ConnectionSearchFormProps {
   aircraftLoading: boolean;
   isDisabled: boolean;
   onSearch: (v: ConnectionSearchParams) => void;
+  onShare: (v: ConnectionSearchParams) => void;
 }
 
-export function ConnectionSearchForm({ airports, airportsLoading, aircraft, aircraftLoading, isDisabled, onSearch }: ConnectionSearchFormProps) {
+export function ConnectionSearchForm({ airports, airportsLoading, aircraft, aircraftLoading, isDisabled, onSearch, onShare }: ConnectionSearchFormProps) {
   const [origins, setOrigins] = useState<ReadonlyArray<string>>([]);
   const [destinations, setDestinations] = useState<ReadonlyArray<string>>([]);
   const [departure, setDeparture] = useState<[DateTime<true>, DateTime<true>] | null>([
@@ -118,12 +119,12 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
     return anyError ? e : null;
   }, [origins, destinations, departure, maxFlights, minLayover, maxLayover, maxDuration]);
 
-  function onClickSearch() {
+  function buildSearchParams() {
     if (departure === null) {
-      return;
+      return undefined;
     }
 
-    onSearch({
+    return {
       origins: origins,
       destinations: destinations,
       minDeparture: departure[0],
@@ -138,11 +139,37 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
       excludeFlightNumber: excludeFlightNumberEnabled ? excludeFlightNumber : undefined,
       includeAircraft: includeAircraftEnabled ? includeAircraft : undefined,
       excludeAircraft: excludeAircraftEnabled ? excludeAircraft : undefined,
-    });
+    } satisfies ConnectionSearchParams;
+  }
+
+  function onClickSearch() {
+    const params = buildSearchParams();
+    if (params === undefined) {
+      return;
+    }
+
+    onSearch(params);
+  }
+
+  function onClickShare() {
+    const params = buildSearchParams();
+    if (params === undefined) {
+      return;
+    }
+
+    onShare(params);
   }
 
   return (
-    <Form variant={'embedded'} actions={<Button onClick={onClickSearch} loading={isDisabled} disabled={errors !== null}>Search</Button>}>
+    <Form
+      variant={'embedded'}
+      actions={
+      <SpaceBetween size={'xs'} direction={'horizontal'}>
+        <Button onClick={onClickShare} loading={isDisabled} disabled={errors !== null} iconName={'share'}>Share</Button>
+        <Button onClick={onClickSearch} loading={isDisabled} disabled={errors !== null} iconName={'search'}>Search</Button>
+      </SpaceBetween>
+      }
+    >
       <ColumnLayout columns={1}>
         <Grid
           gridDefinition={[

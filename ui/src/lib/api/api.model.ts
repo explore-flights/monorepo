@@ -63,3 +63,8 @@ export interface Aircraft {
   equipCode: string;
   name: string;
 }
+
+export interface ConnectionSearchShare {
+  htmlUrl: string;
+  imageUrl: string;
+}
