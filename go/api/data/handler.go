@@ -4,10 +4,10 @@ import (
 	"cmp"
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"errors"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/explore-flights/monorepo/go/api/adapt"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"io"
 	"slices"
@@ -147,9 +147,7 @@ type Aircraft struct {
 	Name      string `json:"name"`
 }
 
-type MinimalS3Client interface {
-	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
-}
+type MinimalS3Client adapt.S3Getter
 
 type Handler struct {
 	s3c    MinimalS3Client
@@ -273,20 +271,8 @@ func (h *Handler) loadCsv(ctx context.Context, name string) (*csvReader, error) 
 }
 
 func loadJson[T any](ctx context.Context, h *Handler, key string) (T, error) {
-	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(h.bucket),
-		Key:    aws.String(key),
-	})
-
-	if err != nil {
-		var def T
-		return def, err
-	}
-
-	defer resp.Body.Close()
-
 	var r T
-	return r, json.NewDecoder(resp.Body).Decode(&r)
+	return r, adapt.S3GetJson(ctx, h.s3c, h.bucket, key, &r)
 }
 
 func findName(names lufthansa.Names, lang string) string {

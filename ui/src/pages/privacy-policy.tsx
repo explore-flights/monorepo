@@ -48,6 +48,10 @@ export function PrivacyPolicy() {
 
           <ExpandableSection headerText={'Cookies'}>
             <ColumnLayout columns={1}>
+              <StorageDetail name={'SESSION'}>
+                <CookieDetail type={'Strictly necessary'} expiration={'24h'} details={'Used to keep you signed in across requests.'} />
+              </StorageDetail>
+
               <StorageDetail name={'XSRF-TOKEN'}>
                 <CookieDetail type={'Strictly necessary'} expiration={'Session'} details={'The XSRF-Token cookie is used to offer a secure way to performing possibly mutating actions on the server. For example, if you want to create or delete something in your account, this Cookie is passed to the server to verify the action has been performed by you. This Cookie is valid only for one Session, that means your Browser automatically deletes it once your close it.'} />
               </StorageDetail>

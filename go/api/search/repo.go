@@ -5,15 +5,14 @@ import (
 	"encoding/json"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/explore-flights/monorepo/go/api/adapt"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/concurrent"
 	"golang.org/x/sync/errgroup"
 	"sync"
 )
 
-type MinimalS3Client interface {
-	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
-}
+type MinimalS3Client adapt.S3Getter
 
 type FlightRepo struct {
 	s3c    MinimalS3Client

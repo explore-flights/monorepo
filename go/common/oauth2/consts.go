@@ -1,0 +1,25 @@
+package oauth2
+
+const (
+	ClientId                 = "client_id"
+	ClientSecret             = "client_secret"
+	AccessToken              = "access_token"
+	RefreshToken             = "refresh_token"
+	Token                    = "token"
+	TokenTypeHint            = "token_type_hint"
+	GrantType                = "grant_type"
+	RedirectUri              = "redirect_uri"
+	Scope                    = "scope"
+	Code                     = "code"
+	AuthorizationCode        = "authorization_code"
+	ClientCredentials        = "client_credentials"
+	State                    = "state"
+	CodeChallenge            = "code_challenge"
+	CodeChallengeMethod      = "code_challenge_method"
+	CodeChallengeMethodPlain = "plain"
+	CodeChallengeMethodS256  = "S256"
+	CodeVerifier             = "code_verifier"
+	ResponseType             = "response_type"
+	Error                    = "error"
+	ErrorDescription         = "error_description"
+)

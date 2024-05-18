@@ -34,11 +34,24 @@ func main() {
 		panic(err)
 	}
 
+	authHandler, err := authorizationHandler(ctx, s3c)
+	if err != nil {
+		panic(err)
+	}
+
 	connHandler := search.NewConnectionsHandler(fr)
 	dataHandler := data.NewHandler(s3c, bucket)
 
 	e := echo.New()
+	e.Use(authHandler.Middleware)
+
 	e.POST("/api/connections/:export", web.NewConnectionsEndpoint(connHandler))
+
+	e.HEAD("/auth/info", authHandler.AuthInfo)
+	e.GET("/auth/oauth2/register/:issuer", authHandler.Register)
+	e.GET("/auth/oauth2/login/:issuer", authHandler.Login)
+	e.GET("/auth/oauth2/code/:issuer", authHandler.Code)
+
 	e.GET("/data/airports.json", web.NewAirportsHandler(dataHandler))
 	e.GET("/data/aircraft.json", web.NewAircraftHandler(dataHandler))
 

@@ -162,6 +162,15 @@ export class CloudfrontConstruct extends Construct {
           originRequestPolicy: allExceptHostOriginRequestPolicy,
           responseHeadersPolicy: noCacheResponseHeadersPolicy,
         },
+        '/auth/*': {
+          origin: apiLambdaOrigin,
+          compress: true,
+          viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: AllowedMethods.ALLOW_ALL,
+          cachePolicy: CachePolicy.CACHING_DISABLED,
+          originRequestPolicy: allExceptHostOriginRequestPolicy,
+          responseHeadersPolicy: noCacheResponseHeadersPolicy,
+        },
         '/data/*': {
           origin: apiLambdaOrigin,
           compress: true,

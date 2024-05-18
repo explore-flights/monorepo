@@ -4,8 +4,10 @@ package main
 
 import (
 	"context"
+	"github.com/explore-flights/monorepo/go/api/auth"
 	"github.com/explore-flights/monorepo/go/api/local"
 	"github.com/explore-flights/monorepo/go/api/search"
+	"github.com/explore-flights/monorepo/go/api/web"
 	"os"
 	"path/filepath"
 )
@@ -29,4 +31,13 @@ func dataBucket() (string, error) {
 
 func flightRepo(ctx context.Context, s3c search.MinimalS3Client, bucket string) (*search.FlightRepo, error) {
 	return search.NewFlightRepo(s3c, bucket), nil
+}
+
+func authorizationHandler(ctx context.Context, s3c auth.MinimalS3Client) (*web.AuthorizationHandler, error) {
+	return web.NewAuthorizationHandler(
+		"",
+		"",
+		auth.NewRepo(s3c, ""),
+		auth.NewSessionJwtConverter("", nil, nil),
+	)
 }

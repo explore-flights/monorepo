@@ -35,7 +35,7 @@ type credentials struct {
 
 type Client struct {
 	httpClient   *http.Client
-	oauth2Client *oauth2.Client
+	oauth2Client *oauth2.Client[oauth2.TokenResponse]
 	limiter      *rate.Limiter
 	mtx          *sync.Mutex
 	cred         *atomic.Pointer[credentials]
@@ -86,8 +86,8 @@ func NewClient(clientId, clientSecret string, opts ...ClientOption) *Client {
 		c.baseUrl+"/v1/oauth/token",
 		clientId,
 		clientSecret,
-		oauth2.WithHttpClient(c.httpClient),
-		oauth2.WithRateLimiter(c.limiter),
+		oauth2.WithHttpClient[oauth2.TokenResponse](c.httpClient),
+		oauth2.WithRateLimiter[oauth2.TokenResponse](c.limiter),
 	)
 
 	return c
