@@ -2,9 +2,14 @@ import { HTTPClient } from '../http';
 import {
   isJsonObject,
   JsonType,
-  ApiErrorBody, Airports, Connections, Aircraft, AuthInfo, ConnectionSearchShare
+  ApiErrorBody,
+  Airports,
+  Aircraft,
+  AuthInfo,
+  ConnectionSearchShare,
+  ConnectionsSearchRequest,
+  ConnectionsSearchResponseWithSearch, ConnectionsSearchResponse
 } from './api.model';
-import { DateTime, Duration } from 'luxon';
 
 const KindSuccess = 0;
 const KindApiError = 1;
@@ -62,88 +67,26 @@ export class ApiClient {
     return transform(this.httpClient.fetch('/data/aircraft.json'));
   }
 
-  getConnections(
-    origins: ReadonlyArray<string>,
-    destinations: ReadonlyArray<string>,
-    minDeparture: DateTime<true>,
-    maxDeparture: DateTime<true>,
-    maxFlights: number,
-    minLayover: Duration<true>,
-    maxLayover: Duration<true>,
-    maxDuration: Duration<true>,
-    includeAirport: ReadonlyArray<string> | null,
-    excludeAirport: ReadonlyArray<string> | null,
-    includeFlightNumber: ReadonlyArray<string> | null,
-    excludeFlightNumber: ReadonlyArray<string> | null,
-    includeAircraft: ReadonlyArray<string> | null,
-    excludeAircraft: ReadonlyArray<string> | null,
-  ): Promise<ApiResponse<Connections>> {
-
+  getConnections(req: ConnectionsSearchRequest): Promise<ApiResponse<ConnectionsSearchResponse>> {
     return transform(this.httpClient.fetch(
       '/api/connections/json',
       {
         method: 'POST',
-        body: JSON.stringify({
-          origins: origins,
-          destinations: destinations,
-          minDeparture: minDeparture.toISO(),
-          maxDeparture: maxDeparture.toISO(),
-          maxFlights: maxFlights,
-          minLayoverMS: minLayover.toMillis(),
-          maxLayoverMS: maxLayover.toMillis(),
-          maxDurationMS: maxDuration.toMillis(),
-          includeAirport: includeAirport ? includeAirport : undefined,
-          excludeAirport: excludeAirport ? excludeAirport : undefined,
-          includeFlightNumber: includeFlightNumber ? includeFlightNumber : undefined,
-          excludeFlightNumber: excludeFlightNumber ? excludeFlightNumber : undefined,
-          includeAircraft: includeAircraft ? includeAircraft : undefined,
-          excludeAircraft: excludeAircraft ? excludeAircraft : undefined,
-        }),
+        body: JSON.stringify(req),
       },
     ));
   }
 
-  getConnectionsFromShare(search: string): Promise<ApiResponse<Connections>> {
-    return transform(this.httpClient.fetch(`/api/connections/json/${encodeURIComponent(search)}`));
+  getConnectionsFromShare(search: string): Promise<ApiResponse<ConnectionsSearchResponseWithSearch>> {
+    return transform(this.httpClient.fetch(`/api/connections/json/${encodeURIComponent(search)}?includeSearch=true`));
   }
 
-  getConnectionsSearchShare(
-    origins: ReadonlyArray<string>,
-    destinations: ReadonlyArray<string>,
-    minDeparture: DateTime<true>,
-    maxDeparture: DateTime<true>,
-    maxFlights: number,
-    minLayover: Duration<true>,
-    maxLayover: Duration<true>,
-    maxDuration: Duration<true>,
-    includeAirport: ReadonlyArray<string> | null,
-    excludeAirport: ReadonlyArray<string> | null,
-    includeFlightNumber: ReadonlyArray<string> | null,
-    excludeFlightNumber: ReadonlyArray<string> | null,
-    includeAircraft: ReadonlyArray<string> | null,
-    excludeAircraft: ReadonlyArray<string> | null,
-  ): Promise<ApiResponse<ConnectionSearchShare>> {
-
+  getConnectionsSearchShare(req: ConnectionsSearchRequest): Promise<ApiResponse<ConnectionSearchShare>> {
     return transform(this.httpClient.fetch(
       '/api/connections/share',
       {
         method: 'POST',
-        body: JSON.stringify({
-          origins: origins,
-          destinations: destinations,
-          minDeparture: minDeparture.toISO(),
-          maxDeparture: maxDeparture.toISO(),
-          maxFlights: maxFlights,
-          minLayoverMS: minLayover.toMillis(),
-          maxLayoverMS: maxLayover.toMillis(),
-          maxDurationMS: maxDuration.toMillis(),
-          includeAirport: includeAirport ? includeAirport : undefined,
-          excludeAirport: excludeAirport ? excludeAirport : undefined,
-          includeFlightNumber: includeFlightNumber ? includeFlightNumber : undefined,
-          excludeFlightNumber: excludeFlightNumber ? excludeFlightNumber : undefined,
-          includeAircraft: includeAircraft ? includeAircraft : undefined,
-          excludeAircraft: excludeAircraft ? excludeAircraft : undefined,
-        }),
+        body: JSON.stringify(req),
       },
     ));
   }

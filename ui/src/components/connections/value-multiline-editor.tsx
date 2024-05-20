@@ -4,7 +4,7 @@ import { Box, SpaceBetween, Textarea } from '@cloudscape-design/components';
 
 export interface ValueMultilineEditorProps {
   values: ReadonlyArray<string>;
-  setValues: React.Dispatch<React.SetStateAction<ReadonlyArray<string>>>;
+  setValues: (v: ReadonlyArray<string>) => void;
   disabled: boolean;
   placeholder: string;
 }

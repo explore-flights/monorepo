@@ -1,0 +1,24 @@
+syntax = "proto3";
+package explore_flights.protobuf;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+option go_package = "go/api/pb";
+
+message ConnectionsSearchRequest {
+  repeated string origins = 1;
+  repeated string destinations = 2;
+  google.protobuf.Timestamp min_departure = 3;
+  google.protobuf.Timestamp max_departure = 4;
+  uint32 max_flights = 5;
+  google.protobuf.Duration min_layover = 6;
+  google.protobuf.Duration max_layover = 7;
+  google.protobuf.Duration max_duration = 8;
+  repeated string include_airport = 9;
+  repeated string exclude_airport = 10;
+  repeated string include_flight_number = 11;
+  repeated string exclude_flight_number = 12;
+  repeated string include_aircraft = 13;
+  repeated string exclude_aircraft = 14;
+}

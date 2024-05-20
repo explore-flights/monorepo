@@ -48,34 +48,31 @@ export interface ConnectionSearchFormProps {
   airportsLoading: boolean;
   aircraft: ReadonlyArray<Aircraft>;
   aircraftLoading: boolean;
-  isDisabled: boolean;
-  onSearch: (v: ConnectionSearchParams) => void;
-  onShare: (v: ConnectionSearchParams) => void;
+  isLoading: boolean;
+  params: ConnectionSearchParams;
+  onChange: React.Dispatch<React.SetStateAction<ConnectionSearchParams>>;
+  onSearch: () => void;
+  onShare: () => void;
 }
 
-export function ConnectionSearchForm({ airports, airportsLoading, aircraft, aircraftLoading, isDisabled, onSearch, onShare }: ConnectionSearchFormProps) {
-  const [origins, setOrigins] = useState<ReadonlyArray<string>>([]);
-  const [destinations, setDestinations] = useState<ReadonlyArray<string>>([]);
-  const [departure, setDeparture] = useState<[DateTime<true>, DateTime<true>] | null>([
-    DateTime.now().startOf('day'),
-    DateTime.now().endOf('day'),
-  ]);
-  const [maxFlights, setMaxFlights] = useState(2);
-  const [minLayover, setMinLayover] = useState(Duration.fromMillis(1000*60*60));
-  const [maxLayover, setMaxLayover] = useState(Duration.fromMillis(1000*60*60*6));
-  const [maxDuration, setMaxDuration] = useState(Duration.fromMillis(1000*60*60*26));
-  const [includeAirportEnabled, setIncludeAirportEnabled] = useState(false);
-  const [includeAirport, setIncludeAirport] = useState<ReadonlyArray<string>>([]);
-  const [excludeAirportEnabled, setExcludeAirportEnabled] = useState(false);
-  const [excludeAirport, setExcludeAirport] = useState<ReadonlyArray<string>>([]);
-  const [includeFlightNumberEnabled, setIncludeFlightNumberEnabled] = useState(false);
-  const [includeFlightNumber, setIncludeFlightNumber] = useState<ReadonlyArray<string>>([]);
-  const [excludeFlightNumberEnabled, setExcludeFlightNumberEnabled] = useState(false);
-  const [excludeFlightNumber, setExcludeFlightNumber] = useState<ReadonlyArray<string>>([]);
-  const [includeAircraftEnabled, setIncludeAircraftEnabled] = useState(false);
-  const [includeAircraft, setIncludeAircraft] = useState<ReadonlyArray<string>>([]);
-  const [excludeAircraftEnabled, setExcludeAircraftEnabled] = useState(false);
-  const [excludeAircraft, setExcludeAircraft] = useState<ReadonlyArray<string>>([]);
+export function ConnectionSearchForm({ airports, airportsLoading, aircraft, aircraftLoading, isLoading, params, onChange, onSearch, onShare }: ConnectionSearchFormProps) {
+  const {
+    origins,
+    destinations,
+    minDeparture,
+    maxDeparture,
+    maxFlights,
+    minLayover,
+    maxLayover,
+    maxDuration,
+    includeAirport,
+    excludeAirport,
+    includeFlightNumber,
+    excludeFlightNumber,
+    includeAircraft,
+    excludeAircraft,
+  } = params;
+
   const errors = useMemo<ConnectionSearchFormErrors | null>(() => {
     const e: ConnectionSearchFormErrors = {};
     let anyError = false;
@@ -96,18 +93,11 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
       anyError = true;
     }
 
-    if (departure === null) {
-      e.departure = 'Required';
+    const duration = maxDeparture.diff(minDeparture).plus(maxDuration);
+    if (duration.toMillis() > 1000*60*60*24*14) {
+      e.departure = 'The duration from start to end + Max Duration must not exceed 14 days';
+      e.maxDuration = 'The duration from start to end + Max Duration must not exceed 14 days';
       anyError = true;
-    } else {
-      const [start, end] = departure;
-      const duration = end.diff(start).plus(maxDuration);
-
-      if (duration.toMillis() > 1000*60*60*24*14) {
-        e.departure = 'The duration from start to end + Max Duration must not exceed 14 days';
-        e.maxDuration = 'The duration from start to end + Max Duration must not exceed 14 days';
-        anyError = true;
-      }
     }
 
     if (minLayover.toMillis() > maxLayover.toMillis()) {
@@ -117,56 +107,15 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
     }
 
     return anyError ? e : null;
-  }, [origins, destinations, departure, maxFlights, minLayover, maxLayover, maxDuration]);
-
-  function buildSearchParams() {
-    if (departure === null) {
-      return undefined;
-    }
-
-    return {
-      origins: origins,
-      destinations: destinations,
-      minDeparture: departure[0],
-      maxDeparture: departure[1],
-      maxFlights: maxFlights,
-      minLayover: minLayover,
-      maxLayover: maxLayover,
-      maxDuration: maxDuration,
-      includeAirport: includeAirportEnabled ? includeAirport : undefined,
-      excludeAirport: excludeAirportEnabled ? excludeAirport : undefined,
-      includeFlightNumber: includeFlightNumberEnabled ? includeFlightNumber : undefined,
-      excludeFlightNumber: excludeFlightNumberEnabled ? excludeFlightNumber : undefined,
-      includeAircraft: includeAircraftEnabled ? includeAircraft : undefined,
-      excludeAircraft: excludeAircraftEnabled ? excludeAircraft : undefined,
-    } satisfies ConnectionSearchParams;
-  }
-
-  function onClickSearch() {
-    const params = buildSearchParams();
-    if (params === undefined) {
-      return;
-    }
-
-    onSearch(params);
-  }
-
-  function onClickShare() {
-    const params = buildSearchParams();
-    if (params === undefined) {
-      return;
-    }
-
-    onShare(params);
-  }
+  }, [origins, destinations, minDeparture, maxDeparture, minLayover, maxLayover, maxDuration]);
 
   return (
     <Form
       variant={'embedded'}
       actions={
       <SpaceBetween size={'xs'} direction={'horizontal'}>
-        <Button onClick={onClickShare} loading={isDisabled} disabled={errors !== null} iconName={'share'}>Share</Button>
-        <Button onClick={onClickSearch} loading={isDisabled} disabled={errors !== null} iconName={'search'}>Search</Button>
+        <Button onClick={onShare} loading={isLoading} disabled={errors !== null} iconName={'share'}>Share</Button>
+        <Button onClick={onSearch} loading={isLoading} disabled={errors !== null} iconName={'search'}>Search</Button>
       </SpaceBetween>
       }
     >
@@ -187,8 +136,8 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
               airports={airports}
               selectedAirportCodes={origins}
               loading={airportsLoading}
-              disabled={isDisabled}
-              onChange={setOrigins}
+              disabled={isLoading}
+              onChange={(v) => onChange((prev) => ({ ...prev, origins: v }))}
             />
           </FormField>
 
@@ -197,29 +146,31 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
               airports={airports}
               selectedAirportCodes={destinations}
               loading={airportsLoading}
-              disabled={isDisabled}
-              onChange={setDestinations}
+              disabled={isLoading}
+              onChange={(v) => onChange((prev) => ({ ...prev, destinations: v }))}
             />
           </FormField>
 
           <FormField label={'Departure'} errorText={errors?.departure}>
             <DateRangePicker
-              value={departure !== null ? { type: 'absolute', startDate: departure[0].toISO(), endDate: departure[1].toISO() } : null}
+              value={{ type: 'absolute', startDate: minDeparture.toISO(), endDate: maxDeparture.toISO() }}
               onChange={(e) => {
                 const value = e.detail.value;
                 if (value === null || value.type !== 'absolute') {
-                  setDeparture(null);
                   return;
                 }
 
                 const start = DateTime.fromISO(value.startDate, { setZone: true });
                 const end = DateTime.fromISO(value.endDate, { setZone: true });
                 if (!start.isValid || !end.isValid) {
-                  setDeparture(null);
                   return;
                 }
 
-                setDeparture([start, end]);
+                onChange((prev) => ({
+                  ...prev,
+                  minDeparture: start,
+                  maxDeparture: end,
+                }));
               }}
               relativeOptions={[]}
               isValidRange={(v) => {
@@ -249,7 +200,7 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
                 return { valid: true };
               }}
               rangeSelectorMode={'absolute-only'}
-              disabled={isDisabled}
+              disabled={isLoading}
             />
           </FormField>
 
@@ -259,8 +210,8 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
               max={4}
               referenceValues={[2, 3]}
               value={maxFlights}
-              onChange={(e) => setMaxFlights(e.detail.value)}
-              disabled={isDisabled}
+              onChange={(e) => onChange((prev) => ({ ...prev, maxFlights: e.detail.value }))}
+              disabled={isLoading}
             />
           </FormField>
 
@@ -271,8 +222,8 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
               step={1000*60*5}
               valueFormatter={(v) => Duration.fromMillis(v).rescale().toHuman({ unitDisplay: 'short' })}
               value={minLayover.toMillis()}
-              onChange={(e) => setMinLayover(Duration.fromMillis(e.detail.value))}
-              disabled={isDisabled}
+              onChange={(e) => onChange((prev) => ({ ...prev, minLayover: Duration.fromMillis(e.detail.value) }))}
+              disabled={isLoading}
             />
           </FormField>
 
@@ -283,8 +234,8 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
               step={1000*60*5}
               valueFormatter={(v) => Duration.fromMillis(v).rescale().toHuman({ unitDisplay: 'short' })}
               value={maxLayover.toMillis()}
-              onChange={(e) => setMaxLayover(Duration.fromMillis(e.detail.value))}
-              disabled={isDisabled}
+              onChange={(e) => onChange((prev) => ({ ...prev, maxLayover: Duration.fromMillis(e.detail.value) }))}
+              disabled={isLoading}
             />
           </FormField>
 
@@ -295,8 +246,8 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
               step={1000*60*5}
               valueFormatter={(v) => Duration.fromMillis(v).rescale().toHuman({ unitDisplay: 'short' })}
               value={maxDuration.toMillis()}
-              onChange={(e) => setMaxDuration(Duration.fromMillis(e.detail.value))}
-              disabled={isDisabled}
+              onChange={(e) => onChange((prev) => ({ ...prev, maxDuration: Duration.fromMillis(e.detail.value) }))}
+              disabled={isLoading}
             />
           </FormField>
         </Grid>
@@ -306,61 +257,61 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
             <Header variant={'h3'} description={'Apply inclusions on whole connections. The result will only contain connections for which every given inclusion is matched by at least one flight.'}>Include</Header>
             <Header variant={'h3'} description={'Apply exclusions on flights taken into consideration. Exclusions will result in no flight of the result matching any of the supplied values.'}>Exclude</Header>
 
-            <FormField label={<Toggle checked={includeAirportEnabled} onChange={(e) => setIncludeAirportEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Include Airport</Box></Toggle>}>
+            <FormField label={<Toggle checked={includeAirport !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, includeAirport: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Include Airport</Box></Toggle>}>
               <AirportMultiselectOrEditor
                 airports={airports}
-                selectedAirportCodes={includeAirport}
-                setSelectedAirportCodes={setIncludeAirport}
+                selectedAirportCodes={includeAirport ?? []}
+                setSelectedAirportCodes={(v) => onChange((prev) => ({ ...prev, includeAirport: v }))}
                 loading={airportsLoading}
-                disabled={isDisabled || !includeAirportEnabled}
+                disabled={isLoading || includeAirport === undefined}
               />
             </FormField>
 
-            <FormField label={<Toggle checked={excludeAirportEnabled} onChange={(e) => setExcludeAirportEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Exclude Airport</Box></Toggle>}>
+            <FormField label={<Toggle checked={excludeAirport !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, excludeAirport: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Exclude Airport</Box></Toggle>}>
               <AirportMultiselectOrEditor
                 airports={airports}
-                selectedAirportCodes={excludeAirport}
-                setSelectedAirportCodes={setExcludeAirport}
+                selectedAirportCodes={excludeAirport ?? []}
+                setSelectedAirportCodes={(v) => onChange((prev) => ({ ...prev, excludeAirport: v }))}
                 loading={airportsLoading}
-                disabled={isDisabled || !excludeAirportEnabled}
+                disabled={isLoading || excludeAirport === undefined}
               />
             </FormField>
 
-            <FormField label={<Toggle checked={includeFlightNumberEnabled} onChange={(e) => setIncludeFlightNumberEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Include Flightnumber</Box></Toggle>}>
+            <FormField label={<Toggle checked={includeFlightNumber !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, includeFlightNumber: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Include Flightnumber</Box></Toggle>}>
               <ValueMultilineEditor
-                values={includeFlightNumber}
-                setValues={setIncludeFlightNumber}
-                disabled={isDisabled || !includeFlightNumberEnabled}
+                values={includeFlightNumber ?? []}
+                setValues={(v) => onChange((prev) => ({ ...prev, includeFlightNumber: v }))}
+                disabled={isLoading || includeFlightNumber === undefined}
                 placeholder={'SX???*'}
               />
             </FormField>
 
-            <FormField label={<Toggle checked={excludeFlightNumberEnabled} onChange={(e) => setExcludeFlightNumberEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Exclude Flightnumber</Box></Toggle>}>
+            <FormField label={<Toggle checked={excludeFlightNumber !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, excludeFlightNumber: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Exclude Flightnumber</Box></Toggle>}>
               <ValueMultilineEditor
-                values={excludeFlightNumber}
-                setValues={setExcludeFlightNumber}
-                disabled={isDisabled || !excludeFlightNumberEnabled}
+                values={excludeFlightNumber ?? []}
+                setValues={(v) => onChange((prev) => ({ ...prev, excludeFlightNumber: v }))}
+                disabled={isLoading || excludeFlightNumber === undefined}
                 placeholder={'SX???*'}
               />
             </FormField>
 
-            <FormField label={<Toggle checked={includeAircraftEnabled} onChange={(e) => setIncludeAircraftEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Include Aircraft</Box></Toggle>}>
+            <FormField label={<Toggle checked={includeAircraft !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, includeAircraft: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Include Aircraft</Box></Toggle>}>
               <AircraftMultiselectOrEditor
                 aircraft={aircraft}
-                selectedAircraftCodes={includeAircraft}
-                setSelectedAircraftCodes={setIncludeAircraft}
+                selectedAircraftCodes={includeAircraft ?? []}
+                setSelectedAircraftCodes={(v) => onChange((prev) => ({ ...prev, includeAircraft: v }))}
                 loading={aircraftLoading}
-                disabled={isDisabled || !includeAircraftEnabled}
+                disabled={isLoading || includeAircraft === undefined}
               />
             </FormField>
 
-            <FormField label={<Toggle checked={excludeAircraftEnabled} onChange={(e) => setExcludeAircraftEnabled(e.detail.checked)}><Box variant={'awsui-key-label'}>Exclude Aircraft</Box></Toggle>}>
+            <FormField label={<Toggle checked={excludeAircraft !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, excludeAircraft: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Exclude Aircraft</Box></Toggle>}>
               <AircraftMultiselectOrEditor
                 aircraft={aircraft}
-                selectedAircraftCodes={excludeAircraft}
-                setSelectedAircraftCodes={setExcludeAircraft}
+                selectedAircraftCodes={excludeAircraft ?? []}
+                setSelectedAircraftCodes={(v) => onChange((prev) => ({ ...prev, excludeAircraft: v }))}
                 loading={aircraftLoading}
-                disabled={isDisabled || !excludeAircraftEnabled}
+                disabled={isLoading || excludeAircraft === undefined}
               />
             </FormField>
           </ColumnLayout>
@@ -373,7 +324,7 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
 interface AirportMultiselectOrEditorProps {
   airports: Airports;
   selectedAirportCodes: ReadonlyArray<string>;
-  setSelectedAirportCodes: React.Dispatch<React.SetStateAction<ReadonlyArray<string>>>;
+  setSelectedAirportCodes: (v: ReadonlyArray<string>) => void;
   loading: boolean;
   disabled: boolean;
 }
@@ -395,7 +346,7 @@ function AirportMultiselectOrEditor({ airports, selectedAirportCodes, setSelecte
 interface AircraftMultiselectOrEditorProps {
   aircraft: ReadonlyArray<Aircraft>;
   selectedAircraftCodes: ReadonlyArray<string>;
-  setSelectedAircraftCodes: React.Dispatch<React.SetStateAction<ReadonlyArray<string>>>;
+  setSelectedAircraftCodes: (v: ReadonlyArray<string>) => void;
   loading: boolean;
   disabled: boolean;
 }
@@ -416,7 +367,7 @@ function AircraftMultiselectOrEditor({ aircraft, selectedAircraftCodes, setSelec
 
 interface StandardOrMultilineEditorProps {
   values: ReadonlyArray<string>;
-  setValues: React.Dispatch<React.SetStateAction<ReadonlyArray<string>>>;
+  setValues: (v: ReadonlyArray<string>) => void;
   disabled: boolean;
 }
 

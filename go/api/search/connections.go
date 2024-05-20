@@ -27,7 +27,7 @@ func NewConnectionsHandler(fr *FlightRepo) *ConnectionsHandler {
 	return &ConnectionsHandler{fr}
 }
 
-func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration, options ...FilterOption) ([]Connection, error) {
+func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, options ...FilterOption) ([]Connection, error) {
 	var f Filters
 	for _, opt := range options {
 		opt.Apply(&f)
@@ -62,7 +62,7 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 	))
 }
 
-func findConnections(ctx context.Context, flightsByDeparture map[common.Departure][]*common.Flight, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights int, minLayover, maxLayover, maxDuration time.Duration, predicates []flightPredicate, initial bool) <-chan Connection {
+func findConnections(ctx context.Context, flightsByDeparture map[common.Departure][]*common.Flight, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, predicates []flightPredicate, initial bool) <-chan Connection {
 	if maxFlights < 1 || maxDuration < 1 {
 		ch := make(chan Connection)
 		close(ch)

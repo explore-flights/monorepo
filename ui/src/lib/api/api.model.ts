@@ -30,6 +30,31 @@ export interface Airport {
   name: string;
 }
 
+export interface ConnectionsSearchRequest {
+  origins: ReadonlyArray<string>;
+  destinations: ReadonlyArray<string>;
+  minDeparture: string;
+  maxDeparture: string;
+  maxFlights: number;
+  minLayoverMS: number;
+  maxLayoverMS: number;
+  maxDurationMS: number;
+  includeAirport?: ReadonlyArray<string>;
+  excludeAirport?: ReadonlyArray<string>;
+  includeFlightNumber?: ReadonlyArray<string>;
+  excludeFlightNumber?: ReadonlyArray<string>;
+  includeAircraft?: ReadonlyArray<string>;
+  excludeAircraft?: ReadonlyArray<string>;
+}
+
+export interface ConnectionsSearchResponse {
+  data: Connections;
+}
+
+export interface ConnectionsSearchResponseWithSearch extends ConnectionsSearchResponse {
+  search: ConnectionsSearchRequest;
+}
+
 export interface Connections {
   connections: ReadonlyArray<Connection>;
   flights: Record<string, Flight>;

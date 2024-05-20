@@ -10,18 +10,19 @@ import 'reactflow/dist/style.css';
 import { useHttpClient } from '../components/util/context/http-client';
 import { catchNotify, useAppControls } from '../components/util/context/app-controls';
 import { expectSuccess } from '../lib/api/api';
-import { Connections, ConnectionSearchShare } from '../lib/api/api.model';
+import { Connections, ConnectionSearchShare, ConnectionsSearchRequest } from '../lib/api/api.model';
 import { useAsync } from '../components/util/state/use-async';
 import { ConnectionsTabs } from '../components/connections/connections-tabs';
 import { ConnectionSearchForm, ConnectionSearchParams } from '../components/connections/connections-search-form';
 import { KeyValuePairs, ValueWithLabel } from '../components/common/key-value-pairs';
 import { Copy } from '../components/common/copy';
 import { useSearchParams } from 'react-router-dom';
+import { DateTime, Duration } from 'luxon';
 
 export function Home() {
   const { apiClient } = useHttpClient();
   const { notification } = useAppControls();
-  const [search, setSearch] = useSearchParams();
+  const [search] = useSearchParams();
 
   const [airports, airportsState] = useAsync(
     { airports: [], metropolitanAreas: [] },
@@ -36,6 +37,16 @@ export function Home() {
   );
 
   const [isLoading, setLoading] = useState(false);
+  const [params, setParams] = useState<ConnectionSearchParams>({
+    origins: [],
+    destinations: [],
+    minDeparture: DateTime.now().startOf('day'),
+    maxDeparture: DateTime.now().endOf('day'),
+    maxFlights: 2,
+    minLayover: Duration.fromMillis(1000*60*60),
+    maxLayover: Duration.fromMillis(1000*60*60*6),
+    maxDuration: Duration.fromMillis(1000*60*60*26),
+  });
   const [connections, setConnections] = useState<Connections>();
   const [share, setShare] = useState<ConnectionSearchShare>();
 
@@ -48,58 +59,27 @@ export function Home() {
     setLoading(true);
     (async () => {
       const { body } = expectSuccess(await apiClient.getConnectionsFromShare(payload));
-      setConnections(body);
+      setParams(requestToParams(body.search));
+      setConnections(body.data);
     })()
       .catch(catchNotify(notification))
       .finally(() => setLoading(false));
   }, [search]);
 
-  function onSearch(params: ConnectionSearchParams) {
+  function onSearch() {
     setLoading(true);
     (async () => {
-      const { body } = expectSuccess(await apiClient.getConnections(
-        params.origins,
-        params.destinations,
-        params.minDeparture,
-        params.maxDeparture,
-        params.maxFlights,
-        params.minLayover,
-        params.maxLayover,
-        params.maxDuration,
-        params.includeAirport ?? null,
-        params.excludeAirport ?? null,
-        params.includeFlightNumber ?? null,
-        params.excludeFlightNumber ?? null,
-        params.includeAircraft ?? null,
-        params.excludeAircraft ?? null,
-      ));
-
-      setConnections(body);
+      const { body } = expectSuccess(await apiClient.getConnections(paramsToRequest(params)));
+      setConnections(body.data);
     })()
       .catch(catchNotify(notification))
       .finally(() => setLoading(false));
   }
 
-  function onShare(params: ConnectionSearchParams) {
+  function onShare() {
     setLoading(true);
     (async () => {
-      const { body } = expectSuccess(await apiClient.getConnectionsSearchShare(
-        params.origins,
-        params.destinations,
-        params.minDeparture,
-        params.maxDeparture,
-        params.maxFlights,
-        params.minLayover,
-        params.maxLayover,
-        params.maxDuration,
-        params.includeAirport ?? null,
-        params.excludeAirport ?? null,
-        params.includeFlightNumber ?? null,
-        params.excludeFlightNumber ?? null,
-        params.includeAircraft ?? null,
-        params.excludeAircraft ?? null,
-      ));
-
+      const { body } = expectSuccess(await apiClient.getConnectionsSearchShare(paramsToRequest(params)));
       setShare(body);
     })()
       .catch(catchNotify(notification))
@@ -117,7 +97,9 @@ export function Home() {
               airportsLoading={airportsState.loading}
               aircraft={aircraft}
               aircraftLoading={aircraftState.loading}
-              isDisabled={isLoading}
+              isLoading={isLoading}
+              params={params}
+              onChange={setParams}
               onSearch={onSearch}
               onShare={onShare}
             />
@@ -143,4 +125,51 @@ function SearchShareModal({ share, onClose }: { share?: ConnectionSearchShare, o
       </KeyValuePairs>
     </Modal>
   )
+}
+
+function paramsToRequest(params: ConnectionSearchParams): ConnectionsSearchRequest {
+  return {
+    origins: params.origins,
+    destinations: params.destinations,
+    minDeparture: params.minDeparture.toISO(),
+    maxDeparture: params.maxDeparture.toISO(),
+    maxFlights: params.maxFlights,
+    minLayoverMS: params.minLayover.toMillis(),
+    maxLayoverMS: params.maxLayover.toMillis(),
+    maxDurationMS: params.maxDuration.toMillis(),
+    includeAirport: params.includeAirport,
+    excludeAirport: params.excludeAirport,
+    includeFlightNumber: params.includeFlightNumber,
+    excludeFlightNumber: params.excludeFlightNumber,
+    includeAircraft: params.includeAircraft,
+    excludeAircraft: params.excludeAircraft,
+  };
+}
+
+function requestToParams(req: ConnectionsSearchRequest): ConnectionSearchParams {
+  return {
+    origins: req.origins,
+    destinations: req.destinations,
+    minDeparture: isoDateTime(req.minDeparture),
+    maxDeparture: isoDateTime(req.maxDeparture),
+    maxFlights: req.maxFlights,
+    minLayover: Duration.fromMillis(req.minLayoverMS),
+    maxLayover: Duration.fromMillis(req.maxLayoverMS),
+    maxDuration: Duration.fromMillis(req.maxDurationMS),
+    includeAirport: req.includeAirport,
+    excludeAirport: req.excludeAirport,
+    includeFlightNumber: req.includeFlightNumber,
+    excludeFlightNumber: req.excludeFlightNumber,
+    includeAircraft: req.includeAircraft,
+    excludeAircraft: req.excludeAircraft,
+  };
+}
+
+function isoDateTime(iso8601: string): DateTime<true> {
+  const dt = DateTime.fromISO(iso8601, { setZone: true });
+  if (!dt.isValid) {
+    throw new Error(`invalid iso string ${iso8601}`)
+  }
+
+  return dt;
 }

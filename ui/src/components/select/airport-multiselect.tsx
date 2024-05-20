@@ -60,7 +60,7 @@ export function AirportMultiselect({ airports, selectedAirportCodes, loading, di
     }
 
     return result;
-  }, [selectedAirportCodes]);
+  }, [optionByAirportCode, selectedAirportCodes]);
 
   return (
     <Multiselect

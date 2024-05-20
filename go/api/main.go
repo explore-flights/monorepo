@@ -45,9 +45,13 @@ func main() {
 	e := echo.New()
 	e.Use(authHandler.Middleware)
 
-	e.POST("/api/connections/json", web.NewConnectionsEndpoint(connHandler, "json"))
-	e.GET("/api/connections/json/:payload", web.NewConnectionsEndpoint(connHandler, "json"))
-	e.GET("/api/connections/png/:payload/c.png", web.NewConnectionsEndpoint(connHandler, "png"))
+	jsonConnEdp := web.NewConnectionsEndpoint(connHandler, "json")
+	pngConnEdp := web.NewConnectionsEndpoint(connHandler, "png")
+
+	e.POST("/api/connections/json", jsonConnEdp)
+	e.GET("/api/connections/json/:payload", jsonConnEdp)
+	e.POST("/api/connections/png", pngConnEdp)
+	e.GET("/api/connections/png/:payload/c.png", pngConnEdp)
 	e.POST("/api/connections/share", web.NewConnectionsShareCreateEndpoint())
 	e.GET("/api/connections/share/:payload", web.NewConnectionsShareHTMLEndpoint())
 
