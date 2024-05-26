@@ -31,7 +31,7 @@ func main() {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	mux.HandleFunc("/milesandmore/", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("POST /milesandmore/", func(w http.ResponseWriter, req *http.Request) {
 		ctx, cancel := context.WithTimeout(req.Context(), time.Second*15)
 		defer cancel()
 
