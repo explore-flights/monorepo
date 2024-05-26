@@ -53,7 +53,7 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
     }
   }, [hasConsent, consentLevels]);
 
-  function onCancelClick(e: CustomEvent) {
+  function onCancelClick(e: CustomEvent<unknown>) {
     setConsent({ functional: consentLevels.has(ConsentLevel.FUNCTIONALITY) });
 
     if (onDismiss) {
@@ -61,15 +61,19 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
     }
   }
 
-  function onDenyAllClick(e: CustomEvent) {
+  function onDenyAllClick(e: CustomEvent<unknown>) {
+    denyAll(e.type);
+  }
+
+  function denyAll(eventType: string) {
     setConsentLevels([ConsentLevel.STRICTLY_NECESSARY]);
 
     if (onDismiss) {
-      onDismiss(new CustomEvent(e.type, { detail: { reason: 'save' } }));
+      onDismiss(new CustomEvent(eventType, { detail: { reason: 'save' } }));
     }
   }
 
-  function onSaveClick(e: CustomEvent) {
+  function onSaveClick(e: CustomEvent<unknown>) {
     if (consent.functional) {
       setConsentLevels([ConsentLevel.STRICTLY_NECESSARY, ConsentLevel.FUNCTIONALITY]);
     } else {
@@ -83,7 +87,13 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
 
   return (
     <Modal
-      onDismiss={onDismiss}
+      onDismiss={(e) => {
+        if (!hasConsent && e.detail.reason === 'closeButton') {
+          denyAll(e.type);
+        } else if (onDismiss) {
+          onDismiss(e);
+        }
+      }}
       {...modalProps}
       header={'Cookie Preferences'}
       size={'large'}
