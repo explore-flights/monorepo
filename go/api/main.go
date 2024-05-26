@@ -48,8 +48,6 @@ func main() {
 	jsonConnEdp := web.NewConnectionsEndpoint(connHandler, "json")
 	pngConnEdp := web.NewConnectionsEndpoint(connHandler, "png")
 
-	e.Any("/api/milesandmore/*", web.NewMilesAndMoreHandler())
-
 	e.POST("/api/connections/json", jsonConnEdp)
 	e.GET("/api/connections/json/:payload", jsonConnEdp)
 	e.POST("/api/connections/png", pngConnEdp)

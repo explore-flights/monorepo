@@ -47,7 +47,7 @@ export class CloudfrontConstruct extends Construct {
         contentSecurityPolicy: {
           contentSecurityPolicy: [
             `default-src 'self'`,
-            `connect-src 'self'`,
+            `connect-src 'self' http://127.0.0.1:8090/`,
             `style-src 'self' 'unsafe-inline'`,
             `font-src data:`,
             `img-src 'self'`,
