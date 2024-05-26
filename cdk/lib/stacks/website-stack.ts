@@ -34,6 +34,7 @@ export class WebsiteStack extends cdk.Stack {
         {
           enabled: true,
           prefix: 'authreq/',
+          expiration: Duration.days(1),
           noncurrentVersionExpiration: Duration.days(1),
         },
       ],
