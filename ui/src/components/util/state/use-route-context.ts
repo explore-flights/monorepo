@@ -24,6 +24,16 @@ const ROUTES = [{
       title: 'Privacy Policy',
       breadcrumb: 'Privacy Policy',
     },
+    {
+      path: 'tools',
+      children: [
+        {
+          path: 'mm-quick-search',
+          title: 'M&M Quick Search',
+          breadcrumb: 'M&M Quick Search',
+        },
+      ],
+    },
     // endregion
   ],
 }] satisfies readonly RouteElement[];

@@ -1,6 +1,6 @@
 import { SideNavigation } from '@cloudscape-design/components';
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useHref, useLocation, useNavigate } from 'react-router-dom';
 
 export function SideNav() {
   const location = useLocation();
@@ -8,7 +8,16 @@ export function SideNav() {
 
   return (
     <SideNavigation
-      items={[]}
+      header={{ href: useHref('/'), text: 'Home' }}
+      items={[
+        {
+          type: 'section-group',
+          title: 'Tools',
+          items: [
+            { type: 'link', text: 'M&M Quick Search', href: useHref('/tools/mm-quick-search') },
+          ],
+        },
+      ]}
       activeHref={location.pathname}
       onFollow={(e) => {
         e.preventDefault();

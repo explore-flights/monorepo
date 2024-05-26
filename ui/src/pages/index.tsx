@@ -8,6 +8,7 @@ import { ErrorPage } from './error-page';
 import { BaseProviders, RootLayout } from '../components/root';
 import { Legal } from './legal';
 import { PrivacyPolicy } from './privacy-policy';
+import { MmQuickSearch } from './tools/mm-quick-search';
 
 // region router
 const router = createBrowserRouter([
@@ -28,6 +29,10 @@ const router = createBrowserRouter([
       {
         path: 'privacy-policy',
         element: <PrivacyPolicy />,
+      },
+      {
+        path: 'tools/mm-quick-search',
+        element: <MmQuickSearch />,
       },
     ],
   },
