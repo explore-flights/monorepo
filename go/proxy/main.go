@@ -98,7 +98,7 @@ func run(ctx context.Context, srv *http.Server) error {
 	go func() {
 		<-ctx.Done()
 		if err := srv.Shutdown(context.Background()); err != nil {
-			slog.Error("error shutting down the echo server", slog.String("err", err.Error()))
+			slog.Error("error shutting down the http server", slog.String("err", err.Error()))
 		}
 	}()
 
