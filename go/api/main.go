@@ -48,6 +48,8 @@ func main() {
 	jsonConnEdp := web.NewConnectionsEndpoint(connHandler, "json")
 	pngConnEdp := web.NewConnectionsEndpoint(connHandler, "png")
 
+	e.Any("/api/milesandmore/*", web.NewMilesAndMoreHandler())
+
 	e.POST("/api/connections/json", jsonConnEdp)
 	e.GET("/api/connections/json/:payload", jsonConnEdp)
 	e.POST("/api/connections/png", pngConnEdp)
@@ -63,8 +65,6 @@ func main() {
 
 	e.GET("/data/airports.json", web.NewAirportsHandler(dataHandler))
 	e.GET("/data/aircraft.json", web.NewAircraftHandler(dataHandler))
-
-	e.Any("/milesandmore/*", web.NewMilesAndMoreHandler())
 
 	if err := run(ctx, e); err != nil {
 		panic(err)

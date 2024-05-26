@@ -20,7 +20,7 @@ func NewMilesAndMoreHandler() echo.HandlerFunc {
 		}
 
 		outurl := "https://api.miles-and-more.com"
-		outurl += strings.TrimPrefix(req.URL.EscapedPath(), "/milesandmore")
+		outurl += strings.TrimPrefix(req.URL.EscapedPath(), "/api/milesandmore")
 		if req.URL.RawQuery != "" {
 			outurl += "?"
 			outurl += req.URL.RawQuery

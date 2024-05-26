@@ -168,7 +168,7 @@ export class MilesAndMoreClient {
 
     for (let i = 0; i < 3; i++) {
       const resp = await this.httpClient.fetch(
-        `/milesandmore/flights/v1/${req.mode === Mode.BEST_BY_MONTH ? 'bestbymonth' : 'bestbyday'}`,
+        `/api/milesandmore/flights/v1/${req.mode === Mode.BEST_BY_MONTH ? 'bestbymonth' : 'bestbyday'}`,
         {
           method: 'POST',
           body: JSON.stringify(request),

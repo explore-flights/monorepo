@@ -20,7 +20,6 @@ const proxyConfig: Record<string, string | ProxyOptions> = {
   '/api/': localTarget('http://127.0.0.1:8080'),
   '/auth/': localTarget('http://127.0.0.1:8080'),
   '/data/': localTarget('http://127.0.0.1:8080'),
-  '/milesandmore/': localTarget('http://127.0.0.1:8080'),
 };
 
 export default defineConfig({
