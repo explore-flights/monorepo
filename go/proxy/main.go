@@ -13,11 +13,24 @@ import (
 	"time"
 )
 
+func addAccessControlHeaders(h http.Header) {
+	h.Set("Access-Control-Allow-Origin", AllowOrigin)
+	h.Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	h.Set("Access-Control-Allow-Headers", "*")
+	h.Set("Access-Control-Allow-Credentials", "true")
+	h.Set("Access-Control-Max-Age", "86400")
+}
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("OPTIONS /", func(w http.ResponseWriter, req *http.Request) {
+		addAccessControlHeaders(w.Header())
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	mux.HandleFunc("/milesandmore/", func(w http.ResponseWriter, req *http.Request) {
 		ctx, cancel := context.WithTimeout(req.Context(), time.Second*15)
 		defer cancel()
@@ -66,6 +79,8 @@ func main() {
 		if contentType := proxyresp.Header.Get("Content-Type"); contentType != "" {
 			w.Header().Set("Content-Type", contentType)
 		}
+
+		addAccessControlHeaders(w.Header())
 
 		w.WriteHeader(proxyresp.StatusCode)
 		_, _ = io.Copy(w, proxyresp.Body)

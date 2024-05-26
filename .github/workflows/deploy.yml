@@ -104,7 +104,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
-        run: 'go build -o proxy-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}'
+        run: 'go build -o proxy-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} -tags "prod"'
       - name: 'Make executable'
         working-directory: 'go/proxy'
         run: 'chmod +x proxy-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}'
