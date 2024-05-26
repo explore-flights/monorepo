@@ -1,0 +1,51 @@
+name: 'Build Proxy'
+
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'go/proxy/**'
+
+env:
+  WORKSPACE_ARTIFACT_PROXY: 'explore_flights_proxy_artifact'
+
+jobs:
+  build_and_test_proxy:
+    name: 'Build and test proxy'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [ 'linux', 'darwin' ]
+        goarch: [ 'arm64', 'amd64' ]
+        suffix: [ '' ]
+        include:
+          - goos: 'windows'
+            goarch: 'amd64'
+            suffix: '.exe'
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+      - name: 'Setup go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go/proxy/go.mod'
+          cache-dependency-path: 'go/proxy/go.sum'
+      - name: 'Test'
+        working-directory: 'go/proxy'
+        run: 'go test ./...'
+      - name: 'Build'
+        working-directory: 'go/proxy'
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: 'go build -o proxy-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} -tags "prod"'
+      - name: 'Make executable'
+        working-directory: 'go/proxy'
+        run: 'chmod +x proxy-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}'
+      - name: 'Store proxy artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: '${{ env.WORKSPACE_ARTIFACT_PROXY }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}'
+          path: 'go/proxy/proxy-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}'
