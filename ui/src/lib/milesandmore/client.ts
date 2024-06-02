@@ -141,6 +141,15 @@ export class MilesAndMoreClient {
   constructor(private readonly httpClient: HTTPClient) {
   }
 
+  async ping(): Promise<boolean> {
+    try {
+      const resp = await this.httpClient.fetch('http://127.0.0.1:8090/ping');
+      return resp.status === 200 && (await resp.text() === 'github.com/explore-flights/monorepo/go/proxy');
+    } catch (e) {
+      return false;
+    }
+  }
+
   async getBestBy(req: MMRequest): Promise<MMResponse> {
     const request = {
       commercialFareFamilies: [req.fareFamily],

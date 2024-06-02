@@ -31,6 +31,13 @@ func main() {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	mux.HandleFunc("GET /ping", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		addAccessControlHeaders(w.Header())
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("github.com/explore-flights/monorepo/go/proxy"))
+	})
+
 	mux.HandleFunc("POST /milesandmore/", func(w http.ResponseWriter, req *http.Request) {
 		ctx, cancel := context.WithTimeout(req.Context(), time.Second*15)
 		defer cancel()

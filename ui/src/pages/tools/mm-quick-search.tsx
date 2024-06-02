@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useHttpClient } from '../../components/util/context/http-client';
 import {
   FareFamily,
@@ -9,6 +9,7 @@ import {
   ResponseDataDictionaries, ResponseDataEntry
 } from '../../lib/milesandmore/client';
 import {
+  Box,
   Button,
   ColumnLayout,
   Container,
@@ -17,7 +18,7 @@ import {
   Form,
   FormField,
   Grid,
-  Header, Table
+  Header, Link, Table
 } from '@cloudscape-design/components';
 import { useAsync } from '../../components/util/state/use-async';
 import { expectSuccess } from '../../lib/api/api';
@@ -25,11 +26,14 @@ import { AirportMultiselect } from '../../components/select/airport-multiselect'
 import { DateTime, Duration } from 'luxon';
 import { catchNotify, useAppControls } from '../../components/util/context/app-controls';
 import { useCollection } from '@cloudscape-design/collection-hooks';
+import { useInterval } from '../../components/util/state/common';
 
 export function MmQuickSearch() {
   const { httpClient, apiClient } = useHttpClient();
   const { notification } = useAppControls();
   const mmClient = useMemo(() => new MilesAndMoreClient(httpClient), [httpClient]);
+
+  useProxyInformationAlert(mmClient);
 
   const [airports, airportsState] = useAsync(
     { airports: [], metropolitanAreas: [] },
@@ -175,6 +179,41 @@ export function MmQuickSearch() {
       </ColumnLayout>
     </ContentLayout>
   )
+}
+
+function useProxyInformationAlert(client: MilesAndMoreClient) {
+  const { notification } = useAppControls();
+
+  const [connected, setConnected] = useState(false);
+  const updateNotification = useMemo(() => {
+    return notification.add({
+      type: 'in-progress',
+      content: 'Checking Proxy connectivity',
+    });
+  }, [notification]);
+
+  const ping = useCallback(async () => setConnected(await client.ping()), [client]);
+  useInterval(ping, 5000);
+
+  useEffect(() => {
+    if (connected) {
+      updateNotification({
+        type: 'success',
+        content: 'Proxy Connected!',
+        dismissible: true,
+      })
+    } else {
+      updateNotification({
+        type: 'warning',
+        content: (
+          <Box>
+            This page requires you to run the M&M Proxy locally.
+            You can download the latest version of the proxy <Link href={'https://github.com/explore-flights/monorepo/releases/latest'} external={true}>here</Link>.
+          </Box>
+        )
+      });
+    }
+  }, [updateNotification, connected]);
 }
 
 interface Entry {
