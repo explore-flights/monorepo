@@ -384,5 +384,5 @@ func isBadElementStatus(status int) bool {
 }
 
 func isRetryableStatus(status int) bool {
-	return status == http.StatusGatewayTimeout || status == http.StatusBadGateway || status == http.StatusForbidden
+	return status == http.StatusGatewayTimeout || status == http.StatusBadGateway || status == http.StatusForbidden || status == http.StatusUnauthorized
 }
