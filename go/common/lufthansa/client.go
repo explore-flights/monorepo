@@ -224,7 +224,7 @@ func doRequestFlightSchedules[T any](ctx context.Context, c *Client, airlines []
 
 	q.Set("timeMode", "UTC")
 
-	const maxRetries = 5
+	const maxRetries = 10
 	errs := make([]error, 0, maxRetries)
 
 	for len(errs) < maxRetries {
@@ -293,7 +293,7 @@ func doRequestPage[T pagedResource[D], D any](ctx context.Context, c *Client, me
 	q.Set("limit", strconv.Itoa(pageSize))
 	q.Set("offset", strconv.Itoa(offset))
 
-	const maxRetries = 5
+	const maxRetries = 10
 	errs := make([]error, 0, maxRetries)
 
 	for {

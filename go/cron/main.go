@@ -52,7 +52,7 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) (jso
 	lhc := lufthansa.NewClient(
 		lhClientId,
 		lhClientSecret,
-		lufthansa.WithRateLimiter(rate.NewLimiter(rate.Every(time.Hour)*990, 3)),
+		lufthansa.WithRateLimiter(rate.NewLimiter(rate.Every(time.Hour)*490, 1)),
 	)
 
 	lCountriesAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).CountriesRaw, "countries")
