@@ -44,6 +44,7 @@ export class CronStack extends cdk.Stack {
       targets: [
         new SfnStateMachine(sfn.flightSchedules, {
           input: RuleTargetInput.fromObject({
+            time: EventField.time,
             schedule: 'daily',
           }),
         }),

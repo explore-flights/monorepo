@@ -23,6 +23,7 @@ export class SfnConstruct extends Construct {
           'loadFlightSchedules': {
             'outputBucket': props.dataBucket.bucketName,
             'outputPrefix': 'raw/LH_Public_Data/flightschedules/',
+            'time': JsonPath.stringAt('$.time'),
             'schedule': JsonPath.stringAt('$.schedule'),
           },
         },

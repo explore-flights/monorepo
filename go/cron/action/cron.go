@@ -9,9 +9,10 @@ import (
 
 type CronParams struct {
 	LoadFlightSchedules *struct {
-		OutputBucket string `json:"outputBucket"`
-		OutputPrefix string `json:"outputPrefix"`
-		Schedule     string `json:"schedule"`
+		OutputBucket string    `json:"outputBucket"`
+		OutputPrefix string    `json:"outputPrefix"`
+		Time         time.Time `json:"time"`
+		Schedule     string    `json:"schedule"`
 	} `json:"loadFlightSchedules,omitempty"`
 }
 
@@ -52,7 +53,7 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 
 		switch params.LoadFlightSchedules.Schedule {
 		case "daily":
-			now := time.Now().UTC()
+			now := params.LoadFlightSchedules.Time.UTC()
 			dates := []common.LocalDate{
 				common.NewLocalDate(now.AddDate(0, 0, 30*12)),
 				common.NewLocalDate(now.AddDate(0, 0, 30*8)),
