@@ -103,9 +103,7 @@ export class SfnConstruct extends Construct {
             'wait': ['true'],
           },
           'body': {
-            'content': JsonPath.jsonToString({
-              'content': content,
-            }),
+            'content': JsonPath.format(`{"content": "{}"}`, JsonPath.jsonToString(content)),
             'isBase64': false,
           },
         },
