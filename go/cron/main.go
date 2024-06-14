@@ -10,6 +10,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/cron/action"
 	"golang.org/x/time/rate"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -64,6 +65,7 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) (jso
 	cfsAction := action.NewConvertFlightSchedulesAction(s3c)
 	cronAction := action.NewCronAction(lfsAction, cfsAction)
 	loaAction := action.NewLoadOurAirportsDataAction(s3c, nil)
+	invWHAction := action.NewInvokeWebhookAction(http.DefaultClient)
 
 	return func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
 		switch event.Action {
@@ -93,6 +95,9 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) (jso
 
 		case "load_our_airports_data":
 			return handle(ctx, loaAction, event.Params)
+
+		case "invoke_webhook":
+			return handle(ctx, invWHAction, event.Params)
 		}
 
 		return nil, fmt.Errorf("unsupported action: %v", event.Action)
