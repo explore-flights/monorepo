@@ -60,7 +60,7 @@ export class SfnConstruct extends Construct {
         resultPath: '$.convertSchedulesResponse',
         retryOnServiceExceptions: true,
       }))
-      .toSingleState('FlightSchedulesTry')
+      .toSingleState('FlightSchedulesTry', { outputPath: '$[0]' })
       .addCatch(
         this.sendWebhookTask(
           'InvokeWebhookFailureTask',
