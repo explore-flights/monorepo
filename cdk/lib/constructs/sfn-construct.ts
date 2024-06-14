@@ -61,6 +61,7 @@ export class SfnConstruct extends Construct {
         retryOnServiceExceptions: true,
       }))
       .next(this.sendWebhookTask(
+        'InvokeWebhookSuccessTask',
         props.cronLambda,
         props.webhookUrl,
         JsonPath.format(
@@ -73,6 +74,7 @@ export class SfnConstruct extends Construct {
       .toSingleState('FlightSchedulesTry')
       .addCatch(
         this.sendWebhookTask(
+          'InvokeWebhookFailureTask',
           props.cronLambda,
           props.webhookUrl,
           JsonPath.format('FlightSchedules Cron {} failed', JsonPath.stringAt('$.time')),
@@ -86,8 +88,8 @@ export class SfnConstruct extends Construct {
     });
   }
 
-  private sendWebhookTask(fn: IFunction, url: cdk.SecretValue, content: string) {
-    return new LambdaInvoke(this, 'InvokeWebhookTask', {
+  private sendWebhookTask(id: string, fn: IFunction, url: cdk.SecretValue, content: string) {
+    return new LambdaInvoke(this, id, {
       lambdaFunction: fn,
       payload: TaskInput.fromObject({
         'action': 'invoke_webhook',
