@@ -60,6 +60,16 @@ export class SfnConstruct extends Construct {
         resultPath: '$.convertSchedulesResponse',
         retryOnServiceExceptions: true,
       }))
+      .toSingleState('FlightSchedulesTry')
+      .addCatch(
+        this.sendWebhookTask(
+          'InvokeWebhookFailureTask',
+          props.cronLambda,
+          props.webhookUrl,
+          JsonPath.format('FlightSchedules Cron {} failed', JsonPath.stringAt('$.time')),
+        )
+          .next(fail),
+      )
       .next(this.sendWebhookTask(
         'InvokeWebhookSuccessTask',
         props.cronLambda,
@@ -70,17 +80,7 @@ export class SfnConstruct extends Construct {
           JsonPath.jsonToString(JsonPath.objectAt('$.loadSchedulesResponse.loadFlightSchedules.input.dateRanges')),
         ),
       ))
-      .next(success)
-      .toSingleState('FlightSchedulesTry')
-      .addCatch(
-        this.sendWebhookTask(
-          'InvokeWebhookFailureTask',
-          props.cronLambda,
-          props.webhookUrl,
-          JsonPath.format('FlightSchedules Cron {} failed', JsonPath.stringAt('$.time')),
-        )
-          .next(fail),
-      );
+      .next(success);
 
     this.flightSchedules = new StateMachine(this, 'FlightSchedules', {
       definitionBody: DefinitionBody.fromChainable(definition),
@@ -89,6 +89,10 @@ export class SfnConstruct extends Construct {
   }
 
   private sendWebhookTask(id: string, fn: IFunction, url: cdk.SecretValue, content: string) {
+    if (!JsonPath.isEncodedJsonPath(content)) {
+      content = JsonPath.format('{}', content);
+    }
+
     return new LambdaInvoke(this, id, {
       lambdaFunction: fn,
       payload: TaskInput.fromObject({
@@ -103,7 +107,7 @@ export class SfnConstruct extends Construct {
             'wait': ['true'],
           },
           'body': {
-            'content': JsonPath.format(`\\{"content": "{}"\\}`, JsonPath.jsonToString(content)),
+            'content': JsonPath.format(`\\{"content": {}\\}`, JsonPath.jsonToString(content)),
             'isBase64': false,
           },
         },
