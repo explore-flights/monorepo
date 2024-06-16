@@ -33,6 +33,7 @@ import { useHasConsent } from './util/state/use-consent';
 import { useDependentState } from './util/state/use-dependent-state';
 import { usePreferences } from './util/state/use-preferences';
 import { useDocumentTitle } from './util/state/use-route-context';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 interface AppControlsState {
   tools: {
@@ -156,6 +157,8 @@ export function BaseProviders({ children }: React.PropsWithChildren) {
 }
 
 function InternalBaseProviders({ children }: React.PropsWithChildren) {
+  const queryClient = new QueryClient();
+
   const { apiClient } = useHttpClient();
   const [preferences] = usePreferences();
   const [authInfo, setAuthInfo] = useState<AuthInfo | null | undefined>(undefined);
@@ -204,19 +207,21 @@ function InternalBaseProviders({ children }: React.PropsWithChildren) {
   }), [tools, toolsOpen, splitPanel, notificationMessages]);
 
   return (
-    <CSI18nProvider locale={'en'} messages={[enMessages, customI18nMessages]}>
-      <AuthInfoProvider value={[authInfo, setAuthInfoInternal]}>
-        <AppControlsProvider
-          setTools={setTools}
-          setToolsOpen={setToolsOpen}
-          setSplitPanel={setSplitPanel}
-          setNotificationMessages={setNotificationMessages}
-        >
-          <AppControlsStateContext.Provider value={appControlsState}>
-            {children}
-          </AppControlsStateContext.Provider>
-        </AppControlsProvider>
-      </AuthInfoProvider>
-    </CSI18nProvider>
+    <QueryClientProvider client={queryClient}>
+      <CSI18nProvider locale={'en'} messages={[enMessages, customI18nMessages]}>
+        <AuthInfoProvider value={[authInfo, setAuthInfoInternal]}>
+          <AppControlsProvider
+            setTools={setTools}
+            setToolsOpen={setToolsOpen}
+            setSplitPanel={setSplitPanel}
+            setNotificationMessages={setNotificationMessages}
+          >
+            <AppControlsStateContext.Provider value={appControlsState}>
+              {children}
+            </AppControlsStateContext.Provider>
+          </AppControlsProvider>
+        </AuthInfoProvider>
+      </CSI18nProvider>
+    </QueryClientProvider>
   );
 }

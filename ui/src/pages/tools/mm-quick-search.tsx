@@ -20,26 +20,21 @@ import {
   Grid,
   Header, Link, Table
 } from '@cloudscape-design/components';
-import { useAsync } from '../../components/util/state/use-async';
-import { expectSuccess } from '../../lib/api/api';
 import { AirportMultiselect } from '../../components/select/airport-multiselect';
 import { DateTime, Duration } from 'luxon';
 import { catchNotify, useAppControls } from '../../components/util/context/app-controls';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { useInterval } from '../../components/util/state/common';
+import { useAirports } from '../../components/util/state/data';
 
 export function MmQuickSearch() {
-  const { httpClient, apiClient } = useHttpClient();
+  const { httpClient } = useHttpClient();
   const { notification } = useAppControls();
   const mmClient = useMemo(() => new MilesAndMoreClient(httpClient), [httpClient]);
 
   useProxyInformationAlert(mmClient);
 
-  const [airports, airportsState] = useAsync(
-    { airports: [], metropolitanAreas: [] },
-    async () => expectSuccess(await apiClient.getLocations()).body,
-    [],
-  );
+  const airportsQuery = useAirports();
 
   const [isLoading, setLoading] = useState(false);
   const [origins, setOrigins] = useState<ReadonlyArray<string>>([]);
@@ -111,9 +106,9 @@ export function MmQuickSearch() {
             >
               <FormField label={'Origin'}>
                 <AirportMultiselect
-                  airports={airports}
+                  airports={airportsQuery.data}
                   selectedAirportCodes={origins}
-                  loading={airportsState.loading}
+                  loading={airportsQuery.isLoading}
                   disabled={isLoading}
                   onChange={setOrigins}
                 />
@@ -121,9 +116,9 @@ export function MmQuickSearch() {
 
               <FormField label={'Destination'}>
                 <AirportMultiselect
-                  airports={airports}
+                  airports={airportsQuery.data}
                   selectedAirportCodes={destinations}
-                  loading={airportsState.loading}
+                  loading={airportsQuery.isLoading}
                   disabled={isLoading}
                   onChange={setDestinations}
                 />

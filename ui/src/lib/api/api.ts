@@ -59,7 +59,7 @@ export class ApiClient {
     );
   }
 
-  getLocations(): Promise<ApiResponse<Airports>> {
+  getAirports(): Promise<ApiResponse<Airports>> {
     return transform(this.httpClient.fetch('/data/airports.json'));
   }
 
