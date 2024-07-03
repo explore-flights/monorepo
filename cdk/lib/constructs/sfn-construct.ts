@@ -75,7 +75,7 @@ export class SfnConstruct extends Construct {
         props.cronLambda,
         props.webhookUrl,
         JsonPath.format(
-          'FlightSchedules Cron {} succeeded:\n{}',
+          'FlightSchedules Cron {} succeeded:\n```json{}```',
           JsonPath.stringAt('$.time'),
           JsonPath.jsonToString(JsonPath.objectAt('$.loadSchedulesResponse.loadFlightSchedules.input.dateRanges')),
         ),
