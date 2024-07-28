@@ -153,6 +153,10 @@ func NewConnectionsShareCreateEndpoint() echo.HandlerFunc {
 
 func NewConnectionsShareHTMLEndpoint() echo.HandlerFunc {
 	return func(c echo.Context) error {
+		if _, err := parseAndValidateRequest(c); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, err)
+		}
+
 		scheme, host := contextSchemeAndHost(c)
 		payload := c.Param("payload")
 
