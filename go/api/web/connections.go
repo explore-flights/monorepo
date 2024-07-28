@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"github.com/explore-flights/monorepo/go/api/pb"
 	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/labstack/echo/v4"
@@ -153,7 +154,8 @@ func NewConnectionsShareCreateEndpoint() echo.HandlerFunc {
 
 func NewConnectionsShareHTMLEndpoint() echo.HandlerFunc {
 	return func(c echo.Context) error {
-		if _, err := parseAndValidateRequest(c); err != nil {
+		req, err := parseAndValidateRequest(c)
+		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
@@ -165,13 +167,22 @@ func NewConnectionsShareHTMLEndpoint() echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusInternalServerError, err)
 		}
 
+		origins := strings.Join(req.Origins, " | ")
+		destinations := strings.Join(req.Destinations, " | ")
+
 		data := map[string]string{
-			"scheme":      scheme,
-			"host":        host,
-			"contentUrl":  shareContentUrl(scheme, host, payload),
-			"imageUrl":    shareImageUrl(scheme, host, payload),
-			"title":       "explore.flights",
-			"description": "",
+			"scheme":     scheme,
+			"host":       host,
+			"contentUrl": shareContentUrl(scheme, host, payload),
+			"imageUrl":   shareImageUrl(scheme, host, payload),
+			"title":      fmt.Sprintf("Connections from %v to %v • explore.flights", origins, destinations),
+			"description": fmt.Sprintf(
+				"Explore connections from from %v to %v between %v and %v",
+				origins,
+				destinations,
+				req.MinDeparture.Format(time.RFC3339),
+				req.MaxDeparture.Format(time.RFC3339),
+			),
 		}
 
 		var buf bytes.Buffer
