@@ -1,7 +1,10 @@
+@use '@cloudscape-design/design-tokens' as cs;
+
 .flights-header {
   position: sticky;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1999;
+  border-block-end: 1px solid cs.$color-border-divider-default;
 }
