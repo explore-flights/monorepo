@@ -15,12 +15,16 @@ export function RouterLink(props: RouterLinkProps) {
   
   return (
     <Link
+      {...linkProps}
       href={href}
       onFollow={(e) => {
+        if (linkProps.onFollow) {
+          linkProps.onFollow(e);
+        }
+
         e.preventDefault();
         navigate(to);
       }}
-      {...linkProps}
     />
   );
 }

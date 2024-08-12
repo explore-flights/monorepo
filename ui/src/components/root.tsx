@@ -4,7 +4,6 @@ import {
   Flashbar,
   FlashbarProps,
   LinkProps,
-  ModalProps,
   NonCancelableCustomEvent,
   SplitPanel,
 } from '@cloudscape-design/components';
@@ -30,10 +29,10 @@ import { BrowserStoreProvider } from './util/context/browser-store';
 import { HttpClientProvider, useHttpClient } from './util/context/http-client';
 import { useMobile } from './util/state/common';
 import { useHasConsent } from './util/state/use-consent';
-import { useDependentState } from './util/state/use-dependent-state';
 import { usePreferences } from './util/state/use-preferences';
 import { useDocumentTitle } from './util/state/use-route-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { CookieBanner } from './cookie-banner/cookie-banner';
 
 interface AppControlsState {
   tools: {
@@ -70,7 +69,7 @@ export function RootLayout({
   const documentTitle = useDocumentTitle();
   const [authInfo] = useAuthInfo();
   const hasConsent = useHasConsent();
-  const [cookiePrefVisible, setCookiePrefVisible] = useDependentState(!hasConsent);
+  const [cookiePrefVisible, setCookiePrefVisible] = useState(false);
   const isMobile = useMobile();
   const [splitPanelOpen, setSplitPanelOpen] = useState(true);
   const [isNavigationOpen, setNavigationOpen] = useState(!isMobile && (authInfo !== undefined && authInfo !== null));
@@ -89,14 +88,6 @@ export function RootLayout({
   function onCookiePreferencesClick(e: CustomEvent<LinkProps.FollowDetail>) {
     e.preventDefault();
     setCookiePrefVisible(true);
-  }
-
-  function onCookiePreferencesDismiss(e: NonCancelableCustomEvent<ModalProps.DismissDetail>) {
-    if (!hasConsent && e.detail.reason !== 'save') {
-      return;
-    }
-
-    setCookiePrefVisible(false);
   }
 
   return (
@@ -125,7 +116,8 @@ export function RootLayout({
         content={children}
         {...appLayoutProps}
       />
-      <CookiePreferences onDismiss={onCookiePreferencesDismiss} visible={cookiePrefVisible} />
+      <CookiePreferences onDismiss={() => setCookiePrefVisible(false)} visible={cookiePrefVisible} />
+      {!hasConsent && <CookieBanner onCustomizeClick={() => setCookiePrefVisible(true)} />}
       <FlightsFooter onCookiePreferencesClick={onCookiePreferencesClick} />
     </>
   );

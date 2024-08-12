@@ -61,18 +61,6 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
     }
   }
 
-  function onDenyAllClick(e: CustomEvent<unknown>) {
-    denyAll(e.type);
-  }
-
-  function denyAll(eventType: string) {
-    setConsentLevels([ConsentLevel.STRICTLY_NECESSARY]);
-
-    if (onDismiss) {
-      onDismiss(new CustomEvent(eventType, { detail: { reason: 'save' } }));
-    }
-  }
-
   function onSaveClick(e: CustomEvent<unknown>) {
     if (consent.functional) {
       setConsentLevels([ConsentLevel.STRICTLY_NECESSARY, ConsentLevel.FUNCTIONALITY]);
@@ -85,12 +73,16 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
     }
   }
 
+  function onFollowPrivacyPolicy(e: CustomEvent<unknown>) {
+    if (onDismiss) {
+      onDismiss(new CustomEvent(e.type, { detail: { reason: 'cancel' } }));
+    }
+  }
+
   return (
     <Modal
       onDismiss={(e) => {
-        if (!hasConsent && e.detail.reason === 'closeButton') {
-          denyAll(e.type);
-        } else if (onDismiss) {
+        if (onDismiss) {
           onDismiss(e);
         }
       }}
@@ -100,11 +92,7 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
       footer={
         <Box float={'right'}>
           <SpaceBetween direction={'horizontal'} size={'xs'}>
-            {
-              hasConsent
-                ? <Button variant={'link'} onClick={onCancelClick}>Cancel</Button>
-                : <Button variant={'link'} onClick={onDenyAllClick}>Deny optional</Button>
-            }
+            <Button variant={'link'} onClick={onCancelClick}>Cancel</Button>
             <Button variant={'primary'} onClick={onSaveClick}>Save</Button>
           </SpaceBetween>
         </Box>
@@ -116,7 +104,7 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
           name={'Essential'}
           description={'Essential cookies are necessary to provide our site and services and cannot be deactivated. They are usually set in response to your actions on the site, such as setting your privacy preferences, signing in, or filling in forms.'}
           checkbox={ { checked: true, disabled: true } }
-        ></Category>
+        />
         <Category
           name={'Functional'}
           description={'Functional cookies help us provide useful site features and remember your preferences. If you do not allow these cookies, then some or all of these services may not function properly.'}
@@ -127,8 +115,8 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
               onChange: (event) => setConsent((prev) => ({ ...prev, functional: event.detail.checked })),
             }
           }
-        ></Category>
-        <Box variant={'small'}>Learn more about the cookies and local storage we use by reading our <RouterLink to={'/privacy-policy'} fontSize={'inherit'}>Privacy Policy</RouterLink></Box>
+        />
+        <Box variant={'small'}>Learn more about the cookies and local storage we use by reading our <RouterLink to={'/privacy-policy'} fontSize={'inherit'} onFollow={onFollowPrivacyPolicy}>Privacy Policy</RouterLink></Box>
       </ColumnLayout>
     </Modal>
   );

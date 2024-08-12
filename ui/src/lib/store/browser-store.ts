@@ -105,7 +105,7 @@ export class BrowserStore {
     if (key === CONSENT_LEVELS_KEY) {
       this.updateAllowedConsentLevels(parseConsentLevels(event.newValue));
       this.flush();
-      this.pushConsentUpdate(this.allowedConsentLevels);
+      this.pushConsentUpdate(event.newValue ? this.allowedConsentLevels : null);
       return;
     }
 

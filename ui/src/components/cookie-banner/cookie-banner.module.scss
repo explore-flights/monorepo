@@ -1,0 +1,12 @@
+@use '@cloudscape-design/design-tokens' as cs;
+
+.flights-cookie-banner {
+  z-index: 5000;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding-left: cs.$space-static-s;
+  padding-right: cs.$space-static-s;
+  padding-bottom: cs.$space-static-s;
+}
