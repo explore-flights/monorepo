@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useHttpClient } from '../../components/util/context/http-client';
 import {
+  Bound,
   FareFamily,
   MilesAndMoreClient,
   MMResponse,
@@ -78,8 +79,23 @@ export function MmQuickSearch() {
           continue;
         }
 
-        for (const d of res.data) {
-          setItems((prev) => [...prev, { entry: d, dictionaries: res.dictionaries }]);
+        for (let d of res.data) {
+          const filteredBounds: Array<Bound> = [];
+          for (const bound of d.bounds) {
+            if (bound.flights.length >= 1) {
+              const flight = res.dictionaries.flight[bound.flights[0].id];
+              const departure = DateTime.fromISO(flight.departure.dateTime, { setZone: true });
+
+              if (departure.isValid && departure >= minDeparture && departure <= maxDeparture) {
+                filteredBounds.push(bound);
+              }
+            }
+          }
+
+          if (filteredBounds.length >= 1) {
+            d = { ...d, bounds: filteredBounds };
+            setItems((prev) => [...prev, { entry: d, dictionaries: res.dictionaries }]);
+          }
         }
       }
     })()
