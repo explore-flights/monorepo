@@ -2,4 +2,7 @@ User-agent: *
 Allow: /$
 Allow: /privacy-policy
 Allow: /legal
+Allow: /tools
+Allow: /favicon.ico
+Allow: /favicon.svg
 Disallow: /
