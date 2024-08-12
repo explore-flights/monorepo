@@ -14,6 +14,7 @@ export function SideNav() {
           title: 'Tools',
           items: [
             { type: 'link', text: 'M&M Quick Search', href: useHref('/tools/mm-quick-search') },
+            { type: 'link', text: 'Links', href: useHref('/tools/links') },
           ],
         },
       ]}

@@ -32,6 +32,11 @@ const ROUTES = [{
           title: 'M&M Quick Search',
           breadcrumb: 'M&M Quick Search',
         },
+        {
+          path: 'links',
+          title: 'Links',
+          breadcrumb: 'Links',
+        },
       ],
     },
     // endregion

@@ -9,6 +9,7 @@ import { BaseProviders, RootLayout } from '../components/root';
 import { Legal } from './legal';
 import { PrivacyPolicy } from './privacy-policy';
 import { MmQuickSearch } from './tools/mm-quick-search';
+import { Links } from './tools/links';
 
 // region router
 const router = createBrowserRouter([
@@ -33,6 +34,10 @@ const router = createBrowserRouter([
       {
         path: 'tools/mm-quick-search',
         element: <MmQuickSearch />,
+      },
+      {
+        path: 'tools/links',
+        element: <Links />,
       },
     ],
   },
