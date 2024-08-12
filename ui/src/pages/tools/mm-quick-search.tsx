@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useHttpClient } from '../../components/util/context/http-client';
 import {
   FareFamily,
@@ -9,7 +9,7 @@ import {
   ResponseDataDictionaries, ResponseDataEntry
 } from '../../lib/milesandmore/client';
 import {
-  Box,
+  Alert,
   Button,
   ColumnLayout,
   Container,
@@ -31,8 +31,6 @@ export function MmQuickSearch() {
   const { httpClient } = useHttpClient();
   const { notification } = useAppControls();
   const mmClient = useMemo(() => new MilesAndMoreClient(httpClient), [httpClient]);
-
-  useProxyInformationAlert(mmClient);
 
   const airportsQuery = useAirports();
 
@@ -92,11 +90,10 @@ export function MmQuickSearch() {
   return (
     <ContentLayout header={<Header variant={'h1'}>M&M Quick Search</Header>}>
       <ColumnLayout columns={1}>
+        <ProxyConnectionAlert client={mmClient} />
+
         <Container>
-          <Form
-            variant={'embedded'}
-            actions={<Button onClick={onSearch} loading={isLoading} iconName={'search'}>Search</Button>}
-          >
+          <Form actions={<Button onClick={onSearch} loading={isLoading} iconName={'search'}>Search</Button>}>
             <Grid
               gridDefinition={[
                 { colspan: { default: 12, xs: 6, m: 3 } },
@@ -176,39 +173,23 @@ export function MmQuickSearch() {
   )
 }
 
-function useProxyInformationAlert(client: MilesAndMoreClient) {
-  const { notification } = useAppControls();
-
+function ProxyConnectionAlert({ client }: { client: MilesAndMoreClient }) {
   const [connected, setConnected] = useState(false);
-  const updateNotification = useMemo(() => {
-    return notification.add({
-      type: 'in-progress',
-      content: 'Checking Proxy connectivity',
-    });
-  }, [notification]);
-
   const ping = useCallback(async () => setConnected(await client.ping()), [client]);
-  useInterval(ping, 5000);
+  useInterval(ping, 2500);
 
-  useEffect(() => {
-    if (connected) {
-      updateNotification({
-        type: 'success',
-        content: 'Proxy Connected!',
-        dismissible: true,
-      })
-    } else {
-      updateNotification({
-        type: 'warning',
-        content: (
-          <Box>
-            This page requires you to run the M&M Proxy locally.
-            You can download the latest version of the proxy <Link href={'https://github.com/explore-flights/monorepo/releases/latest'} external={true}>here</Link>.
-          </Box>
-        )
-      });
-    }
-  }, [updateNotification, connected]);
+  if (!connected) {
+    return (
+      <Alert type={'warning'}>
+        This page requires you to run the M&M Proxy locally.
+        You can download the latest version of the proxy <Link href={'https://github.com/explore-flights/monorepo/releases/latest'} external={true}>here</Link>.
+      </Alert>
+    )
+  }
+
+  return (
+    <Alert type={'success'}>Proxy Connected!</Alert>
+  )
 }
 
 interface Entry {
