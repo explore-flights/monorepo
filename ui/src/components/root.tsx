@@ -107,6 +107,7 @@ export function RootLayout({
         splitPanelPreferences={{ position: 'side' }}
         onSplitPanelToggle={(e) => setSplitPanelOpen(e.detail.open)}
         headerSelector={headerHide ? undefined : '#flights-custom-header'}
+        footerSelector={'#flights-custom-footer'}
         stickyNotifications={true}
         notifications={<Flashbar stackItems={true} items={appControlsState.notification.messages} />}
         breadcrumbs={breadcrumbsHide ? undefined : <Breadcrumb />}
