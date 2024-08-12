@@ -8,7 +8,6 @@ export function SideNav() {
 
   return (
     <SideNavigation
-      header={{ href: useHref('/'), text: 'Home' }}
       items={[
         {
           type: 'section-group',
