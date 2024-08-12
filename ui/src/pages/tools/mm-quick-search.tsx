@@ -216,6 +216,9 @@ interface Entry {
 function AvailabilityTable({ items: rawItems, onClear }: { items: ReadonlyArray<Entry>, onClear: () => void }) {
   const { items, collectionProps } = useCollection(rawItems, { sorting: {} });
 
+  const sortByDepartureDate = useCallback((a: Entry, b: Entry) => a.entry.departureDate.localeCompare(b.entry.departureDate), []);
+  const sortByMilesPrice = useCallback((a: Entry, b: Entry) => a.entry.prices.milesConversion.convertedMiles.base - b.entry.prices.milesConversion.convertedMiles.base, []);
+
   return (
     <Table
       {...collectionProps}
@@ -229,9 +232,7 @@ function AvailabilityTable({ items: rawItems, onClear }: { items: ReadonlyArray<
           cell: (v) => {
             return v.entry.departureDate
           },
-          sortingComparator: (a, b) => {
-            return a.entry.departureDate.localeCompare(b.entry.departureDate);
-          },
+          sortingComparator: sortByDepartureDate,
         },
         {
           id: 'route',
@@ -260,9 +261,7 @@ function AvailabilityTable({ items: rawItems, onClear }: { items: ReadonlyArray<
           cell: (v) => {
             return v.entry.prices.milesConversion.convertedMiles.base;
           },
-          sortingComparator: (a, b) => {
-            return a.entry.prices.milesConversion.convertedMiles.base - b.entry.prices.milesConversion.convertedMiles.base;
-          },
+          sortingComparator: sortByMilesPrice,
         },
         {
           id: 'cash',
