@@ -112,8 +112,11 @@ function ConnectionsGraphInternal({ connections, aircraftLookup }: ConnectionsGr
             return edge;
           }));
         }}
+        edgesUpdatable={false}
+        nodesDraggable={false}
+        nodesConnectable={false}
       >
-        <Controls />
+        <Controls showFitView={true} showZoom={true} showInteractive={false} />
         <Background />
       </ReactFlow>
     </div>
