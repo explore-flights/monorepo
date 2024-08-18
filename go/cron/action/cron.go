@@ -62,6 +62,9 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 				common.NewLocalDate(now.AddDate(0, 0, 30*2)),
 				common.NewLocalDate(now.AddDate(0, 0, 30)),
 				common.NewLocalDate(now.AddDate(0, 0, 7)),
+				common.NewLocalDate(now.AddDate(0, 0, 3)),
+				common.NewLocalDate(now.AddDate(0, 0, 1)),
+				common.NewLocalDate(now.AddDate(0, 0, -1)),
 			}
 
 			for _, d := range dates {
