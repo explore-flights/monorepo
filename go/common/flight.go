@@ -42,6 +42,13 @@ func (f FlightNumber) String() string {
 	return fmt.Sprintf("%v%d%v", f.Airline, f.Number, f.Suffix)
 }
 
+func (f FlightNumber) Id(dep Departure) FlightId {
+	return FlightId{
+		Number:    f,
+		Departure: dep,
+	}
+}
+
 type FlightId struct {
 	Number    FlightNumber `json:"number"`
 	Departure Departure    `json:"departure"`

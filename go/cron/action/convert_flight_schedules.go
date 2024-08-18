@@ -74,7 +74,7 @@ func (a *cfsAction) convertSingle(ctx context.Context, inputBucket, inputPrefix,
 			return err
 		}
 
-		flights, err = convert(schedules)
+		flights, err = convertFlightSchedulesToFlights(schedules)
 		if err != nil {
 			return err
 		}
@@ -115,7 +115,7 @@ func (a *cfsAction) saveFlights(ctx context.Context, bucket, prefix string, d co
 	return err
 }
 
-func convert(schedules []lufthansa.FlightSchedule) ([]*common.Flight, error) {
+func convertFlightSchedulesToFlights(schedules []lufthansa.FlightSchedule) ([]*common.Flight, error) {
 	flights := make([]*common.Flight, 0, len(schedules))
 	lookup := make(map[common.FlightId]*common.Flight)
 	addLater := make(map[common.FlightId][]*common.Flight)

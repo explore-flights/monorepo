@@ -63,6 +63,7 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) (jso
 	lAircraftAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).AircraftRaw, "aircraft")
 	lfsAction := action.NewLoadFlightSchedulesAction(s3c, lhc)
 	cfsAction := action.NewConvertFlightSchedulesAction(s3c)
+	cfnAction := action.NewConvertFlightNumbersAction(s3c)
 	cronAction := action.NewCronAction(lfsAction, cfsAction)
 	loaAction := action.NewLoadOurAirportsDataAction(s3c, nil)
 	invWHAction := action.NewInvokeWebhookAction(http.DefaultClient)
@@ -86,6 +87,9 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) (jso
 
 		case "load_flight_schedules":
 			return handle(ctx, lfsAction, event.Params)
+
+		case "convert_flight_numbers":
+			return handle(ctx, cfnAction, event.Params)
 
 		case "convert_flight_schedules":
 			return handle(ctx, cfsAction, event.Params)
