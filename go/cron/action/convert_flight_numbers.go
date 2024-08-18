@@ -96,12 +96,12 @@ func (a *cfnAction) loadFlights(ctx context.Context, bucket, prefix string, d co
 
 func (a *cfnAction) saveFlightNumbers(ctx context.Context, bucket, prefix string, d common.LocalDate, flightNumbers map[common.FlightId]*common.Flight) error {
 	for fid, flight := range flightNumbers {
-		var b bytes.Buffer
-		if err := json.NewEncoder(&b).Encode(flight); err != nil {
+		b, err := json.Marshal(flight)
+		if err != nil {
 			return err
 		}
 
-		_, err := a.s3c.PutObject(ctx, &s3.PutObjectInput{
+		_, err = a.s3c.PutObject(ctx, &s3.PutObjectInput{
 			Bucket: aws.String(bucket),
 			Key: aws.String(fmt.Sprintf(
 				"%s%s/%s/%s.json",
@@ -111,7 +111,7 @@ func (a *cfnAction) saveFlightNumbers(ctx context.Context, bucket, prefix string
 				d.Time(nil).Format("2006/01/02"),
 			)),
 			ContentType: aws.String("application/json"),
-			Body:        &b,
+			Body:        bytes.NewReader(b),
 		})
 
 		if err != nil {

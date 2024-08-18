@@ -100,16 +100,16 @@ func (a *cfsAction) loadFlightSchedules(ctx context.Context, bucket, prefix stri
 }
 
 func (a *cfsAction) saveFlights(ctx context.Context, bucket, prefix string, d common.LocalDate, flights []*common.Flight) error {
-	var b bytes.Buffer
-	if err := json.NewEncoder(&b).Encode(flights); err != nil {
+	b, err := json.Marshal(flights)
+	if err != nil {
 		return err
 	}
 
-	_, err := a.s3c.PutObject(ctx, &s3.PutObjectInput{
+	_, err = a.s3c.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(bucket),
 		Key:         aws.String(prefix + d.Time(nil).Format("2006/01/02") + ".json"),
 		ContentType: aws.String("application/json"),
-		Body:        &b,
+		Body:        bytes.NewReader(b),
 	})
 
 	return err
