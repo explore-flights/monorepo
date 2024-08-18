@@ -8,8 +8,9 @@ import {
   AuthInfo,
   ConnectionSearchShare,
   ConnectionsSearchRequest,
-  ConnectionsSearchResponseWithSearch, ConnectionsSearchResponse
+  ConnectionsSearchResponseWithSearch, ConnectionsSearchResponse, FlightNumber, Flight
 } from './api.model';
+import { DateTime } from 'luxon';
 
 const KindSuccess = 0;
 const KindApiError = 1;
@@ -65,6 +66,10 @@ export class ApiClient {
 
   getAircraft(): Promise<ApiResponse<ReadonlyArray<Aircraft>>> {
     return transform(this.httpClient.fetch('/data/aircraft.json'));
+  }
+
+  getFlight(flightNumber: string, airport: string, date: DateTime<true>): Promise<ApiResponse<Flight>> {
+    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}/${encodeURIComponent(airport)}/${encodeURIComponent(date.toUTC().toISODate())}`));
   }
 
   getConnections(req: ConnectionsSearchRequest): Promise<ApiResponse<ConnectionsSearchResponse>> {

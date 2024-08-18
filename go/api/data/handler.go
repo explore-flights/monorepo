@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/api/adapt"
+	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"io"
 	"slices"
@@ -252,6 +254,19 @@ func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
 	}
 
 	return result, err
+}
+
+func (h *Handler) FlightNumber(ctx context.Context, fn, airport string, d common.LocalDate) (*common.Flight, error) {
+	return loadJson[*common.Flight](
+		ctx,
+		h,
+		fmt.Sprintf(
+			"processed/flight_numbers/%s/%s/%s.json",
+			fn,
+			airport,
+			d.Time(nil).Format("2006/01/02"),
+		),
+	)
 }
 
 func (h *Handler) loadCsv(ctx context.Context, name string) (*csvReader, error) {

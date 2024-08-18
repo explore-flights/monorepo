@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useHttpClient } from '../../components/util/context/http-client';
 import {
+  ArrivalDeparture,
   Bound,
   FareFamily,
   MilesAndMoreClient,
@@ -19,14 +20,16 @@ import {
   Form,
   FormField,
   Grid,
-  Header, Link, Table
+  Header, Link, Popover, Table
 } from '@cloudscape-design/components';
 import { AirportMultiselect } from '../../components/select/airport-multiselect';
 import { DateTime, Duration } from 'luxon';
 import { catchNotify, useAppControls } from '../../components/util/context/app-controls';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { useInterval } from '../../components/util/state/common';
-import { useAirports } from '../../components/util/state/data';
+import { useAirports, useFlight } from '../../components/util/state/data';
+import { CodeView } from '@cloudscape-design/code-view';
+import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
 
 export function MmQuickSearch() {
   const { httpClient } = useHttpClient();
@@ -247,12 +250,13 @@ function AvailabilityTable({ items: rawItems, onClear }: { items: ReadonlyArray<
           id: 'flight_numbers',
           header: 'Flight Numbers',
           cell: (v) => {
-            return v.entry.bounds
+            const elements = v.entry.bounds
               .flatMap((v) => v.flights)
               .map((v) => v.id)
               .map((id) => v.dictionaries.flight[id])
-              .map((v) => `${v.marketingAirlineCode}${v.marketingFlightNumber}`)
-              .join(' • ');
+              .map((v) => (<FlightNumber flightNumber={`${v.marketingAirlineCode}${v.marketingFlightNumber}`} departure={v.departure} />));
+
+            return <ColumnLayout columns={elements.length} variant={'text-grid'}>{...elements}</ColumnLayout>
           },
         },
         {
@@ -275,4 +279,24 @@ function AvailabilityTable({ items: rawItems, onClear }: { items: ReadonlyArray<
       ]}
     />
   )
+}
+
+function FlightNumber({ flightNumber, departure }: { flightNumber: string, departure: ArrivalDeparture }) {
+  const date = DateTime.fromISO(departure.dateTime, { setZone: true });
+  if (!date.isValid) {
+    return flightNumber;
+  }
+
+  const flight = useFlight(flightNumber, departure.locationCode, date);
+  if (!flight.data) {
+    return flightNumber;
+  }
+
+  return (
+    <Popover
+      size={'large'}
+      header={'Details'}
+      content={<CodeView content={JSON.stringify(flight.data, null, 2)} highlight={jsonHighlight} />}
+    >{flightNumber}</Popover>
+  );
 }

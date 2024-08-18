@@ -63,6 +63,7 @@ func main() {
 
 	e.GET("/data/airports.json", web.NewAirportsHandler(dataHandler))
 	e.GET("/data/aircraft.json", web.NewAircraftHandler(dataHandler))
+	e.GET("/data/flight/:fn/:airport/:date", web.NewFlightNumberHandler(dataHandler))
 
 	if err := run(ctx, e); err != nil {
 		panic(err)
