@@ -9,9 +9,14 @@ import (
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"golang.org/x/sync/errgroup"
+	"slices"
+	"strings"
 )
 
-const codeShareId int = 50
+const (
+	codeShareChildId  int = 10
+	codeShareParentId int = 50
+)
 
 type ConvertFlightSchedulesParams struct {
 	InputBucket  string                `json:"inputBucket"`
@@ -139,9 +144,18 @@ func convertFlightSchedulesToFlights(schedules []lufthansa.FlightSchedule) ([]*c
 				CodeShares:                   make([]common.FlightNumber, 0),
 			}
 
+			for _, codeShare := range strings.Split(f.DataElements[codeShareChildId], "/") {
+				fn, err := common.ParseFlightNumber(codeShare)
+				if err != nil {
+					return nil, err
+				}
+
+				f.CodeShares = appendUnique(f.CodeShares, fn)
+			}
+
 			lookup[f.Id()] = f
 
-			if codeShare := f.DataElements[codeShareId]; codeShare != "" {
+			if codeShare := f.DataElements[codeShareParentId]; codeShare != "" {
 				fn, err := common.ParseFlightNumber(codeShare)
 				if err != nil {
 					return nil, err
@@ -153,7 +167,7 @@ func convertFlightSchedulesToFlights(schedules []lufthansa.FlightSchedule) ([]*c
 				}
 
 				if parent, ok := lookup[fid]; ok {
-					parent.CodeShares = append(parent.CodeShares, f.Number())
+					parent.CodeShares = appendUnique(parent.CodeShares, f.Number())
 				} else {
 					addLater[fid] = append(addLater[fid], f)
 				}
@@ -162,7 +176,7 @@ func convertFlightSchedulesToFlights(schedules []lufthansa.FlightSchedule) ([]*c
 
 				if codeShares, ok := addLater[f.Id()]; ok {
 					for _, child := range codeShares {
-						f.CodeShares = append(f.CodeShares, child.Number())
+						f.CodeShares = appendUnique(f.CodeShares, child.Number())
 					}
 
 					delete(addLater, f.Id())
@@ -195,11 +209,19 @@ func convertFlightSchedulesToFlights(schedules []lufthansa.FlightSchedule) ([]*c
 		}
 
 		for _, child := range codeShares {
-			f.CodeShares = append(f.CodeShares, child.Number())
+			f.CodeShares = appendUnique(f.CodeShares, child.Number())
 		}
 
 		flights = append(flights, f)
 	}
 
 	return flights, nil
+}
+
+func appendUnique[T comparable](s []T, v T) []T {
+	if !slices.Contains(s, v) {
+		s = append(s, v)
+	}
+
+	return s
 }
