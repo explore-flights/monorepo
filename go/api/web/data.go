@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"github.com/explore-flights/monorepo/go/api/adapt"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/labstack/echo/v4"
@@ -58,6 +59,10 @@ func NewFlightNumberHandler(dh *data.Handler) echo.HandlerFunc {
 
 		flight, err := dh.FlightNumber(c.Request().Context(), fn, airport, d)
 		if err != nil {
+			if adapt.IsS3NotFound(err) {
+				return echo.NewHTTPError(http.StatusNotFound)
+			}
+
 			noCache(c)
 
 			if errors.Is(err, context.DeadlineExceeded) {
