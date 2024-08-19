@@ -60,22 +60,6 @@ export class SfnConstruct extends Construct {
         resultPath: '$.convertSchedulesResponse',
         retryOnServiceExceptions: true,
       }))
-      .next(new LambdaInvoke(this, 'ConvertNumbersTask', {
-        lambdaFunction: props.cronLambda,
-        payload: TaskInput.fromObject({
-          'action': 'convert_flight_numbers',
-          'params': {
-            'inputBucket': props.dataBucket.bucketName,
-            'inputPrefix': 'processed/flights/',
-            'outputBucket': props.dataBucket.bucketName,
-            'outputPrefix': 'processed/flight_numbers/',
-            'dateRanges': JsonPath.objectAt('$.loadSchedulesResponse.loadFlightSchedules.input.dateRanges'),
-          },
-        }),
-        payloadResponseOnly: true,
-        resultPath: '$.convertNumbersResponse',
-        retryOnServiceExceptions: true,
-      }))
       .toSingleState('ConvertTry', { outputPath: '$[0]' })
       .addCatch(
         this.sendWebhookTask(
