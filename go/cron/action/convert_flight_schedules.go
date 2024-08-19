@@ -145,12 +145,14 @@ func convertFlightSchedulesToFlights(schedules []lufthansa.FlightSchedule) ([]*c
 			}
 
 			for _, codeShare := range strings.Split(f.DataElements[codeShareChildId], "/") {
-				fn, err := common.ParseFlightNumber(codeShare)
-				if err != nil {
-					return nil, err
-				}
+				if codeShare != "" {
+					fn, err := common.ParseFlightNumber(codeShare)
+					if err != nil {
+						return nil, err
+					}
 
-				f.CodeShares = appendUnique(f.CodeShares, fn)
+					f.CodeShares = appendUnique(f.CodeShares, fn)
+				}
 			}
 
 			lookup[f.Id()] = f
