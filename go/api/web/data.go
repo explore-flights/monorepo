@@ -9,10 +9,16 @@ import (
 	"net/http"
 )
 
+func noCache(c echo.Context) {
+	c.Response().Header().Set(echo.HeaderCacheControl, "private, no-cache, no-store, max-age=0, must-revalidate")
+}
+
 func NewAirportsHandler(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		airports, err := dh.Airports(c.Request().Context())
 		if err != nil {
+			noCache(c)
+
 			if errors.Is(err, context.DeadlineExceeded) {
 				return echo.NewHTTPError(http.StatusRequestTimeout, err)
 			}
@@ -28,6 +34,8 @@ func NewAircraftHandler(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		aircraft, err := dh.Aircraft(c.Request().Context())
 		if err != nil {
+			noCache(c)
+
 			if errors.Is(err, context.DeadlineExceeded) {
 				return echo.NewHTTPError(http.StatusRequestTimeout, err)
 			}
@@ -50,6 +58,8 @@ func NewFlightNumberHandler(dh *data.Handler) echo.HandlerFunc {
 
 		flight, err := dh.FlightNumber(c.Request().Context(), fn, airport, d)
 		if err != nil {
+			noCache(c)
+
 			if errors.Is(err, context.DeadlineExceeded) {
 				return echo.NewHTTPError(http.StatusRequestTimeout, err)
 			}
