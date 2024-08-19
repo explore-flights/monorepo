@@ -3,6 +3,7 @@ package common
 import (
 	"cmp"
 	"encoding/json"
+	"iter"
 	"time"
 )
 
@@ -47,16 +48,17 @@ func (ld LocalDate) Compare(other LocalDate) int {
 	return ld.Time(nil).Compare(other.Time(nil))
 }
 
-func (ld LocalDate) Until(endInclusive LocalDate) []LocalDate {
-	r := make([]LocalDate, 0)
+func (ld LocalDate) Until(endInclusive LocalDate) iter.Seq[LocalDate] {
+	return func(yield func(LocalDate) bool) {
+		curr := ld
+		for curr.Compare(endInclusive) <= 0 {
+			if !yield(curr) {
+				break
+			}
 
-	curr := ld
-	for curr.Compare(endInclusive) <= 0 {
-		r = append(r, curr)
-		curr = curr.Next()
+			curr = curr.Next()
+		}
 	}
-
-	return r
 }
 
 func (ld *LocalDate) UnmarshalJSON(data []byte) error {

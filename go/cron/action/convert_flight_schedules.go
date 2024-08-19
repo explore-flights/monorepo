@@ -60,12 +60,10 @@ func (a *cfsAction) Handle(ctx context.Context, params ConvertFlightSchedulesPar
 }
 
 func (a *cfsAction) convertRange(ctx context.Context, inputBucket, inputPrefix, outputBucket, outputPrefix string, start, end common.LocalDate) error {
-	for _, curr := range start.Until(end) {
+	for curr := range start.Until(end) {
 		if err := a.convertSingle(ctx, inputBucket, inputPrefix, outputBucket, outputPrefix, curr); err != nil {
 			return err
 		}
-
-		curr = curr.Next()
 	}
 
 	return nil

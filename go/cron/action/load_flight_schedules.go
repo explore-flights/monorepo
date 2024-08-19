@@ -36,7 +36,7 @@ func (a *lfsAction) Handle(ctx context.Context, params LoadFlightSchedulesParams
 	defer cancel()
 
 	for _, r := range params.DateRanges {
-		for _, d := range r[0].Until(r[1]) {
+		for d := range r[0].Until(r[1]) {
 			if err := a.loadSingle(ctx, params.OutputBucket, params.OutputPrefix, d); err != nil {
 				return LoadFlightSchedulesOutput{}, err
 			}
