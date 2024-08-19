@@ -8,9 +8,10 @@ import {
   AuthInfo,
   ConnectionSearchShare,
   ConnectionsSearchRequest,
-  ConnectionsSearchResponseWithSearch, ConnectionsSearchResponse, FlightNumber, Flight
+  ConnectionsSearchResponseWithSearch, ConnectionsSearchResponse, Flight
 } from './api.model';
 import { DateTime } from 'luxon';
+import { ConcurrencyLimit } from './concurrency-limit';
 
 const KindSuccess = 0;
 const KindApiError = 1;
@@ -50,6 +51,9 @@ export interface ErrorResponse<T> extends BaseResponse<T> {
 export type ApiResponse<T> = SuccessResponse<T> | ApiErrorResponse<T> | ErrorResponse<T>;
 
 export class ApiClient {
+
+  private readonly limiter = new ConcurrencyLimit(1);
+
   constructor(private readonly httpClient: HTTPClient) {}
 
   getAuthInfo(): Promise<ApiResponse<AuthInfo | null>> {
@@ -69,7 +73,7 @@ export class ApiClient {
   }
 
   getFlight(flightNumber: string, airport: string, date: DateTime<true>): Promise<ApiResponse<Flight>> {
-    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}/${encodeURIComponent(airport)}/${encodeURIComponent(date.toUTC().toISODate())}`));
+    return this.limiter.do(() => transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}/${encodeURIComponent(airport)}/${encodeURIComponent(date.toUTC().toISODate())}`)));
   }
 
   getConnections(req: ConnectionsSearchRequest): Promise<ApiResponse<ConnectionsSearchResponse>> {

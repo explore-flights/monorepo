@@ -35,7 +35,7 @@ export function useAircraft() {
 export function useFlight(flightNumber: string, airport: string, date: DateTime<true>) {
   const { apiClient } = useHttpClient();
   return useQuery({
-    queryKey: ['flight', flightNumber, airport, date],
+    queryKey: ['flight', flightNumber, airport, date.toUTC().toISODate()],
     queryFn: async () => {
       const { body } = expectSuccess(await apiClient.getFlight(flightNumber, airport, date));
       return body;
