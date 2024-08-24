@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
@@ -195,8 +194,6 @@ func (a *cfsAction) loadFlights(ctx context.Context, bucket, s3Key string) ([]*c
 	})
 
 	if err != nil {
-		fmt.Println("err during loadFlights")
-
 		if adapt.IsS3NotFound(err) {
 			return nil, nil
 		} else {
