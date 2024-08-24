@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
@@ -42,12 +43,21 @@ func (a *cfsAction) Handle(ctx context.Context, params ConvertFlightSchedulesPar
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	ch := make(chan *common.Flight, 1024)
-	g, ctx := errgroup.WithContext(ctx)
+	flightsByDepartureDateUTC, err := a.convertAll(ctx, params.InputBucket, params.InputPrefix, params.DateRanges)
+	if err != nil {
+		return ConvertFlightSchedulesOutput{}, err
+	}
 
-	for _, r := range params.DateRanges {
+	return ConvertFlightSchedulesOutput{}, a.upsertAll(ctx, params.OutputBucket, params.OutputPrefix, params.DateRanges, flightsByDepartureDateUTC)
+}
+
+func (a *cfsAction) convertAll(ctx context.Context, inputBucket, inputPrefix string, dateRanges common.LocalDateRanges) (map[common.LocalDate][]*common.Flight, error) {
+	ch := make(chan *common.Flight, 1024)
+	g, gCtx := errgroup.WithContext(ctx)
+
+	for _, r := range dateRanges {
 		g.Go(func() error {
-			return a.convertRange(ctx, params.InputBucket, params.InputPrefix, r[0], r[1], ch)
+			return a.convertRange(gCtx, inputBucket, inputPrefix, r[0], r[1], ch)
 		})
 	}
 
@@ -64,24 +74,10 @@ func (a *cfsAction) Handle(ctx context.Context, params ConvertFlightSchedulesPar
 	}()
 
 	if err := func() error { defer close(ch); return g.Wait() }(); err != nil {
-		return ConvertFlightSchedulesOutput{}, err
+		return nil, err
 	}
 
-	g, ctx = errgroup.WithContext(ctx)
-	for d, flights := range <-done {
-		g.Go(func() error {
-			return a.upsertFlights(
-				ctx,
-				params.OutputBucket,
-				params.OutputPrefix,
-				d,
-				params.DateRanges,
-				flights,
-			)
-		})
-	}
-
-	return ConvertFlightSchedulesOutput{}, g.Wait()
+	return <-done, nil
 }
 
 func (a *cfsAction) convertRange(ctx context.Context, inputBucket, inputPrefix string, start, end common.LocalDate, ch chan<- *common.Flight) error {
@@ -118,6 +114,24 @@ func (a *cfsAction) loadFlightSchedules(ctx context.Context, bucket, prefix stri
 
 	var schedules []lufthansa.FlightSchedule
 	return schedules, json.NewDecoder(resp.Body).Decode(&schedules)
+}
+
+func (a *cfsAction) upsertAll(ctx context.Context, bucket, prefix string, queryDateRanges common.LocalDateRanges, flightsByDepartureDateUTC map[common.LocalDate][]*common.Flight) error {
+	g, ctx := errgroup.WithContext(ctx)
+	for d, flights := range flightsByDepartureDateUTC {
+		g.Go(func() error {
+			return a.upsertFlights(
+				ctx,
+				bucket,
+				prefix,
+				d,
+				queryDateRanges,
+				flights,
+			)
+		})
+	}
+
+	return g.Wait()
 }
 
 func (a *cfsAction) upsertFlights(ctx context.Context, bucket, prefix string, d common.LocalDate, queryDateRanges common.LocalDateRanges, flights []*common.Flight) error {
@@ -181,6 +195,8 @@ func (a *cfsAction) loadFlights(ctx context.Context, bucket, s3Key string) ([]*c
 	})
 
 	if err != nil {
+		fmt.Println("err during loadFlights")
+
 		if adapt.IsS3NotFound(err) {
 			return nil, nil
 		} else {
