@@ -3,9 +3,9 @@ package web
 import (
 	"context"
 	"errors"
-	"github.com/explore-flights/monorepo/go/api/adapt"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/labstack/echo/v4"
 	"net/http"
 )

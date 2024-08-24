@@ -5,7 +5,7 @@ package local
 import (
 	"context"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/explore-flights/monorepo/go/api/adapt"
+	"github.com/explore-flights/monorepo/go/common/adapt"
 	"io"
 	"os"
 	"path/filepath"

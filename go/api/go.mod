@@ -5,7 +5,7 @@ go 1.23
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.4
 	github.com/aws/aws-sdk-go-v2/config v1.27.28
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.59.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.60.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.52.5
 	github.com/explore-flights/monorepo/go/common v0.0.0
 	github.com/goccy/go-graphviz v0.1.3

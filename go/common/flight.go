@@ -42,6 +42,16 @@ func (f FlightNumber) String() string {
 	return fmt.Sprintf("%v%d%v", f.Airline, f.Number, f.Suffix)
 }
 
+func (f *FlightNumber) UnmarshalText(text []byte) error {
+	var err error
+	*f, err = ParseFlightNumber(string(text))
+	return err
+}
+
+func (f FlightNumber) MarshalText() ([]byte, error) {
+	return []byte(f.String()), nil
+}
+
 func (f FlightNumber) Id(dep Departure) FlightId {
 	return FlightId{
 		Number:    f,
@@ -55,20 +65,21 @@ type FlightId struct {
 }
 
 type Flight struct {
-	Airline                      AirlineIdentifier `json:"airline"`
-	FlightNumber                 int               `json:"flightNumber"`
-	Suffix                       string            `json:"suffix"`
-	DepartureTime                time.Time         `json:"departureTime"`
-	DepartureAirport             string            `json:"departureAirport"`
-	ArrivalTime                  time.Time         `json:"arrivalTime"`
-	ArrivalAirport               string            `json:"arrivalAirport"`
-	ServiceType                  string            `json:"serviceType"`
-	AircraftOwner                AirlineIdentifier `json:"aircraftOwner"`
-	AircraftType                 string            `json:"aircraftType"`
-	AircraftConfigurationVersion string            `json:"aircraftConfigurationVersion"`
-	Registration                 string            `json:"registration"`
-	DataElements                 map[int]string    `json:"dataElements"`
-	CodeShares                   []FlightNumber    `json:"codeShares"`
+	QueryDate                    LocalDate                       `json:"queryDate"`
+	Airline                      AirlineIdentifier               `json:"airline"`
+	FlightNumber                 int                             `json:"flightNumber"`
+	Suffix                       string                          `json:"suffix"`
+	DepartureTime                time.Time                       `json:"departureTime"`
+	DepartureAirport             string                          `json:"departureAirport"`
+	ArrivalTime                  time.Time                       `json:"arrivalTime"`
+	ArrivalAirport               string                          `json:"arrivalAirport"`
+	ServiceType                  string                          `json:"serviceType"`
+	AircraftOwner                AirlineIdentifier               `json:"aircraftOwner"`
+	AircraftType                 string                          `json:"aircraftType"`
+	AircraftConfigurationVersion string                          `json:"aircraftConfigurationVersion"`
+	Registration                 string                          `json:"registration"`
+	DataElements                 map[int]string                  `json:"dataElements"`
+	CodeShares                   map[FlightNumber]map[int]string `json:"codeShares"`
 }
 
 func (f *Flight) DepartureDate() LocalDate {

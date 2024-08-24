@@ -79,9 +79,9 @@ func buildConnectionsResponse(conns []Connection, flights map[string]FlightRespo
 	return r
 }
 
-func convertCodeShares(inp []common.FlightNumber) []FlightNumberResponse {
+func convertCodeShares(inp map[common.FlightNumber]map[int]string) []FlightNumberResponse {
 	r := make([]FlightNumberResponse, 0, len(inp))
-	for _, fn := range inp {
+	for fn := range inp {
 		r = append(r, FlightNumberResponse{
 			Airline: string(fn.Airline),
 			Number:  fn.Number,

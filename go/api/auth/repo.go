@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/explore-flights/monorepo/go/api/adapt"
+	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/gofrs/uuid/v5"
 	"io"
 	"net/url"

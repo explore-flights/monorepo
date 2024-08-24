@@ -79,3 +79,25 @@ func (ld *LocalDate) UnmarshalJSON(data []byte) error {
 func (ld LocalDate) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ld.String())
 }
+
+type LocalDateRange [2]LocalDate
+
+func (ldr LocalDateRange) Iter() iter.Seq[LocalDate] {
+	return ldr[0].Until(ldr[1])
+}
+
+func (ldr LocalDateRange) Contains(d LocalDate) bool {
+	return ldr[0].Compare(d) <= 0 && ldr[1].Compare(d) >= 0
+}
+
+type LocalDateRanges []LocalDateRange
+
+func (ldrs LocalDateRanges) Contains(d LocalDate) bool {
+	for _, ldr := range ldrs {
+		if ldr.Contains(d) {
+			return true
+		}
+	}
+
+	return false
+}
