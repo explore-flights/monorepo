@@ -65,7 +65,6 @@ type FlightId struct {
 }
 
 type Flight struct {
-	QueryDate                    LocalDate                       `json:"queryDate"`
 	Airline                      AirlineIdentifier               `json:"airline"`
 	FlightNumber                 int                             `json:"flightNumber"`
 	Suffix                       string                          `json:"suffix"`

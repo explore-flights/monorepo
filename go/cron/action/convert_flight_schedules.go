@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	queryDateId       int = -1
 	codeShareChildId  int = 10
 	codeShareParentId int = 50
 )
@@ -30,10 +31,10 @@ type ConvertFlightSchedulesOutput struct {
 }
 
 type cfsAction struct {
-	s3c *s3.Client
+	s3c MinimalS3Client
 }
 
-func NewConvertFlightSchedulesAction(s3c *s3.Client) Action[ConvertFlightSchedulesParams, ConvertFlightSchedulesOutput] {
+func NewConvertFlightSchedulesAction(s3c MinimalS3Client) Action[ConvertFlightSchedulesParams, ConvertFlightSchedulesOutput] {
 	return &cfsAction{s3c}
 }
 
@@ -41,32 +42,33 @@ func (a *cfsAction) Handle(ctx context.Context, params ConvertFlightSchedulesPar
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	var grouped map[common.LocalDate][]*common.Flight
-	{
-		g, ctx := errgroup.WithContext(ctx)
-		results := make([][]*common.Flight, len(params.DateRanges))
+	ch := make(chan *common.Flight, 1024)
+	g, ctx := errgroup.WithContext(ctx)
 
-		for i, r := range params.DateRanges {
-			g.Go(func() error {
-				flights, err := a.convertRange(ctx, params.InputBucket, params.InputPrefix, r[0], r[1])
-				if err != nil {
-					return err
-				}
-
-				results[i] = flights
-				return nil
-			})
-		}
-
-		if err := g.Wait(); err != nil {
-			return ConvertFlightSchedulesOutput{}, err
-		}
-
-		grouped = groupByDepartureDateUTC(results)
+	for _, r := range params.DateRanges {
+		g.Go(func() error {
+			return a.convertRange(ctx, params.InputBucket, params.InputPrefix, r[0], r[1], ch)
+		})
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
-	for d, flights := range grouped {
+	done := make(chan map[common.LocalDate][]*common.Flight)
+	go func() {
+		defer close(done)
+
+		result := make(map[common.LocalDate][]*common.Flight)
+		for f := range ch {
+			result[f.DepartureDate()] = append(result[f.DepartureDate()], f)
+		}
+
+		done <- result
+	}()
+
+	if err := func() error { defer close(ch); return g.Wait() }(); err != nil {
+		return ConvertFlightSchedulesOutput{}, err
+	}
+
+	g, ctx = errgroup.WithContext(ctx)
+	for d, flights := range <-done {
 		g.Go(func() error {
 			return a.upsertFlights(
 				ctx,
@@ -82,36 +84,24 @@ func (a *cfsAction) Handle(ctx context.Context, params ConvertFlightSchedulesPar
 	return ConvertFlightSchedulesOutput{}, g.Wait()
 }
 
-func (a *cfsAction) convertRange(ctx context.Context, inputBucket, inputPrefix string, start, end common.LocalDate) ([]*common.Flight, error) {
-	var flights []*common.Flight
-
+func (a *cfsAction) convertRange(ctx context.Context, inputBucket, inputPrefix string, start, end common.LocalDate, ch chan<- *common.Flight) error {
+	g, ctx := errgroup.WithContext(ctx)
 	for curr := range start.Until(end) {
-		converted, err := a.convertSingle(ctx, inputBucket, inputPrefix, curr)
-		if err != nil {
-			return nil, err
-		}
-
-		flights = append(flights, converted...)
+		g.Go(func() error {
+			return a.convertSingle(ctx, inputBucket, inputPrefix, curr, ch)
+		})
 	}
 
-	return flights, nil
+	return g.Wait()
 }
 
-func (a *cfsAction) convertSingle(ctx context.Context, inputBucket, inputPrefix string, d common.LocalDate) ([]*common.Flight, error) {
-	var flights []*common.Flight
-	{
-		schedules, err := a.loadFlightSchedules(ctx, inputBucket, inputPrefix, d)
-		if err != nil {
-			return nil, err
-		}
-
-		flights, err = convertFlightSchedulesToFlights(d, schedules)
-		if err != nil {
-			return nil, err
-		}
+func (a *cfsAction) convertSingle(ctx context.Context, inputBucket, inputPrefix string, d common.LocalDate, ch chan<- *common.Flight) error {
+	schedules, err := a.loadFlightSchedules(ctx, inputBucket, inputPrefix, d)
+	if err != nil {
+		return err
 	}
 
-	return flights, nil
+	return convertFlightSchedulesToFlights(ctx, d, schedules, ch)
 }
 
 func (a *cfsAction) loadFlightSchedules(ctx context.Context, bucket, prefix string, d common.LocalDate) ([]lufthansa.FlightSchedule, error) {
@@ -137,20 +127,35 @@ func (a *cfsAction) upsertFlights(ctx context.Context, bucket, prefix string, d 
 		return err
 	}
 
-	added := make(map[common.FlightId]struct{})
+	added := make(map[common.FlightId]*common.Flight)
 	result := make([]*common.Flight, 0, max(len(flights), len(existing)))
 
 	for _, f := range flights {
-		if _, ok := added[f.Id()]; !ok {
+		if addedFlight, ok := added[f.Id()]; ok {
+			if err := combineFlights(addedFlight, f, queryDateRanges); err != nil {
+				return err
+			}
+		} else {
 			result = append(result, f)
-			added[f.Id()] = struct{}{}
+			added[f.Id()] = f
 		}
 	}
 
 	for _, f := range existing {
-		if _, ok := added[f.Id()]; !ok && !queryDateRanges.Contains(f.QueryDate) {
-			result = append(result, f)
-			added[f.Id()] = struct{}{}
+		if addedFlight, ok := added[f.Id()]; ok {
+			if err := combineFlights(addedFlight, f, queryDateRanges); err != nil {
+				return err
+			}
+		} else {
+			flightQueryDate, err := common.ParseLocalDate(f.DataElements[queryDateId])
+			if err != nil {
+				return err
+			}
+
+			if !queryDateRanges.Contains(flightQueryDate) {
+				result = append(result, f)
+				added[f.Id()] = f
+			}
 		}
 	}
 
@@ -189,7 +194,7 @@ func (a *cfsAction) loadFlights(ctx context.Context, bucket, s3Key string) ([]*c
 	return flights, json.NewDecoder(resp.Body).Decode(&flights)
 }
 
-func convertFlightSchedulesToFlights(queryDate common.LocalDate, schedules []lufthansa.FlightSchedule) ([]*common.Flight, error) {
+func convertFlightSchedulesToFlights(ctx context.Context, queryDate common.LocalDate, schedules []lufthansa.FlightSchedule, ch chan<- *common.Flight) error {
 	lookup := make(map[common.FlightId]*common.Flight)
 	codeShareIds := make(map[common.FlightId]struct{})
 	addLater := make(map[common.FlightId][]*common.Flight)
@@ -197,7 +202,6 @@ func convertFlightSchedulesToFlights(queryDate common.LocalDate, schedules []luf
 	for _, fs := range schedules {
 		for _, leg := range fs.Legs {
 			f := &common.Flight{
-				QueryDate:                    queryDate,
 				Airline:                      common.AirlineIdentifier(fs.Airline),
 				FlightNumber:                 fs.FlightNumber,
 				Suffix:                       fs.Suffix,
@@ -214,6 +218,8 @@ func convertFlightSchedulesToFlights(queryDate common.LocalDate, schedules []luf
 				CodeShares:                   make(map[common.FlightNumber]map[int]string),
 			}
 
+			f.DataElements[queryDateId] = queryDate.String()
+
 			lookup[f.Id()] = f
 
 			if codeSharesRaw := f.DataElements[codeShareChildId]; codeSharesRaw != "" {
@@ -221,11 +227,13 @@ func convertFlightSchedulesToFlights(queryDate common.LocalDate, schedules []luf
 				for _, codeShare := range strings.Split(codeSharesRaw, "/") {
 					codeShareFn, err := common.ParseFlightNumber(codeShare)
 					if err != nil {
-						return nil, err
+						return err
 					}
 
 					if _, ok := f.CodeShares[codeShareFn]; !ok {
-						f.CodeShares[codeShareFn] = make(map[int]string)
+						f.CodeShares[codeShareFn] = map[int]string{
+							queryDateId: queryDate.String(),
+						}
 					}
 
 					// mark as codeshare
@@ -237,7 +245,7 @@ func convertFlightSchedulesToFlights(queryDate common.LocalDate, schedules []luf
 				// this flight is a codeshare
 				parentFn, err := common.ParseFlightNumber(codeShare)
 				if err != nil {
-					return nil, err
+					return err
 				}
 
 				parentFid := parentFn.Id(f.Departure())
@@ -265,7 +273,6 @@ func convertFlightSchedulesToFlights(queryDate common.LocalDate, schedules []luf
 			// create a parent if the parent itself isn't present
 			first := codeShares[0]
 			f = &common.Flight{
-				QueryDate:                    queryDate,
 				Airline:                      fid.Number.Airline,
 				FlightNumber:                 fid.Number.Number,
 				Suffix:                       fid.Number.Suffix,
@@ -278,8 +285,10 @@ func convertFlightSchedulesToFlights(queryDate common.LocalDate, schedules []luf
 				AircraftType:                 first.AircraftType,
 				AircraftConfigurationVersion: first.AircraftConfigurationVersion,
 				Registration:                 first.Registration,
-				DataElements:                 make(map[int]string),
-				CodeShares:                   make(map[common.FlightNumber]map[int]string),
+				DataElements: map[int]string{
+					queryDateId: queryDate.String(),
+				},
+				CodeShares: make(map[common.FlightNumber]map[int]string),
 			}
 
 			lookup[fid] = f
@@ -290,23 +299,51 @@ func convertFlightSchedulesToFlights(queryDate common.LocalDate, schedules []luf
 		}
 	}
 
-	flights := make([]*common.Flight, 0, len(lookup)-len(codeShareIds))
 	for fid, f := range lookup {
 		if _, ok := codeShareIds[fid]; !ok {
-			flights = append(flights, f)
+			select {
+			case ch <- f:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 	}
 
-	return flights, nil
+	return nil
 }
 
-func groupByDepartureDateUTC(results [][]*common.Flight) map[common.LocalDate][]*common.Flight {
-	grouped := make(map[common.LocalDate][]*common.Flight)
-	for _, result := range results {
-		for _, f := range result {
-			grouped[f.DepartureDate()] = append(grouped[f.DepartureDate()], f)
+func combineFlights(f, other *common.Flight, queryDateRanges common.LocalDateRanges) error {
+	otherQueryDate, err := common.ParseLocalDate(other.DataElements[queryDateId])
+	if err != nil {
+		return err
+	}
+
+	if !queryDateRanges.Contains(otherQueryDate) {
+		for k, v := range other.DataElements {
+			if _, ok := f.DataElements[k]; !ok {
+				f.DataElements[k] = v
+			}
 		}
 	}
 
-	return grouped
+	for codeShareFn, otherDataElements := range other.CodeShares {
+		codeShareQueryDate, err := common.ParseLocalDate(otherDataElements[queryDateId])
+		if err != nil {
+			return err
+		}
+
+		if !queryDateRanges.Contains(codeShareQueryDate) {
+			if dataElements, ok := f.CodeShares[codeShareFn]; ok {
+				for k, v := range otherDataElements {
+					if _, ok := dataElements[k]; !ok {
+						dataElements[k] = v
+					}
+				}
+			} else {
+				f.CodeShares[codeShareFn] = otherDataElements
+			}
+		}
+	}
+
+	return nil
 }
