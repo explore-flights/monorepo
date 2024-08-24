@@ -141,8 +141,10 @@ func (a *cfsAction) upsertFlights(ctx context.Context, bucket, prefix string, d 
 	result := make([]*common.Flight, 0, max(len(flights), len(existing)))
 
 	for _, f := range flights {
-		result = append(result, f)
-		added[f.Id()] = struct{}{}
+		if _, ok := added[f.Id()]; !ok {
+			result = append(result, f)
+			added[f.Id()] = struct{}{}
+		}
 	}
 
 	for _, f := range existing {
