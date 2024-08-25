@@ -145,7 +145,7 @@ func (a *cfsAction) upsertFlights(ctx context.Context, bucket, prefix string, d 
 
 	for _, f := range flights {
 		if addedFlight, ok := added[f.Id()]; ok {
-			if err := combineFlights(addedFlight, f, queryDateRanges); err != nil {
+			if err := combineFlights(addedFlight, f, true, queryDateRanges); err != nil {
 				return err
 			}
 		} else {
@@ -156,7 +156,7 @@ func (a *cfsAction) upsertFlights(ctx context.Context, bucket, prefix string, d 
 
 	for _, f := range existing {
 		if addedFlight, ok := added[f.Id()]; ok {
-			if err := combineFlights(addedFlight, f, queryDateRanges); err != nil {
+			if err := combineFlights(addedFlight, f, false, queryDateRanges); err != nil {
 				return err
 			}
 		} else {
@@ -325,13 +325,13 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate common.Local
 	return nil
 }
 
-func combineFlights(f, other *common.Flight, queryDateRanges common.LocalDateRanges) error {
+func combineFlights(f, other *common.Flight, fresh bool, queryDateRanges common.LocalDateRanges) error {
 	otherQueryDate, err := common.ParseLocalDate(other.DataElements[queryDateId])
 	if err != nil {
 		return err
 	}
 
-	if !queryDateRanges.Contains(otherQueryDate) {
+	if fresh || !queryDateRanges.Contains(otherQueryDate) {
 		for k, v := range other.DataElements {
 			if _, ok := f.DataElements[k]; !ok {
 				f.DataElements[k] = v
@@ -345,7 +345,7 @@ func combineFlights(f, other *common.Flight, queryDateRanges common.LocalDateRan
 			return err
 		}
 
-		if !queryDateRanges.Contains(codeShareQueryDate) {
+		if fresh || !queryDateRanges.Contains(codeShareQueryDate) {
 			if dataElements, ok := f.CodeShares[codeShareFn]; ok {
 				for k, v := range otherDataElements {
 					if _, ok := dataElements[k]; !ok {
