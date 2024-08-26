@@ -12,7 +12,7 @@ export function useAirports() {
       return body;
     },
     retry: 5,
-    initialData: {
+    placeholderData: {
       airports: [],
       metropolitanAreas: [],
     },
@@ -29,7 +29,7 @@ export function useAircraft() {
       return body;
     },
     retry: 5,
-    initialData: [],
+    placeholderData: [],
     staleTime: 1000 * 60 * 15,
   });
 }
