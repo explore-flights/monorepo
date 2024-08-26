@@ -12,11 +12,10 @@ export function useAirports() {
       return body;
     },
     retry: 5,
-    placeholderData: {
+    initialData: {
       airports: [],
       metropolitanAreas: [],
     },
-    staleTime: 1000 * 60 * 15,
   });
 }
 
@@ -29,8 +28,7 @@ export function useAircraft() {
       return body;
     },
     retry: 5,
-    placeholderData: [],
-    staleTime: 1000 * 60 * 15,
+    initialData: [],
   });
 }
 
