@@ -16,6 +16,7 @@ export function useAirports() {
       airports: [],
       metropolitanAreas: [],
     },
+    staleTime: 1000 * 60 * 15,
   });
 }
 
@@ -29,6 +30,7 @@ export function useAircraft() {
     },
     retry: 5,
     initialData: [],
+    staleTime: 1000 * 60 * 15,
   });
 }
 
@@ -41,5 +43,6 @@ export function useFlight(flightNumber: string, airport: string, date: DateTime<
       return body;
     },
     retry: 3,
+    staleTime: 1000 * 60 * 15,
   });
 }
