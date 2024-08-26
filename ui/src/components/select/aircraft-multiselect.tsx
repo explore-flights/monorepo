@@ -80,6 +80,7 @@ export function AircraftMultiselect({ aircraft, selectedAircraftCodes, loading, 
       selectedOptions={selectedOptions}
       onChange={(e) => onChange(e.detail.selectedOptions.flatMap((v) => v.value ? [v.value] : []))}
       keepOpen={true}
+      virtualScroll={true}
       filteringType={'auto'}
       tokenLimit={2}
       disabled={disabled}
