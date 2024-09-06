@@ -43,7 +43,7 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 			return nil, err
 		}
 
-		flightsByDeparture = groupByDeparture(flightsByDate, f.all)
+		flightsByDeparture = groupByDepartureUTC(flightsByDate, f.all)
 	}
 
 	return collectCtx(ctx, findConnections(
@@ -187,12 +187,12 @@ func allMatch(predicates []flightPredicate, f *common.Flight) bool {
 	return true
 }
 
-func groupByDeparture(flightsByDate map[common.LocalDate][]*common.Flight, predicates []flightPredicate) map[common.Departure][]*common.Flight {
+func groupByDepartureUTC(flightsByDate map[common.LocalDate][]*common.Flight, predicates []flightPredicate) map[common.Departure][]*common.Flight {
 	result := make(map[common.Departure][]*common.Flight)
 	for _, flights := range flightsByDate {
 		for _, f := range flights {
 			if allMatch(predicates, f) {
-				d := f.Departure()
+				d := f.DepartureUTC()
 				result[d] = append(result[d], f)
 			}
 		}

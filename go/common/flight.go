@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -64,24 +65,75 @@ type FlightId struct {
 	Departure Departure    `json:"departure"`
 }
 
+func (f FlightId) String() string {
+	return fmt.Sprintf("%v@%v@%v", f.Number, f.Departure.Airport, f.Departure.Date)
+}
+
+func (f *FlightId) UnmarshalText(text []byte) error {
+	values := strings.SplitN(string(text), "@", 3)
+	if len(values) != 3 {
+		return fmt.Errorf("invalid FlightId: %v", string(text))
+	}
+
+	fn, err := ParseFlightNumber(values[0])
+	if err != nil {
+		return err
+	}
+
+	d, err := ParseLocalDate(values[2])
+	if err != nil {
+		return err
+	}
+
+	*f = FlightId{
+		Number: fn,
+		Departure: Departure{
+			Airport: values[1],
+			Date:    d,
+		},
+	}
+
+	return err
+}
+
+func (f FlightId) MarshalText() ([]byte, error) {
+	return []byte(f.String()), nil
+}
+
 type Flight struct {
-	Airline                      AirlineIdentifier               `json:"airline"`
-	FlightNumber                 int                             `json:"flightNumber"`
-	Suffix                       string                          `json:"suffix"`
-	DepartureTime                time.Time                       `json:"departureTime"`
-	DepartureAirport             string                          `json:"departureAirport"`
-	ArrivalTime                  time.Time                       `json:"arrivalTime"`
-	ArrivalAirport               string                          `json:"arrivalAirport"`
-	ServiceType                  string                          `json:"serviceType"`
-	AircraftOwner                AirlineIdentifier               `json:"aircraftOwner"`
-	AircraftType                 string                          `json:"aircraftType"`
-	AircraftConfigurationVersion string                          `json:"aircraftConfigurationVersion"`
-	Registration                 string                          `json:"registration"`
-	DataElements                 map[int]string                  `json:"dataElements"`
-	CodeShares                   map[FlightNumber]map[int]string `json:"codeShares"`
+	Airline                      AirlineIdentifier          `json:"airline"`
+	FlightNumber                 int                        `json:"flightNumber"`
+	Suffix                       string                     `json:"suffix"`
+	DepartureTime                time.Time                  `json:"departureTime"`
+	DepartureAirport             string                     `json:"departureAirport"`
+	ArrivalTime                  time.Time                  `json:"arrivalTime"`
+	ArrivalAirport               string                     `json:"arrivalAirport"`
+	ServiceType                  string                     `json:"serviceType"`
+	AircraftOwner                AirlineIdentifier          `json:"aircraftOwner"`
+	AircraftType                 string                     `json:"aircraftType"`
+	AircraftConfigurationVersion string                     `json:"aircraftConfigurationVersion"`
+	Registration                 string                     `json:"registration"`
+	DataElements                 map[int]string             `json:"dataElements"`
+	CodeShares                   map[FlightNumber]CodeShare `json:"codeShares"`
+	Metadata                     FlightMetadata             `json:"metadata"`
+}
+
+type CodeShare struct {
+	DataElements map[int]string `json:"dataElements"`
+	Metadata     FlightMetadata `json:"metadata"`
+}
+
+type FlightMetadata struct {
+	QueryDate    LocalDate `json:"queryDate"`
+	CreationTime time.Time `json:"creationTime"`
+	UpdateTime   time.Time `json:"updateTime"`
 }
 
 func (f *Flight) DepartureDate() LocalDate {
+	return NewLocalDate(f.DepartureTime)
+}
+
+func (f *Flight) DepartureDateUTC() LocalDate {
 	return NewLocalDate(f.DepartureTime.UTC())
 }
 
@@ -89,6 +141,13 @@ func (f *Flight) Departure() Departure {
 	return Departure{
 		Airport: f.DepartureAirport,
 		Date:    f.DepartureDate(),
+	}
+}
+
+func (f *Flight) DepartureUTC() Departure {
+	return Departure{
+		Airport: f.DepartureAirport,
+		Date:    f.DepartureDateUTC(),
 	}
 }
 

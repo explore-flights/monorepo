@@ -10,12 +10,12 @@ import (
 )
 
 type ConnectionsResponse struct {
-	Connections []ConnectionResponse      `json:"connections"`
-	Flights     map[string]FlightResponse `json:"flights"`
+	Connections []ConnectionResponse               `json:"connections"`
+	Flights     map[common.FlightId]FlightResponse `json:"flights"`
 }
 
 type ConnectionResponse struct {
-	FlightId string               `json:"flightId"`
+	FlightId common.FlightId      `json:"flightId"`
 	Outgoing []ConnectionResponse `json:"outgoing"`
 }
 
@@ -38,7 +38,7 @@ type FlightNumberResponse struct {
 }
 
 func ExportConnectionsJson(conns []Connection) ConnectionsResponse {
-	flights := make(map[string]FlightResponse)
+	flights := make(map[common.FlightId]FlightResponse)
 	connections := buildConnectionsResponse(conns, flights)
 
 	return ConnectionsResponse{
@@ -47,13 +47,13 @@ func ExportConnectionsJson(conns []Connection) ConnectionsResponse {
 	}
 }
 
-func buildConnectionsResponse(conns []Connection, flights map[string]FlightResponse) []ConnectionResponse {
+func buildConnectionsResponse(conns []Connection, flights map[common.FlightId]FlightResponse) []ConnectionResponse {
 	r := make([]ConnectionResponse, 0, len(conns))
 
 	for _, conn := range conns {
-		flightId := fmt.Sprintf("%v@%v@%v", conn.Flight.Number(), conn.Flight.DepartureAirport, conn.Flight.DepartureDate())
-		if _, ok := flights[flightId]; !ok {
-			flights[flightId] = FlightResponse{
+		fid := conn.Flight.Id()
+		if _, ok := flights[fid]; !ok {
+			flights[fid] = FlightResponse{
 				FlightNumber: FlightNumberResponse{
 					Airline: string(conn.Flight.Airline),
 					Number:  conn.Flight.FlightNumber,
@@ -71,7 +71,7 @@ func buildConnectionsResponse(conns []Connection, flights map[string]FlightRespo
 		}
 
 		r = append(r, ConnectionResponse{
-			FlightId: flightId,
+			FlightId: fid,
 			Outgoing: buildConnectionsResponse(conn.Outgoing, flights),
 		})
 	}
@@ -79,7 +79,7 @@ func buildConnectionsResponse(conns []Connection, flights map[string]FlightRespo
 	return r
 }
 
-func convertCodeShares(inp map[common.FlightNumber]map[int]string) []FlightNumberResponse {
+func convertCodeShares(inp map[common.FlightNumber]common.CodeShare) []FlightNumberResponse {
 	r := make([]FlightNumberResponse, 0, len(inp))
 	for fn := range inp {
 		r = append(r, FlightNumberResponse{

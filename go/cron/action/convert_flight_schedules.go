@@ -11,13 +11,18 @@ import (
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"golang.org/x/sync/errgroup"
 	"strings"
+	"time"
 )
 
 const (
-	queryDateId       int = -1
 	codeShareChildId  int = 10
 	codeShareParentId int = 50
 )
+
+type Pair[T1, T2 any] struct {
+	_1 T1
+	_2 T2
+}
 
 type ConvertFlightSchedulesParams struct {
 	InputBucket  string                 `json:"inputBucket"`
@@ -99,20 +104,27 @@ func (a *cfsAction) convertSingle(ctx context.Context, inputBucket, inputPrefix 
 	return convertFlightSchedulesToFlights(ctx, d, schedules, ch)
 }
 
-func (a *cfsAction) loadFlightSchedules(ctx context.Context, bucket, prefix string, d common.LocalDate) ([]lufthansa.FlightSchedule, error) {
+func (a *cfsAction) loadFlightSchedules(ctx context.Context, bucket, prefix string, d common.LocalDate) (Pair[time.Time, []lufthansa.FlightSchedule], error) {
 	resp, err := a.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(prefix + d.Time(nil).Format("2006/01/02") + ".json"),
 	})
 
 	if err != nil {
-		return nil, err
+		return Pair[time.Time, []lufthansa.FlightSchedule]{}, err
 	}
 
 	defer resp.Body.Close()
 
 	var schedules []lufthansa.FlightSchedule
-	return schedules, json.NewDecoder(resp.Body).Decode(&schedules)
+	if err = json.NewDecoder(resp.Body).Decode(&schedules); err != nil {
+		return Pair[time.Time, []lufthansa.FlightSchedule]{}, err
+	}
+
+	return Pair[time.Time, []lufthansa.FlightSchedule]{
+		_1: *resp.LastModified,
+		_2: schedules,
+	}, nil
 }
 
 func (a *cfsAction) upsertAll(ctx context.Context, bucket, prefix string, queryDateRanges common.LocalDateRanges, flightsByDepartureDateUTC map[common.LocalDate][]*common.Flight) error {
@@ -145,9 +157,7 @@ func (a *cfsAction) upsertFlights(ctx context.Context, bucket, prefix string, d 
 
 	for _, f := range flights {
 		if addedFlight, ok := added[f.Id()]; ok {
-			if err := combineFlights(addedFlight, f, true, queryDateRanges); err != nil {
-				return err
-			}
+			combineFlights(addedFlight, f)
 		} else {
 			result = append(result, f)
 			added[f.Id()] = f
@@ -156,16 +166,9 @@ func (a *cfsAction) upsertFlights(ctx context.Context, bucket, prefix string, d 
 
 	for _, f := range existing {
 		if addedFlight, ok := added[f.Id()]; ok {
-			if err := combineFlights(addedFlight, f, false, queryDateRanges); err != nil {
-				return err
-			}
+			combineFlights(addedFlight, f)
 		} else {
-			flightQueryDate, err := common.ParseLocalDate(f.DataElements[queryDateId])
-			if err != nil {
-				return err
-			}
-
-			if !queryDateRanges.Contains(flightQueryDate) {
+			if !queryDateRanges.Contains(f.Metadata.QueryDate) {
 				result = append(result, f)
 				added[f.Id()] = f
 			}
@@ -207,12 +210,12 @@ func (a *cfsAction) loadFlights(ctx context.Context, bucket, s3Key string) ([]*c
 	return flights, json.NewDecoder(resp.Body).Decode(&flights)
 }
 
-func convertFlightSchedulesToFlights(ctx context.Context, queryDate common.LocalDate, schedules []lufthansa.FlightSchedule, ch chan<- *common.Flight) error {
+func convertFlightSchedulesToFlights(ctx context.Context, queryDate common.LocalDate, schedules Pair[time.Time, []lufthansa.FlightSchedule], ch chan<- *common.Flight) error {
 	lookup := make(map[common.FlightId]*common.Flight)
 	codeShareIds := make(map[common.FlightId]struct{})
 	addLater := make(map[common.FlightId][]*common.Flight)
 
-	for _, fs := range schedules {
+	for _, fs := range schedules._2 {
 		for _, leg := range fs.Legs {
 			f := &common.Flight{
 				Airline:                      common.AirlineIdentifier(fs.Airline),
@@ -228,10 +231,13 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate common.Local
 				AircraftConfigurationVersion: leg.AircraftConfigurationVersion,
 				Registration:                 leg.Registration,
 				DataElements:                 fs.DataElementsForSequence(leg.SequenceNumber),
-				CodeShares:                   make(map[common.FlightNumber]map[int]string),
+				CodeShares:                   make(map[common.FlightNumber]common.CodeShare),
+				Metadata: common.FlightMetadata{
+					QueryDate:    queryDate,
+					CreationTime: schedules._1,
+					UpdateTime:   schedules._1,
+				},
 			}
-
-			f.DataElements[queryDateId] = queryDate.String()
 
 			lookup[f.Id()] = f
 
@@ -244,8 +250,13 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate common.Local
 					}
 
 					if _, ok := f.CodeShares[codeShareFn]; !ok {
-						f.CodeShares[codeShareFn] = map[int]string{
-							queryDateId: queryDate.String(),
+						f.CodeShares[codeShareFn] = common.CodeShare{
+							DataElements: make(map[int]string),
+							Metadata: common.FlightMetadata{
+								QueryDate:    queryDate,
+								CreationTime: schedules._1,
+								UpdateTime:   schedules._1,
+							},
 						}
 					}
 
@@ -264,7 +275,10 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate common.Local
 				parentFid := parentFn.Id(f.Departure())
 
 				if parent, ok := lookup[parentFid]; ok {
-					parent.CodeShares[f.Number()] = f.DataElements
+					parent.CodeShares[f.Number()] = common.CodeShare{
+						DataElements: f.DataElements,
+						Metadata:     f.Metadata,
+					}
 				} else {
 					addLater[parentFid] = append(addLater[parentFid], f)
 				}
@@ -298,17 +312,23 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate common.Local
 				AircraftType:                 first.AircraftType,
 				AircraftConfigurationVersion: first.AircraftConfigurationVersion,
 				Registration:                 first.Registration,
-				DataElements: map[int]string{
-					queryDateId: queryDate.String(),
+				DataElements:                 make(map[int]string),
+				CodeShares:                   make(map[common.FlightNumber]common.CodeShare),
+				Metadata: common.FlightMetadata{
+					QueryDate:    queryDate,
+					CreationTime: schedules._1,
+					UpdateTime:   schedules._1,
 				},
-				CodeShares: make(map[common.FlightNumber]map[int]string),
 			}
 
 			lookup[fid] = f
 		}
 
 		for _, child := range codeShares {
-			f.CodeShares[child.Number()] = child.DataElements
+			f.CodeShares[child.Number()] = common.CodeShare{
+				DataElements: child.DataElements,
+				Metadata:     child.Metadata,
+			}
 		}
 	}
 
@@ -325,38 +345,53 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate common.Local
 	return nil
 }
 
-func combineFlights(f, other *common.Flight, fresh bool, queryDateRanges common.LocalDateRanges) error {
-	otherQueryDate, err := common.ParseLocalDate(other.DataElements[queryDateId])
-	if err != nil {
-		return err
+func combineFlights(f, other *common.Flight) {
+	otherCodeShares := other.CodeShares
+
+	if f.Metadata.CreationTime.After(other.Metadata.CreationTime) {
+		f.Metadata.CreationTime = other.Metadata.CreationTime
+	} else {
+		f.DepartureTime = other.DepartureTime
+		f.DepartureAirport = other.DepartureAirport
+		f.ArrivalTime = other.ArrivalTime
+		f.ArrivalAirport = other.ArrivalAirport
+		f.ServiceType = other.ServiceType
+		f.AircraftOwner = other.AircraftOwner
+		f.AircraftType = other.AircraftType
+		f.AircraftConfigurationVersion = other.AircraftConfigurationVersion
+		f.Registration = other.Registration
+		f.DataElements = other.DataElements
+		f.Metadata.QueryDate = other.Metadata.QueryDate
+
+		otherCodeShares = f.CodeShares
+		f.CodeShares = other.CodeShares
 	}
 
-	if fresh || !queryDateRanges.Contains(otherQueryDate) {
-		for k, v := range other.DataElements {
-			if _, ok := f.DataElements[k]; !ok {
-				f.DataElements[k] = v
+	if f.Metadata.UpdateTime.Before(other.Metadata.UpdateTime) {
+		f.Metadata.UpdateTime = other.Metadata.UpdateTime
+	}
+
+	for codeShareFn, otherCodeShare := range otherCodeShares {
+		if codeShare, ok := f.CodeShares[codeShareFn]; ok {
+			if codeShare.Metadata.CreationTime.After(otherCodeShare.Metadata.CreationTime) {
+				codeShare.Metadata.CreationTime = otherCodeShare.Metadata.CreationTime
 			}
-		}
-	}
 
-	for codeShareFn, otherDataElements := range other.CodeShares {
-		codeShareQueryDate, err := common.ParseLocalDate(otherDataElements[queryDateId])
-		if err != nil {
-			return err
-		}
+			if codeShare.Metadata.UpdateTime.Before(otherCodeShare.Metadata.UpdateTime) {
+				codeShare.Metadata.UpdateTime = otherCodeShare.Metadata.UpdateTime
+			}
 
-		if fresh || !queryDateRanges.Contains(codeShareQueryDate) {
-			if dataElements, ok := f.CodeShares[codeShareFn]; ok {
-				for k, v := range otherDataElements {
-					if _, ok := dataElements[k]; !ok {
-						dataElements[k] = v
-					}
+			for k, v := range otherCodeShare.DataElements {
+				if _, ok := codeShare.DataElements[k]; !ok {
+					codeShare.DataElements[k] = v
 				}
-			} else {
-				f.CodeShares[codeShareFn] = otherDataElements
+			}
+
+			f.CodeShares[codeShareFn] = codeShare
+		} else {
+			if f.Metadata.QueryDate != otherCodeShare.Metadata.QueryDate {
+				f.CodeShares[codeShareFn] = otherCodeShare
 			}
 		}
 	}
-
-	return nil
 }
