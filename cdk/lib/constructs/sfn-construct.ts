@@ -60,6 +60,22 @@ export class SfnConstruct extends Construct {
         resultPath: '$.convertSchedulesResponse',
         retryOnServiceExceptions: true,
       }))
+      .next(new LambdaInvoke(this, 'ConvertFlightsTask', {
+        lambdaFunction: props.cronLambda,
+        payload: TaskInput.fromObject({
+          'action': 'convert_flights',
+          'params': {
+            'inputBucket': props.dataBucket.bucketName,
+            'inputPrefix': 'processed/flights/',
+            'outputBucket': props.dataBucket.bucketName,
+            'outputPrefix': 'processed/flight_numbers/',
+            'dateRanges': JsonPath.objectAt('$.convertSchedulesResponse.dateRanges'),
+          },
+        }),
+        payloadResponseOnly: true,
+        resultPath: '$.convertNumbersResponse',
+        retryOnServiceExceptions: true,
+      }))
       .toSingleState('ConvertTry', { outputPath: '$[0]' })
       .addCatch(
         this.sendWebhookTask(
@@ -75,9 +91,10 @@ export class SfnConstruct extends Construct {
         props.cronLambda,
         props.webhookUrl,
         JsonPath.format(
-          'FlightSchedules Cron {} succeeded:\n```json\n{}\n```',
+          'FlightSchedules Cron {} succeeded:\nQueried:\n```json\n{}\n```\nTouched:\n```json\n{}\n```',
           JsonPath.stringAt('$.time'),
           JsonPath.jsonToString(JsonPath.objectAt('$.loadSchedulesResponse.loadFlightSchedules.input.dateRanges')),
+          JsonPath.jsonToString(JsonPath.objectAt('$.convertSchedulesResponse.dateRanges')),
         ),
       ))
       .next(success);

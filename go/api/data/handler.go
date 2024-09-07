@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
@@ -253,6 +254,29 @@ func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
 	}
 
 	return result, err
+}
+
+func (h *Handler) FlightSchedule(ctx context.Context, fnRaw string) (*common.FlightSchedule, error) {
+	fn, err := common.ParseFlightNumber(fnRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	fs, err := loadJson[*common.FlightSchedule](
+		ctx,
+		h,
+		"processed/flight_numbers/"+fmt.Sprintf("%s/%d%s.json", fn.Airline, fn.Number, fn.Suffix),
+	)
+
+	if err != nil {
+		if adapt.IsS3NotFound(err) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	return fs, nil
 }
 
 func (h *Handler) FlightNumber(ctx context.Context, fnRaw, airport string, d common.LocalDate) (*common.Flight, error) {

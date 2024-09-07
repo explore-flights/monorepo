@@ -28,7 +28,7 @@ export class CronLambdaConstruct extends Construct {
     this.lambda = new Function(this, 'CronLambda', {
       runtime: Runtime.PROVIDED_AL2023,
       architecture: Architecture.ARM_64,
-      memorySize: 1024,
+      memorySize: 2048,
       timeout: Duration.minutes(15),
       code: Code.fromAsset(props.cronLambdaZipPath),
       handler: 'bootstrap',
@@ -47,5 +47,6 @@ export class CronLambdaConstruct extends Construct {
     props.dataBucket.grantWrite(this.lambda, 'raw/LH_Public_Data/*');
     props.dataBucket.grantWrite(this.lambda, 'raw/ourairports_data/*');
     props.dataBucket.grantReadWrite(this.lambda, 'processed/flights/*');
+    props.dataBucket.grantReadWrite(this.lambda, 'processed/flight_numbers/*');
   }
 }

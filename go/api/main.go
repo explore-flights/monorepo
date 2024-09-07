@@ -47,6 +47,7 @@ func main() {
 
 	jsonConnEdp := web.NewConnectionsEndpoint(connHandler, "json")
 	pngConnEdp := web.NewConnectionsEndpoint(connHandler, "png")
+	fnEdp := web.NewFlightNumberEndpoint(dataHandler)
 
 	e.POST("/api/connections/json", jsonConnEdp)
 	e.GET("/api/connections/json/:payload", jsonConnEdp)
@@ -61,9 +62,10 @@ func main() {
 	e.GET("/auth/oauth2/login/:issuer", authHandler.Login)
 	e.GET("/auth/oauth2/code/:issuer", authHandler.Code)
 
-	e.GET("/data/airports.json", web.NewAirportsHandler(dataHandler))
-	e.GET("/data/aircraft.json", web.NewAircraftHandler(dataHandler))
-	e.GET("/data/flight/:fn/:airport/:date", web.NewFlightNumberHandler(dataHandler))
+	e.GET("/data/airports.json", web.NewAirportsEndpoint(dataHandler))
+	e.GET("/data/aircraft.json", web.NewAircraftEndpoint(dataHandler))
+	e.GET("/data/flight/:fn", fnEdp)
+	e.GET("/data/flight/:fn/:airport/:date", fnEdp)
 
 	if err := run(ctx, e); err != nil {
 		panic(err)

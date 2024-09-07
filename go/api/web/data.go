@@ -13,64 +13,55 @@ func noCache(c echo.Context) {
 	c.Response().Header().Set(echo.HeaderCacheControl, "private, no-cache, no-store, max-age=0, must-revalidate")
 }
 
-func NewAirportsHandler(dh *data.Handler) echo.HandlerFunc {
+func NewAirportsEndpoint(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		airports, err := dh.Airports(c.Request().Context())
-		if err != nil {
-			noCache(c)
-
-			if errors.Is(err, context.DeadlineExceeded) {
-				return echo.NewHTTPError(http.StatusRequestTimeout, err)
-			}
-
-			return echo.NewHTTPError(http.StatusInternalServerError)
-		}
-
-		return c.JSON(http.StatusOK, airports)
+		return jsonResponse(c, airports, err, func(v data.AirportsResponse) bool { return false })
 	}
 }
 
-func NewAircraftHandler(dh *data.Handler) echo.HandlerFunc {
+func NewAircraftEndpoint(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		aircraft, err := dh.Aircraft(c.Request().Context())
-		if err != nil {
-			noCache(c)
-
-			if errors.Is(err, context.DeadlineExceeded) {
-				return echo.NewHTTPError(http.StatusRequestTimeout, err)
-			}
-
-			return echo.NewHTTPError(http.StatusInternalServerError)
-		}
-
-		return c.JSON(http.StatusOK, aircraft)
+		return jsonResponse(c, aircraft, err, func(v []data.Aircraft) bool { return false })
 	}
 }
 
-func NewFlightNumberHandler(dh *data.Handler) echo.HandlerFunc {
+func NewFlightNumberEndpoint(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		fn := c.Param("fn")
 		airport := c.Param("airport")
-		d, err := common.ParseLocalDate(c.Param("date"))
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
-		}
+		dateRaw := c.Param("date")
 
-		flight, err := dh.FlightNumber(c.Request().Context(), fn, airport, d)
-		if err != nil {
-			noCache(c)
-
-			if errors.Is(err, context.DeadlineExceeded) {
-				return echo.NewHTTPError(http.StatusRequestTimeout, err)
+		if airport != "" && dateRaw != "" {
+			d, err := common.ParseLocalDate(dateRaw)
+			if err != nil {
+				return echo.NewHTTPError(http.StatusBadRequest, err)
 			}
 
-			return echo.NewHTTPError(http.StatusInternalServerError)
+			flight, err := dh.FlightNumber(c.Request().Context(), fn, airport, d)
+			return jsonResponse(c, flight, err, func(v *common.Flight) bool { return v == nil })
+		} else {
+			fs, err := dh.FlightSchedule(c.Request().Context(), fn)
+			return jsonResponse(c, fs, err, func(v *common.FlightSchedule) bool { return v == nil })
 		}
-
-		if flight == nil {
-			return echo.NewHTTPError(http.StatusNotFound)
-		}
-
-		return c.JSON(http.StatusOK, flight)
 	}
+}
+
+func jsonResponse[T any](c echo.Context, v T, err error, isEmpty func(T) bool) error {
+	if err != nil {
+		noCache(c)
+
+		if errors.Is(err, context.DeadlineExceeded) {
+			return echo.NewHTTPError(http.StatusRequestTimeout, err)
+		}
+
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	if isEmpty(v) {
+		return echo.NewHTTPError(http.StatusNotFound)
+	}
+
+	return c.JSON(http.StatusOK, v)
 }

@@ -33,6 +33,7 @@ type ConvertFlightSchedulesParams struct {
 }
 
 type ConvertFlightSchedulesOutput struct {
+	DateRanges common.LocalDateRanges `json:"dateRanges"`
 }
 
 type cfsAction struct {
@@ -52,7 +53,14 @@ func (a *cfsAction) Handle(ctx context.Context, params ConvertFlightSchedulesPar
 		return ConvertFlightSchedulesOutput{}, err
 	}
 
-	return ConvertFlightSchedulesOutput{}, a.upsertAll(ctx, params.OutputBucket, params.OutputPrefix, params.DateRanges, flightsByDepartureDateUTC)
+	ldrs := make(common.LocalDateRanges, 0, len(params.DateRanges))
+	for d := range flightsByDepartureDateUTC {
+		ldrs = ldrs.Add(d)
+	}
+
+	return ConvertFlightSchedulesOutput{
+		DateRanges: ldrs,
+	}, a.upsertAll(ctx, params.OutputBucket, params.OutputPrefix, params.DateRanges, flightsByDepartureDateUTC)
 }
 
 func (a *cfsAction) convertAll(ctx context.Context, inputBucket, inputPrefix string, dateRanges common.LocalDateRanges) (map[common.LocalDate][]*common.Flight, error) {

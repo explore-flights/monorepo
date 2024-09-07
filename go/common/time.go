@@ -2,10 +2,14 @@ package common
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
-const offsetTimeFormat = "15:04:05Z07:00"
+const (
+	offsetTimeFormat = "15:04:05Z07:00"
+	offsetOnlyFormat = "Z07:00"
+)
 
 type OffsetTime struct {
 	Hour int
@@ -52,7 +56,7 @@ func (t OffsetTime) Time(d LocalDate) time.Time {
 }
 
 func (t OffsetTime) String() string {
-	return t.Time(LocalDate{}).Format(offsetTimeFormat)
+	return fmt.Sprintf("%02d:%02d:%02d", t.Hour, t.Min, t.Sec) + time.Now().In(t.Loc).Format(offsetOnlyFormat)
 }
 
 func (t *OffsetTime) UnmarshalJSON(data []byte) error {
@@ -61,13 +65,10 @@ func (t *OffsetTime) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	r, err := time.Parse(offsetTimeFormat, v)
-	if err != nil {
-		return err
-	}
+	var err error
+	*t, err = ParseOffsetTime(v)
 
-	*t = NewOffsetTime(r)
-	return nil
+	return err
 }
 
 func (t OffsetTime) MarshalJSON() ([]byte, error) {
