@@ -193,7 +193,7 @@ export function catchNotify(notifications: AppControls['notification'] | Dispatc
   };
 }
 
-function ErrorNotificationContent({ errText, error: e }: { errText?: string, error: unknown }) {
+export function ErrorNotificationContent({ errText, error: e }: { errText?: string, error: unknown }) {
   let errMessage: string | undefined;
   let errDetails: React.ReactNode;
 

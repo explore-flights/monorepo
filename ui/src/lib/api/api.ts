@@ -8,7 +8,7 @@ import {
   AuthInfo,
   ConnectionSearchShare,
   ConnectionsSearchRequest,
-  ConnectionsSearchResponseWithSearch, ConnectionsSearchResponse, Flight
+  ConnectionsSearchResponseWithSearch, ConnectionsSearchResponse, Flight, FlightSchedule
 } from './api.model';
 import { DateTime } from 'luxon';
 import { ConcurrencyLimit } from './concurrency-limit';
@@ -79,6 +79,10 @@ export class ApiClient {
       200,
       404,
     ));
+  }
+
+  getFlightSchedule(flightNumber: string): Promise<ApiResponse<FlightSchedule>> {
+    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}`));
   }
 
   getConnections(req: ConnectionsSearchRequest): Promise<ApiResponse<ConnectionsSearchResponse>> {

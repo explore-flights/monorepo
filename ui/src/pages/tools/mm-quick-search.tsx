@@ -232,9 +232,7 @@ function AvailabilityTable({ items: rawItems, onClear }: { items: ReadonlyArray<
         {
           id: 'departure_date',
           header: 'Departure Date',
-          cell: (v) => {
-            return v.entry.departureDate
-          },
+          cell: (v) => v.entry.departureDate,
           sortingComparator: sortByDepartureDate,
         },
         {

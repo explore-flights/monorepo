@@ -111,7 +111,8 @@ function TopNavigationSearch() {
   const navigate = useNavigate();
 
   const [query, setQuery] = useState('');
-  const results = useSearch(useDebounce(query, 250));
+  const [searchEnabled, setSearchEnabled] = useState(false);
+  const results = useSearch(useDebounce(query, 250), searchEnabled);
 
   const options = useMemo<ReadonlyArray<AutosuggestProps.Option>>(() => {
     const opts: Array<SelectProps.Option> = [];
@@ -151,6 +152,7 @@ function TopNavigationSearch() {
           navigate(`/flight/${encodeURIComponent(e.detail.value.toUpperCase())}`);
         }
       }}
+      onFocus={() => setSearchEnabled(true)}
     />
   )
 }

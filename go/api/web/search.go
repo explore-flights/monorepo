@@ -31,7 +31,7 @@ func NewSearchEndpoint(s3c adapt.S3Lister, bucket string) echo.HandlerFunc {
 		resp, err := s3c.ListObjectsV2(c.Request().Context(), &s3.ListObjectsV2Input{
 			Bucket:  aws.String(bucket),
 			Prefix:  aws.String(prefix),
-			MaxKeys: aws.Int32(500),
+			MaxKeys: aws.Int32(100),
 		})
 
 		if err != nil {

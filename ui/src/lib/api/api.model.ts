@@ -93,3 +93,30 @@ export interface ConnectionSearchShare {
   htmlUrl: string;
   imageUrl: string;
 }
+
+export interface FlightScheduleVariantData {
+  operatedAs: string;
+  departureTime: string;
+  departureAirport: string;
+  departureUTCOffset: number;
+  durationSeconds: number;
+  arrivalAirport: string;
+  arrivalUTCOffset: number;
+  serviceType: string;
+  aircraftOwner: string;
+  aircraftType: string;
+  aircraftConfigurationVersion: string;
+  codeShares: ReadonlyArray<string>;
+}
+
+export interface FlightScheduleVariant {
+  ranges: ReadonlyArray<[string, string]>;
+  data: FlightScheduleVariantData;
+}
+
+export interface FlightSchedule {
+  airline: string;
+  flightNumber: number;
+  suffix: string;
+  variants: ReadonlyArray<FlightScheduleVariant>;
+}
