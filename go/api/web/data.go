@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/labstack/echo/v4"
 	"net/http"
 )
@@ -34,7 +35,7 @@ func NewFlightNumberEndpoint(dh *data.Handler) echo.HandlerFunc {
 		dateRaw := c.Param("date")
 
 		if airport != "" && dateRaw != "" {
-			d, err := common.ParseLocalDate(dateRaw)
+			d, err := xtime.ParseLocalDate(dateRaw)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusBadRequest, err)
 			}

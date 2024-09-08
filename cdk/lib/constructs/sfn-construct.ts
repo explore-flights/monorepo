@@ -68,7 +68,7 @@ export class SfnConstruct extends Construct {
             'inputBucket': props.dataBucket.bucketName,
             'inputPrefix': 'processed/flights/',
             'outputBucket': props.dataBucket.bucketName,
-            'outputPrefix': 'processed/flight_numbers/',
+            'outputPrefix': 'processed/schedules/',
             'dateRanges': JsonPath.objectAt('$.convertSchedulesResponse.dateRanges'),
           },
         }),

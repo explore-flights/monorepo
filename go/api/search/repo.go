@@ -8,6 +8,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/concurrent"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"golang.org/x/sync/errgroup"
 	"sync"
 )
@@ -17,20 +18,20 @@ type MinimalS3Client adapt.S3Getter
 type FlightRepo struct {
 	s3c    MinimalS3Client
 	bucket string
-	cache  concurrent.Map[common.LocalDate, []*common.Flight]
+	cache  concurrent.Map[xtime.LocalDate, []*common.Flight]
 }
 
 func NewFlightRepo(s3c MinimalS3Client, bucket string) *FlightRepo {
 	return &FlightRepo{
 		s3c:    s3c,
 		bucket: bucket,
-		cache:  concurrent.NewMap[common.LocalDate, []*common.Flight](),
+		cache:  concurrent.NewMap[xtime.LocalDate, []*common.Flight](),
 	}
 }
 
-func (fr *FlightRepo) Flights(ctx context.Context, start, end common.LocalDate) (map[common.LocalDate][]*common.Flight, error) {
+func (fr *FlightRepo) Flights(ctx context.Context, start, end xtime.LocalDate) (map[xtime.LocalDate][]*common.Flight, error) {
 	var mtx sync.Mutex
-	result := make(map[common.LocalDate][]*common.Flight)
+	result := make(map[xtime.LocalDate][]*common.Flight)
 
 	g, ctx := errgroup.WithContext(ctx)
 	curr := start
@@ -57,7 +58,7 @@ func (fr *FlightRepo) Flights(ctx context.Context, start, end common.LocalDate) 
 	return result, g.Wait()
 }
 
-func (fr *FlightRepo) flightsInternal(ctx context.Context, d common.LocalDate) ([]*common.Flight, error) {
+func (fr *FlightRepo) flightsInternal(ctx context.Context, d xtime.LocalDate) ([]*common.Flight, error) {
 	if flights, ok := fr.cache.Load(d); ok {
 		return flights, nil
 	}
@@ -71,7 +72,7 @@ func (fr *FlightRepo) flightsInternal(ctx context.Context, d common.LocalDate) (
 	return flights, nil
 }
 
-func (fr *FlightRepo) loadFlights(ctx context.Context, d common.LocalDate) ([]*common.Flight, error) {
+func (fr *FlightRepo) loadFlights(ctx context.Context, d xtime.LocalDate) ([]*common.Flight, error) {
 	resp, err := fr.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(fr.bucket),
 		Key:    aws.String("processed/flights/" + d.Time(nil).Format("2006/01/02") + ".json"),

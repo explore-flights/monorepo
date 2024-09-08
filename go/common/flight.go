@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"regexp"
 	"strconv"
 	"strings"
@@ -11,8 +12,8 @@ import (
 var flightNumberRgx = regexp.MustCompile("^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$")
 
 type Departure struct {
-	Airport string    `json:"airport"`
-	Date    LocalDate `json:"date"`
+	Airport string          `json:"airport"`
+	Date    xtime.LocalDate `json:"date"`
 }
 
 type FlightNumber struct {
@@ -80,7 +81,7 @@ func (f *FlightId) UnmarshalText(text []byte) error {
 		return err
 	}
 
-	d, err := ParseLocalDate(values[2])
+	d, err := xtime.ParseLocalDate(values[2])
 	if err != nil {
 		return err
 	}
@@ -124,17 +125,17 @@ type CodeShare struct {
 }
 
 type FlightMetadata struct {
-	QueryDate    LocalDate `json:"queryDate"`
-	CreationTime time.Time `json:"creationTime"`
-	UpdateTime   time.Time `json:"updateTime"`
+	QueryDate    xtime.LocalDate `json:"queryDate"`
+	CreationTime time.Time       `json:"creationTime"`
+	UpdateTime   time.Time       `json:"updateTime"`
 }
 
-func (f *Flight) DepartureDate() LocalDate {
-	return NewLocalDate(f.DepartureTime)
+func (f *Flight) DepartureDate() xtime.LocalDate {
+	return xtime.NewLocalDate(f.DepartureTime)
 }
 
-func (f *Flight) DepartureDateUTC() LocalDate {
-	return NewLocalDate(f.DepartureTime.UTC())
+func (f *Flight) DepartureDateUTC() xtime.LocalDate {
+	return xtime.NewLocalDate(f.DepartureTime.UTC())
 }
 
 func (f *Flight) Departure() Departure {

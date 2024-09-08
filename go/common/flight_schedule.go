@@ -1,52 +1,54 @@
 package common
 
 import (
+	"github.com/explore-flights/monorepo/go/common/xtime"
+	"iter"
+	"maps"
 	"slices"
 	"time"
 )
 
 type FlightScheduleData struct {
-	DepartureTime                OffsetTime        `json:"departureTime"`
+	OperatedAs                   FlightNumber      `json:"operatedAs"`
+	DepartureTime                xtime.LocalTime   `json:"departureTime"`
 	DepartureAirport             string            `json:"departureAirport"`
-	ArrivalTime                  OffsetTime        `json:"arrivalTime"`
+	DepartureUTCOffset           int               `json:"departureUTCOffset"`
+	DurationSeconds              int64             `json:"durationSeconds"`
 	ArrivalAirport               string            `json:"arrivalAirport"`
+	ArrivalUTCOffset             int               `json:"arrivalUTCOffset"`
 	ServiceType                  string            `json:"serviceType"`
 	AircraftOwner                AirlineIdentifier `json:"aircraftOwner"`
 	AircraftType                 string            `json:"aircraftType"`
 	AircraftConfigurationVersion string            `json:"aircraftConfigurationVersion"`
-	CodeShares                   []FlightNumber    `json:"codeShares"`
+	CodeShares                   Set[FlightNumber] `json:"codeShares"`
 }
 
 func (fsd FlightScheduleData) Equal(other FlightScheduleData) bool {
-	return fsd.DepartureTime == other.DepartureTime &&
+	return fsd.OperatedAs == other.OperatedAs &&
+		fsd.DepartureTime == other.DepartureTime &&
 		fsd.DepartureAirport == other.DepartureAirport &&
-		fsd.ArrivalTime == other.ArrivalTime &&
+		fsd.DepartureUTCOffset == other.DepartureUTCOffset &&
+		fsd.DurationSeconds == other.DurationSeconds &&
 		fsd.ArrivalAirport == other.ArrivalAirport &&
+		fsd.ArrivalUTCOffset == other.ArrivalUTCOffset &&
 		fsd.ServiceType == other.ServiceType &&
 		fsd.AircraftOwner == other.AircraftOwner &&
 		fsd.AircraftType == other.AircraftType &&
 		fsd.AircraftConfigurationVersion == other.AircraftConfigurationVersion &&
-		SliceEqualContent(fsd.CodeShares, other.CodeShares)
-}
-
-type FlightScheduleAlias struct {
-	FlightNumber     FlightNumber `json:"flightNumber"`
-	DepartureTime    OffsetTime   `json:"departureTime"`
-	DepartureAirport string       `json:"departureAirport"`
+		maps.Equal(fsd.CodeShares, other.CodeShares)
 }
 
 type FlightScheduleVariant struct {
-	Ranges LocalDateRanges      `json:"ranges"`
-	Data   *FlightScheduleData  `json:"data,omitempty"`
-	Alias  *FlightScheduleAlias `json:"alias,omitempty"`
+	Ranges xtime.LocalDateRanges `json:"ranges"`
+	Data   FlightScheduleData    `json:"data"`
 }
 
-func (fsv *FlightScheduleVariant) DepartureTime() OffsetTime {
-	if fsv.Data != nil {
-		return fsv.Data.DepartureTime
-	}
+func (fsv *FlightScheduleVariant) DepartureTime(d xtime.LocalDate) time.Time {
+	return fsv.Data.DepartureTime.Time(d, time.FixedZone("", fsv.Data.DepartureUTCOffset))
+}
 
-	return fsv.Alias.DepartureTime
+func (fsv *FlightScheduleVariant) ArrivalTime(d xtime.LocalDate) time.Time {
+	return fsv.DepartureTime(d).Add(time.Duration(fsv.Data.DurationSeconds) * time.Second).In(time.FixedZone("", fsv.Data.ArrivalUTCOffset))
 }
 
 type FlightSchedule struct {
@@ -56,35 +58,40 @@ type FlightSchedule struct {
 	Variants     []*FlightScheduleVariant `json:"variants"`
 }
 
-func (fs *FlightSchedule) RemoveVariants(start, end time.Time) {
-	fs.Variants = slices.DeleteFunc(fs.Variants, func(variant *FlightScheduleVariant) bool {
-		for d := range variant.Ranges.Iter() {
-			t := variant.DepartureTime().Time(d)
+func (fs *FlightSchedule) Delete(start, end time.Time) {
+	fs.Variants = slices.DeleteFunc(fs.Variants, func(fsv *FlightScheduleVariant) bool {
+		for d := range fsv.Ranges.Iter() {
+			t := fsv.DepartureTime(d)
 			if t.Compare(start) >= 0 && t.Compare(end) <= 0 {
-				variant.Ranges = variant.Ranges.Remove(d)
+				fsv.Ranges = fsv.Ranges.Remove(d)
 			}
 		}
 
-		return len(variant.Ranges) < 1
+		return len(fsv.Ranges) < 1
 	})
 }
 
-func (fs *FlightSchedule) DataVariant(fsd FlightScheduleData) (*FlightScheduleVariant, bool) {
-	for _, variant := range fs.Variants {
-		if variant.Data != nil && variant.Data.Equal(fsd) {
-			return variant, true
+func (fs *FlightSchedule) Variant(fsd FlightScheduleData) (*FlightScheduleVariant, bool) {
+	for _, fsv := range fs.Variants {
+		if fsv.Data.Equal(fsd) {
+			return fsv, true
 		}
 	}
 
 	return nil, false
 }
 
-func (fs *FlightSchedule) AliasVariant(fsa FlightScheduleAlias) (*FlightScheduleVariant, bool) {
-	for _, variant := range fs.Variants {
-		if variant.Alias != nil && *variant.Alias == fsa {
-			return variant, true
+func (fs *FlightSchedule) List(start, end time.Time) iter.Seq2[xtime.LocalDate, *FlightScheduleVariant] {
+	return func(yield func(xtime.LocalDate, *FlightScheduleVariant) bool) {
+		for _, fsv := range fs.Variants {
+			for d := range fsv.Ranges.Iter() {
+				t := fsv.DepartureTime(d)
+				if t.Compare(start) >= 0 && t.Compare(end) <= 0 {
+					if !yield(d, fsv) {
+						return
+					}
+				}
+			}
 		}
 	}
-
-	return nil, false
 }

@@ -3,7 +3,7 @@ package action
 import (
 	"context"
 	"errors"
-	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"time"
 )
 
@@ -54,21 +54,21 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 		switch params.LoadFlightSchedules.Schedule {
 		case "daily":
 			now := params.LoadFlightSchedules.Time.UTC()
-			dates := []common.LocalDate{
-				common.NewLocalDate(now.AddDate(0, 0, 30*12)),
-				common.NewLocalDate(now.AddDate(0, 0, 30*8)),
-				common.NewLocalDate(now.AddDate(0, 0, 30*6)),
-				common.NewLocalDate(now.AddDate(0, 0, 30*4)),
-				common.NewLocalDate(now.AddDate(0, 0, 30*2)),
-				common.NewLocalDate(now.AddDate(0, 0, 30)),
-				common.NewLocalDate(now.AddDate(0, 0, 7)),
-				common.NewLocalDate(now.AddDate(0, 0, 3)),
-				common.NewLocalDate(now.AddDate(0, 0, 1)),
-				common.NewLocalDate(now.AddDate(0, 0, -1)),
+			dates := []xtime.LocalDate{
+				xtime.NewLocalDate(now.AddDate(0, 0, 30*12)),
+				xtime.NewLocalDate(now.AddDate(0, 0, 30*8)),
+				xtime.NewLocalDate(now.AddDate(0, 0, 30*6)),
+				xtime.NewLocalDate(now.AddDate(0, 0, 30*4)),
+				xtime.NewLocalDate(now.AddDate(0, 0, 30*2)),
+				xtime.NewLocalDate(now.AddDate(0, 0, 30)),
+				xtime.NewLocalDate(now.AddDate(0, 0, 7)),
+				xtime.NewLocalDate(now.AddDate(0, 0, 3)),
+				xtime.NewLocalDate(now.AddDate(0, 0, 1)),
+				xtime.NewLocalDate(now.AddDate(0, 0, -1)),
 			}
 
 			for _, d := range dates {
-				lfsInOut.Input.DateRanges = append(lfsInOut.Input.DateRanges, [2]common.LocalDate{d, d})
+				lfsInOut.Input.DateRanges = append(lfsInOut.Input.DateRanges, [2]xtime.LocalDate{d, d})
 			}
 
 		default:

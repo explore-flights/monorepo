@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/oauth2"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"golang.org/x/time/rate"
 	"io"
 	"maps"
@@ -202,16 +203,16 @@ func (c *Client) AircraftRaw(ctx context.Context) ([]json.RawMessage, error) {
 	return doRequestPaged[aircraftResource[json.RawMessage]](ctx, c, http.MethodGet, "/v1/mds-references/aircraft", nil, 100)
 }
 
-func (c *Client) FlightSchedules(ctx context.Context, airlines []common.AirlineIdentifier, startDate, endDate common.LocalDate, daysOfOperation []time.Weekday, options ...FlightSchedulesOption) ([]FlightSchedule, error) {
+func (c *Client) FlightSchedules(ctx context.Context, airlines []common.AirlineIdentifier, startDate, endDate xtime.LocalDate, daysOfOperation []time.Weekday, options ...FlightSchedulesOption) ([]FlightSchedule, error) {
 	return doRequestFlightSchedules[[]FlightSchedule](ctx, c, airlines, startDate, endDate, daysOfOperation, readJsonFunc[[]FlightSchedule](), options...)
 }
 
-func (c *Client) FlightSchedulesRaw(ctx context.Context, airlines []common.AirlineIdentifier, startDate, endDate common.LocalDate, daysOfOperation []time.Weekday, w io.Writer, options ...FlightSchedulesOption) error {
+func (c *Client) FlightSchedulesRaw(ctx context.Context, airlines []common.AirlineIdentifier, startDate, endDate xtime.LocalDate, daysOfOperation []time.Weekday, w io.Writer, options ...FlightSchedulesOption) error {
 	_, err := doRequestFlightSchedules[int64](ctx, c, airlines, startDate, endDate, daysOfOperation, copyFunc(w), options...)
 	return err
 }
 
-func doRequestFlightSchedules[T any](ctx context.Context, c *Client, airlines []common.AirlineIdentifier, startDate, endDate common.LocalDate, daysOfOperation []time.Weekday, f func(r io.Reader) (T, error), options ...FlightSchedulesOption) (T, error) {
+func doRequestFlightSchedules[T any](ctx context.Context, c *Client, airlines []common.AirlineIdentifier, startDate, endDate xtime.LocalDate, daysOfOperation []time.Weekday, f func(r io.Reader) (T, error), options ...FlightSchedulesOption) (T, error) {
 	options = append(options, WithAirlines(airlines))
 	options = append(options, WithStartDate(startDate))
 	options = append(options, WithEndDate(endDate))

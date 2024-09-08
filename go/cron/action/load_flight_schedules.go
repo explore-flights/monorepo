@@ -7,13 +7,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"time"
 )
 
 type LoadFlightSchedulesParams struct {
-	OutputBucket string                `json:"outputBucket"`
-	OutputPrefix string                `json:"outputPrefix"`
-	DateRanges   [][2]common.LocalDate `json:"dateRanges"`
+	OutputBucket string               `json:"outputBucket"`
+	OutputPrefix string               `json:"outputPrefix"`
+	DateRanges   [][2]xtime.LocalDate `json:"dateRanges"`
 }
 
 type LoadFlightSchedulesOutput struct {
@@ -46,7 +47,7 @@ func (a *lfsAction) Handle(ctx context.Context, params LoadFlightSchedulesParams
 	return LoadFlightSchedulesOutput{}, nil
 }
 
-func (a *lfsAction) loadSingle(ctx context.Context, bucket, prefix string, d common.LocalDate) error {
+func (a *lfsAction) loadSingle(ctx context.Context, bucket, prefix string, d xtime.LocalDate) error {
 	var b bytes.Buffer
 	err := a.lhc.FlightSchedulesRaw(
 		ctx,

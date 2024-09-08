@@ -1,4 +1,4 @@
-package common
+package xtime
 
 import (
 	"github.com/stretchr/testify/assert"

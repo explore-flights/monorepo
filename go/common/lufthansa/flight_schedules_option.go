@@ -3,6 +3,7 @@ package lufthansa
 import (
 	"fmt"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"net/url"
 	"slices"
 	"strconv"
@@ -34,16 +35,16 @@ func (opt WithFlightNumberRange) Apply(q url.Values) {
 	q.Add("flightNumberRanges", fmt.Sprintf("%d-%d", opt[0], opt[1]))
 }
 
-type WithStartDate common.LocalDate
+type WithStartDate xtime.LocalDate
 
 func (opt WithStartDate) Apply(q url.Values) {
-	q.Set("startDate", strings.ToUpper(common.LocalDate(opt).Time(nil).Format("02Jan06")))
+	q.Set("startDate", strings.ToUpper(xtime.LocalDate(opt).Time(nil).Format("02Jan06")))
 }
 
-type WithEndDate common.LocalDate
+type WithEndDate xtime.LocalDate
 
 func (opt WithEndDate) Apply(q url.Values) {
-	q.Set("endDate", strings.ToUpper(common.LocalDate(opt).Time(nil).Format("02Jan06")))
+	q.Set("endDate", strings.ToUpper(xtime.LocalDate(opt).Time(nil).Format("02Jan06")))
 }
 
 type WithDaysOfOperation []time.Weekday

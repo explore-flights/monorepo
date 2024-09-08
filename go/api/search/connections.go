@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"slices"
 	"time"
 )
@@ -33,8 +34,8 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 		opt.Apply(&f)
 	}
 
-	minDate := common.NewLocalDate(minDeparture.UTC())
-	maxDate := common.NewLocalDate(maxDeparture.Add(maxDuration).UTC())
+	minDate := xtime.NewLocalDate(minDeparture.UTC())
+	maxDate := xtime.NewLocalDate(maxDeparture.Add(maxDuration).UTC())
 
 	var flightsByDeparture map[common.Departure][]*common.Flight
 	{
@@ -81,8 +82,8 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 			ch <-chan Connection
 		}, 0)
 
-		currDate := common.NewLocalDate(minDeparture.UTC())
-		for currDate.Compare(common.NewLocalDate(maxDeparture.UTC())) <= 0 {
+		currDate := xtime.NewLocalDate(minDeparture.UTC())
+		for currDate.Compare(xtime.NewLocalDate(maxDeparture.UTC())) <= 0 {
 			for _, origin := range origins {
 				d := common.Departure{
 					Airport: origin,
@@ -187,7 +188,7 @@ func allMatch(predicates []flightPredicate, f *common.Flight) bool {
 	return true
 }
 
-func groupByDepartureUTC(flightsByDate map[common.LocalDate][]*common.Flight, predicates []flightPredicate) map[common.Departure][]*common.Flight {
+func groupByDepartureUTC(flightsByDate map[xtime.LocalDate][]*common.Flight, predicates []flightPredicate) map[common.Departure][]*common.Flight {
 	result := make(map[common.Departure][]*common.Flight)
 	for _, flights := range flightsByDate {
 		for _, f := range flights {

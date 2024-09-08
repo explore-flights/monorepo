@@ -84,7 +84,7 @@ export class ApiLambdaConstruct extends Construct {
     }));
 
     props.dataBucket.grantRead(lambda, 'processed/flights/*');
-    props.dataBucket.grantRead(lambda, 'processed/flight_numbers/*');
+    props.dataBucket.grantRead(lambda, 'processed/schedules/*');
     props.dataBucket.grantRead(lambda, 'raw/ourairports_data/airports.csv');
     props.dataBucket.grantRead(lambda, 'raw/ourairports_data/countries.csv');
     props.dataBucket.grantRead(lambda, 'raw/ourairports_data/regions.csv');

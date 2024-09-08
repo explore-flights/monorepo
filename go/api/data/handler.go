@@ -11,6 +11,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"io"
 	"slices"
 	"strings"
@@ -265,7 +266,7 @@ func (h *Handler) FlightSchedule(ctx context.Context, fnRaw string) (*common.Fli
 	fs, err := loadJson[*common.FlightSchedule](
 		ctx,
 		h,
-		"processed/flight_numbers/"+fmt.Sprintf("%s/%d%s.json", fn.Airline, fn.Number, fn.Suffix),
+		"processed/schedules/"+fmt.Sprintf("%s/%d%s.json", fn.Airline, fn.Number, fn.Suffix),
 	)
 
 	if err != nil {
@@ -279,7 +280,7 @@ func (h *Handler) FlightSchedule(ctx context.Context, fnRaw string) (*common.Fli
 	return fs, nil
 }
 
-func (h *Handler) FlightNumber(ctx context.Context, fnRaw, airport string, d common.LocalDate) (*common.Flight, error) {
+func (h *Handler) FlightNumber(ctx context.Context, fnRaw, airport string, d xtime.LocalDate) (*common.Flight, error) {
 	flights, err := loadJson[[]*common.Flight](
 		ctx,
 		h,
