@@ -10,6 +10,7 @@ import { Legal } from './legal';
 import { PrivacyPolicy } from './privacy-policy';
 import { MmQuickSearch } from './tools/mm-quick-search';
 import { Links } from './tools/links';
+import { FlightView } from './flight';
 
 // region router
 const router = createBrowserRouter([
@@ -30,6 +31,10 @@ const router = createBrowserRouter([
       {
         path: 'privacy-policy',
         element: <PrivacyPolicy />,
+      },
+      {
+        path: 'flight/:id',
+        element: <FlightView />,
       },
       {
         path: 'tools/mm-quick-search',

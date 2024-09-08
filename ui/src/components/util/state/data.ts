@@ -44,3 +44,16 @@ export function useFlight(flightNumber: string, airport: string, date: DateTime<
     staleTime: 1000 * 60 * 15,
   });
 }
+
+export function useSearch(query: string) {
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['search', query],
+    queryFn: async () => {
+      const { body } = expectSuccess(await apiClient.search(query));
+      return body;
+    },
+    retry: 3,
+    staleTime: 1000 * 60 * 15,
+  });
+}

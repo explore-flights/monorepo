@@ -1,11 +1,20 @@
-import { TopNavigation, TopNavigationProps } from '@cloudscape-design/components';
-import React, { useState } from 'react';
+import {
+  Autosuggest,
+  AutosuggestProps,
+  SelectProps,
+  TopNavigation,
+  TopNavigationProps
+} from '@cloudscape-design/components';
+import React, { useMemo, useState } from 'react';
 import { PreferencesModal } from '../preferences/preferences';
 import classes from './header.module.scss';
 import { useAuthInfo } from '../util/context/auth-info';
 import { catchNotify, useAppControls } from '../util/context/app-controls';
 import { useHttpClient } from '../util/context/http-client';
 import { expectSuccess } from '../../lib/api/api';
+import { useSearch } from '../util/state/data';
+import { useDebounce } from '../util/state/use-debounce';
+import { useNavigate } from 'react-router-dom';
 
 export default function FlightsHeader() {
   const { apiClient } = useHttpClient();
@@ -91,8 +100,57 @@ export default function FlightsHeader() {
             },
           }}
           utilities={utilities}
+          search={<TopNavigationSearch />}
         />
       </header>
     </>
   );
+}
+
+function TopNavigationSearch() {
+  const navigate = useNavigate();
+
+  const [query, setQuery] = useState('');
+  const results = useSearch(useDebounce(query, 250));
+
+  const options = useMemo<ReadonlyArray<AutosuggestProps.Option>>(() => {
+    const opts: Array<SelectProps.Option> = [];
+    if (results.data) {
+      for (const flightNumber of results.data) {
+        opts.push({
+          label: flightNumber,
+          value: flightNumber,
+        });
+      }
+    }
+
+    return opts;
+  }, [results.data]);
+
+  const statusType = useMemo(() => {
+    return ({
+      'success': 'finished',
+      'error': 'error',
+      'pending': 'loading',
+    } satisfies Record<string, 'finished' | 'error' | 'loading'>)[results.status];
+  }, [results.status]);
+
+  return (
+    <Autosuggest
+      value={query}
+      options={options}
+      filteringType={'manual'}
+      statusType={statusType}
+      virtualScroll={true}
+      onChange={(e) => setQuery(e.detail.value)}
+      onLoadItems={(e) => setQuery(e.detail.filteringText)}
+      onSelect={(e) => {
+        if (e.detail.selectedOption && e.detail.selectedOption.value) {
+          navigate(`/flight/${encodeURIComponent(e.detail.selectedOption.value)}`);
+        } else {
+          navigate(`/flight/${encodeURIComponent(e.detail.value.toUpperCase())}`);
+        }
+      }}
+    />
+  )
 }

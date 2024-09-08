@@ -55,6 +55,7 @@ func main() {
 	e.GET("/api/connections/png/:payload/c.png", pngConnEdp)
 	e.POST("/api/connections/share", web.NewConnectionsShareCreateEndpoint())
 	e.GET("/api/connections/share/:payload", web.NewConnectionsShareHTMLEndpoint())
+	e.GET("/api/search", web.NewSearchEndpoint(s3c, bucket))
 
 	e.HEAD("/auth/info", authHandler.AuthInfo)
 	e.POST("/auth/logout", authHandler.Logout)

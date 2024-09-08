@@ -17,6 +17,10 @@ type S3Putter interface {
 	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 }
 
+type S3Lister interface {
+	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+}
+
 func S3GetJson(ctx context.Context, s3c S3Getter, bucket, key string, v any) error {
 	return S3Get(ctx, s3c, bucket, key, readJson(v))
 }

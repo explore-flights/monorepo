@@ -105,6 +105,21 @@ export class ApiClient {
     ));
   }
 
+  search(query: string): Promise<ApiResponse<ReadonlyArray<string>>> {
+    const params = new URLSearchParams();
+    params.set('q', query);
+
+    return transform(this.httpClient.fetch(`/api/search?${params.toString()}`));
+  }
+
+  raw(url: string): Promise<ApiResponse<JsonType>> {
+    if (!url.startsWith('/')) {
+      throw new Error('invalid URL');
+    }
+
+    return transform(this.httpClient.fetch(url));
+  }
+
   logout(): Promise<ApiResponse<unknown>> {
     return transform(this.httpClient.fetch('/auth/logout', { method: 'POST' }));
   }
