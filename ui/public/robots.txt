@@ -1,8 +1,5 @@
 User-agent: *
-Allow: /$
-Allow: /privacy-policy
-Allow: /legal
-Allow: /tools
-Allow: /favicon.ico
-Allow: /favicon.svg
-Disallow: /
+Allow: /
+Disallow: /auth
+
+Sitemap: https://explore.flights/sitemap.xml

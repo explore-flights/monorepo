@@ -40,6 +40,11 @@ func ParseFlightNumber(v string) (FlightNumber, error) {
 	}, nil
 }
 
+func CanParseFlightNumber(v string) bool {
+	_, err := ParseFlightNumber(v)
+	return err == nil
+}
+
 func (f FlightNumber) String() string {
 	return fmt.Sprintf("%v%d%v", f.Airline, f.Number, f.Suffix)
 }

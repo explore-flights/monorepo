@@ -10,25 +10,27 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"io"
+	"io/fs"
 	"iter"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 type dirWalker struct {
 	err error
 }
 
-func (d *dirWalker) Files(dir string) iter.Seq[string] {
+func (d *dirWalker) Files(dir string) iter.Seq2[string, time.Time] {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		d.err = err
-		return func(yield func(string) bool) {}
+		return func(yield func(string, time.Time) bool) {}
 	}
 
-	return func(yield func(string) bool) {
+	return func(yield func(string, time.Time) bool) {
 		for _, entry := range entries {
 			if entry.Name() == ".DS_Store" {
 				continue
@@ -37,13 +39,20 @@ func (d *dirWalker) Files(dir string) iter.Seq[string] {
 			fpath := filepath.Join(dir, entry.Name())
 
 			if entry.IsDir() {
-				for f := range d.Files(fpath) {
-					if !yield(f) {
+				for f, mtime := range d.Files(fpath) {
+					if !yield(f, mtime) {
 						return
 					}
 				}
 			} else {
-				if !yield(fpath) {
+				var finfo fs.FileInfo
+				finfo, err = entry.Info()
+				if err != nil {
+					d.err = err
+					return
+				}
+
+				if !yield(fpath, finfo.ModTime()) {
 					return
 				}
 			}
@@ -107,15 +116,21 @@ func (s3c *S3Client) ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2
 	dir, prefix := filepath.Split(filepath.Join(s3c.basePath, *params.Bucket, filepath.FromSlash(s3Prefix)))
 
 	var w dirWalker
-	keys := make([]string, 0)
-	for fpath := range w.Files(dir) {
+	contents := make([]types.Object, 0)
+	for fpath, mtime := range w.Files(dir) {
 		key := filepath.ToSlash(strings.TrimPrefix(fpath, dir))
 		if suffix, ok := strings.CutPrefix(key, prefix); ok {
-			if strings.HasSuffix(s3Prefix, "/") {
-				keys = append(keys, filepath.ToSlash(filepath.Join(s3Prefix, suffix)))
-			} else {
-				keys = append(keys, s3Prefix+suffix)
+			obj := types.Object{
+				LastModified: aws.Time(mtime),
 			}
+
+			if strings.HasSuffix(s3Prefix, "/") {
+				obj.Key = aws.String(filepath.ToSlash(filepath.Join(s3Prefix, suffix)))
+			} else {
+				obj.Key = aws.String(s3Prefix + suffix)
+			}
+
+			contents = append(contents, obj)
 		}
 	}
 
@@ -123,7 +138,9 @@ func (s3c *S3Client) ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2
 		return nil, err
 	}
 
-	slices.Sort(keys)
+	slices.SortFunc(contents, func(a, b types.Object) int {
+		return strings.Compare(*a.Key, *b.Key)
+	})
 
 	startAfter := ""
 	if params.ContinuationToken != nil {
@@ -132,14 +149,14 @@ func (s3c *S3Client) ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2
 		startAfter = *params.StartAfter
 	}
 
-	result := make([]types.Object, 0, len(keys))
-	for _, key := range keys {
+	result := make([]types.Object, 0, len(contents))
+	for _, obj := range contents {
 		if len(result) >= maxKeys {
 			break
 		}
 
-		if strings.Compare(key, startAfter) > 0 {
-			result = append(result, types.Object{Key: aws.String(key)})
+		if strings.Compare(*obj.Key, startAfter) > 0 {
+			result = append(result, obj)
 		}
 	}
 

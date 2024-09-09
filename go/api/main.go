@@ -63,6 +63,7 @@ func main() {
 	e.GET("/auth/oauth2/login/:issuer", authHandler.Login)
 	e.GET("/auth/oauth2/code/:issuer", authHandler.Code)
 
+	e.GET("/data/sitemap.xml", web.NewSitemapHandler(s3c, bucket))
 	e.GET("/data/airports.json", web.NewAirportsEndpoint(dataHandler))
 	e.GET("/data/aircraft.json", web.NewAircraftEndpoint(dataHandler))
 	e.GET("/data/flight/:fn", fnEdp)

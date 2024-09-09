@@ -198,6 +198,7 @@ function buildCloudFrontDefaultRootObjectFunction(defaultRootObject: string): st
     '.js': true,
     '.css': true,
     '.ico': true,
+    '.xml': true,
   });
   const defaultRootObjectJSON = JSON.stringify(`/${defaultRootObject}`);
 
