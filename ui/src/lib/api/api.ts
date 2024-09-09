@@ -113,7 +113,14 @@ export class ApiClient {
     const params = new URLSearchParams();
     params.set('q', query);
 
-    return transform(this.httpClient.fetch(`/api/search?${params.toString()}`));
+    return transform(this.httpClient.fetch(
+      `/api/search?${params.toString()}`,
+      {
+        headers: {
+          'Accept': 'application/json',
+        },
+      },
+    ));
   }
 
   raw(url: string): Promise<ApiResponse<JsonType>> {

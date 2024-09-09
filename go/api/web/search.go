@@ -7,6 +7,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/labstack/echo/v4"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -14,7 +15,7 @@ func NewSearchEndpoint(s3c adapt.S3Lister, bucket string) echo.HandlerFunc {
 	const schedulesPrefix = "processed/schedules/"
 
 	return func(c echo.Context) error {
-		query := strings.ToUpper(c.QueryParam("q"))
+		query := strings.TrimSpace(strings.ToUpper(c.QueryParam("q")))
 		prefix := schedulesPrefix
 
 		if len(query) >= 2 {
@@ -51,6 +52,14 @@ func NewSearchEndpoint(s3c adapt.S3Lister, bucket string) echo.HandlerFunc {
 			}
 		}
 
-		return c.JSON(http.StatusOK, fns)
+		if c.Request().Header.Get(echo.HeaderAccept) == echo.MIMEApplicationJSON {
+			return c.JSON(http.StatusOK, fns)
+		} else {
+			if len(fns) < 1 {
+				return c.NoContent(http.StatusNotFound)
+			}
+
+			return c.Redirect(http.StatusFound, "/flight/"+url.PathEscape(fns[0].String()))
+		}
 	}
 }
