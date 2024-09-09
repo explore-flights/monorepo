@@ -25,6 +25,11 @@ const ROUTES = [{
       breadcrumb: 'Privacy Policy',
     },
     {
+      path: 'flight',
+      title: 'Flight',
+      breadcrumb: 'Flight',
+    },
+    {
       path: 'tools',
       children: [
         {

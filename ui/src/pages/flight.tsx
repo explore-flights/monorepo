@@ -1,21 +1,25 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  Alert, Box,
-  ColumnLayout,
-  ContentLayout,
-  ExpandableSection,
-  Header, Pagination, Popover,
-  Spinner,
+  Alert, Badge, Box, Calendar,
+  ColumnLayout, Container,
+  ContentLayout, DateInput,
+  ExpandableSection, FormField,
+  Header, KeyValuePairs, Pagination, Popover, PropertyFilter, PropertyFilterProps,
+  Spinner, StatusIndicator,
   Table
 } from '@cloudscape-design/components';
 import { CodeView } from '@cloudscape-design/code-view';
 import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
 import { useAircraft, useAirports, useFlightSchedule } from '../components/util/state/data';
 import { ErrorNotificationContent } from '../components/util/context/app-controls';
-import { Aircraft, Airport, FlightSchedule, FlightScheduleVariantData } from '../lib/api/api.model';
-import { DateTime, Duration, FixedOffsetZone } from 'luxon';
-import { useCollection } from '@cloudscape-design/collection-hooks';
+import { Aircraft, Airport, FlightSchedule } from '../lib/api/api.model';
+import { DateTime, Duration, FixedOffsetZone, WeekdayNumbers } from 'luxon';
+import {
+  PropertyFilterOperator,
+  PropertyFilterOperatorExtended,
+  useCollection
+} from '@cloudscape-design/collection-hooks';
 import { RouterLink } from '../components/common/router-link';
 
 export function FlightView() {
@@ -51,93 +55,182 @@ export function FlightView() {
   )
 }
 
-type TableItem = [DateTime<true>, FlightScheduleVariantData];
+interface Maybe<T> {
+  raw: string;
+  value?: T;
+}
+
+interface ScheduledFlight {
+  operatedAs: string;
+  departureAirport: Maybe<Airport>;
+  departureTime: DateTime<true>;
+  arrivalAirport: Maybe<Airport>;
+  arrivalTime: DateTime<true>;
+  serviceType: string;
+  aircraftOwner: string;
+  aircraft: Maybe<Aircraft>,
+  aircraftConfigurationVersion: string;
+  codeShares: ReadonlyArray<string>;
+}
+
+interface FlightScheduleSummary {
+  departureAirports: ReadonlyArray<Maybe<Airport>>;
+  arrivalAirports: ReadonlyArray<Maybe<Airport>>;
+  routes: ReadonlyArray<[Maybe<Airport>, Maybe<Airport>]>;
+  aircraft: ReadonlyArray<[Maybe<Aircraft>, number]>;
+  operatingDays: ReadonlyArray<WeekdayNumbers>;
+}
+
+interface ProcessedFlightSchedule {
+  summary: FlightScheduleSummary;
+  flights: ReadonlyArray<ScheduledFlight>;
+}
+
 function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSchedule }) {
   const airportLookup = useAirportLookup();
   const aircraftLookup = useAircraftLookup();
+
+  const [filterQuery, setFilterQuery] = useState<PropertyFilterProps.Query>({
+    operation: 'and',
+    tokens: [],
+  });
+
   const flightNumber = useMemo(() => `${flightSchedule.airline}${flightSchedule.flightNumber}${flightSchedule.suffix}`, [flightSchedule]);
-  const rawItems = useMemo(() => flattenFlightSchedule(flightSchedule), [flightSchedule]);
-  const { items, collectionProps, paginationProps, allPageItems } = useCollection(rawItems, {
-    sorting: {},
+  const { summary, flights, } = useMemo(() => processFlightSchedule(flightSchedule, airportLookup, aircraftLookup), [flightSchedule, airportLookup, aircraftLookup]);
+  const filteredFlights = useFilteredFlights(flights, filterQuery);
+  const { items, collectionProps, paginationProps } = useCollection(filteredFlights, {
+    sorting: {
+      defaultState: {
+        isDescending: false,
+        sortingColumn: {
+          sortingField: 'departureTime',
+        },
+      },
+    },
     pagination: { pageSize: 25 },
   });
 
   return (
     <ColumnLayout columns={1}>
+      <Container>
+        <KeyValuePairs
+          columns={3}
+          items={[
+            {
+              label: 'Airline',
+              value: flightSchedule.airline,
+            },
+            {
+              label: 'Number',
+              value: `${flightSchedule.flightNumber}`,
+            },
+            {
+              label: 'Suffix',
+              value: flightSchedule.suffix || <Popover content={'This schedule has no suffix'}><StatusIndicator type={'info'}>None</StatusIndicator></Popover>,
+            },
+            {
+              label: 'Departure Airports',
+              value: (
+                <ColumnLayout columns={1} variant={'text-grid'}>
+                  {...(summary.departureAirports.map((v) => <AirportCell {...v} />))}
+                </ColumnLayout>
+              ),
+            },
+            {
+              label: 'Arrival Airports',
+              value: (
+                <ColumnLayout columns={1} variant={'text-grid'}>
+                  {...(summary.arrivalAirports.map((v) => <AirportCell {...v} />))}
+                </ColumnLayout>
+              ),
+            },
+            {
+              label: 'Routes',
+              value: (
+                <ColumnLayout columns={1} variant={'text-grid'}>
+                  {...(summary.routes.map((v) => <RouteCell route={v} />))}
+                </ColumnLayout>
+              ),
+            },
+            {
+              label: 'Aircraft',
+              value: (
+                <ColumnLayout columns={1} variant={'text-grid'}>
+                  {...(summary.aircraft.map(([v, count]) => <AircraftCell {...v} count={count} />))}
+                </ColumnLayout>
+              ),
+            },
+            {
+              label: 'Operating Days',
+              value: <OperatingDaysCell operatingDays={summary.operatingDays} />,
+            },
+          ]}
+        />
+      </Container>
       <Table
         items={items}
         {...collectionProps}
-        header={<Header counter={`(${allPageItems.length})`}>Flights</Header>}
+        header={<Header counter={`(${filteredFlights.length}/${flights.length})`}>Flights</Header>}
         pagination={<Pagination {...paginationProps}  />}
-        filter={<Box variant={'small'}>Filter coming soon</Box>}
-        variant={'container'}
+        filter={<TableFilter
+          query={filterQuery}
+          setQuery={setFilterQuery}
+          aircraft={summary.aircraft.map((v) => v[0])}
+        />}
+        variant={'stacked'}
         columnDefinitions={[
           {
             id: 'departure_time',
             header: 'Departure Time',
-            cell: ([departureTime]) => <TimeCell value={departureTime} />,
-            sortingComparator: useCallback((a: TableItem, b: TableItem) => a[0].toMillis() - b[0].toMillis(), []),
+            cell: (v) => <TimeCell value={v.departureTime} />,
+            sortingField: 'departureTime',
           },
           {
             id: 'operated_as',
             header: 'Operated As',
-            cell: ([,data]) => {
-              if (data.operatedAs !== flightNumber) {
-                return <FlightLink flightNumber={data.operatedAs} />;
+            cell: (v) => {
+              if (v.operatedAs !== flightNumber) {
+                return <FlightLink flightNumber={v.operatedAs} />;
               }
 
-              return data.operatedAs;
+              return v.operatedAs;
             },
           },
           {
             id: 'departure_airport',
             header: 'Departure Airport',
-            cell: ([,data]) => <AirportCell code={data.departureAirport} lookup={airportLookup} />,
-            sortingComparator: useCallback((a: TableItem, b: TableItem) => a[1].departureAirport.localeCompare(b[1].departureAirport), []),
+            cell: (v) => <AirportCell {...v.departureAirport} />,
+            sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.departureAirport.raw.localeCompare(b.departureAirport.raw), []),
           },
           {
             id: 'arrival_airport',
             header: 'Arrival Airport',
-            cell: ([,data]) => <AirportCell code={data.arrivalAirport} lookup={airportLookup} />,
-            sortingComparator: useCallback((a: TableItem, b: TableItem) => a[1].arrivalAirport.localeCompare(b[1].arrivalAirport), []),
+            cell: (v) => <AirportCell {...v.arrivalAirport} />,
+            sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.arrivalAirport.raw.localeCompare(b.arrivalAirport.raw), []),
           },
           {
             id: 'arrival_time',
             header: 'Arrival Time',
-            cell: ([departureTime, data]) => {
-              const arrivalTime = departureTime.plus(Duration.fromMillis(data.durationSeconds * 1000)).setZone(FixedOffsetZone.instance(data.arrivalUTCOffset / 60));
-              if (!arrivalTime.isValid) {
-                return 'UNKNOWN';
-              }
-
-              return <TimeCell value={arrivalTime} />;
-            },
+            cell: (v) => <TimeCell value={v.arrivalTime} />,
           },
           {
             id: 'aircraft',
             header: 'Aircraft',
-            cell: ([,data]) => {
-              const aircraft = aircraftLookup.get(data.aircraftType);
-              if (aircraft) {
-                return <Popover content={<CodeView content={JSON.stringify(aircraft, null, 2)} highlight={jsonHighlight} />}>{aircraft.name}</Popover>;
-              }
-
-              return data.aircraftType;
-            },
-            sortingComparator: useCallback((a: TableItem, b: TableItem) => a[1].aircraftType.localeCompare(b[1].aircraftType), []),
+            cell: (v) => <AircraftCell {...v.aircraft} />,
+            sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.aircraft.raw.localeCompare(b.aircraft.raw), []),
           },
           {
             id: 'code_shares',
             header: 'Codeshares',
-            cell: ([,data]) => (
-              <ColumnLayout columns={data.codeShares.length} variant={'text-grid'}>
-                {...data.codeShares.map((v) => <FlightLink flightNumber={v} />)}
+            cell: (v) => (
+              <ColumnLayout columns={v.codeShares.length} variant={'text-grid'}>
+                {...v.codeShares.map((v) => <FlightLink flightNumber={v} />)}
               </ColumnLayout>
             ),
           }
         ]}
       />
-      <ExpandableSection headerText={'Raw Data'}>
+      <ExpandableSection headerText={'Raw Data'} variant={'stacked'}>
         <CodeView content={JSON.stringify(flightSchedule, null, 2)} highlight={jsonHighlight} lineNumbers={true} />
       </ExpandableSection>
     </ColumnLayout>
@@ -148,54 +241,205 @@ function FlightLink({ flightNumber }: { flightNumber: string }) {
   return <RouterLink to={`/flight/${encodeURIComponent(flightNumber)}`}>{flightNumber}</RouterLink>;
 }
 
-function AirportCell({ code, lookup }: { code: string, lookup: Map<string, Airport> }) {
-  const airport = useMemo(() => lookup.get(code), [code, lookup]);
-  if (airport) {
-    return <Popover content={airport.name}>{code}</Popover>;
+function AirportCell({ raw, value }: { raw: string, value?: Airport }) {
+  if (value) {
+    return <Popover content={value.name}>{raw}</Popover>;
   }
 
-  return code;
+  return raw;
+}
+
+function AircraftCell({ raw, value, count }: { raw: string, value?: Aircraft, count?: number }) {
+  const content = value ? <Popover content={<CodeView content={JSON.stringify(value, null, 2)} highlight={jsonHighlight} />}>{value.name}</Popover> : raw;
+  if (!count) {
+    return content;
+  }
+
+  return (
+    <>
+      {content}
+      &nbsp;
+      <Badge color={'blue'}>{count}</Badge>
+    </>
+  );
 }
 
 function TimeCell({ value }: { value: DateTime<true> }) {
   const date = value.toFormat('yyyy-MM-dd');
-  const time = value.toFormat('HH:mm:ss (ZZ)');
+  const time = value.toFormat('HH:mm (ZZ)');
 
   return (
-    <ColumnLayout columns={2} variant={'text-grid'}>
-      {date}
-      {time}
-    </ColumnLayout>
+    <>
+      <Box>{date}</Box>
+      <Box>{time}</Box>
+    </>
   )
 }
 
-function flattenFlightSchedule(flightSchedule: FlightSchedule): ReadonlyArray<TableItem> {
-  const result: Array<[DateTime<true>, FlightScheduleVariantData]> = [];
+function RouteCell({ route }: { route: [Maybe<Airport>, Maybe<Airport>] }) {
+  const [departure, arrival] = route;
+  return (
+    <>
+      <AirportCell {...departure} />
+      &nbsp;—&nbsp;
+      <AirportCell {...arrival} />
+    </>
+  );
+}
+
+function OperatingDaysCell({ operatingDays }: { operatingDays: ReadonlyArray<WeekdayNumbers> }) {
+  return (
+    <>
+      <Badge color={operatingDays.includes(1) ? 'green' : 'red'}>MON</Badge>
+      <Badge color={operatingDays.includes(2) ? 'green' : 'red'}>TUE</Badge>
+      <Badge color={operatingDays.includes(3) ? 'green' : 'red'}>WED</Badge>
+      <Badge color={operatingDays.includes(4) ? 'green' : 'red'}>THU</Badge>
+      <Badge color={operatingDays.includes(5) ? 'green' : 'red'}>FRI</Badge>
+      <Badge color={operatingDays.includes(6) ? 'green' : 'red'}>SAT</Badge>
+      <Badge color={operatingDays.includes(7) ? 'green' : 'red'}>SUN</Badge>
+    </>
+  );
+}
+
+interface TableFilterProps {
+  query: PropertyFilterProps.Query;
+  setQuery: (query: PropertyFilterProps.Query) => void;
+  aircraft: ReadonlyArray<Maybe<Aircraft>>;
+}
+
+function TableFilter({ query, setQuery, aircraft }: TableFilterProps) {
+  return (
+    <PropertyFilter
+      query={query}
+      onChange={(e) => setQuery(e.detail)}
+      filteringOptions={[
+        ...(aircraft.map((v) => ({ propertyKey: 'aircraft', value: v.raw, label: v.value?.name ?? v.raw }))),
+      ]}
+      filteringProperties={[
+        {
+          key: 'departure_time',
+          operators: ['=', '>=', '>', '<=', '<'].map((op) => buildDateOperator(op)),
+          propertyLabel: 'Departure Time',
+          groupValuesLabel: 'Departure Time values',
+        },
+        {
+          key: 'aircraft',
+          operators: ['='],
+          propertyLabel: 'Aircraft',
+          groupValuesLabel: 'Aircraft values',
+        },
+      ]}
+    />
+  );
+}
+
+function buildDateOperator(op: PropertyFilterOperator): PropertyFilterOperatorExtended<string> {
+  return {
+    operator: op,
+    form: ({ value, onChange }) => (
+      <div className={'date-form'}>
+        <FormField>
+          <DateInput
+            value={value ?? ''}
+            onChange={(event) => onChange(event.detail.value)}
+            placeholder="YYYY-MM-DD"
+          />
+        </FormField>
+        <Calendar value={value ?? ''} onChange={(event) => onChange(event.detail.value)} />
+      </div>
+    ),
+    format: (v) => v,
+  } satisfies PropertyFilterOperatorExtended<string>;
+}
+
+function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Map<string, Airport>, aircraftLookup: Map<string, Aircraft>): ProcessedFlightSchedule {
+  const departureAirports: Array<string> = [];
+  const arrivalAirports: Array<string> = [];
+  const routes: Array<[string, string]> = [];
+  const aircraft: Array<[string, number]> = [];
+  const operatingDays: Array<WeekdayNumbers> = [];
+  const flights: Array<ScheduledFlight> = [];
+
   for (const variant of flightSchedule.variants) {
-    let departureUTCOffsetStr = Duration.fromMillis(Math.abs(variant.data.departureUTCOffset * 1000)).toFormat('hh:mm');
-    if (variant.data.departureUTCOffset >= 0) {
-      departureUTCOffsetStr = '+' + departureUTCOffsetStr;
-    } else {
-      departureUTCOffsetStr = '-' + departureUTCOffsetStr;
+    const departureZone = FixedOffsetZone.instance(variant.data.departureUTCOffset / 60);
+    const arrivalZone = FixedOffsetZone.instance(variant.data.arrivalUTCOffset / 60);
+
+    if (!departureAirports.includes(variant.data.departureAirport)) {
+      departureAirports.push(variant.data.departureAirport);
+    }
+
+    if (!arrivalAirports.includes(variant.data.arrivalAirport)) {
+      arrivalAirports.push(variant.data.arrivalAirport);
+    }
+
+    if (routes.findIndex((v) => v[0] === variant.data.departureAirport && v[1] === variant.data.arrivalAirport) === -1) {
+      routes.push([variant.data.departureAirport, variant.data.arrivalAirport]);
+    }
+
+    let aircraftIndex = aircraft.findIndex((v) => v[0] === variant.data.aircraftType);
+    if (aircraftIndex === -1) {
+      aircraftIndex = aircraft.push([variant.data.aircraftType, 0]) - 1;
     }
 
     for (const range of variant.ranges) {
       const [startISODate, endISODate] = range;
-      const start = DateTime.fromISO(`${startISODate}T${variant.data.departureTime}.000${departureUTCOffsetStr}`, { setZone: true });
-      const end = DateTime.fromISO(`${endISODate}T${variant.data.departureTime}.000${departureUTCOffsetStr}`, { setZone: true });
+      const start = DateTime.fromISO(`${startISODate}T${variant.data.departureTime}.000`).setZone(departureZone);
+      const end = DateTime.fromISO(`${endISODate}T${variant.data.departureTime}.000`).setZone(departureZone);
 
       if (start.isValid && end.isValid) {
         let curr = start;
         while (curr <= end) {
-          result.push([curr, variant.data]);
+          aircraft[aircraftIndex][1] += 1;
+
+          if (!operatingDays.includes(curr.weekday)) {
+            operatingDays.push(curr.weekday);
+          }
+
+          const arrivalTime = curr
+            .plus(Duration.fromMillis(variant.data.durationSeconds * 1000))
+            .setZone(arrivalZone);
+
+          if (arrivalTime.isValid) {
+            flights.push({
+              ...variant.data,
+              departureTime: curr,
+              departureAirport: {
+                raw: variant.data.departureAirport,
+                value: airportLookup.get(variant.data.departureAirport)
+              },
+              arrivalTime: arrivalTime,
+              arrivalAirport: {
+                raw: variant.data.arrivalAirport,
+                value: airportLookup.get(variant.data.arrivalAirport)
+              },
+              aircraft: {
+                raw: variant.data.aircraftType,
+                value: aircraftLookup.get(variant.data.aircraftType),
+              }
+            });
+          }
+
           curr = curr.plus(Duration.fromObject({ days: 1 }));
         }
       }
     }
   }
 
-  result.sort((a, b) => a[0].toMillis() - b[0].toMillis());
-  return result;
+  flights.sort((a, b) => a.departureTime.toMillis() - b.departureTime.toMillis());
+
+  return {
+    summary: {
+      departureAirports: departureAirports.map((v) => ({ raw: v, value: airportLookup.get(v) })),
+      arrivalAirports: arrivalAirports.map((v) => ({ raw: v, value: airportLookup.get(v) })),
+      routes: routes.map(([a, b]) => [
+        { raw: a, value: airportLookup.get(a) },
+        { raw: b, value: airportLookup.get(b) },
+      ]),
+      aircraft: aircraft.map(([id, count]) => [{ raw: id, value: aircraftLookup.get(id) }, count]),
+      operatingDays: operatingDays,
+    },
+    flights: flights,
+  };
 }
 
 function useAirportLookup() {
@@ -226,4 +470,65 @@ function useAircraftLookup() {
 
     return map;
   }, [aircraft]);
+}
+
+function useFilteredFlights(flights: ReadonlyArray<ScheduledFlight>, query: PropertyFilterProps.Query) {
+  return useMemo(() => {
+    if (query.tokens.length < 1) {
+      return flights;
+    }
+
+    return flights.filter((v) => evaluateFilter(v, query));
+  }, [flights, query]);
+}
+
+function evaluateFilter(flight: ScheduledFlight, query: PropertyFilterProps.Query) {
+  if (query.tokens.length < 1) {
+    return true;
+  }
+
+  for (const token of query.tokens) {
+    const result = evaluateToken(flight, token);
+    if (query.operation === 'and' && !result) {
+      return false;
+    } else if (query.operation === 'or' && result) {
+      return true;
+    }
+  }
+
+  return query.operation === 'and';
+}
+
+function evaluateToken(flight: ScheduledFlight, token: PropertyFilterProps.Token) {
+  const filterValue = token.value as string;
+  let cmpResult = 0;
+
+  switch (token.propertyKey) {
+    case 'departure_time':
+      cmpResult = flight.departureTime.toFormat('yyyy-MM-dd').localeCompare(filterValue);
+      break;
+
+    case 'aircraft':
+      cmpResult = flight.aircraft.raw.localeCompare(filterValue);
+      break;
+  }
+
+  switch (token.operator) {
+    case '<':
+      return cmpResult < 0;
+
+    case '<=':
+      return cmpResult <= 0;
+
+    case '=':
+      return cmpResult === 0;
+
+    case '>':
+      return cmpResult > 0;
+
+    case '>=':
+      return cmpResult >= 0;
+  }
+
+  return false;
 }
