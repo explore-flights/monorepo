@@ -99,7 +99,7 @@ func NewSitemapHandler(s3c adapt.S3Lister, bucket string) echo.HandlerFunc {
 
 		for obj := range it.All(c.Request().Context()) {
 			var ok bool
-			flightNumber := strings.Trim(*obj.Key, "processed/schedules/")
+			flightNumber := strings.TrimPrefix(*obj.Key, "processed/schedules/")
 
 			if flightNumber, ok = strings.CutSuffix(flightNumber, ".json"); ok {
 				flightNumber = strings.Replace(flightNumber, "/", "", 1)
