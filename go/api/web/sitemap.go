@@ -66,7 +66,7 @@ func NewSitemapHandler(s3c adapt.S3Lister, bucket string) echo.HandlerFunc {
 
 		res := c.Response()
 		res.Header().Set(echo.HeaderContentType, echo.MIMEApplicationXMLCharsetUTF8)
-		res.Header().Set("Date", now.UTC().Format(http.TimeFormat))
+		res.Header().Set("Date", now.Format(http.TimeFormat))
 		res.Header().Set("Expires", expiresAt.Format(http.TimeFormat))
 		res.Header().Set(echo.HeaderCacheControl, cacheControlHeaderValue)
 
