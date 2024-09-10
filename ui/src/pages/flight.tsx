@@ -101,7 +101,13 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
 
   const [filterQuery, setFilterQuery] = useState<PropertyFilterProps.Query>({
     operation: 'and',
-    tokens: [],
+    tokens: [
+      {
+        propertyKey: 'departure_time',
+        value: DateTime.now().toFormat('yyyy-MM-dd'),
+        operator: '>=',
+      },
+    ],
   });
 
   const flightNumber = useMemo(() => `${flightSchedule.airline}${flightSchedule.flightNumber}${flightSchedule.suffix}`, [flightSchedule]);
@@ -184,7 +190,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
         filter={<TableFilter
           query={filterQuery}
           setQuery={setFilterQuery}
-          aircraft={summary.aircraft.map((v) => v[0])}
+          summary={summary}
         />}
         variant={'stacked'}
         columnDefinitions={[
@@ -297,15 +303,20 @@ function RouteCell({ route }: { route: [Maybe<Airport>, Maybe<Airport>] }) {
 }
 
 function OperatingDaysCell({ operatingDays }: { operatingDays: ReadonlyArray<WeekdayNumbers> }) {
+  const elements = useMemo(() => {
+    const result: Array<React.ReactNode> = [];
+    const weekdayNumber: ReadonlyArray<WeekdayNumbers> = [1, 2, 3, 4, 5, 6, 7];
+
+    for (const n of weekdayNumber) {
+      result.push(<Badge color={operatingDays.includes(n) ? 'green' : 'blue'}>{weekdayNumberToName(n)}</Badge>)
+    }
+
+    return result;
+  }, [operatingDays]);
+
   return (
     <>
-      <Badge color={operatingDays.includes(1) ? 'green' : 'red'}>MON</Badge>
-      <Badge color={operatingDays.includes(2) ? 'green' : 'red'}>TUE</Badge>
-      <Badge color={operatingDays.includes(3) ? 'green' : 'red'}>WED</Badge>
-      <Badge color={operatingDays.includes(4) ? 'green' : 'red'}>THU</Badge>
-      <Badge color={operatingDays.includes(5) ? 'green' : 'red'}>FRI</Badge>
-      <Badge color={operatingDays.includes(6) ? 'green' : 'red'}>SAT</Badge>
-      <Badge color={operatingDays.includes(7) ? 'green' : 'red'}>SUN</Badge>
+      {...elements}
     </>
   );
 }
@@ -313,16 +324,19 @@ function OperatingDaysCell({ operatingDays }: { operatingDays: ReadonlyArray<Wee
 interface TableFilterProps {
   query: PropertyFilterProps.Query;
   setQuery: (query: PropertyFilterProps.Query) => void;
-  aircraft: ReadonlyArray<Maybe<Aircraft>>;
+  summary: FlightScheduleSummary;
 }
 
-function TableFilter({ query, setQuery, aircraft }: TableFilterProps) {
+function TableFilter({ query, setQuery, summary }: TableFilterProps) {
   return (
     <PropertyFilter
       query={query}
       onChange={(e) => setQuery(e.detail)}
       filteringOptions={[
-        ...(aircraft.map((v) => ({ propertyKey: 'aircraft', value: v.raw, label: v.value?.name ?? v.raw }))),
+        ...(summary.aircraft.map(([v]) => ({ propertyKey: 'aircraft', value: v.raw, label: v.value?.name ?? v.raw }))),
+        ...(summary.departureAirports.map((v) => ({ propertyKey: 'departure_airport', value: v.raw, label: v.value?.name ?? v.raw }))),
+        ...(summary.arrivalAirports.map((v) => ({ propertyKey: 'arrival_airport', value: v.raw, label: v.value?.name ?? v.raw }))),
+        ...(summary.operatingDays.map((v) => ({ propertyKey: 'operating_day', value: v.toString(10), label: weekdayNumberToName(v) }))),
       ]}
       filteringProperties={[
         {
@@ -333,13 +347,43 @@ function TableFilter({ query, setQuery, aircraft }: TableFilterProps) {
         },
         {
           key: 'aircraft',
-          operators: ['='],
+          operators: ['=', '!='],
           propertyLabel: 'Aircraft',
           groupValuesLabel: 'Aircraft values',
+        },
+        {
+          key: 'departure_airport',
+          operators: ['=', '!='],
+          propertyLabel: 'Departure Airport',
+          groupValuesLabel: 'Departure Airport values',
+        },
+        {
+          key: 'arrival_airport',
+          operators: ['=', '!='],
+          propertyLabel: 'Arrival Airport',
+          groupValuesLabel: 'Arrival Airport values',
+        },
+        {
+          key: 'operating_day',
+          operators: ['>=', '>', '=', '<', '<=', '!='],
+          propertyLabel: 'Operating Day',
+          groupValuesLabel: 'Operating Day values',
         },
       ]}
     />
   );
+}
+
+function weekdayNumberToName(n: WeekdayNumbers): string {
+  return ({
+    1: 'MON',
+    2: 'TUE',
+    3: 'WED',
+    4: 'THU',
+    5: 'FRI',
+    6: 'SAT',
+    7: 'SUN',
+  })[n];
 }
 
 function buildDateOperator(op: PropertyFilterOperator): PropertyFilterOperatorExtended<string> {
@@ -520,6 +564,18 @@ function evaluateToken(flight: ScheduledFlight, token: PropertyFilterProps.Token
     case 'aircraft':
       cmpResult = flight.aircraft.raw.localeCompare(filterValue);
       break;
+
+    case 'departure_airport':
+      cmpResult = flight.departureAirport.raw.localeCompare(filterValue);
+      break;
+
+    case 'arrival_airport':
+      cmpResult = flight.arrivalAirport.raw.localeCompare(filterValue);
+      break;
+
+    case 'operating_day':
+      cmpResult = flight.departureTime.weekday.toString(10).localeCompare(filterValue);
+      break;
   }
 
   switch (token.operator) {
@@ -537,6 +593,9 @@ function evaluateToken(flight: ScheduledFlight, token: PropertyFilterProps.Token
 
     case '>=':
       return cmpResult >= 0;
+
+    case '!=':
+      return cmpResult !== 0;
   }
 
   return false;
