@@ -1,6 +1,6 @@
 import { useHttpClient } from '../context/http-client';
 import { useQuery } from '@tanstack/react-query';
-import { expectSuccess } from '../../../lib/api/api';
+import { ApiError, expectSuccess } from '../../../lib/api/api';
 import { DateTime } from 'luxon';
 
 export function useAirports() {
@@ -53,7 +53,15 @@ export function useFlightSchedule(flightNumber: string) {
       const { body } = expectSuccess(await apiClient.getFlightSchedule(flightNumber));
       return body;
     },
-    retry: 3,
+    retry: (count, e) => {
+      if (count > 3) {
+        return false;
+      } else if (e instanceof ApiError && (e.response.status === 400 || e.response.status === 404)) {
+        return false;
+      }
+
+      return true;
+    },
     staleTime: 1000 * 60 * 15,
   });
 }

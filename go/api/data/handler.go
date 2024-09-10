@@ -257,12 +257,7 @@ func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
 	return result, err
 }
 
-func (h *Handler) FlightSchedule(ctx context.Context, fnRaw string) (*common.FlightSchedule, error) {
-	fn, err := common.ParseFlightNumber(fnRaw)
-	if err != nil {
-		return nil, err
-	}
-
+func (h *Handler) FlightSchedule(ctx context.Context, fn common.FlightNumber) (*common.FlightSchedule, error) {
 	fs, err := loadJson[*common.FlightSchedule](
 		ctx,
 		h,
@@ -280,7 +275,7 @@ func (h *Handler) FlightSchedule(ctx context.Context, fnRaw string) (*common.Fli
 	return fs, nil
 }
 
-func (h *Handler) FlightNumber(ctx context.Context, fnRaw, airport string, d xtime.LocalDate) (*common.Flight, error) {
+func (h *Handler) FlightNumber(ctx context.Context, fn common.FlightNumber, airport string, d xtime.LocalDate) (*common.Flight, error) {
 	flights, err := loadJson[[]*common.Flight](
 		ctx,
 		h,
@@ -293,11 +288,6 @@ func (h *Handler) FlightNumber(ctx context.Context, fnRaw, airport string, d xti
 		} else {
 			return nil, err
 		}
-	}
-
-	fn, err := common.ParseFlightNumber(fnRaw)
-	if err != nil {
-		return nil, err
 	}
 
 	for _, f := range flights {

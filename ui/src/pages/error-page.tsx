@@ -69,18 +69,16 @@ export function ErrorLayout({ backendError }: { backendError?: boolean }) {
   }
 
   return (
-    <RootLayout headerHide={false} breadcrumbsHide={false}>
-      <ContentLayout header={<Header variant={'h1'}>Oops!</Header>}>
-        <Container>
-          <SpaceBetween direction={'vertical'} size={'s'}>
-            <Box variant={'h2'}>{error.error ?? 'Sorry, an unexpected error has occurred.'}</Box>
-            {error.message ? <Box variant={'span'}>{error.message}</Box> : undefined}
-            <ExpandableSection headerText={'Details'} variant={'footer'}>
-              <CodeView content={JSON.stringify(error, null, 2)} highlight={jsonHighlight} />
-            </ExpandableSection>
-          </SpaceBetween>
-        </Container>
-      </ContentLayout>
-    </RootLayout>
+    <ContentLayout header={<Header variant={'h1'}>Oops!</Header>}>
+      <Container>
+        <SpaceBetween direction={'vertical'} size={'s'}>
+          <Box variant={'h2'}>{error.error ?? 'Sorry, an unexpected error has occurred.'}</Box>
+          {error.message ? <Box variant={'span'}>{error.message}</Box> : undefined}
+          <ExpandableSection headerText={'Details'} variant={'footer'}>
+            <CodeView content={JSON.stringify(error, null, 2)} highlight={jsonHighlight} />
+          </ExpandableSection>
+        </SpaceBetween>
+      </Container>
+    </ContentLayout>
   );
 }

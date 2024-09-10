@@ -11,6 +11,7 @@ import { PrivacyPolicy } from './privacy-policy';
 import { MmQuickSearch } from './tools/mm-quick-search';
 import { Links } from './tools/links';
 import { FlightView } from './flight';
+import { FlightSelect } from './flight-select';
 
 // region router
 const router = createBrowserRouter([
@@ -31,6 +32,10 @@ const router = createBrowserRouter([
       {
         path: 'privacy-policy',
         element: <PrivacyPolicy />,
+      },
+      {
+        path: 'flight',
+        element: <FlightSelect />,
       },
       {
         path: 'flight/:id',

@@ -26,8 +26,14 @@ const ROUTES = [{
     },
     {
       path: 'flight',
-      title: 'Flight',
       breadcrumb: 'Flight',
+      children: [
+        {
+          path: /^.*$/,
+          title: (part) => part,
+          breadcrumb: (part) => part,
+        },
+      ],
     },
     {
       path: 'tools',
@@ -43,6 +49,11 @@ const ROUTES = [{
           breadcrumb: 'Links',
         },
       ],
+    },
+    {
+      path: 'error',
+      title: 'Error',
+      breadcrumb: 'Error',
     },
     // endregion
   ],

@@ -30,9 +30,14 @@ func NewAircraftEndpoint(dh *data.Handler) echo.HandlerFunc {
 
 func NewFlightNumberEndpoint(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		fn := c.Param("fn")
+		fnRaw := c.Param("fn")
 		airport := c.Param("airport")
 		dateRaw := c.Param("date")
+
+		fn, err := common.ParseFlightNumber(fnRaw)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, err)
+		}
 
 		if airport != "" && dateRaw != "" {
 			d, err := xtime.ParseLocalDate(dateRaw)

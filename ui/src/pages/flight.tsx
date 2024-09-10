@@ -21,6 +21,7 @@ import {
   useCollection
 } from '@cloudscape-design/collection-hooks';
 import { RouterLink } from '../components/common/router-link';
+import { ApiError } from '../lib/api/api';
 
 export function FlightView() {
   const { id } = useParams();
@@ -41,11 +42,19 @@ export function FlightView() {
       error = new Error(flightScheduleResult.status);
     }
 
-    content = (
-      <Alert type={'error'}>
-        <ErrorNotificationContent error={error} />;
-      </Alert>
-    );
+    if (error instanceof ApiError && error.response.status >= 400 && error.response.status < 500) {
+      const query = new URLSearchParams();
+      query.set('q', id);
+
+      window.location.href = `/api/search?${query.toString()}`;
+      return <></>;
+    } else {
+      content = (
+        <Alert type={'error'}>
+          <ErrorNotificationContent error={error} />
+        </Alert>
+      );
+    }
   }
 
   return (

@@ -149,7 +149,7 @@ function TopNavigationSearch() {
         if (e.detail.selectedOption && e.detail.selectedOption.value) {
           navigate(`/flight/${encodeURIComponent(e.detail.selectedOption.value)}`);
         } else {
-          navigate(`/flight/${encodeURIComponent(e.detail.value.toUpperCase())}`);
+          navigate(`/flight/${encodeURIComponent(e.detail.value.toUpperCase().trim())}`);
         }
       }}
       onFocus={() => setSearchEnabled(true)}
