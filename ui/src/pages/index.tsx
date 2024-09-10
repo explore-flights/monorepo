@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { applyMode, Mode } from '@cloudscape-design/global-styles';
 import { createBrowserRouter, Outlet, RouterProvider } from 'react-router-dom';
 import { Home } from './home';
-import { ErrorPage } from './error-page';
+import { ErrorLayout, ErrorPage } from './error-page';
 import { BaseProviders, RootLayout } from '../components/root';
 import { Legal } from './legal';
 import { PrivacyPolicy } from './privacy-policy';
@@ -43,6 +43,10 @@ const router = createBrowserRouter([
       {
         path: 'tools/links',
         element: <Links />,
+      },
+      {
+        path: 'error',
+        element: <ErrorLayout backendError={true} />,
       },
     ],
   },
