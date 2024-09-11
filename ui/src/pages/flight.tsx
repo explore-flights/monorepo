@@ -308,7 +308,7 @@ function OperatingDaysCell({ operatingDays }: { operatingDays: ReadonlyArray<Wee
     const weekdayNumber: ReadonlyArray<WeekdayNumbers> = [1, 2, 3, 4, 5, 6, 7];
 
     for (const n of weekdayNumber) {
-      result.push(<Badge color={operatingDays.includes(n) ? 'green' : 'blue'}>{weekdayNumberToName(n)}</Badge>)
+      result.push(<Badge color={operatingDays.includes(n) ? 'green' : 'red'}>{weekdayNumberToName(n)}</Badge>)
     }
 
     return result;
