@@ -436,8 +436,8 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
 
     for (const range of variant.ranges) {
       const [startISODate, endISODate] = range;
-      const start = DateTime.fromISO(`${startISODate}T${variant.data.departureTime}.000`).setZone(departureZone);
-      const end = DateTime.fromISO(`${endISODate}T${variant.data.departureTime}.000`).setZone(departureZone);
+      const start = DateTime.fromISO(`${startISODate}T${variant.data.departureTime}.000`).setZone(departureZone, { keepLocalTime: true });
+      const end = DateTime.fromISO(`${endISODate}T${variant.data.departureTime}.000`).setZone(departureZone, { keepLocalTime: true });
 
       if (start.isValid && end.isValid) {
         let curr = start;
