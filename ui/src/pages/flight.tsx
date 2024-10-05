@@ -5,7 +5,7 @@ import {
   ColumnLayout, Container,
   ContentLayout, DateInput,
   ExpandableSection, FormField,
-  Header, KeyValuePairs, Pagination, Popover, PropertyFilter, PropertyFilterProps,
+  Header, KeyValuePairs, Link, Pagination, Popover, PropertyFilter, PropertyFilterProps,
   Spinner, StatusIndicator,
   Table
 } from '@cloudscape-design/components';
@@ -178,6 +178,16 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
             {
               label: 'Operating Days',
               value: <OperatingDaysCell operatingDays={summary.operatingDays} />,
+            },
+            {
+              label: 'Links',
+              value: (
+                <ColumnLayout columns={1} variant={'text-grid'}>
+                  <Link href={`https://www.flightradar24.com/data/flights/${flightNumber.toLowerCase()}`} external={true}>flightradar24.com</Link>
+                  <Link href={`https://www.flightera.net/flight/${flightNumber}`} external={true}>flightera.net</Link>
+                  <Link href={`https://www.flightstats.com/v2/flight-tracker/${flightSchedule.airline}/${flightSchedule.flightNumber}${flightSchedule.suffix}`} external={true}>flightstats.com</Link>
+                </ColumnLayout>
+              ),
             },
           ]}
         />
