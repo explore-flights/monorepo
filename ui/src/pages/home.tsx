@@ -95,7 +95,7 @@ export function Home() {
               onShare={onShare}
             />
           </Container>
-          <ConnectionsTabs connections={connections} aircraft={aircraftQuery.data} />
+          <ConnectionsTabs connections={connections} airports={airportsQuery.data} aircraft={aircraftQuery.data} />
         </ColumnLayout>
       </ContentLayout>
     </>

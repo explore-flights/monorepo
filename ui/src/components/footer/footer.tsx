@@ -7,7 +7,7 @@ import classes from './footer.module.scss';
 import { RouterLink } from '../common/router-link';
 
 export interface FlightsFooterProps {
-  onCookiePreferencesClick: (e: CustomEvent<LinkProps.FollowDetail>) => void;
+  onPrivacyPreferencesClick: (e: CustomEvent<LinkProps.FollowDetail>) => void;
 }
 
 export default function FlightsFooter(props: FlightsFooterProps) {
@@ -18,7 +18,7 @@ export default function FlightsFooter(props: FlightsFooterProps) {
       <SpaceBetween size={isMobile ? 'xs' : 'm'} direction={isMobile ? 'vertical' : 'horizontal'}>
         <RouterLink to={'/legal'}>Legal</RouterLink>
         <RouterLink to={'/privacy-policy'}>Privacy Policy</RouterLink>
-        <Link variant={'secondary'} href={'#'} onFollow={props.onCookiePreferencesClick}>Cookie Preferences</Link>
+        <Link variant={'secondary'} href={'#'} onFollow={props.onPrivacyPreferencesClick}>Privacy Preferences</Link>
         <Box variant={'span'}>© 2024 Felix</Box>
       </SpaceBetween>
     </footer>

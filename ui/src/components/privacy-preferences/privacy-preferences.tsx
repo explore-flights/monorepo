@@ -8,7 +8,7 @@ import {
   Header,
   Modal,
   ModalProps,
-  SpaceBetween,
+  SpaceBetween
 } from '@cloudscape-design/components';
 import React, { useEffect, useState } from 'react';
 import { ConsentLevel } from '../../lib/consent.model';
@@ -38,23 +38,33 @@ function Category({ name, description, checkbox }: CategoryProps) {
   );
 }
 
-export default function CookiePreferences({ onDismiss, ...modalProps }: ModalProps) {
+export default function PrivacyPreferences({ onDismiss, ...modalProps }: ModalProps) {
   const hasConsent = useHasConsent();
   const [consentLevels, setConsentLevels] = useConsent();
   const [consent, setConsent] = useState({
     functional: consentLevels.has(ConsentLevel.FUNCTIONALITY),
+    maptiler: consentLevels.has(ConsentLevel.MAPTILER),
   });
 
   useEffect(() => {
     if (hasConsent) {
-      setConsent({ functional: consentLevels.has(ConsentLevel.FUNCTIONALITY) });
+      setConsent({
+        functional: consentLevels.has(ConsentLevel.FUNCTIONALITY),
+        maptiler: consentLevels.has(ConsentLevel.MAPTILER),
+      });
     } else {
-      setConsent({ functional: true });
+      setConsent({
+        functional: true,
+        maptiler: false,
+      });
     }
   }, [hasConsent, consentLevels]);
 
   function onCancelClick(e: CustomEvent<unknown>) {
-    setConsent({ functional: consentLevels.has(ConsentLevel.FUNCTIONALITY) });
+    setConsent({
+      functional: consentLevels.has(ConsentLevel.FUNCTIONALITY),
+      maptiler: consentLevels.has(ConsentLevel.MAPTILER),
+    });
 
     if (onDismiss) {
       onDismiss(new CustomEvent(e.type, { detail: { reason: 'cancel' } }));
@@ -62,11 +72,16 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
   }
 
   function onSaveClick(e: CustomEvent<unknown>) {
+    const result: Array<ConsentLevel> = [ConsentLevel.STRICTLY_NECESSARY];
     if (consent.functional) {
-      setConsentLevels([ConsentLevel.STRICTLY_NECESSARY, ConsentLevel.FUNCTIONALITY]);
-    } else {
-      setConsentLevels([ConsentLevel.STRICTLY_NECESSARY]);
+      result.push(ConsentLevel.FUNCTIONALITY);
     }
+
+    if (consent.maptiler) {
+      result.push(ConsentLevel.MAPTILER);
+    }
+
+    setConsentLevels(result);
 
     if (onDismiss) {
       onDismiss(new CustomEvent(e.type, { detail: { reason: 'save' } }));
@@ -87,7 +102,7 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
         }
       }}
       {...modalProps}
-      header={'Cookie Preferences'}
+      header={'Privacy Preferences'}
       size={'large'}
       footer={
         <Box float={'right'}>
@@ -99,7 +114,7 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
       }
     >
       <ColumnLayout columns={1} borders={'horizontal'}>
-        <Box variant={'span'}>We use cookies and local storage for the following purposes</Box>
+        <Box variant={'span'}>We use cookies, local storage and third-party APIs for the following purposes</Box>
         <Category
           name={'Essential'}
           description={'Essential cookies are necessary to provide our site and services and cannot be deactivated. They are usually set in response to your actions on the site, such as setting your privacy preferences, signing in, or filling in forms.'}
@@ -116,7 +131,18 @@ export default function CookiePreferences({ onDismiss, ...modalProps }: ModalPro
             }
           }
         />
-        <Box variant={'small'}>Learn more about the cookies and local storage we use by reading our <RouterLink to={'/privacy-policy'} fontSize={'inherit'} onFollow={onFollowPrivacyPolicy}>Privacy Policy</RouterLink></Box>
+        <Category
+          name={'Maptiler'}
+          description={'Maptiler provides our site with the necessary data for the map component found on this site. When using the map component, your browser will automatically transfer connection metadata like your IP-Address and User-Agent to Maptiler.'}
+          checkbox={
+            {
+              checked: consent.maptiler,
+              disabled: false,
+              onChange: (event) => setConsent((prev) => ({ ...prev, maptiler: event.detail.checked })),
+            }
+          }
+        />
+        <Box variant={'small'}>Learn more about the cookies, local storage and third-party APIs we use by reading our <RouterLink to={'/privacy-policy'} fontSize={'inherit'} onFollow={onFollowPrivacyPolicy}>Privacy Policy</RouterLink></Box>
       </ColumnLayout>
     </Modal>
   );

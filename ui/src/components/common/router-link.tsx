@@ -18,6 +18,10 @@ export function RouterLink(props: RouterLinkProps) {
       {...linkProps}
       href={href}
       onFollow={(e) => {
+        if (linkProps.target) {
+          return;
+        }
+
         if (linkProps.onFollow) {
           linkProps.onFollow(e);
         }

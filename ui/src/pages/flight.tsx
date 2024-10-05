@@ -20,8 +20,8 @@ import {
   PropertyFilterOperatorExtended,
   useCollection
 } from '@cloudscape-design/collection-hooks';
-import { RouterLink } from '../components/common/router-link';
 import { ApiError } from '../lib/api/api';
+import { FlightLink } from '../components/common/flight-link';
 
 export function FlightView() {
   const { id } = useParams();
@@ -250,10 +250,6 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
       </ExpandableSection>
     </ColumnLayout>
   );
-}
-
-function FlightLink({ flightNumber }: { flightNumber: string }) {
-  return <RouterLink to={`/flight/${encodeURIComponent(flightNumber)}`}>{flightNumber}</RouterLink>;
 }
 
 function AirportCell({ raw, value }: { raw: string, value?: Airport }) {

@@ -1,0 +1,24 @@
+.consent {
+  position: relative;
+}
+
+.consent-background {
+  position: absolute;
+  height: 100%;
+  width: 100%;
+
+  background-image: url("/assets/map_consent_background.png");
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center center;
+  filter: blur(5px);
+}
+
+.consent-content {
+  position: absolute;
+  z-index: 10;
+  margin: 0;
+  top: 50%;
+  left: 50%;
+  transform: translateY(-50%) translateX(-50%);
+}

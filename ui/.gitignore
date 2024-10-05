@@ -14,3 +14,5 @@ node/
 .DS_Store
 Thumbs.db
 # endregion
+
+*.local

@@ -47,10 +47,12 @@ export class CloudfrontConstruct extends Construct {
         contentSecurityPolicy: {
           contentSecurityPolicy: [
             `default-src 'self'`,
-            `connect-src 'self' http://127.0.0.1:8090/`,
+            `connect-src 'self' http://127.0.0.1:8090/ https://api.maptiler.com/`,
             `style-src 'self' 'unsafe-inline'`,
             `font-src data:`,
-            `img-src 'self'`,
+            `img-src 'self' data: blob:`,
+            `worker-src blob:`,
+            `child-src blob:`,
           ].join('; '),
           override: true,
         },

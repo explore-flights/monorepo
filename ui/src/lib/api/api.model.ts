@@ -28,6 +28,8 @@ export interface MetropolitanArea {
 export interface Airport {
   code: string;
   name: string;
+  lat: number;
+  lng: number;
 }
 
 export interface ConnectionsSearchRequest {

@@ -95,7 +95,7 @@ function ConnectionsGraphInternal({ connections, aircraftLookup }: ConnectionsGr
   }, [getLayoutedElements, connections, aircraftLookup]);
 
   return (
-    <div style={{ width: '100%', height: '750px' }}>
+    <div style={{ width: '100%', height: '80vh' }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}

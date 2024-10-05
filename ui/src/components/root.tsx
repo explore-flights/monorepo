@@ -19,7 +19,7 @@ import { AuthInfo } from '../lib/api/api.model';
 import { customI18nMessages } from '../lib/i18n/i18n-strings';
 import { ColorScheme, UIDensity } from '../lib/preferences.model';
 import { Breadcrumb } from './breadcrumb/breadcrumb';
-import CookiePreferences from './cookie-preferences/cookie-preferences';
+import PrivacyPreferences from './privacy-preferences/privacy-preferences';
 import FlightsFooter from './footer/footer';
 import FlightsHeader from './header/header';
 import { SideNav } from './sidenav/sidenav';
@@ -117,9 +117,9 @@ export function RootLayout({
         content={children}
         {...appLayoutProps}
       />
-      <CookiePreferences onDismiss={() => setCookiePrefVisible(false)} visible={cookiePrefVisible} />
+      <PrivacyPreferences onDismiss={() => setCookiePrefVisible(false)} visible={cookiePrefVisible} />
       {!hasConsent && <CookieBanner onCustomizeClick={() => setCookiePrefVisible(true)} />}
-      <FlightsFooter onCookiePreferencesClick={onCookiePreferencesClick} />
+      <FlightsFooter onPrivacyPreferencesClick={onCookiePreferencesClick} />
     </>
   );
 }

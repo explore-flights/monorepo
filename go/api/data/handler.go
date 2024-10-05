@@ -14,10 +14,11 @@ import (
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 )
 
-var metroAreaMapping map[string][2]string = map[string][2]string{
+var metroAreaMapping = map[string][2]string{
 	// region Asia
 	"PEK": {"BJS", "Beijing, China"},
 	"PKX": {"BJS", "Beijing, China"},
@@ -140,8 +141,10 @@ type MetropolitanArea struct {
 }
 
 type Airport struct {
-	Code string `json:"code"`
-	Name string `json:"name"`
+	Code string  `json:"code"`
+	Name string  `json:"name"`
+	Lat  float64 `json:"lat"`
+	Lng  float64 `json:"lng"`
 }
 
 type Aircraft struct {
@@ -197,6 +200,15 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 		var airport Airport
 		airport.Code = strings.TrimSpace(row["iata_code"])
 		airport.Name = cmp.Or(strings.TrimSpace(row["name"]), airport.Code)
+		airport.Lat, err = strconv.ParseFloat(row["latitude_deg"], 64)
+		if err != nil {
+			return AirportsResponse{}, fmt.Errorf("failed to parse latitude for %q: %w", airport.Name, err)
+		}
+
+		airport.Lng, err = strconv.ParseFloat(row["longitude_deg"], 64)
+		if err != nil {
+			return AirportsResponse{}, fmt.Errorf("failed to parse longitude for %q: %w", airport.Name, err)
+		}
 
 		if airport.Code == "" {
 			continue

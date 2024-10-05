@@ -6,7 +6,7 @@ import React from 'react';
 import { KeyValuePairs, ValueWithLabel } from '../components/common/key-value-pairs';
 import { Contact } from '../components/contact/contact';
 
-const LAST_UPDATED = new Date('2024-05-04');
+const LAST_UPDATED = new Date('2024-09-05');
 
 export function PrivacyPolicy() {
   return (
@@ -144,6 +144,15 @@ export function PrivacyPolicy() {
 
           <ValueWithLabel label={'E-Mail & Password'}>
             This login provider is managed by AWS (Amazon Web Services) solely for us. The privacy policy of AWS can be viewed at <Link href={'https://aws.amazon.com/privacy'} external={true}>https://aws.amazon.com/privacy</Link>
+          </ValueWithLabel>
+        </KeyValuePairs>
+      </Container>
+
+      <Container variant={'stacked'} header={<Header variant={'h2'}>Third-Party APIs</Header>}>
+        <Box variant={'p'}>The privacy policies of the third-party APIs used by this site can be viewed at:</Box>
+        <KeyValuePairs columns={1}>
+          <ValueWithLabel label={'Maptiler'}>
+            <Link href={'https://www.maptiler.com/privacy-policy/'} external={true}>https://www.maptiler.com/privacy-policy/</Link>
           </ValueWithLabel>
         </KeyValuePairs>
       </Container>

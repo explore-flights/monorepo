@@ -1,16 +1,18 @@
-import { Aircraft, Connections } from '../../lib/api/api.model';
+import { Aircraft, Airports, Connections } from '../../lib/api/api.model';
 import React, { useMemo } from 'react';
 import { DateTime } from 'luxon';
-import { ColumnLayout, Tabs, TabsProps } from '@cloudscape-design/components';
+import { ExpandableSection, Tabs, TabsProps } from '@cloudscape-design/components';
 import { ConnectionsGraph } from './connections-graph';
 import { ConnectionsTable } from './connections-table';
+import { ConnectionsMap } from './connections-map';
 
 export interface ConnectionsTabsProps {
   connections?: Connections;
+  airports: Airports;
   aircraft?: ReadonlyArray<Aircraft>;
 }
 
-export function ConnectionsTabs({ connections, aircraft }: ConnectionsTabsProps) {
+export function ConnectionsTabs({ connections, airports, aircraft }: ConnectionsTabsProps) {
   if (connections === undefined) {
     return undefined;
   }
@@ -35,16 +37,23 @@ export function ConnectionsTabs({ connections, aircraft }: ConnectionsTabsProps)
         id: date,
         label: DateTime.fromISO(date).toLocaleString(DateTime.DATE_FULL),
         content: (
-          <ColumnLayout columns={1}>
-            <ConnectionsGraph connections={connections} aircraftLookup={aircraftLookup} />
-            <ConnectionsTable connections={connections} aircraftLookup={aircraftLookup} />
-          </ColumnLayout>
+          <>
+            <ExpandableSection headerText={'Graph'} defaultExpanded={true} variant={'stacked'} disableContentPaddings={true}>
+              <ConnectionsGraph connections={connections} aircraftLookup={aircraftLookup} />
+            </ExpandableSection>
+            <ExpandableSection headerText={'Map'} defaultExpanded={false} variant={'stacked'} disableContentPaddings={true}>
+              <ConnectionsMap connections={connections} airports={airports} aircraftLookup={aircraftLookup} />
+            </ExpandableSection>
+            <ExpandableSection headerText={'Table'} defaultExpanded={false} variant={'stacked'}>
+              <ConnectionsTable connections={connections} aircraftLookup={aircraftLookup} />
+            </ExpandableSection>
+          </>
         ),
       } satisfies TabsProps.Tab))
   }, [connections, aircraftLookup]);
 
   return (
-    <Tabs variant={'container'} tabs={tabs} />
+    <Tabs variant={'default'} tabs={tabs} />
   );
 }
 
