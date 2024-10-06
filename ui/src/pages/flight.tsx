@@ -88,6 +88,11 @@ interface FlightScheduleSummary {
   routes: ReadonlyArray<[Maybe<Airport>, Maybe<Airport>]>;
   aircraft: ReadonlyArray<[Maybe<Aircraft>, number]>;
   operatingDays: ReadonlyArray<WeekdayNumbers>;
+  duration: {
+    min: Duration<true>,
+    max: Duration<true>,
+  },
+  codeShares: ReadonlyArray<string>,
 }
 
 interface ProcessedFlightSchedule {
@@ -176,6 +181,23 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
               ),
             },
             {
+              label: 'Duration',
+              value: (
+                <ColumnLayout columns={1} variant={'text-grid'}>
+                  <Box variant={'strong'}>Min: <Box variant={'span'}>{summary.duration.min.shiftTo('hours', 'minutes').toHuman({ unitDisplay: 'short' })}</Box></Box>
+                  <Box variant={'strong'}>Max: <Box variant={'span'}>{summary.duration.max.shiftTo('hours', 'minutes').toHuman({ unitDisplay: 'short' })}</Box></Box>
+                </ColumnLayout>
+              ),
+            },
+            {
+              label: 'Codeshares',
+              value: (
+                <ColumnLayout columns={summary.codeShares.length} variant={'text-grid'}>
+                  {...summary.codeShares.toSorted().map((v) => <FlightLink flightNumber={v} />)}
+                </ColumnLayout>
+              ),
+            },
+            {
               label: 'Operating Days',
               value: <OperatingDaysCell operatingDays={summary.operatingDays} />,
             },
@@ -245,11 +267,21 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
             sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.aircraft.raw.localeCompare(b.aircraft.raw), []),
           },
           {
+            id: 'duration',
+            header: 'Duration',
+            cell: (v) => v.arrivalTime.diff(v.departureTime).rescale().toHuman({ unitDisplay: 'short' }),
+            sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => {
+              const aDuration = a.arrivalTime.diff(a.departureTime);
+              const bDuration = b.arrivalTime.diff(b.departureTime);
+              return aDuration.toMillis() - bDuration.toMillis();
+            }, []),
+          },
+          {
             id: 'code_shares',
             header: 'Codeshares',
             cell: (v) => (
               <ColumnLayout columns={v.codeShares.length} variant={'text-grid'}>
-                {...v.codeShares.map((v) => <FlightLink flightNumber={v} />)}
+                {...v.codeShares.toSorted().map((v) => <FlightLink flightNumber={v} />)}
               </ColumnLayout>
             ),
           }
@@ -430,7 +462,11 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
   const routes: Array<[string, string]> = [];
   const aircraft: Array<[string, number]> = [];
   const operatingDays: Array<WeekdayNumbers> = [];
+  const codeShares: Array<string> = [];
   const flights: Array<ScheduledFlight> = [];
+
+  let minDuration = Duration.fromMillis(Number.MAX_SAFE_INTEGER);
+  let maxDuration = Duration.fromMillis(Number.MIN_SAFE_INTEGER);
 
   for (const variant of flightSchedule.variants) {
     const departureZone = FixedOffsetZone.instance(variant.data.departureUTCOffset / 60);
@@ -453,12 +489,27 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
       aircraftIndex = aircraft.push([variant.data.aircraftType, 0]) - 1;
     }
 
+    for (const cs of variant.data.codeShares) {
+      if (!codeShares.includes(cs)) {
+        codeShares.push(cs);
+      }
+    }
+
     for (const range of variant.ranges) {
       const [startISODate, endISODate] = range;
       const start = DateTime.fromISO(`${startISODate}T${variant.data.departureTime}.000`).setZone(departureZone, { keepLocalTime: true });
       const end = DateTime.fromISO(`${endISODate}T${variant.data.departureTime}.000`).setZone(departureZone, { keepLocalTime: true });
 
       if (start.isValid && end.isValid) {
+        const duration = Duration.fromMillis(variant.data.durationSeconds * 1000);
+        if (duration < minDuration) {
+          minDuration = duration;
+        }
+
+        if (duration > maxDuration) {
+          maxDuration = duration;
+        }
+
         let curr = start;
         while (curr <= end) {
           aircraft[aircraftIndex][1] += 1;
@@ -509,6 +560,11 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
       ]),
       aircraft: aircraft.map(([id, count]) => [{ raw: id, value: aircraftLookup.get(id) }, count]),
       operatingDays: operatingDays,
+      duration: {
+        min: minDuration,
+        max: maxDuration,
+      },
+      codeShares: codeShares,
     },
     flights: flights,
   };
