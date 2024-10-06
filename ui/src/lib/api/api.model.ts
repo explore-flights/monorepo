@@ -6,6 +6,10 @@ export function isJsonObject(v: JsonType): v is JsonObject {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
+export function isJsonArray(v: JsonType): v is JsonArray {
+  return v !== null && typeof v === 'object' && Array.isArray(v);
+}
+
 export interface ApiErrorBody {
   message: string;
 }

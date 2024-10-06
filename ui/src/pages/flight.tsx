@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import {
   Alert, Badge, Box, Calendar,
   ColumnLayout, Container,
@@ -101,10 +101,11 @@ interface ProcessedFlightSchedule {
 }
 
 function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSchedule }) {
+  const [searchParams] = useSearchParams();
   const airportLookup = useAirportLookup();
   const aircraftLookup = useAircraftLookup();
 
-  const [filterQuery, setFilterQuery] = useState<PropertyFilterProps.Query>({
+  const [filterQuery, setFilterQuery] = useState<PropertyFilterProps.Query>(parseSearchParams(searchParams) ?? {
     operation: 'and',
     tokens: [
       {
@@ -129,6 +130,13 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
     },
     pagination: { pageSize: 25 },
   });
+
+  function queryForScheduledFlight(flight: ScheduledFlight) {
+    let query = new URLSearchParams();
+    query = withDepartureAirportFilter(query, flight.departureAirport.raw);
+    query = withDepartureDateFilter(query, flight.departureTime);
+    return query;
+  }
 
   return (
     <ColumnLayout columns={1}>
@@ -237,7 +245,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
             header: 'Operated As',
             cell: (v) => {
               if (v.operatedAs !== flightNumber) {
-                return <FlightLink flightNumber={v.operatedAs} />;
+                return <FlightLink flightNumber={v.operatedAs} query={queryForScheduledFlight(v)} />;
               }
 
               return v.operatedAs;
@@ -281,7 +289,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
             header: 'Codeshares',
             cell: (v) => (
               <ColumnLayout columns={v.codeShares.length} variant={'text-grid'}>
-                {...v.codeShares.toSorted().map((v) => <FlightLink flightNumber={v} />)}
+                {...v.codeShares.toSorted().map((fn) => <FlightLink flightNumber={fn} query={queryForScheduledFlight(v)} />)}
               </ColumnLayout>
             ),
           }
@@ -674,4 +682,36 @@ function evaluateToken(flight: ScheduledFlight, token: PropertyFilterProps.Token
   }
 
   return false;
+}
+
+function parseSearchParams(v: URLSearchParams): PropertyFilterProps.Query | null {
+  const tokens: Array<PropertyFilterProps.Token> = [];
+  for (const prop of ['departure_time', 'aircraft', 'departure_airport', 'arrival_airport', 'operating_day']) {
+    for (const value of v.getAll(prop)) {
+      tokens.push({
+        propertyKey: prop,
+        value: value,
+        operator: '=',
+      });
+    }
+  }
+
+  if (tokens.length < 1) {
+    return null;
+  }
+
+  return {
+    operation: 'and',
+    tokens: tokens,
+  } satisfies PropertyFilterProps.Query;
+}
+
+export function withDepartureDateFilter(q: URLSearchParams, date: DateTime<true>): URLSearchParams {
+  q.append('departure_time', date.toISODate());
+  return q;
+}
+
+export function withDepartureAirportFilter(q: URLSearchParams, airport: string): URLSearchParams {
+  q.append('departure_airport', airport);
+  return q;
 }

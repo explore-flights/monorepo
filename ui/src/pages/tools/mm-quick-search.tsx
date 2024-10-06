@@ -20,16 +20,16 @@ import {
   Form,
   FormField,
   Grid,
-  Header, Link, Popover, Table
+  Header, Link, Table
 } from '@cloudscape-design/components';
 import { AirportMultiselect } from '../../components/select/airport-multiselect';
 import { DateTime, Duration } from 'luxon';
 import { catchNotify, useAppControls } from '../../components/util/context/app-controls';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { useInterval } from '../../components/util/state/common';
-import { useAirports, useFlight } from '../../components/util/state/data';
-import { CodeView } from '@cloudscape-design/code-view';
-import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
+import { useAirports } from '../../components/util/state/data';
+import { FlightLink } from '../../components/common/flight-link';
+import { withDepartureAirportFilter, withDepartureDateFilter } from '../flight';
 
 export function MmQuickSearch() {
   const { httpClient } = useHttpClient();
@@ -280,21 +280,13 @@ function AvailabilityTable({ items: rawItems, onClear }: { items: ReadonlyArray<
 }
 
 function FlightNumber({ flightNumber, departure }: { flightNumber: string, departure: ArrivalDeparture }) {
+  let query = new URLSearchParams();
+  query = withDepartureAirportFilter(query, departure.locationCode);
+
   const date = DateTime.fromISO(departure.dateTime, { setZone: true });
-  if (!date.isValid) {
-    return flightNumber;
+  if (date.isValid) {
+    query = withDepartureDateFilter(query, date);
   }
 
-  const flight = useFlight(flightNumber, departure.locationCode, date);
-  if (!flight.data) {
-    return flightNumber;
-  }
-
-  return (
-    <Popover
-      size={'large'}
-      header={'Details'}
-      content={<CodeView content={JSON.stringify(flight.data, null, 2)} highlight={jsonHighlight} />}
-    >{flightNumber}</Popover>
-  );
+  return <FlightLink flightNumber={flightNumber} query={query} />;
 }
