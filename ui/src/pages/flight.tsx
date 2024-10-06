@@ -141,7 +141,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
             },
             {
               label: 'Suffix',
-              value: flightSchedule.suffix || <Popover content={'This schedule has no suffix'}><StatusIndicator type={'info'}>None</StatusIndicator></Popover>,
+              value: flightSchedule.suffix || <Popover content={'This schedule has no suffix'} dismissButton={false}><StatusIndicator type={'info'}>None</StatusIndicator></Popover>,
             },
             {
               label: 'Departure Airports',
@@ -264,23 +264,36 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
 
 function AirportCell({ raw, value }: { raw: string, value?: Airport }) {
   if (value) {
-    return <Popover content={value.name}>{raw}</Popover>;
+    return <Popover content={value.name} dismissButton={false}>{raw}</Popover>;
   }
 
   return raw;
 }
 
 function AircraftCell({ raw, value, count }: { raw: string, value?: Aircraft, count?: number }) {
-  const content = value ? <Popover content={<CodeView content={JSON.stringify(value, null, 2)} highlight={jsonHighlight} />}>{value.name}</Popover> : raw;
-  if (!count) {
+  const content = <AircraftCellContent raw={raw} value={value} count={count} />;
+  if (!value) {
     return content;
   }
 
+  return <AircraftCellPopover value={value}>{content}</AircraftCellPopover>;
+}
+
+function AircraftCellPopover({ value, children }: React.PropsWithChildren<{ value: Aircraft }>) {
+  return (
+    <Popover header={value.name} content={<CodeView content={JSON.stringify(value, null, 2)} highlight={jsonHighlight} />} size={'large'}>
+      {children}
+    </Popover>
+  )
+}
+
+function AircraftCellContent({ raw, value, count }: { raw: string, value?: Aircraft, count?: number }) {
   return (
     <>
-      {content}
-      &nbsp;
-      <Badge color={'blue'}>{count}</Badge>
+      {value?.name ?? raw}
+      {!!count && (
+        <>&nbsp;<Badge color={'blue'}>{count}</Badge></>
+      )}
     </>
   );
 }
