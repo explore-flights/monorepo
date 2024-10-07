@@ -1,6 +1,6 @@
 import React from 'react';
 
-export function Join({ seperator, items }: { seperator: () => React.ReactNode, items: Iterable<React.ReactNode> }): React.ReactNode {
+export function Join({ seperator, items }: { seperator: () => React.ReactNode, items: Iterable<React.ReactNode> }) {
   const result: Array<React.ReactNode> = [];
   for (const item of items) {
     result.push(item);
@@ -11,7 +11,9 @@ export function Join({ seperator, items }: { seperator: () => React.ReactNode, i
     result.pop();
   }
 
-  return result;
+  return (
+    <>{...result}</>
+  );
 }
 
 export function BulletSeperator() {

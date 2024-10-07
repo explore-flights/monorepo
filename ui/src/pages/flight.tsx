@@ -22,6 +22,7 @@ import {
 } from '@cloudscape-design/collection-hooks';
 import { ApiError } from '../lib/api/api';
 import { FlightLink } from '../components/common/flight-link';
+import { BulletSeperator, Join } from '../components/common/join';
 
 export function FlightView() {
   const { id } = useParams();
@@ -92,6 +93,7 @@ interface FlightScheduleSummary {
     min: Duration<true>,
     max: Duration<true>,
   },
+  operatedAs: ReadonlyArray<string>,
   codeShares: ReadonlyArray<string>,
 }
 
@@ -198,16 +200,16 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
               ),
             },
             {
-              label: 'Codeshares',
-              value: (
-                <ColumnLayout columns={summary.codeShares.length} variant={'text-grid'}>
-                  {...summary.codeShares.toSorted().map((v) => <FlightLink flightNumber={v} />)}
-                </ColumnLayout>
-              ),
-            },
-            {
               label: 'Operating Days',
               value: <OperatingDaysCell operatingDays={summary.operatingDays} />,
+            },
+            {
+              label: 'Operated As',
+              value: <FlightNumberList flightNumbers={summary.operatedAs} exclude={flightNumber} />,
+            },
+            {
+              label: 'Codeshares',
+              value: <FlightNumberList flightNumbers={summary.codeShares} exclude={flightNumber} />,
             },
             {
               label: 'Links',
@@ -243,13 +245,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
           {
             id: 'operated_as',
             header: 'Operated As',
-            cell: (v) => {
-              if (v.operatedAs !== flightNumber) {
-                return <FlightLink flightNumber={v.operatedAs} query={queryForScheduledFlight(v)} />;
-              }
-
-              return v.operatedAs;
-            },
+            cell: (v) => <InternalFlightLink flightNumber={v.operatedAs} query={queryForScheduledFlight(v)} exclude={flightNumber} />,
           },
           {
             id: 'departure_airport',
@@ -287,11 +283,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
           {
             id: 'code_shares',
             header: 'Codeshares',
-            cell: (v) => (
-              <ColumnLayout columns={v.codeShares.length} variant={'text-grid'}>
-                {...v.codeShares.toSorted().map((fn) => <FlightLink flightNumber={fn} query={queryForScheduledFlight(v)} />)}
-              </ColumnLayout>
-            ),
+            cell: (v) => <FlightNumberList flightNumbers={v.codeShares} query={queryForScheduledFlight(v)} exclude={flightNumber} />,
           }
         ]}
       />
@@ -378,6 +370,23 @@ function OperatingDaysCell({ operatingDays }: { operatingDays: ReadonlyArray<Wee
       {...elements}
     </>
   );
+}
+
+function FlightNumberList({ flightNumbers, query, exclude }: { flightNumbers: ReadonlyArray<string>, query?: URLSearchParams, exclude?: string }) {
+  return (
+    <Join
+      seperator={BulletSeperator}
+      items={flightNumbers.toSorted().map((v) => <InternalFlightLink flightNumber={v} query={query} exclude={exclude} />)}
+    />
+  );
+}
+
+function InternalFlightLink({ flightNumber, query, exclude }: { flightNumber: string, query?: URLSearchParams, exclude?: string }) {
+  if (flightNumber === exclude) {
+    return flightNumber;
+  }
+
+  return <FlightLink flightNumber={flightNumber} query={query} />;
 }
 
 interface TableFilterProps {
@@ -470,6 +479,7 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
   const routes: Array<[string, string]> = [];
   const aircraft: Array<[string, number]> = [];
   const operatingDays: Array<WeekdayNumbers> = [];
+  const operatedAs: Array<string> = [];
   const codeShares: Array<string> = [];
   const flights: Array<ScheduledFlight> = [];
 
@@ -495,6 +505,10 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
     let aircraftIndex = aircraft.findIndex((v) => v[0] === variant.data.aircraftType);
     if (aircraftIndex === -1) {
       aircraftIndex = aircraft.push([variant.data.aircraftType, 0]) - 1;
+    }
+
+    if (!operatedAs.includes(variant.data.operatedAs)) {
+      operatedAs.push(variant.data.operatedAs);
     }
 
     for (const cs of variant.data.codeShares) {
@@ -572,6 +586,7 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
         min: minDuration,
         max: maxDuration,
       },
+      operatedAs: operatedAs,
       codeShares: codeShares,
     },
     flights: flights,
