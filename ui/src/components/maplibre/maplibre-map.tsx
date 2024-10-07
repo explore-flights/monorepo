@@ -96,7 +96,7 @@ function MaplibreMapInternal({ children, height }: React.PropsWithChildren<Mapli
       initialViewState={{
         longitude: 0.0,
         latitude: 0.0,
-        zoom: 3
+        zoom: 0,
       }}
       mapStyle={MAP_STYLE_URL}
     >
