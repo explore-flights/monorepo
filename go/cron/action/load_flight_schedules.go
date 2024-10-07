@@ -12,9 +12,9 @@ import (
 )
 
 type LoadFlightSchedulesParams struct {
-	OutputBucket string               `json:"outputBucket"`
-	OutputPrefix string               `json:"outputPrefix"`
-	DateRanges   [][2]xtime.LocalDate `json:"dateRanges"`
+	OutputBucket string                `json:"outputBucket"`
+	OutputPrefix string                `json:"outputPrefix"`
+	DateRanges   xtime.LocalDateRanges `json:"dateRanges"`
 }
 
 type LoadFlightSchedulesOutput struct {

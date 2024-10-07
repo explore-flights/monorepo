@@ -9,10 +9,11 @@ import (
 
 type CronParams struct {
 	LoadFlightSchedules *struct {
-		OutputBucket string    `json:"outputBucket"`
-		OutputPrefix string    `json:"outputPrefix"`
-		Time         time.Time `json:"time"`
-		Schedule     string    `json:"schedule"`
+		OutputBucket string                `json:"outputBucket"`
+		OutputPrefix string                `json:"outputPrefix"`
+		Time         time.Time             `json:"time"`
+		Schedule     string                `json:"schedule,omitempty"`
+		DateRanges   xtime.LocalDateRanges `json:"dateRanges,omitempty"`
 	} `json:"loadFlightSchedules,omitempty"`
 }
 
@@ -51,28 +52,34 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 			},
 		}
 
-		switch params.LoadFlightSchedules.Schedule {
-		case "daily":
-			now := params.LoadFlightSchedules.Time.UTC()
-			dates := []xtime.LocalDate{
-				xtime.NewLocalDate(now.AddDate(0, 0, 30*12)),
-				xtime.NewLocalDate(now.AddDate(0, 0, 30*8)),
-				xtime.NewLocalDate(now.AddDate(0, 0, 30*6)),
-				xtime.NewLocalDate(now.AddDate(0, 0, 30*4)),
-				xtime.NewLocalDate(now.AddDate(0, 0, 30*2)),
-				xtime.NewLocalDate(now.AddDate(0, 0, 30)),
-				xtime.NewLocalDate(now.AddDate(0, 0, 7)),
-				xtime.NewLocalDate(now.AddDate(0, 0, 3)),
-				xtime.NewLocalDate(now.AddDate(0, 0, 1)),
-				xtime.NewLocalDate(now.AddDate(0, 0, -1)),
-			}
+		if params.LoadFlightSchedules.Schedule != "" {
+			switch params.LoadFlightSchedules.Schedule {
+			case "daily":
+				now := params.LoadFlightSchedules.Time.UTC()
+				dates := []xtime.LocalDate{
+					xtime.NewLocalDate(now.AddDate(0, 0, 30*12)),
+					xtime.NewLocalDate(now.AddDate(0, 0, 30*8)),
+					xtime.NewLocalDate(now.AddDate(0, 0, 30*6)),
+					xtime.NewLocalDate(now.AddDate(0, 0, 30*4)),
+					xtime.NewLocalDate(now.AddDate(0, 0, 30*2)),
+					xtime.NewLocalDate(now.AddDate(0, 0, 30)),
+					xtime.NewLocalDate(now.AddDate(0, 0, 7)),
+					xtime.NewLocalDate(now.AddDate(0, 0, 3)),
+					xtime.NewLocalDate(now.AddDate(0, 0, 1)),
+					xtime.NewLocalDate(now.AddDate(0, 0, -1)),
+				}
 
-			for _, d := range dates {
-				lfsInOut.Input.DateRanges = append(lfsInOut.Input.DateRanges, [2]xtime.LocalDate{d, d})
-			}
+				for _, d := range dates {
+					lfsInOut.Input.DateRanges = append(lfsInOut.Input.DateRanges, xtime.LocalDateRange{d, d})
+				}
 
-		default:
-			return output, errors.New("invalid schedule")
+			default:
+				return output, errors.New("invalid schedule")
+			}
+		} else if params.LoadFlightSchedules.DateRanges != nil {
+			lfsInOut.Input.DateRanges = params.LoadFlightSchedules.DateRanges
+		} else {
+			return output, errors.New("either schedule or dateRanges must be given")
 		}
 
 		if lfsInOut.Output, err = c.lfsA.Handle(ctx, lfsInOut.Input); err != nil {
