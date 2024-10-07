@@ -11,7 +11,7 @@ import { useHttpClient } from '../components/util/context/http-client';
 import { catchNotify, useAppControls } from '../components/util/context/app-controls';
 import { expectSuccess } from '../lib/api/api';
 import { Connections, ConnectionSearchShare, ConnectionsSearchRequest } from '../lib/api/api.model';
-import { ConnectionsTabs } from '../components/connections/connections-tabs';
+import { ConnectionsResults } from '../components/connections/connections-results';
 import { ConnectionSearchForm, ConnectionSearchParams } from '../components/connections/connections-search-form';
 import { KeyValuePairs, ValueWithLabel } from '../components/common/key-value-pairs';
 import { Copy } from '../components/common/copy';
@@ -95,7 +95,7 @@ export function Home() {
               onShare={onShare}
             />
           </Container>
-          <ConnectionsTabs connections={connections} airports={airportsQuery.data} aircraft={aircraftQuery.data} />
+          <ConnectionsResults connections={connections} airports={airportsQuery.data} aircraft={aircraftQuery.data} />
         </ColumnLayout>
       </ContentLayout>
     </>
