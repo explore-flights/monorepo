@@ -16,6 +16,8 @@ import { DateTime } from 'luxon';
 import { Box, Popover, SpaceBetween } from '@cloudscape-design/components';
 import { KeyValuePairs, ValueWithLabel } from '../common/key-value-pairs';
 import { flightNumberToString } from '../../lib/util/flight';
+import { BulletSeperator, Join } from '../common/join';
+import { FlightLink } from '../common/flight-link';
 
 interface FlightNodeData {
   readonly type: 'flight';
@@ -148,9 +150,7 @@ function FlightNode({ data }: NodeProps<FlightNodeData>) {
 }
 
 function FlightPopoverContent({ flight, aircraft }: { flight: Flight, aircraft?: Aircraft }) {
-  const codeSharesStr = flight.codeShares.map(flightNumberToString).join(', ');
   let aircraftStr = flight.aircraftType;
-
   if (aircraft) {
     aircraftStr += ` (${aircraft.name})`;
   }
@@ -164,7 +164,12 @@ function FlightPopoverContent({ flight, aircraft }: { flight: Flight, aircraft?:
       <ValueWithLabel label={'Aircraft Type'}>{aircraftStr}</ValueWithLabel>
       <ValueWithLabel label={'Aircraft Owner'}>{flight.aircraftOwner}</ValueWithLabel>
       <ValueWithLabel label={'Registration'}>{flight.registration ?? 'UNKNOWN'}</ValueWithLabel>
-      <ValueWithLabel label={'Code Shares'}>{codeSharesStr}</ValueWithLabel>
+      <ValueWithLabel label={'Codeshares'}>
+        <Join
+          seperator={BulletSeperator}
+          items={flight.codeShares.map((v) => <FlightLink flightNumber={flightNumberToString(v)} external={true} target={'_blank'} />)}
+        />
+      </ValueWithLabel>
     </KeyValuePairs>
   );
 }
