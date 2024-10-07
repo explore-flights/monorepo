@@ -15,7 +15,7 @@ import {
   Box,
   Button,
   ButtonProps,
-  Container,
+  Container, Grid,
   Header,
   Link,
   Popover,
@@ -63,24 +63,27 @@ function MaplibreMapConsent({ height, onAllowOnceClick }: { height: string | num
 
   return (
     <div className={classes['consent']} style={{ height: height, width: 'auto' }}>
-      <div className={classes['consent-background']} />
-      <div className={classes['consent-content']}>
-        <Container
-          header={<Header>Maptiler Consent</Header>}
-          footer={
-            <SpaceBetween size={'xs'} direction={'horizontal'}>
-              <Button variant={'primary'} onClick={onAllowClick}>Allow &amp; Remember</Button>
-              <Button variant={'normal'} onClick={onAllowOnceClick}>Allow Once</Button>
-            </SpaceBetween>
-          }
-        >
-          <SpaceBetween direction={'vertical'} size={'xs'}>
-            <Box>The map component loads resources from URLs provided by <Link href={'https://www.maptiler.com/copyright/'} external={true}>Maptiler</Link>.</Box>
-            <Box>Your browser will automatically transfer connection metadata like your IP-Address and User-Agent to Maptiler.</Box>
-            <Box>By using the map component you accept and allow this from happening. You can always opt-out of this by updating your privacy preferences.</Box>
-            <Box variant={'small'}>You can view Maptiler's privacy policy at <Link fontSize={'inherit'} href={'https://www.maptiler.com/privacy-policy/'} external={true}>https://www.maptiler.com/privacy-policy/</Link></Box>
-          </SpaceBetween>
-        </Container>
+      <div className={classes['consent-container']}>
+        <div className={classes['consent-content']}>
+          <Grid gridDefinition={[{ colspan: { default: 12, xs: 10, s: 8 }, offset: { default: 0, xs: 1, s: 2 } }]}>
+            <Container
+              header={<Header>Maptiler Consent</Header>}
+              footer={
+                <SpaceBetween size={'xs'} direction={'horizontal'}>
+                  <Button variant={'primary'} onClick={onAllowClick}>Allow &amp; Remember</Button>
+                  <Button variant={'normal'} onClick={onAllowOnceClick}>Allow Once</Button>
+                </SpaceBetween>
+              }
+            >
+              <SpaceBetween direction={'vertical'} size={'xs'}>
+                <Box>The map component loads resources from URLs provided by <Link href={'https://www.maptiler.com/copyright/'} external={true}>Maptiler</Link>.</Box>
+                <Box>Your browser will automatically transfer connection metadata like your IP-Address and User-Agent to Maptiler.</Box>
+                <Box>By using the map component you accept and allow this from happening. You can always opt-out of this by updating your privacy preferences.</Box>
+                <Box variant={'small'}>You can view Maptiler's privacy policy at <Link fontSize={'inherit'} href={'https://www.maptiler.com/privacy-policy/'} external={true}>https://www.maptiler.com/privacy-policy/</Link></Box>
+              </SpaceBetween>
+            </Container>
+          </Grid>
+        </div>
       </div>
     </div>
   );
@@ -93,7 +96,7 @@ function MaplibreMapInternal({ children, height }: React.PropsWithChildren<Mapli
       initialViewState={{
         longitude: 0.0,
         latitude: 0.0,
-        zoom: 3,
+        zoom: 3
       }}
       mapStyle={MAP_STYLE_URL}
     >
@@ -117,7 +120,7 @@ export function PopupMarker({ children, button, popover, ...markerProps }: React
         <Button {...button}>{children}</Button>
       </Popover>
     </Marker>
-  )
+  );
 }
 
 export function SmartLine({ src, dst }: { src: [number, number], dst: [number, number] }) {
