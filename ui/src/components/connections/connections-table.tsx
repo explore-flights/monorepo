@@ -1,7 +1,7 @@
 import { Aircraft, Connection, Connections, Flight, FlightNumber } from '../../lib/api/api.model';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useCollection } from '@cloudscape-design/collection-hooks';
-import { Popover, Table } from '@cloudscape-design/components';
+import { Header, Pagination, Popover, Table } from '@cloudscape-design/components';
 import { DateTime } from 'luxon';
 import { flightNumberToString } from '../../lib/util/flight';
 
@@ -45,13 +45,27 @@ export interface ConnectionsTableProps {
 
 export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTableProps) {
   const rawItems = useMemo(() => connectionsToTableItems(connections.connections, connections.flights), [connections]);
-  const { items, collectionProps } = useCollection(rawItems, { sorting: {} });
+  const { items, collectionProps, paginationProps } = useCollection(rawItems, {
+    sorting: {
+      defaultState: {
+        isDescending: false,
+        sortingColumn: {
+          sortingField: 'departureTime',
+        },
+      },
+    },
+    pagination: { pageSize: 25 },
+
+  });
   const [expandedItems, setExpandedItems] = useState<ReadonlyArray<ConnectionsTableItem>>([]);
 
   return (
     <Table
       {...collectionProps}
       items={items}
+      filter={<Header counter={`(${rawItems.length})`}>Connections</Header>}
+      pagination={<Pagination {...paginationProps}  />}
+      variant={'borderless'}
       columnDefinitions={[
         {
           id: 'flight_number',
@@ -86,6 +100,12 @@ export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTab
           id: 'duration',
           header: 'Duration',
           cell: (v) => v.arrivalTime.diff(v.departureTime).rescale().toHuman({ unitDisplay: 'short' }),
+          sortingComparator: useCallback((a: ConnectionsTableItem, b: ConnectionsTableItem) => {
+            const aDuration = a.arrivalTime.diff(a.departureTime);
+            const bDuration = b.arrivalTime.diff(b.departureTime);
+
+            return aDuration.toMillis() - bDuration.toMillis();
+          }, []),
         },
         {
           id: 'aircraft_owner',
@@ -134,7 +154,6 @@ export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTab
           });
         },
       }}
-      variant={'borderless'}
     />
   );
 }
