@@ -4,6 +4,9 @@ import { useCollection } from '@cloudscape-design/collection-hooks';
 import { Header, Pagination, Popover, Table } from '@cloudscape-design/components';
 import { DateTime } from 'luxon';
 import { flightNumberToString } from '../../lib/util/flight';
+import { withDepartureAirportFilter, withDepartureDateFilter } from '../../pages/flight';
+import { FlightLink } from '../common/flight-link';
+import { BulletSeperator, Join } from '../common/join';
 
 interface ConnectionsTableBaseItem {
   readonly flightNumber?: FlightNumber;
@@ -70,7 +73,17 @@ export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTab
         {
           id: 'flight_number',
           header: 'Flight Number',
-          cell: (v) => v.flightNumber !== undefined ? flightNumberToString(v.flightNumber) : '',
+          cell: (v) => {
+            if (!v.flightNumber) {
+              return undefined;
+            }
+
+            let query = new URLSearchParams();
+            query = withDepartureDateFilter(query, v.departureTime);
+            query = withDepartureAirportFilter(query, v.departureAirport);
+
+            return <FlightLink flightNumber={flightNumberToString(v.flightNumber)} query={query} external={true} target={'_blank'} />;
+          },
         },
         {
           id: 'departure_time',
@@ -128,8 +141,23 @@ export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTab
         },
         {
           id: 'code_shares',
-          header: 'Code Shares',
-          cell: (v) => v.codeShares !== undefined ? v.codeShares.map(flightNumberToString).join(', ') : '',
+          header: 'Codeshares',
+          cell: (v) => {
+            if (!v.codeShares || v.codeShares.length < 1) {
+              return undefined;
+            }
+
+            let query = new URLSearchParams();
+            query = withDepartureDateFilter(query, v.departureTime);
+            query = withDepartureAirportFilter(query, v.departureAirport);
+
+            return (
+              <Join
+                seperator={BulletSeperator}
+                items={v.codeShares.map((v) => <FlightLink flightNumber={flightNumberToString(v)} query={query} external={true} target={'_blank'} />)}
+              />
+            );
+          },
         },
       ]}
       expandableRows={{
