@@ -82,6 +82,8 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 			return output, errors.New("either schedule or dateRanges must be given")
 		}
 
+		lfsInOut.Input.DateRanges = lfsInOut.Input.DateRanges.Compact()
+
 		if lfsInOut.Output, err = c.lfsA.Handle(ctx, lfsInOut.Input); err != nil {
 			return output, err
 		}
