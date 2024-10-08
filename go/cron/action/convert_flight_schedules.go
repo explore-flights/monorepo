@@ -270,7 +270,7 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate xtime.LocalD
 					}
 
 					// mark as codeshare
-					codeShareIds[codeShareFn.Id(f.Departure())] = struct{}{}
+					codeShareIds[codeShareFn.Id(f.DepartureLocal())] = struct{}{}
 				}
 			}
 
@@ -281,7 +281,7 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate xtime.LocalD
 					return err
 				}
 
-				parentFid := parentFn.Id(f.Departure())
+				parentFid := parentFn.Id(f.DepartureLocal())
 
 				if parent, ok := lookup[parentFid]; ok {
 					parent.CodeShares[f.Number()] = common.CodeShare{

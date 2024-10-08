@@ -135,7 +135,7 @@ type FlightMetadata struct {
 	UpdateTime   time.Time       `json:"updateTime"`
 }
 
-func (f *Flight) DepartureDate() xtime.LocalDate {
+func (f *Flight) DepartureDateLocal() xtime.LocalDate {
 	return xtime.NewLocalDate(f.DepartureTime)
 }
 
@@ -143,10 +143,10 @@ func (f *Flight) DepartureDateUTC() xtime.LocalDate {
 	return xtime.NewLocalDate(f.DepartureTime.UTC())
 }
 
-func (f *Flight) Departure() Departure {
+func (f *Flight) DepartureLocal() Departure {
 	return Departure{
 		Airport: f.DepartureAirport,
-		Date:    f.DepartureDate(),
+		Date:    f.DepartureDateLocal(),
 	}
 }
 
@@ -168,7 +168,7 @@ func (f *Flight) Number() FlightNumber {
 func (f *Flight) Id() FlightId {
 	return FlightId{
 		Number:    f.Number(),
-		Departure: f.Departure(),
+		Departure: f.DepartureLocal(),
 	}
 }
 
