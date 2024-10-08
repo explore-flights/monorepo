@@ -80,7 +80,7 @@ func (a *cfsAction) convertAll(ctx context.Context, inputBucket, inputPrefix str
 
 		result := make(map[xtime.LocalDate][]*common.Flight)
 		for f := range ch {
-			result[f.DepartureDate()] = append(result[f.DepartureDate()], f)
+			result[f.DepartureDateUTC()] = append(result[f.DepartureDateUTC()], f)
 		}
 
 		done <- result
