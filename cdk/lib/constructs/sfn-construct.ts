@@ -33,10 +33,11 @@ export class SfnConstruct extends Construct {
       result: Result.fromObject({
         values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
       }),
+      resultPath: '$.iterator',
     })
       .next(
         new Map(this, 'Iterator', {
-          itemsPath: '$.values',
+          itemsPath: '$.iterator.values',
           itemSelector: {
             'time': JsonPath.stringAt('$.time'),
             'schedule': JsonPath.format('{}:{}', JsonPath.stringAt('$.schedule'), JsonPath.stringAt('$$.Map.Item.Value')),
