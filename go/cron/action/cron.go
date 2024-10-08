@@ -3,17 +3,19 @@ package action
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/explore-flights/monorepo/go/common/xtime"
+	"strconv"
+	"strings"
 	"time"
 )
 
 type CronParams struct {
 	LoadFlightSchedules *struct {
-		OutputBucket string                `json:"outputBucket"`
-		OutputPrefix string                `json:"outputPrefix"`
-		Time         time.Time             `json:"time"`
-		Schedule     string                `json:"schedule,omitempty"`
-		DateRanges   xtime.LocalDateRanges `json:"dateRanges,omitempty"`
+		OutputBucket string    `json:"outputBucket"`
+		OutputPrefix string    `json:"outputPrefix"`
+		Time         time.Time `json:"time"`
+		Schedule     string    `json:"schedule,omitempty"`
 	} `json:"loadFlightSchedules,omitempty"`
 }
 
@@ -53,36 +55,36 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 		}
 
 		if params.LoadFlightSchedules.Schedule != "" {
-			switch params.LoadFlightSchedules.Schedule {
-			case "daily":
+			if schedule, offsetRaw, found := strings.Cut(params.LoadFlightSchedules.Schedule, ":"); found {
 				now := params.LoadFlightSchedules.Time.UTC()
-				dates := []xtime.LocalDate{
-					xtime.NewLocalDate(now.AddDate(0, 0, 30*12)),
-					xtime.NewLocalDate(now.AddDate(0, 0, 30*8)),
-					xtime.NewLocalDate(now.AddDate(0, 0, 30*6)),
-					xtime.NewLocalDate(now.AddDate(0, 0, 30*4)),
-					xtime.NewLocalDate(now.AddDate(0, 0, 30*2)),
-					xtime.NewLocalDate(now.AddDate(0, 0, 30)),
-					xtime.NewLocalDate(now.AddDate(0, 0, 7)),
-					xtime.NewLocalDate(now.AddDate(0, 0, 3)),
-					xtime.NewLocalDate(now.AddDate(0, 0, 1)),
-					xtime.NewLocalDate(now.AddDate(0, 0, -1)),
+				dateOffset := now.AddDate(0, 0, -1)
+				var offset int
+
+				if offset, err = strconv.Atoi(offsetRaw); err != nil {
+					return output, fmt.Errorf("invalid offset: %w", err)
 				}
 
-				for _, d := range dates {
-					lfsInOut.Input.DateRanges = append(lfsInOut.Input.DateRanges, xtime.LocalDateRange{d, d})
-				}
+				switch schedule {
+				case "daily":
+					const daysPerExecution = 30
 
-			default:
-				return output, errors.New("invalid schedule")
+					start := dateOffset.AddDate(0, 0, offset*daysPerExecution)
+					end := start.AddDate(0, 0, daysPerExecution-1)
+
+					lfsInOut.Input.DateRanges = lfsInOut.Input.DateRanges.Expand(xtime.LocalDateRange{
+						xtime.NewLocalDate(start),
+						xtime.NewLocalDate(end),
+					})
+
+				default:
+					return output, errors.New("invalid schedule")
+				}
+			} else {
+				return output, fmt.Errorf("invalid schedule: %v", params.LoadFlightSchedules.Schedule)
 			}
-		} else if params.LoadFlightSchedules.DateRanges != nil {
-			lfsInOut.Input.DateRanges = params.LoadFlightSchedules.DateRanges
 		} else {
-			return output, errors.New("either schedule or dateRanges must be given")
+			return output, errors.New("only daily schedule with offset supported")
 		}
-
-		lfsInOut.Input.DateRanges = lfsInOut.Input.DateRanges.Compact()
 
 		if lfsInOut.Output, err = c.lfsA.Handle(ctx, lfsInOut.Input); err != nil {
 			return output, err

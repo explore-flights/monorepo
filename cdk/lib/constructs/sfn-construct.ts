@@ -3,9 +3,14 @@ import { Construct } from 'constructs';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { IFunction } from 'aws-cdk-lib/aws-lambda';
 import {
-  DefinitionBody, Fail,
+  DefinitionBody,
+  Fail,
   IStateMachine,
   JsonPath,
+  Map,
+  Pass,
+  ProcessorMode,
+  Result,
   StateMachine,
   Succeed,
   TaskInput
@@ -24,10 +29,33 @@ export class SfnConstruct extends Construct {
   constructor(scope: Construct, id: string, props: SfnConstructProps) {
     super(scope, id);
 
-    const success = new Succeed(this, 'Success');
-    const fail = new Fail(this, 'Fail');
+    const definition = new Pass(this, 'InitIterator', {
+      result: Result.fromObject({
+        values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      }),
+    })
+      .next(
+        new Map(this, 'Iterator', {
+          itemsPath: '$.values',
+          itemSelector: {
+            'time': JsonPath.stringAt('$.time'),
+            'schedule': JsonPath.format('{}:{}', JsonPath.stringAt('$.schedule'), JsonPath.stringAt('$$.Map.Item.Value')),
+          },
+          maxConcurrency: 1,
+          resultPath: JsonPath.DISCARD,
+        })
+          .itemProcessor(this.iterationBody(props), { mode: ProcessorMode.INLINE })
+      )
+      .next(new Succeed(this, 'Success'));
 
-    const definition = new LambdaInvoke(this, 'LoadSchedulesTask', {
+    this.flightSchedules = new StateMachine(this, 'FlightSchedules', {
+      definitionBody: DefinitionBody.fromChainable(definition),
+      tracingEnabled: false,
+    });
+  }
+
+  private iterationBody(props: SfnConstructProps) {
+    return new LambdaInvoke(this, 'LoadSchedulesTask', {
       lambdaFunction: props.cronLambda,
       payload: TaskInput.fromObject({
         'action': 'cron',
@@ -82,9 +110,9 @@ export class SfnConstruct extends Construct {
           'InvokeWebhookFailureTask',
           props.cronLambda,
           props.webhookUrl,
-          JsonPath.format('FlightSchedules Cron {} failed', JsonPath.stringAt('$.time')),
+          JsonPath.format('FlightSchedules Cron {} ({}) failed', JsonPath.executionName, JsonPath.executionStartTime),
         )
-          .next(fail),
+          .next(new Fail(this, 'IterationFailure')),
       )
       .next(this.sendWebhookTask(
         'InvokeWebhookSuccessTask',
@@ -96,13 +124,7 @@ export class SfnConstruct extends Construct {
           JsonPath.jsonToString(JsonPath.objectAt('$.loadSchedulesResponse.loadFlightSchedules.input.dateRanges')),
           JsonPath.jsonToString(JsonPath.objectAt('$.convertSchedulesResponse.dateRanges')),
         ),
-      ))
-      .next(success);
-
-    this.flightSchedules = new StateMachine(this, 'FlightSchedules', {
-      definitionBody: DefinitionBody.fromChainable(definition),
-      tracingEnabled: false,
-    });
+      ));
   }
 
   private sendWebhookTask(id: string, fn: IFunction, url: cdk.SecretValue, content: string) {
