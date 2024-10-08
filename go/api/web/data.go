@@ -8,11 +8,8 @@ import (
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/labstack/echo/v4"
 	"net/http"
+	"time"
 )
-
-func noCache(c echo.Context) {
-	c.Response().Header().Set(echo.HeaderCacheControl, "private, no-cache, no-store, max-age=0, must-revalidate")
-}
 
 func NewAirportsEndpoint(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
@@ -30,6 +27,8 @@ func NewAircraftEndpoint(dh *data.Handler) echo.HandlerFunc {
 
 func NewFlightNumberEndpoint(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		addExpirationHeaders(c, time.Now(), time.Hour)
+
 		fnRaw := c.Param("fn")
 		airport := c.Param("airport")
 		dateRaw := c.Param("date")

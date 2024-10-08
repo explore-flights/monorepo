@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"encoding/xml"
-	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -56,19 +55,14 @@ func (l *s3ListObjectsIterator) Err() error {
 }
 
 func NewSitemapHandler(s3c adapt.S3Lister, bucket string) echo.HandlerFunc {
-	ttl := time.Hour * 3
-	cacheControlHeaderValue := fmt.Sprintf("public, max-age=%d, must-revalidate", int(ttl.Seconds()))
+	const ttl = time.Hour * 3
 
 	return func(c echo.Context) error {
-		now := time.Now().UTC() // http.TimeFormat requires UTC time
-		expiresAt := now.Add(ttl)
 		baseURL := baseUrl(c)
 
 		res := c.Response()
 		res.Header().Set(echo.HeaderContentType, echo.MIMEApplicationXMLCharsetUTF8)
-		res.Header().Set("Date", now.Format(http.TimeFormat))
-		res.Header().Set("Expires", expiresAt.Format(http.TimeFormat))
-		res.Header().Set(echo.HeaderCacheControl, cacheControlHeaderValue)
+		addExpirationHeaders(c, time.Now(), ttl)
 
 		_, err := res.Write([]byte(xml.Header))
 		if err != nil {
