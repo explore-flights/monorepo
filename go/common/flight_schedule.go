@@ -47,6 +47,14 @@ func (fsv *FlightScheduleVariant) DepartureTime(d xtime.LocalDate) time.Time {
 	return fsv.Data.DepartureTime.Time(d, time.FixedZone("", fsv.Data.DepartureUTCOffset))
 }
 
+func (fsv *FlightScheduleVariant) DepartureDateLocal(d xtime.LocalDate) xtime.LocalDate {
+	return xtime.NewLocalDate(fsv.DepartureTime(d))
+}
+
+func (fsv *FlightScheduleVariant) DepartureDateUTC(d xtime.LocalDate) xtime.LocalDate {
+	return xtime.NewLocalDate(fsv.DepartureTime(d).UTC())
+}
+
 func (fsv *FlightScheduleVariant) ArrivalTime(d xtime.LocalDate) time.Time {
 	return fsv.DepartureTime(d).Add(time.Duration(fsv.Data.DurationSeconds) * time.Second).In(time.FixedZone("", fsv.Data.ArrivalUTCOffset))
 }
@@ -58,14 +66,19 @@ type FlightSchedule struct {
 	Variants     []*FlightScheduleVariant `json:"variants"`
 }
 
-func (fs *FlightSchedule) Delete(start, end time.Time) {
+func (fs *FlightSchedule) Number() FlightNumber {
+	return FlightNumber{
+		Airline: fs.Airline,
+		Number:  fs.FlightNumber,
+		Suffix:  fs.Suffix,
+	}
+}
+
+func (fs *FlightSchedule) DeleteAll(fn func(*FlightScheduleVariant, xtime.LocalDate) bool) {
 	fs.Variants = slices.DeleteFunc(fs.Variants, func(fsv *FlightScheduleVariant) bool {
-		for d := range fsv.Ranges.Iter() {
-			t := fsv.DepartureTime(d)
-			if t.Compare(start) >= 0 && t.Compare(end) <= 0 {
-				fsv.Ranges = fsv.Ranges.Remove(d)
-			}
-		}
+		fsv.Ranges = fsv.Ranges.RemoveAll(func(d xtime.LocalDate) bool {
+			return fn(fsv, d)
+		})
 
 		return len(fsv.Ranges) < 1
 	})

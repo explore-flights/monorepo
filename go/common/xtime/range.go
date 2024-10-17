@@ -1,6 +1,7 @@
 package xtime
 
 import (
+	"github.com/explore-flights/monorepo/go/common/xiter"
 	"iter"
 	"slices"
 )
@@ -9,6 +10,10 @@ type LocalDateRange [2]LocalDate
 
 func (ldr LocalDateRange) Iter() iter.Seq[LocalDate] {
 	return ldr[0].Until(ldr[1])
+}
+
+func (ldr LocalDateRange) Days() int {
+	return ldr[0].DaysUntil(ldr[1])
 }
 
 func (ldr LocalDateRange) Contains(d LocalDate) bool {
@@ -82,7 +87,7 @@ func (ldrs LocalDateRanges) Iter() iter.Seq[LocalDate] {
 		for _, ldr := range ldrs {
 			for d := range ldr.Iter() {
 				if !yield(d) {
-					break
+					return
 				}
 			}
 		}
@@ -90,19 +95,7 @@ func (ldrs LocalDateRanges) Iter() iter.Seq[LocalDate] {
 }
 
 func (ldrs LocalDateRanges) ExpandAll(other LocalDateRanges) LocalDateRanges {
-	return NewLocalDateRanges(func(yield func(LocalDate) bool) {
-		for d := range ldrs.Iter() {
-			if !yield(d) {
-				return
-			}
-		}
-
-		for d := range other.Iter() {
-			if !yield(d) {
-				return
-			}
-		}
-	})
+	return NewLocalDateRanges(xiter.Combine(ldrs.Iter(), other.Iter()))
 }
 
 func (ldrs LocalDateRanges) Expand(ldr LocalDateRange) LocalDateRanges {
@@ -114,13 +107,19 @@ func (ldrs LocalDateRanges) Add(d LocalDate) LocalDateRanges {
 }
 
 func (ldrs LocalDateRanges) Remove(rm LocalDate) LocalDateRanges {
-	return NewLocalDateRanges(func(yield func(LocalDate) bool) {
-		for d := range ldrs.Iter() {
-			if d != rm {
-				if !yield(d) {
-					break
-				}
-			}
-		}
-	})
+	return NewLocalDateRanges(xiter.Filter(
+		ldrs.Iter(),
+		func(d LocalDate) bool {
+			return d != rm
+		},
+	))
+}
+
+func (ldrs LocalDateRanges) RemoveAll(fn func(LocalDate) bool) LocalDateRanges {
+	return NewLocalDateRanges(xiter.Filter(
+		ldrs.Iter(),
+		func(d LocalDate) bool {
+			return !fn(d)
+		},
+	))
 }

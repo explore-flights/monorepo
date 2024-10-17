@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/common"
-	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"time"
@@ -30,26 +29,14 @@ func NewFlightNumberEndpoint(dh *data.Handler) echo.HandlerFunc {
 		addExpirationHeaders(c, time.Now(), time.Hour)
 
 		fnRaw := c.Param("fn")
-		airport := c.Param("airport")
-		dateRaw := c.Param("date")
 
 		fn, err := common.ParseFlightNumber(fnRaw)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		if airport != "" && dateRaw != "" {
-			d, err := xtime.ParseLocalDate(dateRaw)
-			if err != nil {
-				return echo.NewHTTPError(http.StatusBadRequest, err)
-			}
-
-			flight, err := dh.FlightNumber(c.Request().Context(), fn, airport, d)
-			return jsonResponse(c, flight, err, func(v *common.Flight) bool { return v == nil })
-		} else {
-			fs, err := dh.FlightSchedule(c.Request().Context(), fn)
-			return jsonResponse(c, fs, err, func(v *common.FlightSchedule) bool { return v == nil })
-		}
+		fs, err := dh.FlightSchedule(c.Request().Context(), fn)
+		return jsonResponse(c, fs, err, func(v *common.FlightSchedule) bool { return v == nil })
 	}
 }
 

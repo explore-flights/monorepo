@@ -2,15 +2,17 @@ package action
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
+	"github.com/explore-flights/monorepo/go/common/xiter"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"golang.org/x/sync/errgroup"
+	"maps"
 	"time"
 )
 
@@ -37,15 +39,15 @@ func (a *cfAction) Handle(ctx context.Context, params ConvertFlightsParams) (Con
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	scheduleByFlightNumber, err := a.convertAll(ctx, params.InputBucket, params.InputPrefix, params.DateRanges)
+	scheduleByAirlineAndFlightNumber, err := a.convertAll(ctx, params.InputBucket, params.InputPrefix, params.DateRanges)
 	if err != nil {
 		return ConvertFlightsOutput{}, err
 	}
 
-	return ConvertFlightsOutput{}, a.upsertAll(ctx, params.OutputBucket, params.OutputPrefix, params.DateRanges, scheduleByFlightNumber)
+	return ConvertFlightsOutput{}, a.upsertAll(ctx, params.OutputBucket, params.OutputPrefix, params.DateRanges, scheduleByAirlineAndFlightNumber)
 }
 
-func (a *cfAction) convertAll(ctx context.Context, bucket, prefix string, dateRanges xtime.LocalDateRanges) (map[common.FlightNumber]*common.FlightSchedule, error) {
+func (a *cfAction) convertAll(ctx context.Context, bucket, prefix string, dateRanges xtime.LocalDateRanges) (map[common.AirlineIdentifier]map[common.FlightNumber]*common.FlightSchedule, error) {
 	ch := make(chan *common.Flight, 1024)
 	g, gCtx := errgroup.WithContext(ctx)
 
@@ -55,57 +57,39 @@ func (a *cfAction) convertAll(ctx context.Context, bucket, prefix string, dateRa
 		})
 	}
 
-	done := make(chan map[common.FlightNumber]*common.FlightSchedule)
+	done := make(chan map[common.AirlineIdentifier]map[common.FlightNumber]*common.FlightSchedule)
 	go func() {
 		defer close(done)
 
-		result := make(map[common.FlightNumber]*common.FlightSchedule)
+		result := make(map[common.AirlineIdentifier]map[common.FlightNumber]*common.FlightSchedule)
 		for f := range ch {
-			d := xtime.NewLocalDate(f.DepartureTime)
-			fn := f.Number()
+			d := f.DepartureDateLocal()
 			fsd := convertFlightToData(f)
 
-			if fs, ok := result[fn]; ok {
-				if variant, ok := fs.Variant(fsd); ok {
-					variant.Ranges = variant.Ranges.Add(d)
-				} else {
-					fs.Variants = append(fs.Variants, &common.FlightScheduleVariant{
-						Ranges: xtime.LocalDateRanges{{d, d}},
-						Data:   fsd,
-					})
+			for fn := range xiter.Combine(xiter.Single(f.Number()), maps.Keys(f.CodeShares)) {
+				byFlightNumber, ok := result[fn.Airline]
+				if !ok {
+					byFlightNumber = make(map[common.FlightNumber]*common.FlightSchedule)
+					result[fn.Airline] = byFlightNumber
 				}
-			} else {
-				result[fn] = &common.FlightSchedule{
-					Airline:      f.Airline,
-					FlightNumber: f.FlightNumber,
-					Suffix:       f.Suffix,
-					Variants: []*common.FlightScheduleVariant{
-						{
-							Ranges: xtime.LocalDateRanges{{d, d}},
-							Data:   fsd,
-						},
-					},
-				}
-			}
 
-			for codeShareFn := range f.CodeShares {
-				if fs, ok := result[codeShareFn]; ok {
+				if fs, ok := byFlightNumber[fn]; ok {
 					if variant, ok := fs.Variant(fsd); ok {
 						variant.Ranges = variant.Ranges.Add(d)
 					} else {
 						fs.Variants = append(fs.Variants, &common.FlightScheduleVariant{
-							Ranges: xtime.LocalDateRanges{{d, d}},
+							Ranges: xtime.NewLocalDateRanges(xiter.Single(d)),
 							Data:   fsd,
 						})
 					}
 				} else {
-					result[codeShareFn] = &common.FlightSchedule{
-						Airline:      codeShareFn.Airline,
-						FlightNumber: codeShareFn.Number,
-						Suffix:       codeShareFn.Suffix,
+					byFlightNumber[fn] = &common.FlightSchedule{
+						Airline:      fn.Airline,
+						FlightNumber: fn.Number,
+						Suffix:       fn.Suffix,
 						Variants: []*common.FlightScheduleVariant{
 							{
-								Ranges: xtime.LocalDateRanges{{d, d}},
+								Ranges: xtime.NewLocalDateRanges(xiter.Single(d)),
 								Data:   fsd,
 							},
 						},
@@ -163,13 +147,13 @@ func (a *cfAction) loadSingle(ctx context.Context, bucket, prefix string, d xtim
 	return nil
 }
 
-func (a *cfAction) upsertAll(ctx context.Context, bucket, prefix string, utcDateRanges xtime.LocalDateRanges, scheduleByFlightNumber map[common.FlightNumber]*common.FlightSchedule) error {
-	ch := make(chan Pair[common.FlightNumber, *common.FlightSchedule])
+func (a *cfAction) upsertAll(ctx context.Context, bucket, prefix string, utcDateRanges xtime.LocalDateRanges, scheduleByAirlineAndFlightNumber map[common.AirlineIdentifier]map[common.FlightNumber]*common.FlightSchedule) error {
+	ch := make(chan Pair[common.AirlineIdentifier, map[common.FlightNumber]*common.FlightSchedule])
 	go func() {
 		defer close(ch)
 
-		for fn, fs := range scheduleByFlightNumber {
-			ch <- Pair[common.FlightNumber, *common.FlightSchedule]{fn, fs}
+		for airline, scheduleByFlightNumber := range scheduleByAirlineAndFlightNumber {
+			ch <- Pair[common.AirlineIdentifier, map[common.FlightNumber]*common.FlightSchedule]{airline, scheduleByFlightNumber}
 		}
 	}()
 
@@ -197,45 +181,59 @@ func (a *cfAction) upsertAll(ctx context.Context, bucket, prefix string, utcDate
 	return g.Wait()
 }
 
-func (a *cfAction) upsertFlightSchedules(ctx context.Context, bucket, prefix string, utcDateRanges xtime.LocalDateRanges, fn common.FlightNumber, fs *common.FlightSchedule) error {
-	s3Key := prefix + fmt.Sprintf("%s/%d%s.json", fn.Airline, fn.Number, fn.Suffix)
-	existing, err := a.loadFlightSchedule(ctx, bucket, s3Key)
+func (a *cfAction) upsertFlightSchedules(ctx context.Context, bucket, prefix string, utcDateRanges xtime.LocalDateRanges, airline common.AirlineIdentifier, scheduleByFlightNumber map[common.FlightNumber]*common.FlightSchedule) error {
+	existing, err := a.loadFlightSchedules(ctx, bucket, prefix, airline)
 	if err != nil {
 		return err
 	}
 
 	if existing != nil {
-		for d := range utcDateRanges.Iter() {
+		for fn, existingFs := range existing {
 			// remove all variants which should come in fresh because they were updated in this execution
 			// if they do not come in again, the flight was removed
-			start := d.Time(nil)
-			end := d.Next().Time(nil).Add(-1) // end of the same day
+			existingFs.DeleteAll(func(fsv *common.FlightScheduleVariant, d xtime.LocalDate) bool {
+				return utcDateRanges.Contains(fsv.DepartureDateUTC(d))
+			})
 
-			existing.Delete(start, end)
+			if len(existingFs.Variants) >= 1 {
+				if fs, ok := scheduleByFlightNumber[fn]; ok {
+					scheduleByFlightNumber[fn] = combineSchedules(fs, existingFs)
+				} else {
+					scheduleByFlightNumber[fn] = existingFs
+				}
+			}
 		}
-
-		fs = combineSchedules(fs, existing)
 	}
 
-	b, err := json.Marshal(fs)
+	var buf bytes.Buffer
+	w, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
 	if err != nil {
 		return err
 	}
 
+	if err = json.NewEncoder(w).Encode(scheduleByFlightNumber); err != nil {
+		return err
+	}
+
+	if err = w.Close(); err != nil {
+		return err
+	}
+
 	_, err = a.s3c.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:      aws.String(bucket),
-		Key:         aws.String(s3Key),
-		ContentType: aws.String("application/json"),
-		Body:        bytes.NewReader(b),
+		Bucket:          aws.String(bucket),
+		Key:             aws.String(prefix + string(airline) + ".json.gz"),
+		ContentType:     aws.String("application/json"),
+		ContentEncoding: aws.String("gzip"),
+		Body:            bytes.NewReader(buf.Bytes()),
 	})
 
 	return err
 }
 
-func (a *cfAction) loadFlightSchedule(ctx context.Context, bucket, s3Key string) (*common.FlightSchedule, error) {
+func (a *cfAction) loadFlightSchedules(ctx context.Context, bucket, prefix string, airline common.AirlineIdentifier) (map[common.FlightNumber]*common.FlightSchedule, error) {
 	resp, err := a.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
-		Key:    aws.String(s3Key),
+		Key:    aws.String(prefix + string(airline) + ".json.gz"),
 	})
 
 	if err != nil {
@@ -248,8 +246,17 @@ func (a *cfAction) loadFlightSchedule(ctx context.Context, bucket, s3Key string)
 
 	defer resp.Body.Close()
 
-	var fs *common.FlightSchedule
-	return fs, json.NewDecoder(resp.Body).Decode(&fs)
+	r, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var result map[common.FlightNumber]*common.FlightSchedule
+	if err = json.NewDecoder(r).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result, r.Close()
 }
 
 func combineSchedules(fs *common.FlightSchedule, existing *common.FlightSchedule) *common.FlightSchedule {

@@ -42,6 +42,10 @@ func (ld LocalDate) Time(loc *time.Location) time.Time {
 	return time.Date(ld.Year, ld.Month, ld.Day, 0, 0, 0, 0, cmp.Or(loc, time.UTC))
 }
 
+func (ld LocalDate) DaysUntil(other LocalDate) int {
+	return int(other.Time(nil).Sub(ld.Time(nil)) / (time.Hour * 24))
+}
+
 func (ld LocalDate) Next() LocalDate {
 	return NewLocalDate(ld.Time(nil).AddDate(0, 0, 1))
 }

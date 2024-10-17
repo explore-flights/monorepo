@@ -72,15 +72,6 @@ export class ApiClient {
     return transform(this.httpClient.fetch('/data/aircraft.json'));
   }
 
-  getFlight(flightNumber: string, airport: string, date: DateTime<true>): Promise<ApiResponse<Flight | null>> {
-    return this.limiter.do(() => transform(
-      this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}/${encodeURIComponent(airport)}/${encodeURIComponent(date.toUTC().toISODate())}`),
-      (status, body) => status === 200 ? JSON.parse(body) as Flight : null,
-      200,
-      404,
-    ));
-  }
-
   getFlightSchedule(flightNumber: string): Promise<ApiResponse<FlightSchedule>> {
     return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}`));
   }

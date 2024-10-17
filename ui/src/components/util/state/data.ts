@@ -32,19 +32,6 @@ export function useAircraft() {
   });
 }
 
-export function useFlight(flightNumber: string, airport: string, date: DateTime<true>) {
-  const { apiClient } = useHttpClient();
-  return useQuery({
-    queryKey: ['flight', flightNumber, airport, date.toUTC().toISODate()],
-    queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getFlight(flightNumber, airport, date));
-      return body;
-    },
-    retry: 3,
-    staleTime: 1000 * 60 * 15,
-  });
-}
-
 export function useFlightSchedule(flightNumber: string) {
   const { apiClient } = useHttpClient();
   return useQuery({

@@ -47,7 +47,6 @@ func main() {
 
 	jsonConnEdp := web.NewConnectionsEndpoint(connHandler, "json")
 	pngConnEdp := web.NewConnectionsEndpoint(connHandler, "png")
-	fnEdp := web.NewFlightNumberEndpoint(dataHandler)
 
 	e.POST("/api/connections/json", jsonConnEdp)
 	e.GET("/api/connections/json/:payload", jsonConnEdp)
@@ -55,7 +54,7 @@ func main() {
 	e.GET("/api/connections/png/:payload/c.png", pngConnEdp)
 	e.POST("/api/connections/share", web.NewConnectionsShareCreateEndpoint())
 	e.GET("/api/connections/share/:payload", web.NewConnectionsShareHTMLEndpoint())
-	e.GET("/api/search", web.NewSearchEndpoint(s3c, bucket))
+	e.GET("/api/search", web.NewSearchEndpoint(dataHandler))
 
 	e.HEAD("/auth/info", authHandler.AuthInfo)
 	e.POST("/auth/logout", authHandler.Logout)
@@ -63,11 +62,10 @@ func main() {
 	e.GET("/auth/oauth2/login/:issuer", authHandler.Login)
 	e.GET("/auth/oauth2/code/:issuer", authHandler.Code)
 
-	e.GET("/data/sitemap.xml", web.NewSitemapHandler(s3c, bucket))
+	e.GET("/data/sitemap.xml", web.NewSitemapHandler(dataHandler))
 	e.GET("/data/airports.json", web.NewAirportsEndpoint(dataHandler))
 	e.GET("/data/aircraft.json", web.NewAircraftEndpoint(dataHandler))
-	e.GET("/data/flight/:fn", fnEdp)
-	e.GET("/data/flight/:fn/:airport/:date", fnEdp)
+	e.GET("/data/flight/:fn", web.NewFlightNumberEndpoint(dataHandler))
 
 	if err := run(ctx, e); err != nil {
 		panic(err)

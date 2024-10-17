@@ -1,17 +1,10 @@
 package web
 
 import (
-	"context"
 	"encoding/xml"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/explore-flights/monorepo/go/common"
-	"github.com/explore-flights/monorepo/go/common/adapt"
+	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/labstack/echo/v4"
-	"iter"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -20,51 +13,23 @@ type xmlSitemapUrl struct {
 	Lastmod string `xml:"lastmod"`
 }
 
-type s3ListObjectsIterator struct {
-	s3c adapt.S3Lister
-	req *s3.ListObjectsV2Input
-	err error
-}
-
-func (l *s3ListObjectsIterator) All(ctx context.Context) iter.Seq[types.Object] {
-	return func(yield func(types.Object) bool) {
-		for {
-			res, err := l.s3c.ListObjectsV2(ctx, l.req)
-			if err != nil {
-				l.err = err
-				return
-			}
-
-			for _, obj := range res.Contents {
-				if !yield(obj) {
-					return
-				}
-			}
-
-			if res.NextContinuationToken == nil {
-				return
-			}
-
-			l.req.ContinuationToken = res.NextContinuationToken
-		}
-	}
-}
-
-func (l *s3ListObjectsIterator) Err() error {
-	return l.err
-}
-
-func NewSitemapHandler(s3c adapt.S3Lister, bucket string) echo.HandlerFunc {
+func NewSitemapHandler(dh *data.Handler) echo.HandlerFunc {
 	const ttl = time.Hour * 3
 
 	return func(c echo.Context) error {
+		fns, err := dh.FlightNumbers(c.Request().Context(), "", -1)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError)
+		}
+
 		baseURL := baseUrl(c)
+		now := time.Now()
 
 		res := c.Response()
 		res.Header().Set(echo.HeaderContentType, echo.MIMEApplicationXMLCharsetUTF8)
-		addExpirationHeaders(c, time.Now(), ttl)
+		addExpirationHeaders(c, now, ttl)
 
-		_, err := res.Write([]byte(xml.Header))
+		_, err = res.Write([]byte(xml.Header))
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError)
 		}
@@ -83,33 +48,12 @@ func NewSitemapHandler(s3c adapt.S3Lister, bucket string) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusInternalServerError)
 		}
 
-		it := &s3ListObjectsIterator{
-			s3c: s3c,
-			req: &s3.ListObjectsV2Input{
-				Bucket: aws.String(bucket),
-				Prefix: aws.String("processed/schedules/"),
-			},
-		}
+		for _, fn := range fns {
+			loc := baseURL + "/flight/" + fn.String()
 
-		for obj := range it.All(c.Request().Context()) {
-			var ok bool
-			flightNumber := strings.TrimPrefix(*obj.Key, "processed/schedules/")
-
-			if flightNumber, ok = strings.CutSuffix(flightNumber, ".json"); ok {
-				flightNumber = strings.Replace(flightNumber, "/", "", 1)
-
-				if common.CanParseFlightNumber(flightNumber) {
-					loc := baseURL + "/flight/" + flightNumber
-
-					if err = addSitemapURL(enc, loc, *obj.LastModified); err != nil {
-						return echo.NewHTTPError(http.StatusInternalServerError)
-					}
-				}
+			if err = addSitemapURL(enc, loc, now); err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError)
 			}
-		}
-
-		if err = it.Err(); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError)
 		}
 
 		err = enc.EncodeToken(xml.EndElement{
