@@ -26,7 +26,7 @@ import { SideNav } from './sidenav/sidenav';
 import { AppControlsProvider } from './util/context/app-controls';
 import { AuthInfoProvider, useAuthInfo } from './util/context/auth-info';
 import { BrowserStoreProvider } from './util/context/browser-store';
-import { HttpClientProvider, useHttpClient } from './util/context/http-client';
+import { HttpClientProvider } from './util/context/http-client';
 import { useMobile } from './util/state/common';
 import { useHasConsent } from './util/state/use-consent';
 import { usePreferences } from './util/state/use-preferences';
@@ -151,7 +151,6 @@ export function BaseProviders({ children }: React.PropsWithChildren) {
 function InternalBaseProviders({ children }: React.PropsWithChildren) {
   const queryClient = new QueryClient();
 
-  const { apiClient } = useHttpClient();
   const [preferences] = usePreferences();
   const [authInfo, setAuthInfo] = useState<AuthInfo | null | undefined>(undefined);
   const [tools, setTools] = useState<React.ReactNode>();
@@ -172,6 +171,7 @@ function InternalBaseProviders({ children }: React.PropsWithChildren) {
     applyDensity(preferences.uiDensity === UIDensity.COMFORTABLE ? Density.Comfortable : Density.Compact, document.documentElement);
   }, [preferences]);
 
+  /*
   useEffect(() => {
     (async () => {
       const resp = await apiClient.getAuthInfo();
@@ -182,7 +182,7 @@ function InternalBaseProviders({ children }: React.PropsWithChildren) {
       }
     })().catch(() => setAuthInfo(null));
   }, [apiClient]);
-
+   */
 
   const appControlsState = useMemo<AppControlsState>(() => ({
     tools: {

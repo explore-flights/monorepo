@@ -8,19 +8,14 @@ import {
 import React, { useMemo, useState } from 'react';
 import { PreferencesModal } from '../preferences/preferences';
 import classes from './header.module.scss';
-import { useAuthInfo } from '../util/context/auth-info';
-import { catchNotify, useAppControls } from '../util/context/app-controls';
-import { useHttpClient } from '../util/context/http-client';
-import { expectSuccess } from '../../lib/api/api';
 import { useSearch } from '../util/state/data';
 import { useDebounce } from '../util/state/use-debounce';
 import { useNavigate } from 'react-router-dom';
 
 export default function FlightsHeader() {
-  const { apiClient } = useHttpClient();
-  const { notification } = useAppControls();
-
   const [showPreferences, setShowPreferences] = useState(false);
+
+  /*
   const [authInfo, setAuthInfo] = useAuthInfo();
 
   function logout() {
@@ -35,6 +30,7 @@ export default function FlightsHeader() {
     })()
       .catch(catchNotify(notification));
   }
+   */
 
   const utilities: TopNavigationProps.Utility[] = [
     {
@@ -52,6 +48,7 @@ export default function FlightsHeader() {
     },
   ];
 
+  /*
   if (authInfo === undefined) {
     utilities.push({
       type: 'button',
@@ -85,6 +82,7 @@ export default function FlightsHeader() {
       onClick: logout,
     });
   }
+   */
 
   return (
     <>
