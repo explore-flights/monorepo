@@ -5,7 +5,7 @@ import {
   TopNavigation,
   TopNavigationProps
 } from '@cloudscape-design/components';
-import React, { useMemo, useState } from 'react';
+import React, { createRef, useEffect, useMemo, useState } from 'react';
 import { PreferencesModal } from '../preferences/preferences';
 import classes from './header.module.scss';
 import { useSearch } from '../util/state/data';
@@ -134,8 +134,29 @@ function TopNavigationSearch() {
     } satisfies Record<string, 'finished' | 'error' | 'loading'>)[results.status];
   }, [results.status]);
 
+  const ref = createRef<AutosuggestProps.Ref>();
+  useEffect(() => {
+    const search = ref.current;
+    if (!search) {
+      return;
+    }
+
+    const listener = (e: KeyboardEvent) => {
+      if (e.target === document.body && e.code === 'KeyS') {
+        e.preventDefault();
+        search.focus();
+      }
+    };
+
+    document.addEventListener('keydown', listener);
+
+    return () => document.removeEventListener('keydown', listener);
+  }, [ref.current]);
+
   return (
     <Autosuggest
+      ref={ref}
+      placeholder={'Type [s] to search'}
       value={query}
       options={options}
       filteringType={'manual'}
