@@ -17,7 +17,7 @@ import { LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
 export interface SfnConstructProps {
   dataBucket: IBucket;
   cronLambda_1G: IFunction;
-  cronLambda_10G: IFunction;
+  cronLambda_2G: IFunction;
   webhookUrl: cdk.SecretValue;
 }
 
@@ -98,7 +98,7 @@ export class SfnConstruct extends Construct {
           // region conversion
           .otherwise(
             new LambdaInvoke(this, 'ConvertSchedulesTask', {
-              lambdaFunction: props.cronLambda_10G,
+              lambdaFunction: props.cronLambda_2G,
               payload: TaskInput.fromObject({
                 'action': 'convert_flight_schedules',
                 'params': {
@@ -114,7 +114,7 @@ export class SfnConstruct extends Construct {
               retryOnServiceExceptions: true,
             })
               .next(new LambdaInvoke(this, 'ConvertFlightsTask', {
-                lambdaFunction: props.cronLambda_10G,
+                lambdaFunction: props.cronLambda_2G,
                 payload: TaskInput.fromObject({
                   'action': 'convert_flights',
                   'params': {

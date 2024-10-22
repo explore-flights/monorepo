@@ -21,7 +21,7 @@ export interface CronLambdaConstructProps {
 
 export class CronLambdaConstruct extends Construct {
   readonly lambda_1G: IFunction;
-  readonly lambda_10G: IFunction;
+  readonly lambda_2G: IFunction;
 
   constructor(scope: Construct, id: string, props: CronLambdaConstructProps) {
     super(scope, id);
@@ -48,12 +48,12 @@ export class CronLambdaConstruct extends Construct {
       memorySize: 1024,
     });
 
-    this.lambda_10G = new Function(this, 'CronLambda_10G', {
+    this.lambda_2G = new Function(this, 'CronLambda_2G', {
       ...lambdaBaseProps,
-      memorySize: 1024 * 10,
+      memorySize: 1024 * 2,
     });
 
-    for (const fn of [this.lambda_1G, this.lambda_10G]) {
+    for (const fn of [this.lambda_1G, this.lambda_2G]) {
       props.dataBucket.grantRead(fn, 'raw/LH_Public_Data/flightschedules/*');
       props.dataBucket.grantWrite(fn, 'raw/LH_Public_Data/*');
       props.dataBucket.grantWrite(fn, 'raw/ourairports_data/*');

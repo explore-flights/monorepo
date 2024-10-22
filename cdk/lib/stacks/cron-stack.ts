@@ -31,7 +31,7 @@ export class CronStack extends cdk.Stack {
     const sfn = new SfnConstruct(this, 'SFN', {
       dataBucket: props.dataBucket,
       cronLambda_1G: cronLambda.lambda_1G,
-      cronLambda_10G: cronLambda.lambda_10G,
+      cronLambda_2G: cronLambda.lambda_2G,
       webhookUrl: cdk.SecretValue.cfnParameter(new cdk.CfnParameter(this, 'webhookUrl', {
         type: 'String',
         noEcho: true,
