@@ -48,7 +48,7 @@ export class SfnConstruct extends Construct {
       payloadResponseOnly: true,
       resultSelector: {
         'completed': [],
-        'remaining': JsonPath.objectAt('$.dateRanges'),
+        'remaining': JsonPath.objectAt('$.prepareDailyCron.dateRanges'),
       },
       resultPath: '$.loadScheduleRanges',
       retryOnServiceExceptions: true,
@@ -78,16 +78,16 @@ export class SfnConstruct extends Construct {
                 payload: TaskInput.fromObject({
                   'action': 'cron',
                   'params': {
-                    'mergeDateRanges': {
-                      'first': JsonPath.objectAt('$.loadScheduleRanges.completed'),
-                      'second': JsonPath.objectAt('$.loadSchedulesResponse.completed'),
-                    },
+                    'mergeDateRanges': [
+                      [JsonPath.objectAt('$.loadScheduleRanges.completed'), JsonPath.objectAt('$.loadSchedulesResponse.completed')],
+                      [JsonPath.objectAt('$.loadSchedulesResponse.remaining')],
+                    ],
                   },
                 }),
                 payloadResponseOnly: true,
                 resultSelector: {
-                  'completed': JsonPath.objectAt('$.mergeDateRanges.dateRanges'),
-                  'remaining': JsonPath.objectAt('$.loadSchedulesResponse.remaining'),
+                  'completed': JsonPath.arrayGetItem(JsonPath.objectAt('$.mergeDateRanges'), 0),
+                  'remaining': JsonPath.arrayGetItem(JsonPath.objectAt('$.mergeDateRanges'), 1),
                 },
                 resultPath: '$.loadScheduleRanges',
                 retryOnServiceExceptions: true,

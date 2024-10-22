@@ -13,10 +13,7 @@ type CronParams struct {
 		Total  int       `json:"total"`
 	} `json:"prepareDailyCron,omitempty"`
 
-	MergeDateRanges *struct {
-		First  xtime.LocalDateRanges `json:"first"`
-		Second xtime.LocalDateRanges `json:"second"`
-	} `json:"mergeDateRanges,omitempty"`
+	MergeDateRanges [][]xtime.LocalDateRanges `json:"mergeDateRanges,omitempty"`
 }
 
 type CronOutput struct {
@@ -24,9 +21,7 @@ type CronOutput struct {
 		DateRanges xtime.LocalDateRanges `json:"dateRanges"`
 	} `json:"prepareDailyCron,omitempty"`
 
-	MergeDateRanges *struct {
-		DateRanges xtime.LocalDateRanges `json:"dateRanges"`
-	} `json:"mergeDateRanges,omitempty"`
+	MergeDateRanges []xtime.LocalDateRanges `json:"mergeDateRanges,omitempty"`
 }
 
 type InputOutput[IN any, OUT any] struct {
@@ -63,10 +58,13 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 	}
 
 	if params.MergeDateRanges != nil {
-		output.MergeDateRanges = &struct {
-			DateRanges xtime.LocalDateRanges `json:"dateRanges"`
-		}{
-			DateRanges: params.MergeDateRanges.First.ExpandAll(params.MergeDateRanges.Second),
+		output.MergeDateRanges = make([]xtime.LocalDateRanges, len(params.MergeDateRanges))
+
+		for i, merge := range params.MergeDateRanges {
+			output.MergeDateRanges[i] = make(xtime.LocalDateRanges, 0)
+			for _, r := range merge {
+				output.MergeDateRanges[i] = output.MergeDateRanges[i].ExpandAll(r)
+			}
 		}
 	}
 
