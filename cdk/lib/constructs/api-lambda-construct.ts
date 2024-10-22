@@ -22,6 +22,7 @@ export interface ApiLambdaConstructProps {
 }
 
 export class ApiLambdaConstruct extends Construct {
+  readonly lambda: Function;
   readonly functionURL: FunctionUrl;
 
   constructor(scope: Construct, id: string, props: ApiLambdaConstructProps) {
@@ -39,7 +40,7 @@ export class ApiLambdaConstruct extends Construct {
       this.ssmSecureString('/api/session/id_rsa.pub'),
     ];
 
-    const lambda = new Function(this, 'ApiLambda', {
+    this.lambda = new Function(this, 'ApiLambda', {
       runtime: Runtime.PROVIDED_AL2023,
       architecture: Architecture.ARM_64,
       memorySize: 1024,
@@ -77,27 +78,26 @@ export class ApiLambdaConstruct extends Construct {
       }),
     });
 
-    lambda.addToRolePolicy(new PolicyStatement({
+    this.lambda.addToRolePolicy(new PolicyStatement({
       effect: Effect.ALLOW,
       actions: ['ssm:GetParameters'],
       resources: [ssmGoogleClientId, ssmGoogleClientSecret, ssmSessionRsaPriv, ssmSessionRsaPub].map((v) => v.parameterArn),
     }));
 
-    props.dataBucket.grantRead(lambda, 'processed/flights/*');
-    props.dataBucket.grantRead(lambda, 'processed/schedules/*');
-    props.dataBucket.grantRead(lambda, 'raw/ourairports_data/airports.csv');
-    props.dataBucket.grantRead(lambda, 'raw/ourairports_data/countries.csv');
-    props.dataBucket.grantRead(lambda, 'raw/ourairports_data/regions.csv');
-    props.dataBucket.grantRead(lambda, 'raw/LH_Public_Data/aircraft.json');
+    props.dataBucket.grantRead(this.lambda, 'processed/flights/*');
+    props.dataBucket.grantRead(this.lambda, 'processed/schedules/*');
+    props.dataBucket.grantRead(this.lambda, 'raw/ourairports_data/airports.csv');
+    props.dataBucket.grantRead(this.lambda, 'raw/ourairports_data/countries.csv');
+    props.dataBucket.grantRead(this.lambda, 'raw/ourairports_data/regions.csv');
+    props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/aircraft.json');
 
-    props.authBucket.grantReadWrite(lambda, 'authreq/*');
-    props.authBucket.grantReadWrite(lambda, 'federation/*');
-    props.authBucket.grantReadWrite(lambda, 'account/*');
+    props.authBucket.grantReadWrite(this.lambda, 'authreq/*');
+    props.authBucket.grantReadWrite(this.lambda, 'federation/*');
+    props.authBucket.grantReadWrite(this.lambda, 'account/*');
 
     this.functionURL = new FunctionUrl(this, 'ApiLambdaFunctionUrl', {
-      function: lambda,
-      // https://github.com/pwrdrvr/lambda-url-signing check later
-      authType: FunctionUrlAuthType.NONE,
+      function: this.lambda,
+      authType: FunctionUrlAuthType.AWS_IAM,
       invokeMode: InvokeMode.RESPONSE_STREAM,
     });
   }

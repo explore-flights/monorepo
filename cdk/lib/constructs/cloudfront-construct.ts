@@ -1,31 +1,38 @@
 import { Construct } from 'constructs';
 import {
   AllowedMethods,
-  CachePolicy, CfnOriginAccessControl,
-  Distribution, Function, FunctionCode, FunctionEventType, FunctionRuntime, HeadersFrameOption,
+  CachePolicy,
+  CfnOriginAccessControl,
+  Distribution,
+  Function,
+  FunctionCode,
+  FunctionEventType,
+  FunctionRuntime,
+  HeadersFrameOption,
   HttpVersion,
   IDistribution,
-  OriginProtocolPolicy,
-  OriginRequestCookieBehavior,
-  OriginRequestHeaderBehavior,
+  OriginAccessControlOriginType,
   OriginRequestPolicy,
-  OriginRequestQueryStringBehavior,
   PriceClass,
   ResponseHeadersPolicy,
+  S3OriginAccessControl,
   SecurityPolicyProtocol,
+  Signing,
   ViewerProtocolPolicy
 } from 'aws-cdk-lib/aws-cloudfront';
-import { HttpOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
+import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
-import { Duration, Fn, Stack } from 'aws-cdk-lib';
-import { IFunctionUrl } from 'aws-cdk-lib/aws-lambda';
-import { Bucket, IBucket } from 'aws-cdk-lib/aws-s3';
-import { S3OriginWithOAC } from './s3-origin-with-oac';
+import { Duration, Stack } from 'aws-cdk-lib';
+import { IFunction, IFunctionUrl } from 'aws-cdk-lib/aws-lambda';
+import { IBucket } from 'aws-cdk-lib/aws-s3';
+import { CloudfrontUtil } from '../util/util';
+import { FunctionUrlOriginWithOAC } from './function-url-origin-with-oac';
 
 export interface CloudfrontConstructProps {
   domain: string;
   certificateId: string;
   uiResourcesBucket: IBucket;
+  apiLambda: IFunction;
   apiLambdaFunctionURL: IFunctionUrl;
 }
 
@@ -81,33 +88,25 @@ export class CloudfrontConstruct extends Construct {
     });
     // endregion
 
-    // region OriginRequestPolicy -  which headers, cookies and query params should be forwarded to the origin
-    const allExceptHostOriginRequestPolicy = new OriginRequestPolicy(this, 'AllExceptHostORP', {
-      headerBehavior: OriginRequestHeaderBehavior.denyList('Host'),
-      cookieBehavior: OriginRequestCookieBehavior.all(),
-      queryStringBehavior: OriginRequestQueryStringBehavior.all(),
-    });
-    // endregion
-
     // region origins
-    const apiLambdaOrigin = new HttpOrigin(Fn.select(2, Fn.split('/', props.apiLambdaFunctionURL.url)), {
-      protocolPolicy: OriginProtocolPolicy.HTTPS_ONLY,
-      customHeaders: { Forwarded: `host=${props.domain};proto=https` },
-      originShieldEnabled: true,
-      originShieldRegion: Stack.of(this).region,
-    });
-    // endregion
-
-    const uiResourcesOAC = new CfnOriginAccessControl(this, 'UIResourcesOAC', {
+    const apiLambdaOAC = new CfnOriginAccessControl(this, 'APILambdaOACv2', {
       originAccessControlConfig: {
-        // these names must be unique
-        name: `${this.node.path.replace('/', '-')}-UIResourcesOAC`,
-        description: 'OAC to access UI resources bucket',
-        originAccessControlOriginType: 's3',
+        name: `${this.node.path.replace('/', '-')}-APILambdaOACv2`,
+        description: 'OAC to access API Lambda Function URL',
+        originAccessControlOriginType: OriginAccessControlOriginType.LAMBDA,
         signingBehavior: 'always',
         signingProtocol: 'sigv4',
       },
     });
+
+    const apiLambdaOrigin = new FunctionUrlOriginWithOAC(props.apiLambdaFunctionURL, {
+      customHeaders: { Forwarded: `host=${props.domain};proto=https` },
+      originShieldEnabled: true,
+      originShieldRegion: Stack.of(this).region,
+      originAccessControlId: apiLambdaOAC.attrId, // not supported (yet)
+      oacId: apiLambdaOAC.getAtt('Id'),
+    });
+    // endregion
 
     this.distribution = new Distribution(this, 'Distribution', {
       priceClass: PriceClass.PRICE_CLASS_ALL,
@@ -126,11 +125,13 @@ export class CloudfrontConstruct extends Construct {
       ),
       minimumProtocolVersion: SecurityPolicyProtocol.TLS_V1_2_2021,
       defaultBehavior: {
-        origin: new S3OriginWithOAC(
-          // prevent CF from adding its OriginAccessIdentity to the BucketPolicy since we're using OriginAccessControl (see below)
-          Bucket.fromBucketName(this, 'UIResourcesBucketCopy', props.uiResourcesBucket.bucketName),
-          { oacId: uiResourcesOAC.getAtt('Id') },
-        ),
+        origin: S3BucketOrigin.withOriginAccessControl(props.uiResourcesBucket, {
+          originAccessControl: new S3OriginAccessControl(this, 'UIResourcesOACv2', {
+            description: 'OAC to access UI resources bucket',
+            signing: Signing.SIGV4_ALWAYS,
+          }),
+          // originAccessLevels: [], // manually configured with ListBucket via CloudfrontUtil
+        }),
         compress: true,
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: AllowedMethods.ALLOW_GET_HEAD,
@@ -161,7 +162,7 @@ export class CloudfrontConstruct extends Construct {
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: AllowedMethods.ALLOW_ALL,
           cachePolicy: CachePolicy.CACHING_DISABLED,
-          originRequestPolicy: allExceptHostOriginRequestPolicy,
+          originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
           responseHeadersPolicy: noCacheResponseHeadersPolicy,
         },
         '/auth/*': {
@@ -170,7 +171,7 @@ export class CloudfrontConstruct extends Construct {
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: AllowedMethods.ALLOW_ALL,
           cachePolicy: CachePolicy.CACHING_DISABLED,
-          originRequestPolicy: allExceptHostOriginRequestPolicy,
+          originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
           responseHeadersPolicy: noCacheResponseHeadersPolicy,
         },
         '/data/*': {
@@ -179,13 +180,16 @@ export class CloudfrontConstruct extends Construct {
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
           cachePolicy: CachePolicy.CACHING_OPTIMIZED,
-          originRequestPolicy: allExceptHostOriginRequestPolicy,
+          originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
           responseHeadersPolicy: cacheOverridableResponseHeadersPolicy,
         },
       },
       enableLogging: false,
       enabled: true,
     });
+
+    CloudfrontUtil.addCloudfrontOACToBucketResourcePolicy(props.uiResourcesBucket, this.distribution, '', true);
+    CloudfrontUtil.addCloudfrontOACToLambdaResourcePolicy(id, props.apiLambda, this.distribution);
   }
 }
 

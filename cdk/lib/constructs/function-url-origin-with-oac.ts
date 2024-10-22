@@ -1,18 +1,19 @@
-import { S3Origin, S3OriginProps } from 'aws-cdk-lib/aws-cloudfront-origins';
-import { IBucket } from 'aws-cdk-lib/aws-s3';
+import { FunctionUrlOrigin, FunctionUrlOriginProps } from 'aws-cdk-lib/aws-cloudfront-origins';
+import { IFunctionUrl } from 'aws-cdk-lib/aws-lambda';
 import { Reference } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { OriginBindConfig, OriginBindOptions } from 'aws-cdk-lib/aws-cloudfront';
 
-export type S3OriginWithOACProps = S3OriginProps & {
+export type FunctionUrlOriginWithOACProps = FunctionUrlOriginProps & {
   oacId: Reference;
 };
 
-export class S3OriginWithOAC extends S3Origin {
+// https://github.com/aws/aws-cdk/issues/21771#issuecomment-2073425721
+export class FunctionUrlOriginWithOAC extends FunctionUrlOrigin {
   private readonly oacId: Reference;
 
-  constructor(bucket: IBucket, props: S3OriginWithOACProps) {
-    super(bucket, props);
+  constructor(functionUrl: IFunctionUrl, props: FunctionUrlOriginWithOACProps) {
+    super(functionUrl, props);
     this.oacId = props.oacId;
   }
 
@@ -26,11 +27,7 @@ export class S3OriginWithOAC extends S3Origin {
       ...originConfig,
       originProperty: {
         ...originConfig.originProperty,
-        originAccessControlId: this.oacId.toString(), // Adds OAC to S3 origin config
-        s3OriginConfig: {
-          ...originConfig.originProperty.s3OriginConfig,
-          originAccessIdentity: '', // removes OAI from S3 origin config
-        },
+        originAccessControlId: this.oacId.toString(),
       },
     };
   }

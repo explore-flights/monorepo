@@ -2,9 +2,10 @@ import { Effect, PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { IDistribution } from 'aws-cdk-lib/aws-cloudfront';
 import { ArnFormat, Stack } from 'aws-cdk-lib';
+import { FunctionUrlAuthType, IFunction } from 'aws-cdk-lib/aws-lambda';
 
 export class CloudfrontUtil {
-  public static addCloudfrontOACToResourcePolicy(bucket: IBucket, distribution: IDistribution, prefix: string, allowList: boolean) {
+  public static addCloudfrontOACToBucketResourcePolicy(bucket: IBucket, distribution: IDistribution, prefix: string, allowList: boolean) {
     const distributionArn = CloudfrontUtil.distributionArn(distribution);
 
     bucket.addToResourcePolicy(new PolicyStatement({
@@ -34,6 +35,15 @@ export class CloudfrontUtil {
         },
       }));
     }
+  }
+
+  public static addCloudfrontOACToLambdaResourcePolicy(id: string, lambda: IFunction, distribution: IDistribution) {
+    lambda.addPermission(`AllowCF${id}InvokeFunctionUrl`, {
+      action: 'lambda:InvokeFunctionUrl',
+      principal: new ServicePrincipal('cloudfront.amazonaws.com'),
+      sourceArn: CloudfrontUtil.distributionArn(distribution),
+      functionUrlAuthType: FunctionUrlAuthType.AWS_IAM,
+    });
   }
 
   public static distributionArn(distribution: IDistribution): string {

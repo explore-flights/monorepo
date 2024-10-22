@@ -1,4 +1,5 @@
 export interface RequestConfig extends RequestInit {
+  body?: string; // to support more, implement sha256 hashing for it
   headers?: Record<string, string>;
 }
 
@@ -11,11 +12,11 @@ export class HTTPClient {
     };
   }
 
-  fetch(url: RequestInfo | URL, config?: RequestConfig): Promise<Response> {
-    return fetch(url, this.buildRequestInit(url, config));
+  async fetch(url: RequestInfo | URL, config?: RequestConfig): Promise<Response> {
+    return await fetch(url, await this.buildRequestInit(url, config));
   }
 
-  private buildRequestInit(url: RequestInfo | URL, config?: RequestConfig): RequestConfig {
+  private async buildRequestInit(url: RequestInfo | URL, config?: RequestConfig): Promise<RequestConfig> {
     const resultConfig = { ...this.baseRequestConfig, ...(config ?? {}) };
 
     if (resultConfig.method !== undefined && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(resultConfig.method)) {
@@ -25,6 +26,14 @@ export class HTTPClient {
         const csrfToken = HTTPClient.readCookie('XSRF-TOKEN');
         if (csrfToken !== undefined) {
           headers['X-XSRF-TOKEN'] = csrfToken;
+        }
+
+        if (resultConfig.body) {
+          // https://repost.aws/ja/questions/QUbHCI9AfyRdaUPCCo_3XKMQ/lambda-function-url-behind-cloudfront-invalidsignatureexception-only-on-post
+          const src = new TextEncoder().encode(resultConfig.body);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', src);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          headers['X-Amz-Content-Sha256'] = hashArray.map((b) => b.toString(16).padStart(2, '0').toLowerCase()).join('');
         }
       }
 

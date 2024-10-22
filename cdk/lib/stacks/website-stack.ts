@@ -52,10 +52,10 @@ export class WebsiteStack extends cdk.Stack {
       domain: props.domain,
       certificateId: props.certificateId,
       uiResourcesBucket: uiResources.bucket,
+      apiLambda: api.lambda,
       apiLambdaFunctionURL: api.functionURL,
     });
 
-    uiResources.grantRead(cf.distribution);
     uiResources.deployResourcesZip(props.uiResourcesZipPath, cf.distribution);
 
     this.distribution = cf.distribution;

@@ -3,7 +3,6 @@ import { IDistribution } from 'aws-cdk-lib/aws-cloudfront';
 import { BlockPublicAccess, Bucket, BucketEncryption, IBucket } from 'aws-cdk-lib/aws-s3';
 import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
 import { Construct } from 'constructs';
-import { CloudfrontUtil } from '../util/util';
 
 export type UIResourcesConstructProps = Record<string, unknown>;
 
@@ -20,10 +19,6 @@ export class UIResourcesConstruct extends Construct {
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
     });
-  }
-
-  public grantRead(distribution: IDistribution, prefix: string = ''): void {
-    CloudfrontUtil.addCloudfrontOACToResourcePolicy(this.bucket, distribution, prefix, true);
   }
 
   public deployResourcesZip(resourcesZipPath: string, distribution: IDistribution): void {
