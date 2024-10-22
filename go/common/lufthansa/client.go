@@ -15,9 +15,15 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+)
+
+var (
+	ErrRateLimit                    = errors.New("rate limit error")
+	ErrRateLimitWouldExceedDeadline = errors.New("rate limit wait would deadline")
 )
 
 type responseStatusErr struct {
@@ -109,7 +115,7 @@ func (c *Client) token(ctx context.Context) (string, error) {
 	}
 
 	if err := c.limiter.Wait(ctx); err != nil {
-		return "", err
+		return "", decorateLimiterErr(err)
 	}
 
 	res, err := c.oauth2Client.ClientCredentials(ctx)
@@ -148,7 +154,7 @@ func (c *Client) doRequest(ctx context.Context, method, surl string, q url.Value
 
 	if c.limiter != nil {
 		if err = c.limiter.Wait(ctx); err != nil {
-			return nil, err
+			return nil, decorateLimiterErr(err)
 		}
 	}
 
@@ -386,4 +392,14 @@ func isBadElementStatus(status int) bool {
 
 func isRetryableStatus(status int) bool {
 	return status == http.StatusGatewayTimeout || status == http.StatusBadGateway || status == http.StatusForbidden || status == http.StatusUnauthorized
+}
+
+func decorateLimiterErr(err error) error {
+	err = errors.Join(err, ErrRateLimit)
+
+	if strings.Contains(err.Error(), "would exceed context deadline") {
+		err = errors.Join(err, ErrRateLimitWouldExceedDeadline)
+	}
+
+	return err
 }
