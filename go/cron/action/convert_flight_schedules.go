@@ -4,14 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
+	"github.com/explore-flights/monorepo/go/common/concurrent"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"golang.org/x/sync/errgroup"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -49,112 +52,144 @@ func (a *cfsAction) Handle(ctx context.Context, params ConvertFlightSchedulesPar
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	flightsByDepartureDateUTC, err := a.convertAll(ctx, params.InputBucket, params.InputPrefix, params.DateRanges)
-	if err != nil {
-		return ConvertFlightSchedulesOutput{}, err
-	}
+	var output ConvertFlightSchedulesOutput
+	var err error
 
-	ldrs := make(xtime.LocalDateRanges, 0, len(params.DateRanges))
-	for d := range flightsByDepartureDateUTC {
-		ldrs = ldrs.Add(d)
-	}
+	output.DateRanges, err = a.convertAndUpsertAll(
+		ctx,
+		params.InputBucket,
+		params.InputPrefix,
+		params.OutputBucket,
+		params.OutputPrefix,
+		params.DateRanges,
+	)
 
-	return ConvertFlightSchedulesOutput{
-		DateRanges: ldrs,
-	}, a.upsertAll(ctx, params.OutputBucket, params.OutputPrefix, params.DateRanges, flightsByDepartureDateUTC)
+	return output, err
 }
 
-func (a *cfsAction) convertAll(ctx context.Context, inputBucket, inputPrefix string, dateRanges xtime.LocalDateRanges) (map[xtime.LocalDate][]*common.Flight, error) {
-	ch := make(chan *common.Flight, 1024)
+func (a *cfsAction) convertAndUpsertAll(ctx context.Context, inputBucket, inputPrefix, outputBucket, outputPrefix string, ldrs xtime.LocalDateRanges) (xtime.LocalDateRanges, error) {
+	queryDates := make(chan xtime.LocalDate, 10)
+	go func() {
+		defer close(queryDates)
+
+		for d := range ldrs.Compact().Iter() {
+			select {
+			case queryDates <- d:
+
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	touchedDates := make(chan xtime.LocalDate)
+	locks := concurrent.NewMap[xtime.LocalDate, *sync.Mutex]()
 	g, gCtx := errgroup.WithContext(ctx)
 
-	for _, r := range dateRanges {
+	for i := range 10 {
 		g.Go(func() error {
-			return a.convertRange(gCtx, inputBucket, inputPrefix, r[0], r[1], ch)
+			for {
+				select {
+				case queryDate, ok := <-queryDates:
+					if !ok {
+						return nil
+					}
+
+					fmt.Printf("goroutine %d: loading and converting %v\n", i, queryDate)
+
+					flights, err := a.convertSingle(ctx, inputBucket, inputPrefix, queryDate)
+					if err != nil {
+						return err
+					}
+
+					flightsByDepartureDateUTC := make(map[xtime.LocalDate][]*common.Flight)
+					for _, f := range flights {
+						flightsByDepartureDateUTC[f.DepartureDateUTC()] = append(flightsByDepartureDateUTC[f.DepartureDateUTC()], f)
+					}
+
+					for departureDateUTC, flights := range flightsByDepartureDateUTC {
+						select {
+						case touchedDates <- departureDateUTC:
+						case <-ctx.Done():
+							return ctx.Err()
+						}
+
+						err = func() error {
+							mtx, _ := locks.LoadOrStore(departureDateUTC, new(sync.Mutex))
+							mtx.Lock()
+							defer mtx.Unlock()
+
+							fmt.Printf("goroutine %d: upserting %v\n", i, departureDateUTC)
+
+							return a.upsertFlights(gCtx, outputBucket, outputPrefix, departureDateUTC, queryDate, flights)
+						}()
+
+						if err != nil {
+							return err
+						}
+					}
+
+				case <-gCtx.Done():
+					return gCtx.Err()
+				}
+			}
 		})
 	}
 
-	done := make(chan map[xtime.LocalDate][]*common.Flight)
+	done := make(chan xtime.LocalDateRanges)
 	go func() {
 		defer close(done)
 
-		result := make(map[xtime.LocalDate][]*common.Flight)
-		for f := range ch {
-			result[f.DepartureDateUTC()] = append(result[f.DepartureDateUTC()], f)
+		touchedRanges := make(xtime.LocalDateRanges, 0)
+		for d := range touchedDates {
+			touchedRanges = touchedRanges.Add(d)
 		}
 
-		done <- result
+		done <- touchedRanges
 	}()
 
-	if err := func() error { defer close(ch); return g.Wait() }(); err != nil {
+	err := func() error {
+		defer close(touchedDates)
+		return g.Wait()
+	}()
+
+	if err != nil {
 		return nil, err
 	}
 
 	return <-done, nil
 }
 
-func (a *cfsAction) convertRange(ctx context.Context, inputBucket, inputPrefix string, start, end xtime.LocalDate, ch chan<- *common.Flight) error {
-	g, ctx := errgroup.WithContext(ctx)
-	for curr := range start.Until(end) {
-		g.Go(func() error {
-			return a.convertSingle(ctx, inputBucket, inputPrefix, curr, ch)
-		})
-	}
-
-	return g.Wait()
-}
-
-func (a *cfsAction) convertSingle(ctx context.Context, inputBucket, inputPrefix string, d xtime.LocalDate, ch chan<- *common.Flight) error {
-	schedules, err := a.loadFlightSchedules(ctx, inputBucket, inputPrefix, d)
+func (a *cfsAction) convertSingle(ctx context.Context, inputBucket, inputPrefix string, d xtime.LocalDate) ([]*common.Flight, error) {
+	lastModified, schedules, err := a.loadFlightSchedules(ctx, inputBucket, inputPrefix, d)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return convertFlightSchedulesToFlights(ctx, d, schedules, ch)
+	return convertFlightSchedulesToFlights(d, lastModified, schedules)
 }
 
-func (a *cfsAction) loadFlightSchedules(ctx context.Context, bucket, prefix string, d xtime.LocalDate) (Pair[time.Time, []lufthansa.FlightSchedule], error) {
+func (a *cfsAction) loadFlightSchedules(ctx context.Context, bucket, prefix string, d xtime.LocalDate) (time.Time, []lufthansa.FlightSchedule, error) {
 	resp, err := a.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(prefix + d.Time(nil).Format("2006/01/02") + ".json"),
 	})
 
 	if err != nil {
-		return Pair[time.Time, []lufthansa.FlightSchedule]{}, err
+		if adapt.IsS3NotFound(err) {
+			err = nil
+		}
+
+		return time.Time{}, nil, err
 	}
 
 	defer resp.Body.Close()
 
 	var schedules []lufthansa.FlightSchedule
-	if err = json.NewDecoder(resp.Body).Decode(&schedules); err != nil {
-		return Pair[time.Time, []lufthansa.FlightSchedule]{}, err
-	}
-
-	return Pair[time.Time, []lufthansa.FlightSchedule]{
-		_1: *resp.LastModified,
-		_2: schedules,
-	}, nil
+	return *resp.LastModified, schedules, json.NewDecoder(resp.Body).Decode(&schedules)
 }
 
-func (a *cfsAction) upsertAll(ctx context.Context, bucket, prefix string, queryDateRanges xtime.LocalDateRanges, flightsByDepartureDateUTC map[xtime.LocalDate][]*common.Flight) error {
-	g, ctx := errgroup.WithContext(ctx)
-	for d, flights := range flightsByDepartureDateUTC {
-		g.Go(func() error {
-			return a.upsertFlights(
-				ctx,
-				bucket,
-				prefix,
-				d,
-				queryDateRanges,
-				flights,
-			)
-		})
-	}
-
-	return g.Wait()
-}
-
-func (a *cfsAction) upsertFlights(ctx context.Context, bucket, prefix string, d xtime.LocalDate, queryDateRanges xtime.LocalDateRanges, flights []*common.Flight) error {
+func (a *cfsAction) upsertFlights(ctx context.Context, bucket, prefix string, d xtime.LocalDate, queryDate xtime.LocalDate, flights []*common.Flight) error {
 	s3Key := prefix + d.Time(nil).Format("2006/01/02") + ".json"
 	existing, err := a.loadFlights(ctx, bucket, s3Key)
 	if err != nil {
@@ -177,7 +212,7 @@ func (a *cfsAction) upsertFlights(ctx context.Context, bucket, prefix string, d 
 		if addedFlight, ok := added[f.Id()]; ok {
 			combineFlights(addedFlight, f)
 		} else {
-			if !queryDateRanges.Contains(f.Metadata.QueryDate) {
+			if queryDate != f.Metadata.QueryDate {
 				result = append(result, f)
 				added[f.Id()] = f
 			}
@@ -219,12 +254,12 @@ func (a *cfsAction) loadFlights(ctx context.Context, bucket, s3Key string) ([]*c
 	return flights, json.NewDecoder(resp.Body).Decode(&flights)
 }
 
-func convertFlightSchedulesToFlights(ctx context.Context, queryDate xtime.LocalDate, schedules Pair[time.Time, []lufthansa.FlightSchedule], ch chan<- *common.Flight) error {
+func convertFlightSchedulesToFlights(queryDate xtime.LocalDate, lastModified time.Time, schedules []lufthansa.FlightSchedule) ([]*common.Flight, error) {
 	lookup := make(map[common.FlightId]*common.Flight)
 	codeShareIds := make(map[common.FlightId]struct{})
 	addLater := make(map[common.FlightId][]*common.Flight)
 
-	for _, fs := range schedules._2 {
+	for _, fs := range schedules {
 		for _, leg := range fs.Legs {
 			f := &common.Flight{
 				Airline:                      common.AirlineIdentifier(fs.Airline),
@@ -243,8 +278,8 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate xtime.LocalD
 				CodeShares:                   make(map[common.FlightNumber]common.CodeShare),
 				Metadata: common.FlightMetadata{
 					QueryDate:    queryDate,
-					CreationTime: schedules._1,
-					UpdateTime:   schedules._1,
+					CreationTime: lastModified,
+					UpdateTime:   lastModified,
 				},
 			}
 
@@ -255,7 +290,7 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate xtime.LocalD
 				for _, codeShare := range strings.Split(codeSharesRaw, "/") {
 					codeShareFn, err := common.ParseFlightNumber(codeShare)
 					if err != nil {
-						return err
+						return nil, err
 					}
 
 					if _, ok := f.CodeShares[codeShareFn]; !ok {
@@ -263,8 +298,8 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate xtime.LocalD
 							DataElements: make(map[int]string),
 							Metadata: common.FlightMetadata{
 								QueryDate:    queryDate,
-								CreationTime: schedules._1,
-								UpdateTime:   schedules._1,
+								CreationTime: lastModified,
+								UpdateTime:   lastModified,
 							},
 						}
 					}
@@ -278,7 +313,7 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate xtime.LocalD
 				// this flight is a codeshare
 				parentFn, err := common.ParseFlightNumber(codeShare)
 				if err != nil {
-					return err
+					return nil, err
 				}
 
 				parentFid := parentFn.Id(f.DepartureLocal())
@@ -325,8 +360,8 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate xtime.LocalD
 				CodeShares:                   make(map[common.FlightNumber]common.CodeShare),
 				Metadata: common.FlightMetadata{
 					QueryDate:    queryDate,
-					CreationTime: schedules._1,
-					UpdateTime:   schedules._1,
+					CreationTime: lastModified,
+					UpdateTime:   lastModified,
 				},
 			}
 
@@ -341,17 +376,14 @@ func convertFlightSchedulesToFlights(ctx context.Context, queryDate xtime.LocalD
 		}
 	}
 
+	result := make([]*common.Flight, 0, len(lookup)-len(codeShareIds))
 	for fid, f := range lookup {
 		if _, ok := codeShareIds[fid]; !ok {
-			select {
-			case ch <- f:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
+			result = append(result, f)
 		}
 	}
 
-	return nil
+	return result, nil
 }
 
 func combineFlights(f, other *common.Flight) {

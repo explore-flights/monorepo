@@ -49,14 +49,6 @@ func (a *cfAction) Handle(ctx context.Context, params ConvertFlightsParams) (Con
 
 func (a *cfAction) convertAll(ctx context.Context, bucket, prefix string, dateRanges xtime.LocalDateRanges) (map[common.AirlineIdentifier]map[common.FlightNumber]*common.FlightSchedule, error) {
 	ch := make(chan *common.Flight, 1024)
-	g, gCtx := errgroup.WithContext(ctx)
-
-	for _, r := range dateRanges {
-		g.Go(func() error {
-			return a.loadRange(gCtx, bucket, prefix, r, ch)
-		})
-	}
-
 	done := make(chan map[common.AirlineIdentifier]map[common.FlightNumber]*common.FlightSchedule)
 	go func() {
 		defer close(done)
@@ -101,22 +93,26 @@ func (a *cfAction) convertAll(ctx context.Context, bucket, prefix string, dateRa
 		done <- result
 	}()
 
-	if err := func() error { defer close(ch); return g.Wait() }(); err != nil {
+	err := func() error {
+		defer close(ch)
+		return a.loadRanges(ctx, bucket, prefix, dateRanges, ch)
+	}()
+
+	if err != nil {
 		return nil, err
 	}
 
 	return <-done, nil
 }
 
-func (a *cfAction) loadRange(ctx context.Context, bucket, prefix string, ldr xtime.LocalDateRange, ch chan<- *common.Flight) error {
-	g, ctx := errgroup.WithContext(ctx)
-	for curr := range ldr.Iter() {
-		g.Go(func() error {
-			return a.loadSingle(ctx, bucket, prefix, curr, ch)
-		})
+func (a *cfAction) loadRanges(ctx context.Context, bucket, prefix string, ldrs xtime.LocalDateRanges, ch chan<- *common.Flight) error {
+	for d := range ldrs.Iter() {
+		if err := a.loadSingle(ctx, bucket, prefix, d, ch); err != nil {
+			return err
+		}
 	}
 
-	return g.Wait()
+	return nil
 }
 
 func (a *cfAction) loadSingle(ctx context.Context, bucket, prefix string, d xtime.LocalDate, ch chan<- *common.Flight) error {

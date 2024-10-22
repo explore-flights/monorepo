@@ -3,6 +3,8 @@ package action
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
@@ -15,9 +17,12 @@ type LoadFlightSchedulesParams struct {
 	OutputBucket string                `json:"outputBucket"`
 	OutputPrefix string                `json:"outputPrefix"`
 	DateRanges   xtime.LocalDateRanges `json:"dateRanges"`
+	AllowPartial bool                  `json:"allowPartial"`
 }
 
 type LoadFlightSchedulesOutput struct {
+	Completed xtime.LocalDateRanges `json:"completed"`
+	Remaining xtime.LocalDateRanges `json:"remaining"`
 }
 
 type lfsAction struct {
@@ -33,16 +38,42 @@ func NewLoadFlightSchedulesAction(s3c *s3.Client, lhc *lufthansa.Client) Action[
 }
 
 func (a *lfsAction) Handle(ctx context.Context, params LoadFlightSchedulesParams) (LoadFlightSchedulesOutput, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	if deadline, ok := ctx.Deadline(); params.AllowPartial && ok {
+		var cancel context.CancelFunc
+		deadline = deadline.Add(-time.Minute)
+		ctx, cancel = context.WithDeadline(ctx, deadline)
+		defer cancel()
 
-	for d := range params.DateRanges.Compact().Iter() {
-		if err := a.loadSingle(ctx, params.OutputBucket, params.OutputPrefix, d); err != nil {
-			return LoadFlightSchedulesOutput{}, err
-		}
+		fmt.Printf("loading schedules %v with deadline %v\n", params.DateRanges, deadline)
+	} else {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithCancel(ctx)
+		defer cancel()
+
+		fmt.Printf("loading schedules %v without deadline\n", params.DateRanges)
 	}
 
-	return LoadFlightSchedulesOutput{}, nil
+	result := LoadFlightSchedulesOutput{
+		Completed: make(xtime.LocalDateRanges, 0),
+		Remaining: params.DateRanges.Compact(),
+	}
+
+	for d := range result.Remaining.Iter() {
+		if err := a.loadSingle(ctx, params.OutputBucket, params.OutputPrefix, d); err != nil {
+			if params.AllowPartial && errors.Is(err, context.DeadlineExceeded) {
+				err = nil
+			}
+
+			return result, err
+		}
+
+		result.Completed = result.Completed.Add(d)
+		result.Remaining = result.Remaining.Remove(d)
+	}
+
+	fmt.Printf("loaded schedules %v; remaininng: %v\n", result.Completed, result.Remaining)
+
+	return result, nil
 }
 
 func (a *lfsAction) loadSingle(ctx context.Context, bucket, prefix string, d xtime.LocalDate) error {

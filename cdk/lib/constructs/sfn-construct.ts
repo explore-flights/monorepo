@@ -3,14 +3,11 @@ import { Construct } from 'constructs';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { IFunction } from 'aws-cdk-lib/aws-lambda';
 import {
+  Choice, Condition,
   DefinitionBody,
   Fail,
   IStateMachine,
   JsonPath,
-  Map,
-  Pass,
-  ProcessorMode,
-  Result,
   StateMachine,
   Succeed,
   TaskInput
@@ -19,7 +16,8 @@ import { LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
 
 export interface SfnConstructProps {
   dataBucket: IBucket;
-  cronLambda: IFunction;
+  cronLambda_1G: IFunction;
+  cronLambda_10G: IFunction;
   webhookUrl: cdk.SecretValue;
 }
 
@@ -29,103 +27,135 @@ export class SfnConstruct extends Construct {
   constructor(scope: Construct, id: string, props: SfnConstructProps) {
     super(scope, id);
 
-    const definition = new Pass(this, 'InitIterator', {
-      result: Result.fromObject({
-        values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    const LH_FLIGHT_SCHEDULES_PREFIX = 'raw/LH_Public_Data/flightschedules/';
+    const PROCESSED_FLIGHTS_PREFIX = 'processed/flights/';
+    const PROCESSED_SCHEDULES_PREFIX = 'processed/schedules/';
+
+    const definition = new LambdaInvoke(this, 'PrepareDailyCron', {
+      lambdaFunction: props.cronLambda_1G,
+      payload: TaskInput.fromObject({
+        'action': 'cron',
+        'params': {
+          'prepareDailyCron': {
+            'time': JsonPath.stringAt('$.time'),
+            'offset': -1,
+            'total': 30 * 12,
+          },
+        },
       }),
-      resultPath: '$.iterator',
+      payloadResponseOnly: true,
+      resultSelector: {
+        'completed': [],
+        'remaining': JsonPath.objectAt('$.dateRanges'),
+      },
+      resultPath: '$.loadScheduleRanges',
+      retryOnServiceExceptions: true,
     })
       .next(
-        new Map(this, 'Iterator', {
-          itemsPath: '$.iterator.values',
-          itemSelector: {
-            'time': JsonPath.stringAt('$.time'),
-            'schedule': JsonPath.format('{}:{}', JsonPath.stringAt('$.schedule'), JsonPath.stringAt('$$.Map.Item.Value')),
-          },
-          maxConcurrency: 1,
-          resultPath: JsonPath.DISCARD,
-        })
-          .itemProcessor(this.iterationBody(props), { mode: ProcessorMode.INLINE })
+        new Choice(this, 'CheckRemaining', {})
+          // region loop body -> remaining dates
+          .when(
+            Condition.isPresent('$.loadScheduleRanges.remaining[0]'),
+            new LambdaInvoke(this, 'LoadSchedulesTask', {
+              lambdaFunction: props.cronLambda_1G,
+              payload: TaskInput.fromObject({
+                'action': 'load_flight_schedules',
+                'params': {
+                  'outputBucket': props.dataBucket.bucketName,
+                  'outputPrefix': LH_FLIGHT_SCHEDULES_PREFIX,
+                  'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.remaining'),
+                  'allowPartial': true,
+                },
+              }),
+              payloadResponseOnly: true,
+              resultPath: '$.loadSchedulesResponse',
+              retryOnServiceExceptions: true,
+            })
+              .next(new LambdaInvoke(this, 'MergeScheduleRanges', {
+                lambdaFunction: props.cronLambda_1G,
+                payload: TaskInput.fromObject({
+                  'action': 'cron',
+                  'params': {
+                    'mergeDateRanges': {
+                      'first': JsonPath.objectAt('$.loadScheduleRanges.completed'),
+                      'second': JsonPath.objectAt('$.loadSchedulesResponse.completed'),
+                    },
+                  },
+                }),
+                payloadResponseOnly: true,
+                resultSelector: {
+                  'completed': JsonPath.objectAt('$.mergeDateRanges.dateRanges'),
+                  'remaining': JsonPath.objectAt('$.loadSchedulesResponse.remaining'),
+                },
+                resultPath: '$.loadScheduleRanges',
+                retryOnServiceExceptions: true,
+              })),
+          )
+          // endregion
+          // region conversion
+          .otherwise(
+            new LambdaInvoke(this, 'ConvertSchedulesTask', {
+              lambdaFunction: props.cronLambda_10G,
+              payload: TaskInput.fromObject({
+                'action': 'convert_flight_schedules',
+                'params': {
+                  'inputBucket': props.dataBucket.bucketName,
+                  'inputPrefix': LH_FLIGHT_SCHEDULES_PREFIX,
+                  'outputBucket': props.dataBucket.bucketName,
+                  'outputPrefix': PROCESSED_FLIGHTS_PREFIX,
+                  'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.completed'),
+                },
+              }),
+              payloadResponseOnly: true,
+              resultPath: '$.convertSchedulesResponse',
+              retryOnServiceExceptions: true,
+            })
+              .next(new LambdaInvoke(this, 'ConvertFlightsTask', {
+                lambdaFunction: props.cronLambda_10G,
+                payload: TaskInput.fromObject({
+                  'action': 'convert_flights',
+                  'params': {
+                    'inputBucket': props.dataBucket.bucketName,
+                    'inputPrefix': PROCESSED_FLIGHTS_PREFIX,
+                    'outputBucket': props.dataBucket.bucketName,
+                    'outputPrefix': PROCESSED_SCHEDULES_PREFIX,
+                    'dateRanges': JsonPath.objectAt('$.convertSchedulesResponse.dateRanges'),
+                  },
+                }),
+                payloadResponseOnly: true,
+                resultPath: '$.convertFlightsResponse',
+                retryOnServiceExceptions: true,
+              }))
+          )
+          // endregion
       )
+      .toSingleState('ConvertTry', { outputPath: '$[0]' })
+      .addCatch(
+        this.sendWebhookTask(
+          'InvokeWebhookFailureTask',
+          props.cronLambda_1G,
+          props.webhookUrl,
+          JsonPath.format('FlightSchedules Cron {} ({}) failed', JsonPath.executionName, JsonPath.executionStartTime),
+        )
+          .next(new Fail(this, 'Fail')),
+      )
+      .next(this.sendWebhookTask(
+        'InvokeWebhookSuccessTask',
+        props.cronLambda_1G,
+        props.webhookUrl,
+        JsonPath.format(
+          'FlightSchedules Cron {} succeeded:\nQueried:\n```json\n{}\n```\nTouched:\n```json\n{}\n```',
+          JsonPath.stringAt('$.time'),
+          JsonPath.jsonToString(JsonPath.objectAt('$.loadScheduleRanges.completed')),
+          JsonPath.jsonToString(JsonPath.objectAt('$.convertSchedulesResponse.dateRanges')),
+        ),
+      ))
       .next(new Succeed(this, 'Success'));
 
     this.flightSchedules = new StateMachine(this, 'FlightSchedules', {
       definitionBody: DefinitionBody.fromChainable(definition),
       tracingEnabled: false,
     });
-  }
-
-  private iterationBody(props: SfnConstructProps) {
-    return new LambdaInvoke(this, 'LoadSchedulesTask', {
-      lambdaFunction: props.cronLambda,
-      payload: TaskInput.fromObject({
-        'action': 'cron',
-        'params': {
-          'loadFlightSchedules': {
-            'outputBucket': props.dataBucket.bucketName,
-            'outputPrefix': 'raw/LH_Public_Data/flightschedules/',
-            'time': JsonPath.stringAt('$.time'),
-            'schedule': JsonPath.stringAt('$.schedule'),
-          },
-        },
-      }),
-      payloadResponseOnly: true,
-      resultPath: '$.loadSchedulesResponse',
-      retryOnServiceExceptions: true,
-    })
-      .next(new LambdaInvoke(this, 'ConvertSchedulesTask', {
-        lambdaFunction: props.cronLambda,
-        payload: TaskInput.fromObject({
-          'action': 'convert_flight_schedules',
-          'params': {
-            'inputBucket': JsonPath.stringAt('$.loadSchedulesResponse.loadFlightSchedules.input.outputBucket'),
-            'inputPrefix': JsonPath.stringAt('$.loadSchedulesResponse.loadFlightSchedules.input.outputPrefix'),
-            'outputBucket': props.dataBucket.bucketName,
-            'outputPrefix': 'processed/flights/',
-            'dateRanges': JsonPath.objectAt('$.loadSchedulesResponse.loadFlightSchedules.input.dateRanges'),
-          },
-        }),
-        payloadResponseOnly: true,
-        resultPath: '$.convertSchedulesResponse',
-        retryOnServiceExceptions: true,
-      }))
-      .next(new LambdaInvoke(this, 'ConvertFlightsTask', {
-        lambdaFunction: props.cronLambda,
-        payload: TaskInput.fromObject({
-          'action': 'convert_flights',
-          'params': {
-            'inputBucket': props.dataBucket.bucketName,
-            'inputPrefix': 'processed/flights/',
-            'outputBucket': props.dataBucket.bucketName,
-            'outputPrefix': 'processed/schedules/',
-            'dateRanges': JsonPath.objectAt('$.convertSchedulesResponse.dateRanges'),
-          },
-        }),
-        payloadResponseOnly: true,
-        resultPath: '$.convertNumbersResponse',
-        retryOnServiceExceptions: true,
-      }))
-      .toSingleState('ConvertTry', { outputPath: '$[0]' })
-      .addCatch(
-        this.sendWebhookTask(
-          'InvokeWebhookFailureTask',
-          props.cronLambda,
-          props.webhookUrl,
-          JsonPath.format('FlightSchedules Cron {} ({}) failed', JsonPath.executionName, JsonPath.executionStartTime),
-        )
-          .next(new Fail(this, 'IterationFailure')),
-      )
-      .next(this.sendWebhookTask(
-        'InvokeWebhookSuccessTask',
-        props.cronLambda,
-        props.webhookUrl,
-        JsonPath.format(
-          'FlightSchedules Cron {} succeeded:\nQueried:\n```json\n{}\n```\nTouched:\n```json\n{}\n```',
-          JsonPath.stringAt('$.time'),
-          JsonPath.jsonToString(JsonPath.objectAt('$.loadSchedulesResponse.loadFlightSchedules.input.dateRanges')),
-          JsonPath.jsonToString(JsonPath.objectAt('$.convertSchedulesResponse.dateRanges')),
-        ),
-      ));
   }
 
   private sendWebhookTask(id: string, fn: IFunction, url: cdk.SecretValue, content: string) {

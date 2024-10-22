@@ -73,12 +73,21 @@ func NewS3Client(basePath string) *S3Client {
 }
 
 func (s3c *S3Client) GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
+	fpath := filepath.Join(s3c.basePath, *params.Bucket, filepath.FromSlash(*params.Key))
+	finfo, err := os.Stat(fpath)
+	if err != nil {
+		return nil, err
+	}
+
 	f, err := os.Open(filepath.Join(s3c.basePath, *params.Bucket, filepath.FromSlash(*params.Key)))
 	if err != nil {
 		return nil, err
 	}
 
-	return &s3.GetObjectOutput{Body: f}, nil
+	return &s3.GetObjectOutput{
+		Body:         f,
+		LastModified: aws.Time(finfo.ModTime()),
+	}, nil
 }
 
 func (s3c *S3Client) PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error) {

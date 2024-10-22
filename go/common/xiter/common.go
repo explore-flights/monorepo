@@ -1,6 +1,9 @@
 package xiter
 
-import "iter"
+import (
+	"iter"
+	"slices"
+)
 
 func All[Slice ~[]E, E any](s Slice) iter.Seq[E] {
 	return func(yield func(E) bool) {
@@ -50,4 +53,8 @@ func Combine[T any](seqs ...iter.Seq[T]) iter.Seq[T] {
 			}
 		}
 	}
+}
+
+func Chunk[Slice ~[]E, E any](seq iter.Seq[E], n int) iter.Seq[Slice] {
+	return slices.Chunk(slices.AppendSeq(make(Slice, 0), seq), n)
 }

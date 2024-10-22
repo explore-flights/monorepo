@@ -74,7 +74,7 @@ func (v *Verifier) Key(ctx context.Context, kid string) (jose.JSONWebKey, error)
 	var matchedJWK jose.JSONWebKey
 	found := false
 
-	v.cache.WLocked(func(ops concurrent.WMap[string, jose.JSONWebKey]) {
+	v.cache.Locked(func(ops concurrent.RWMap[string, jose.JSONWebKey]) {
 		for _, jwk := range jwks.Keys {
 			if jwk.Valid() {
 				ops.Store(jwk.KeyID, jwk)

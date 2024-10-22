@@ -8,19 +8,14 @@ type RMap[K comparable, V any] interface {
 	RLocked(f func(m RMap[K, V]))
 }
 
-type WMap[K comparable, V any] interface {
+type RWMap[K comparable, V any] interface {
+	RMap[K, V]
 	Store(k K, v V)
 	Delete(k K)
 	LoadAndDelete(k K) (V, bool)
 	LoadOrStore(k K, v V) (V, bool)
 	Swap(k K, v V) (V, bool)
-	WLocked(f func(m WMap[K, V]))
 	Locked(f func(m RWMap[K, V]))
-}
-
-type RWMap[K comparable, V any] interface {
-	RMap[K, V]
-	WMap[K, V]
 }
 
 // region Map
@@ -129,12 +124,6 @@ func (cm Map[K, V]) RLocked(f func(m RMap[K, V])) {
 	f(rMapProxy[K, V](cm))
 }
 
-func (cm Map[K, V]) WLocked(f func(m WMap[K, V])) {
-	cm.mtx.RLock()
-	defer cm.mtx.RUnlock()
-	f(rwMapProxy[K, V](cm))
-}
-
 func (cm Map[K, V]) Locked(f func(m RWMap[K, V])) {
 	cm.mtx.Lock()
 	defer cm.mtx.Unlock()
@@ -193,10 +182,6 @@ func (mp rwMapProxy[K, V]) LoadOrStore(k K, v V) (V, bool) {
 
 func (mp rwMapProxy[K, V]) Swap(k K, v V) (V, bool) {
 	return Map[K, V](mp).unsafeSwap(k, v)
-}
-
-func (mp rwMapProxy[K, V]) WLocked(f func(m WMap[K, V])) {
-	f(mp)
 }
 
 func (mp rwMapProxy[K, V]) Locked(f func(m RWMap[K, V])) {
