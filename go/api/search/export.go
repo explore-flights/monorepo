@@ -1,6 +1,7 @@
 package search
 
 import (
+	"context"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/goccy/go-graphviz"
@@ -92,8 +93,12 @@ func convertCodeShares(inp map[common.FlightNumber]common.CodeShare) []FlightNum
 	return r
 }
 
-func ExportConnectionsImage(w io.Writer, conns []Connection) error {
-	g := graphviz.New()
+func ExportConnectionsImage(ctx context.Context, w io.Writer, conns []Connection) error {
+	g, err := graphviz.New(ctx)
+	if err != nil {
+		return err
+	}
+
 	defer g.Close()
 
 	graph, err := g.Graph()
@@ -105,7 +110,7 @@ func ExportConnectionsImage(w io.Writer, conns []Connection) error {
 		return err
 	}
 
-	return g.Render(graph, graphviz.PNG, w)
+	return g.Render(ctx, graph, graphviz.PNG, w)
 }
 
 func buildGraph(parent *common.Flight, conns []Connection, graph *cgraph.Graph, lookup map[*common.Flight]*cgraph.Node) error {
@@ -116,7 +121,7 @@ func buildGraph(parent *common.Flight, conns []Connection, graph *cgraph.Graph, 
 		var ok bool
 
 		if node, ok = lookup[conn.Flight]; !ok {
-			node, err = graph.CreateNode(conn.Flight.Number().String())
+			node, err = graph.CreateNodeByName(conn.Flight.Number().String())
 			if err != nil {
 				return err
 			}
@@ -127,7 +132,7 @@ func buildGraph(parent *common.Flight, conns []Connection, graph *cgraph.Graph, 
 
 		if parentNode, ok := lookup[parent]; ok {
 			var edge *cgraph.Edge
-			edge, err = graph.CreateEdge("", parentNode, node)
+			edge, err = graph.CreateEdgeByName("", parentNode, node)
 			if err != nil {
 				return err
 			}

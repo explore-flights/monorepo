@@ -122,7 +122,7 @@ func NewConnectionsEndpoint(ch *search.ConnectionsHandler, export string) echo.H
 		case "png":
 			c.Response().Header().Set(echo.HeaderContentType, "image/png")
 			c.Response().WriteHeader(http.StatusOK)
-			return search.ExportConnectionsImage(c.Response(), conns)
+			return search.ExportConnectionsImage(ctx, c.Response(), conns)
 
 		default:
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid export type")
