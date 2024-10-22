@@ -78,10 +78,10 @@ export class SfnConstruct extends Construct {
                 payload: TaskInput.fromObject({
                   'action': 'cron',
                   'params': {
-                    'mergeDateRanges': [
-                      [JsonPath.objectAt('$.loadScheduleRanges.completed'), JsonPath.objectAt('$.loadSchedulesResponse.completed')],
-                      [JsonPath.objectAt('$.loadSchedulesResponse.remaining')],
-                    ],
+                    'mergeDateRanges': JsonPath.array(
+                      JsonPath.array(JsonPath.stringAt('$.loadScheduleRanges.completed'), JsonPath.stringAt('$.loadSchedulesResponse.completed')),
+                      JsonPath.array(JsonPath.stringAt('$.loadSchedulesResponse.remaining')),
+                    ),
                   },
                 }),
                 payloadResponseOnly: true,
