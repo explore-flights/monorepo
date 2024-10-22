@@ -31,6 +31,8 @@ export class SfnConstruct extends Construct {
     const PROCESSED_FLIGHTS_PREFIX = 'processed/flights/';
     const PROCESSED_SCHEDULES_PREFIX = 'processed/schedules/';
 
+    const checkRemainingChoice = new Choice(this, 'CheckRemaining', {});
+
     const definition = new LambdaInvoke(this, 'PrepareDailyCron', {
       lambdaFunction: props.cronLambda_1G,
       payload: TaskInput.fromObject({
@@ -52,7 +54,7 @@ export class SfnConstruct extends Construct {
       retryOnServiceExceptions: true,
     })
       .next(
-        new Choice(this, 'CheckRemaining', {})
+        checkRemainingChoice
           // region loop body -> remaining dates
           .when(
             Condition.isPresent('$.loadScheduleRanges.remaining[0]'),
@@ -89,7 +91,8 @@ export class SfnConstruct extends Construct {
                 },
                 resultPath: '$.loadScheduleRanges',
                 retryOnServiceExceptions: true,
-              })),
+              }))
+              .next(checkRemainingChoice),
           )
           // endregion
           // region conversion
