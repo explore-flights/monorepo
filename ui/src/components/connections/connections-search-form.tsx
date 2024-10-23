@@ -254,66 +254,71 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
 
         <ExpandableSection headerText={'Advanced options'} variant={'footer'}>
           <ColumnLayout columns={2}>
-            <Header variant={'h3'} description={'Apply inclusions on whole connections. The result will only contain connections for which every given inclusion is matched by at least one flight.'}>Include</Header>
-            <Header variant={'h3'} description={'Apply exclusions on flights taken into consideration. Exclusions will result in no flight of the result matching any of the supplied values.'}>Exclude</Header>
+            <SpaceBetween size={'l'} direction={'vertical'}>
+              <Header variant={'h3'} description={'Apply inclusions on whole connections. The result will only contain connections for which every given inclusion is matched by at least one flight.'}>Include</Header>
 
-            <FormField label={<Toggle checked={includeAirport !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, includeAirport: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Include Airport</Box></Toggle>}>
-              <AirportMultiselectOrEditor
-                airports={airports}
-                selectedAirportCodes={includeAirport ?? []}
-                setSelectedAirportCodes={(v) => onChange((prev) => ({ ...prev, includeAirport: v }))}
-                loading={airportsLoading}
-                disabled={isLoading || includeAirport === undefined}
-              />
-            </FormField>
+              <FormField label={<Toggle checked={includeAirport !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, includeAirport: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Include Airport</Box></Toggle>}>
+                <AirportMultiselectOrEditor
+                  airports={airports}
+                  selectedAirportCodes={includeAirport ?? []}
+                  setSelectedAirportCodes={(v) => onChange((prev) => ({ ...prev, includeAirport: v }))}
+                  loading={airportsLoading}
+                  disabled={isLoading || includeAirport === undefined}
+                />
+              </FormField>
 
-            <FormField label={<Toggle checked={excludeAirport !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, excludeAirport: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Exclude Airport</Box></Toggle>}>
-              <AirportMultiselectOrEditor
-                airports={airports}
-                selectedAirportCodes={excludeAirport ?? []}
-                setSelectedAirportCodes={(v) => onChange((prev) => ({ ...prev, excludeAirport: v }))}
-                loading={airportsLoading}
-                disabled={isLoading || excludeAirport === undefined}
-              />
-            </FormField>
+              <FormField label={<Toggle checked={includeFlightNumber !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, includeFlightNumber: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Include Flightnumber</Box></Toggle>}>
+                <ValueMultilineEditor
+                  values={includeFlightNumber ?? []}
+                  setValues={(v) => onChange((prev) => ({ ...prev, includeFlightNumber: v }))}
+                  disabled={isLoading || includeFlightNumber === undefined}
+                  placeholder={'SX???*'}
+                />
+              </FormField>
 
-            <FormField label={<Toggle checked={includeFlightNumber !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, includeFlightNumber: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Include Flightnumber</Box></Toggle>}>
-              <ValueMultilineEditor
-                values={includeFlightNumber ?? []}
-                setValues={(v) => onChange((prev) => ({ ...prev, includeFlightNumber: v }))}
-                disabled={isLoading || includeFlightNumber === undefined}
-                placeholder={'SX???*'}
-              />
-            </FormField>
+              <FormField label={<Toggle checked={includeAircraft !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, includeAircraft: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Include Aircraft</Box></Toggle>}>
+                <AircraftMultiselectOrEditor
+                  aircraft={aircraft}
+                  selectedAircraftCodes={includeAircraft ?? []}
+                  setSelectedAircraftCodes={(v) => onChange((prev) => ({ ...prev, includeAircraft: v }))}
+                  loading={aircraftLoading}
+                  disabled={isLoading || includeAircraft === undefined}
+                />
+              </FormField>
+            </SpaceBetween>
 
-            <FormField label={<Toggle checked={excludeFlightNumber !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, excludeFlightNumber: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Exclude Flightnumber</Box></Toggle>}>
-              <ValueMultilineEditor
-                values={excludeFlightNumber ?? []}
-                setValues={(v) => onChange((prev) => ({ ...prev, excludeFlightNumber: v }))}
-                disabled={isLoading || excludeFlightNumber === undefined}
-                placeholder={'SX???*'}
-              />
-            </FormField>
+            <SpaceBetween size={'l'} direction={'vertical'}>
+              <Header variant={'h3'} description={'Apply exclusions on flights taken into consideration. Exclusions will result in no flight of the result matching any of the supplied values.'}>Exclude</Header>
 
-            <FormField label={<Toggle checked={includeAircraft !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, includeAircraft: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Include Aircraft</Box></Toggle>}>
-              <AircraftMultiselectOrEditor
-                aircraft={aircraft}
-                selectedAircraftCodes={includeAircraft ?? []}
-                setSelectedAircraftCodes={(v) => onChange((prev) => ({ ...prev, includeAircraft: v }))}
-                loading={aircraftLoading}
-                disabled={isLoading || includeAircraft === undefined}
-              />
-            </FormField>
+              <FormField label={<Toggle checked={excludeAirport !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, excludeAirport: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Exclude Airport</Box></Toggle>}>
+                <AirportMultiselectOrEditor
+                  airports={airports}
+                  selectedAirportCodes={excludeAirport ?? []}
+                  setSelectedAirportCodes={(v) => onChange((prev) => ({ ...prev, excludeAirport: v }))}
+                  loading={airportsLoading}
+                  disabled={isLoading || excludeAirport === undefined}
+                />
+              </FormField>
 
-            <FormField label={<Toggle checked={excludeAircraft !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, excludeAircraft: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Exclude Aircraft</Box></Toggle>}>
-              <AircraftMultiselectOrEditor
-                aircraft={aircraft}
-                selectedAircraftCodes={excludeAircraft ?? []}
-                setSelectedAircraftCodes={(v) => onChange((prev) => ({ ...prev, excludeAircraft: v }))}
-                loading={aircraftLoading}
-                disabled={isLoading || excludeAircraft === undefined}
-              />
-            </FormField>
+              <FormField label={<Toggle checked={excludeFlightNumber !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, excludeFlightNumber: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Exclude Flightnumber</Box></Toggle>}>
+                <ValueMultilineEditor
+                  values={excludeFlightNumber ?? []}
+                  setValues={(v) => onChange((prev) => ({ ...prev, excludeFlightNumber: v }))}
+                  disabled={isLoading || excludeFlightNumber === undefined}
+                  placeholder={'SX???*'}
+                />
+              </FormField>
+
+              <FormField label={<Toggle checked={excludeAircraft !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, excludeAircraft: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Exclude Aircraft</Box></Toggle>}>
+                <AircraftMultiselectOrEditor
+                  aircraft={aircraft}
+                  selectedAircraftCodes={excludeAircraft ?? []}
+                  setSelectedAircraftCodes={(v) => onChange((prev) => ({ ...prev, excludeAircraft: v }))}
+                  loading={aircraftLoading}
+                  disabled={isLoading || excludeAircraft === undefined}
+                />
+              </FormField>
+            </SpaceBetween>
           </ColumnLayout>
         </ExpandableSection>
       </ColumnLayout>
