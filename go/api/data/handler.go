@@ -385,12 +385,16 @@ func (h *Handler) FlightNumbers(ctx context.Context, prefix string, limit int) (
 
 	slices.SortFunc(fns, func(a, b common.FlightNumber) int {
 		return cmp.Or(
+			// sort those without matching prefix last
+			-compareBool(strings.HasPrefix(a.String(), prefix), strings.HasPrefix(b.String(), prefix)),
+			// then sort by number ordering
 			cmp.Compare(a.Airline, b.Airline),
 			cmp.Compare(a.Number, b.Number),
 			cmp.Compare(a.Suffix, b.Suffix),
 		)
 	})
 
+	// should basically always be 0 because matching ones are sorted first
 	firstIdx := slices.IndexFunc(fns, func(fn common.FlightNumber) bool {
 		return strings.HasPrefix(fn.String(), prefix)
 	})
@@ -403,7 +407,16 @@ func (h *Handler) FlightNumbers(ctx context.Context, prefix string, limit int) (
 		limit = len(fns)
 	}
 
-	return fns[firstIdx:min(firstIdx+limit, len(fns))], nil
+	// truncate to limit
+	fns = fns[firstIdx:min(firstIdx+limit, len(fns))]
+
+	for i := range len(fns) {
+		if !strings.HasPrefix(fns[i].String(), prefix) {
+			return fns[:i], nil
+		}
+	}
+
+	return fns, nil
 }
 
 func (h *Handler) Airlines(ctx context.Context, prefix string) ([]common.AirlineIdentifier, error) {
@@ -484,4 +497,14 @@ func (r *csvReader) Read() (map[string]string, error) {
 
 func (r *csvReader) Close() error {
 	return r.c.Close()
+}
+
+func compareBool(a, b bool) int {
+	if a == b {
+		return 0
+	} else if a {
+		return 1
+	} else {
+		return -1
+	}
 }
