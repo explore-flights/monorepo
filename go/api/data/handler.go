@@ -10,13 +10,11 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/bcicen/jstream"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"io"
-	"iter"
 	"slices"
 	"strconv"
 	"strings"
@@ -433,38 +431,4 @@ func (r *csvReader) Read() (map[string]string, error) {
 
 func (r *csvReader) Close() error {
 	return r.c.Close()
-}
-
-type s3ListObjectsIterator struct {
-	s3c adapt.S3Lister
-	req *s3.ListObjectsV2Input
-	err error
-}
-
-func (l *s3ListObjectsIterator) All(ctx context.Context) iter.Seq[types.Object] {
-	return func(yield func(types.Object) bool) {
-		for {
-			res, err := l.s3c.ListObjectsV2(ctx, l.req)
-			if err != nil {
-				l.err = err
-				return
-			}
-
-			for _, obj := range res.Contents {
-				if !yield(obj) {
-					return
-				}
-			}
-
-			if res.NextContinuationToken == nil {
-				return
-			}
-
-			l.req.ContinuationToken = res.NextContinuationToken
-		}
-	}
-}
-
-func (l *s3ListObjectsIterator) Err() error {
-	return l.err
 }
