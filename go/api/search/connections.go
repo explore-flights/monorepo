@@ -91,7 +91,9 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 				}
 
 				for _, f := range flightsByDeparture[d] {
-					if f.ServiceType != "J" || f.Duration() > maxDuration || f.DepartureTime.Compare(minDeparture) < 0 || f.DepartureTime.Compare(maxDeparture) > 0 {
+					// J = regular flight
+					// U = Rail&Fly
+					if (f.ServiceType != "J" && f.ServiceType != "U") || f.Duration() > maxDuration || f.DepartureTime.Compare(minDeparture) < 0 || f.DepartureTime.Compare(maxDeparture) > 0 {
 						continue
 					}
 
