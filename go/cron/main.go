@@ -66,6 +66,7 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) (jso
 	cfAction := action.NewConvertFlightsAction(s3c)
 	cronAction := action.NewCronAction(lfsAction, cfsAction)
 	loaAction := action.NewLoadOurAirportsDataAction(s3c, nil)
+	umdAction := action.NewUpdateMetadataAction(s3c)
 	invWHAction := action.NewInvokeWebhookAction(http.DefaultClient)
 
 	return func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
@@ -99,6 +100,9 @@ func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) (jso
 
 		case "load_our_airports_data":
 			return handle(ctx, loaAction, event.Params)
+
+		case "update_metadata":
+			return handle(ctx, umdAction, event.Params)
 
 		case "invoke_webhook":
 			return handle(ctx, invWHAction, event.Params)

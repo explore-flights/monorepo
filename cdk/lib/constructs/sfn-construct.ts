@@ -30,6 +30,7 @@ export class SfnConstruct extends Construct {
     const LH_FLIGHT_SCHEDULES_PREFIX = 'raw/LH_Public_Data/flightschedules/';
     const PROCESSED_FLIGHTS_PREFIX = 'processed/flights/';
     const PROCESSED_SCHEDULES_PREFIX = 'processed/schedules/';
+    const PROCESSED_METADATA_PREFIX = 'processed/metadata/';
 
     const checkRemainingChoice = new Choice(this, 'CheckRemaining', {});
 
@@ -127,6 +128,22 @@ export class SfnConstruct extends Construct {
                 }),
                 payloadResponseOnly: true,
                 resultPath: '$.convertFlightsResponse',
+                retryOnServiceExceptions: true,
+              }))
+              .next(new LambdaInvoke(this, 'UpdateMetadataTask', {
+                lambdaFunction: props.cronLambda_2G,
+                payload: TaskInput.fromObject({
+                  'action': 'update_metadata',
+                  'params': {
+                    'inputBucket': props.dataBucket.bucketName,
+                    'inputPrefix': PROCESSED_FLIGHTS_PREFIX,
+                    'outputBucket': props.dataBucket.bucketName,
+                    'outputPrefix': PROCESSED_METADATA_PREFIX,
+                    'dateRanges': JsonPath.objectAt('$.convertSchedulesResponse.dateRanges'),
+                  },
+                }),
+                payloadResponseOnly: true,
+                resultPath: '$.updateMetadataResponse',
                 retryOnServiceExceptions: true,
               }))
           )
