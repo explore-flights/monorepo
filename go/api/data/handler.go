@@ -247,8 +247,8 @@ func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
 		"fokker",
 	}
 
-	aircraft, err := loadJson[[]lufthansa.Aircraft](ctx, h, "raw/LH_Public_Data/aircraft.json")
-	if err != nil {
+	var aircraft []lufthansa.Aircraft
+	if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "raw/LH_Public_Data/aircraft.json", &aircraft); err != nil {
 		return nil, err
 	}
 
@@ -271,7 +271,7 @@ func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
 		})
 	}
 
-	return result, err
+	return result, nil
 }
 
 func (h *Handler) FlightSchedule(ctx context.Context, fn common.FlightNumber) (*common.FlightSchedule, error) {
@@ -373,11 +373,6 @@ func (h *Handler) loadCsv(ctx context.Context, name string) (*csvReader, error) 
 		r: csv.NewReader(resp.Body),
 		c: resp.Body,
 	}, nil
-}
-
-func loadJson[T any](ctx context.Context, h *Handler, key string) (T, error) {
-	var r T
-	return r, adapt.S3GetJson(ctx, h.s3c, h.bucket, key, &r)
 }
 
 func findName(names lufthansa.Names, lang string) string {
