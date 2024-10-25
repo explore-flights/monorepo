@@ -322,100 +322,43 @@ func (h *Handler) FlightSchedule(ctx context.Context, fn common.FlightNumber) (*
 }
 
 func (h *Handler) FlightNumbers(ctx context.Context, prefix string, limit int) ([]common.FlightNumber, error) {
-	var airlines []common.AirlineIdentifier
-	if len(prefix) >= 2 {
-		airlines = []common.AirlineIdentifier{common.AirlineIdentifier(prefix[:2])}
-	} else {
-		var err error
-		airlines, err = h.Airlines(ctx, prefix)
-
-		if err != nil {
-			return nil, err
-		}
-
-		slices.Sort(airlines)
+	var fns []common.FlightNumber
+	if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/flightNumbers.json", &fns); err != nil {
+		return nil, err
 	}
 
-	fns := make([]common.FlightNumber, 0, min(max(limit, 1000), 1000))
-	for _, airline := range airlines {
-		var err error
-		if fns, err = h.flightNumbersInternal(ctx, airline, prefix, limit, fns); err != nil {
-			return nil, err
-		}
-
-		if limit > 0 && len(fns) >= limit {
-			break
-		}
-	}
-
-	return fns, nil
-}
-
-func (h *Handler) flightNumbersInternal(ctx context.Context, airline common.AirlineIdentifier, prefix string, limit int, fns []common.FlightNumber) ([]common.FlightNumber, error) {
-	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(h.bucket),
-		Key:    aws.String(fmt.Sprintf("processed/schedules/%s.json.gz", airline)),
+	slices.SortFunc(fns, func(a, b common.FlightNumber) int {
+		return cmp.Or(
+			cmp.Compare(a.Airline, b.Airline),
+			cmp.Compare(a.Number, b.Number),
+			cmp.Compare(a.Suffix, b.Suffix),
+		)
 	})
 
-	if err != nil {
-		if adapt.IsS3NotFound(err) {
-			return fns, nil
-		} else {
-			return fns, err
-		}
+	firstIdx := slices.IndexFunc(fns, func(fn common.FlightNumber) bool {
+		return strings.HasPrefix(fn.String(), prefix)
+	})
+
+	if firstIdx == -1 {
+		return make([]common.FlightNumber, 0), nil
 	}
 
-	defer resp.Body.Close()
-
-	r, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return fns, err
+	if limit < 1 {
+		limit = len(fns)
 	}
 
-	decoder := jstream.NewDecoder(r, 1).EmitKV()
-	for mv := range decoder.Stream() {
-		fnRaw := mv.Value.(jstream.KV).Key
-		if strings.HasPrefix(fnRaw, prefix) {
-			fn, err := common.ParseFlightNumber(fnRaw)
-			if err != nil {
-				return fns, err
-			}
-
-			fns = append(fns, fn)
-
-			if limit > 0 && len(fns) >= limit {
-				break
-			}
-		}
-	}
-
-	if err = decoder.Err(); err != nil {
-		return fns, err
-	}
-
-	return fns, nil
+	return fns[firstIdx:min(firstIdx+limit, len(fns))], nil
 }
 
 func (h *Handler) Airlines(ctx context.Context, prefix string) ([]common.AirlineIdentifier, error) {
-	const schedulesPrefix = "processed/schedules/"
-	it := &s3ListObjectsIterator{
-		s3c: h.s3c,
-		req: &s3.ListObjectsV2Input{
-			Bucket: aws.String(h.bucket),
-			Prefix: aws.String(schedulesPrefix + prefix),
-		},
+	var airlines []common.AirlineIdentifier
+	if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/airlines.json", &airlines); err != nil {
+		return nil, err
 	}
 
-	result := make([]common.AirlineIdentifier, 0)
-	for obj := range it.All(ctx) {
-		key := *obj.Key
-		key = strings.TrimPrefix(key, schedulesPrefix)
-		key = strings.TrimSuffix(key, ".json.gz")
-
-		result = append(result, common.AirlineIdentifier(key))
-	}
-
-	return result, it.Err()
+	return slices.DeleteFunc(airlines, func(airline common.AirlineIdentifier) bool {
+		return !strings.HasPrefix(string(airline), prefix)
+	}), nil
 }
 
 func (h *Handler) loadCsv(ctx context.Context, name string) (*csvReader, error) {
