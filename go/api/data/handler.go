@@ -15,6 +15,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"io"
+	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -173,6 +174,18 @@ func NewHandler(s3c MinimalS3Client, bucket string) *Handler {
 }
 
 func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
+	relevantAirportCodes := make(map[string]struct{})
+	{
+		var airports []string
+		if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/airports.json", &airports); err != nil {
+			return AirportsResponse{}, err
+		}
+
+		for _, airport := range airports {
+			relevantAirportCodes[airport] = struct{}{}
+		}
+	}
+
 	r, err := h.loadCsv(ctx, "airports")
 	if err != nil {
 		return AirportsResponse{}, err
@@ -196,14 +209,15 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 			return AirportsResponse{}, err
 		}
 
-		if !strings.HasSuffix(strings.TrimSpace(row["type"]), "_airport") {
-			continue
-		} else if strings.TrimSpace(row["scheduled_service"]) != "yes" {
+		code := strings.TrimSpace(row["iata_code"])
+		if _, ok := relevantAirportCodes[code]; !ok {
 			continue
 		}
 
+		delete(relevantAirportCodes, code)
+
 		var airport Airport
-		airport.Code = strings.TrimSpace(row["iata_code"])
+		airport.Code = code
 		airport.Name = cmp.Or(strings.TrimSpace(row["name"]), airport.Code)
 		airport.Lat, err = strconv.ParseFloat(row["latitude_deg"], 64)
 		if err != nil {
@@ -231,6 +245,17 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 		}
 	}
 
+	for code := range relevantAirportCodes {
+		slog.WarnContext(ctx, "no data found for airport", slog.String("code", code))
+
+		resp.Airports = append(resp.Airports, Airport{
+			Code: code,
+			Name: code,
+			Lat:  0.0,
+			Lng:  0.0,
+		})
+	}
+
 	for _, v := range metroAreas {
 		resp.MetropolitanAreas = append(resp.MetropolitanAreas, v)
 	}
@@ -239,12 +264,16 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 }
 
 func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
-	excludeNames := []string{
-		"freighter",
-		"gulfstream",
-		"cessna",
-		"hawker",
-		"fokker",
+	relevantAircraftCodes := make(map[string]struct{})
+	{
+		var aircraft []string
+		if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/aircraft.json", &aircraft); err != nil {
+			return nil, err
+		}
+
+		for _, code := range aircraft {
+			relevantAircraftCodes[code] = struct{}{}
+		}
 	}
 
 	var aircraft []lufthansa.Aircraft
@@ -254,20 +283,26 @@ func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
 
 	result := make([]Aircraft, 0, len(aircraft))
 	for _, a := range aircraft {
-		if a.AirlineEquipCode == "" || a.AirlineEquipCode == "*" || len(a.Names.Name) < 1 {
+		if _, ok := relevantAircraftCodes[a.AircraftCode]; !ok {
 			continue
 		}
 
-		name := findName(a.Names, "EN")
-		lName := strings.ToLower(name)
-		if slices.ContainsFunc(excludeNames, func(s string) bool { return strings.Contains(lName, s) }) {
-			continue
-		}
+		delete(relevantAircraftCodes, a.AircraftCode)
 
 		result = append(result, Aircraft{
 			Code:      a.AircraftCode,
 			EquipCode: a.AirlineEquipCode,
-			Name:      name,
+			Name:      findName(a.Names, "EN"),
+		})
+	}
+
+	for code := range relevantAircraftCodes {
+		slog.WarnContext(ctx, "no data found for aircraft", slog.String("code", code))
+
+		result = append(result, Aircraft{
+			Code:      code,
+			EquipCode: "",
+			Name:      code,
 		})
 	}
 
