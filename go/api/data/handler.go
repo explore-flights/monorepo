@@ -199,6 +199,19 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 		MetropolitanAreas: make([]MetropolitanArea, 0),
 	}
 
+	addAirport := func(airport Airport) {
+		if metroAreaValues, ok := metroAreaMapping[airport.Code]; ok {
+			metroArea := metroAreas[metroAreaValues[0]]
+			metroArea.Code = metroAreaValues[0]
+			metroArea.Name = metroAreaValues[1]
+			metroArea.Airports = append(metroArea.Airports, airport)
+
+			metroAreas[metroArea.Code] = metroArea
+		} else {
+			resp.Airports = append(resp.Airports, airport)
+		}
+	}
+
 	for {
 		row, err := r.Read()
 		if err != nil {
@@ -229,31 +242,41 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 			return AirportsResponse{}, fmt.Errorf("failed to parse longitude for %q: %w", airport.Name, err)
 		}
 
-		if airport.Code == "" {
-			continue
-		}
-
-		if metroAreaValues, ok := metroAreaMapping[airport.Code]; ok {
-			metroArea := metroAreas[metroAreaValues[0]]
-			metroArea.Code = metroAreaValues[0]
-			metroArea.Name = metroAreaValues[1]
-			metroArea.Airports = append(metroArea.Airports, airport)
-
-			metroAreas[metroArea.Code] = metroArea
-		} else {
-			resp.Airports = append(resp.Airports, airport)
-		}
+		addAirport(airport)
 	}
 
-	for code := range relevantAirportCodes {
-		slog.WarnContext(ctx, "no data found for airport", slog.String("code", code))
+	if len(relevantAirportCodes) > 0 {
+		var airports []lufthansa.Airport
+		if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "raw/LH_Public_Data/airports.json", &airports); err != nil {
+			return AirportsResponse{}, err
+		}
 
-		resp.Airports = append(resp.Airports, Airport{
-			Code: code,
-			Name: code,
-			Lat:  0.0,
-			Lng:  0.0,
-		})
+		for code := range relevantAirportCodes {
+			idx := slices.IndexFunc(airports, func(airport lufthansa.Airport) bool {
+				return airport.Code == code
+			})
+
+			if idx == -1 {
+				slog.WarnContext(ctx, "no data found for airport", slog.String("code", code))
+
+				addAirport(Airport{
+					Code: code,
+					Name: code,
+					Lat:  0.0,
+					Lng:  0.0,
+				})
+			} else {
+				slog.WarnContext(ctx, "only secondary data found for airport", slog.String("code", code))
+
+				airport := airports[idx]
+				addAirport(Airport{
+					Code: code,
+					Name: findName(airport.Names, "EN"),
+					Lat:  airport.Position.Coordinate.Latitude,
+					Lng:  airport.Position.Coordinate.Longitude,
+				})
+			}
+		}
 	}
 
 	for _, v := range metroAreas {

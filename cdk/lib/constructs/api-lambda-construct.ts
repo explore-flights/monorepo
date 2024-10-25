@@ -90,6 +90,7 @@ export class ApiLambdaConstruct extends Construct {
     props.dataBucket.grantRead(this.lambda, 'raw/ourairports_data/airports.csv');
     props.dataBucket.grantRead(this.lambda, 'raw/ourairports_data/countries.csv');
     props.dataBucket.grantRead(this.lambda, 'raw/ourairports_data/regions.csv');
+    props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/airports.json');
     props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/aircraft.json');
 
     props.authBucket.grantReadWrite(this.lambda, 'authreq/*');
