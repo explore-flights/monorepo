@@ -59,11 +59,25 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 		maxLayover,
 		maxDuration,
 		f.any,
-		true,
+		nil,
 	))
 }
 
-func findConnections(ctx context.Context, flightsByDeparture map[common.Departure][]*common.Flight, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, predicates []flightPredicate, initial bool) <-chan Connection {
+func findConnections(
+	ctx context.Context,
+	flightsByDeparture map[common.Departure][]*common.Flight,
+	origins,
+	destinations []string,
+	minDeparture,
+	maxDeparture time.Time,
+	maxFlights uint32,
+	minLayover,
+	maxLayover,
+	maxDuration time.Duration,
+	predicates []flightPredicate,
+	incomingFn *common.FlightNumber,
+) <-chan Connection {
+
 	if maxFlights < 1 || maxDuration < 1 {
 		ch := make(chan Connection)
 		close(ch)
@@ -91,18 +105,23 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 				}
 
 				for _, f := range flightsByDeparture[d] {
+					minDeparture := minDeparture
+					maxDuration := maxDuration
+
+					if incomingFn != nil {
+						maxDuration = maxDuration - f.DepartureTime.Sub(minDeparture)
+
+						// ignore minLayover for flights continuing on the same number (multi-leg)
+						if *incomingFn != f.Number() {
+							minDeparture = minDeparture.Add(minLayover)
+							maxDuration = maxDuration - minLayover
+						}
+					}
+
 					// J = regular flight
 					// U = Rail&Fly
 					if (f.ServiceType != "J" && f.ServiceType != "U") || f.Duration() > maxDuration || f.DepartureTime.Compare(minDeparture) < 0 || f.DepartureTime.Compare(maxDeparture) > 0 {
 						continue
-					}
-
-					maxDuration := maxDuration
-					if !initial {
-						maxDuration = maxDuration - f.DepartureTime.Sub(minDeparture)
-						if f.Duration() > maxDuration {
-							continue
-						}
 					}
 
 					remPredicates := make([]flightPredicate, 0, len(predicates))
@@ -128,19 +147,20 @@ func findConnections(ctx context.Context, flightsByDeparture map[common.Departur
 							}
 						}
 					} else {
+						fn := f.Number()
 						subConns := findConnections(
 							ctx,
 							flightsByDeparture,
 							[]string{f.ArrivalAirport},
 							destinations,
-							f.ArrivalTime.Add(minLayover),
+							f.ArrivalTime,
 							f.ArrivalTime.Add(maxLayover),
 							maxFlights-1,
 							minLayover,
 							maxLayover,
-							maxDuration-(f.Duration()+minLayover),
+							maxDuration-f.Duration(),
 							remPredicates,
-							false,
+							&fn,
 						)
 
 						working = append(working, struct {
