@@ -121,7 +121,7 @@ func buildGraph(parent *common.Flight, conns []Connection, graph *cgraph.Graph, 
 		var ok bool
 
 		if node, ok = lookup[conn.Flight]; !ok {
-			node, err = graph.CreateNodeByName(conn.Flight.Number().String())
+			node, err = graph.CreateNodeByName(conn.Flight.Id().String())
 			if err != nil {
 				return err
 			}
