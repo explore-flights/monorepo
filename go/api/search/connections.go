@@ -10,9 +10,10 @@ import (
 
 type flightPredicate func(f *common.Flight) bool
 
-type Filters struct {
-	all []flightPredicate
-	any []flightPredicate
+type Options struct {
+	countMultiLeg bool
+	all           []flightPredicate
+	any           []flightPredicate
 }
 
 type Connection struct {
@@ -28,8 +29,8 @@ func NewConnectionsHandler(fr *FlightRepo) *ConnectionsHandler {
 	return &ConnectionsHandler{fr}
 }
 
-func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, options ...FilterOption) ([]Connection, error) {
-	var f Filters
+func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, options ...ConnectionSearchOption) ([]Connection, error) {
+	var f Options
 	for _, opt := range options {
 		opt.Apply(&f)
 	}
@@ -59,6 +60,7 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 		maxLayover,
 		maxDuration,
 		f.any,
+		f.countMultiLeg,
 		nil,
 	))
 }
@@ -75,10 +77,11 @@ func findConnections(
 	maxLayover,
 	maxDuration time.Duration,
 	predicates []flightPredicate,
+	countMultiLeg bool,
 	incomingFn *common.FlightNumber,
 ) <-chan Connection {
 
-	if maxFlights < 1 || maxDuration < 1 {
+	if (countMultiLeg && maxFlights < 1) || maxDuration < 1 {
 		ch := make(chan Connection)
 		close(ch)
 		return ch
@@ -107,6 +110,7 @@ func findConnections(
 				for _, f := range flightsByDeparture[d] {
 					minDeparture := minDeparture
 					maxDuration := maxDuration
+					sameFlightNumber := false
 
 					if incomingFn != nil {
 						maxDuration = maxDuration - f.DepartureTime.Sub(minDeparture)
@@ -115,12 +119,14 @@ func findConnections(
 						if *incomingFn != f.Number() {
 							minDeparture = minDeparture.Add(minLayover)
 							maxDuration = maxDuration - minLayover
+						} else {
+							sameFlightNumber = true
 						}
 					}
 
 					// J = regular flight
 					// U = Rail&Fly
-					if (f.ServiceType != "J" && f.ServiceType != "U") || f.Duration() > maxDuration || f.DepartureTime.Compare(minDeparture) < 0 || f.DepartureTime.Compare(maxDeparture) > 0 {
+					if (f.ServiceType != "J" && f.ServiceType != "U") || (maxFlights < 1 && !sameFlightNumber) || f.Duration() > maxDuration || f.DepartureTime.Compare(minDeparture) < 0 || f.DepartureTime.Compare(maxDeparture) > 0 {
 						continue
 					}
 
@@ -148,6 +154,12 @@ func findConnections(
 						}
 					} else {
 						fn := f.Number()
+						consumeFlights := uint32(1)
+
+						if !countMultiLeg && sameFlightNumber {
+							consumeFlights = 0
+						}
+
 						subConns := findConnections(
 							ctx,
 							flightsByDeparture,
@@ -155,11 +167,12 @@ func findConnections(
 							destinations,
 							f.ArrivalTime,
 							f.ArrivalTime.Add(maxLayover),
-							maxFlights-1,
+							maxFlights-consumeFlights,
 							minLayover,
 							maxLayover,
 							maxDuration-f.Duration(),
 							remPredicates,
+							countMultiLeg,
 							&fn,
 						)
 

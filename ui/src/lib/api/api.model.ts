@@ -45,6 +45,7 @@ export interface ConnectionsSearchRequest {
   minLayoverMS: number;
   maxLayoverMS: number;
   maxDurationMS: number;
+  countMultiLeg: boolean;
   includeAirport?: ReadonlyArray<string>;
   excludeAirport?: ReadonlyArray<string>;
   includeFlightNumber?: ReadonlyArray<string>;

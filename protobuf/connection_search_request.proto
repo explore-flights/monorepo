@@ -15,6 +15,7 @@ message ConnectionsSearchRequest {
   google.protobuf.Duration min_layover = 6;
   google.protobuf.Duration max_layover = 7;
   google.protobuf.Duration max_duration = 8;
+  optional bool count_multi_leg = 15;
   repeated string include_airport = 9;
   repeated string exclude_airport = 10;
   repeated string include_flight_number = 11;

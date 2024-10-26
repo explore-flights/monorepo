@@ -33,6 +33,7 @@ type connectionsSearchRequest struct {
 	MinLayoverMS        uint64    `json:"minLayoverMS"`
 	MaxLayoverMS        uint64    `json:"maxLayoverMS"`
 	MaxDurationMS       uint64    `json:"maxDurationMS"`
+	CountMultiLeg       bool      `json:"countMultiLeg"`
 	IncludeAirport      []string  `json:"includeAirport,omitempty"`
 	ExcludeAirport      []string  `json:"excludeAirport,omitempty"`
 	IncludeFlightNumber []string  `json:"includeFlightNumber,omitempty"`
@@ -47,6 +48,7 @@ type connectionsSearchResponse struct {
 }
 
 func (req connectionsSearchRequest) toPb() proto.Message {
+	countMultiLeg := req.CountMultiLeg
 	return &pb.ConnectionsSearchRequest{
 		Origins:             req.Origins,
 		Destinations:        req.Destinations,
@@ -56,6 +58,7 @@ func (req connectionsSearchRequest) toPb() proto.Message {
 		MinLayover:          durationpb.New(time.Duration(req.MinLayoverMS) * time.Millisecond),
 		MaxLayover:          durationpb.New(time.Duration(req.MaxLayoverMS) * time.Millisecond),
 		MaxDuration:         durationpb.New(time.Duration(req.MaxDurationMS) * time.Millisecond),
+		CountMultiLeg:       &countMultiLeg,
 		IncludeAirport:      req.IncludeAirport,
 		ExcludeAirport:      req.ExcludeAirport,
 		IncludeFlightNumber: req.IncludeFlightNumber,
@@ -78,7 +81,8 @@ func NewConnectionsEndpoint(ch *search.ConnectionsHandler, export string) echo.H
 		maxLayover := time.Duration(req.MaxLayoverMS) * time.Millisecond
 		maxDuration := time.Duration(req.MaxDurationMS) * time.Millisecond
 
-		options := make([]search.FilterOption, 0)
+		options := make([]search.ConnectionSearchOption, 0)
+		options = append(options, search.WithCountMultiLeg(req.CountMultiLeg))
 		options = appendStringOptions[search.WithIncludeAirport, search.WithIncludeAirportGlob](options, req.IncludeAirport)
 		options = appendSliceOptions[search.WithExcludeAirport, search.WithExcludeAirportGlob](options, req.ExcludeAirport)
 		options = appendStringOptions[search.WithIncludeFlightNumber, search.WithIncludeFlightNumberGlob](options, req.IncludeFlightNumber)
@@ -238,6 +242,11 @@ func parseRequest(c echo.Context) (connectionsSearchRequest, error) {
 			return connectionsSearchRequest{}, err
 		}
 
+		countMultiLeg := true // multi-leg flights were counted before this option was added
+		if pbReq.CountMultiLeg != nil {
+			countMultiLeg = *pbReq.CountMultiLeg
+		}
+
 		req = connectionsSearchRequest{
 			Origins:             pbReq.Origins,
 			Destinations:        pbReq.Destinations,
@@ -247,6 +256,7 @@ func parseRequest(c echo.Context) (connectionsSearchRequest, error) {
 			MinLayoverMS:        uint64(pbReq.MinLayover.AsDuration().Milliseconds()),
 			MaxLayoverMS:        uint64(pbReq.MaxLayover.AsDuration().Milliseconds()),
 			MaxDurationMS:       uint64(pbReq.MaxDuration.AsDuration().Milliseconds()),
+			CountMultiLeg:       countMultiLeg,
 			IncludeAirport:      pbReq.IncludeAirport,
 			ExcludeAirport:      pbReq.ExcludeAirport,
 			IncludeFlightNumber: pbReq.IncludeFlightNumber,
@@ -289,10 +299,10 @@ func validateRequest(req connectionsSearchRequest) error {
 
 type sliceRestr interface {
 	~[]string
-	search.FilterOption
+	search.ConnectionSearchOption
 }
 
-func appendSliceOptions[Reg sliceRestr, Glob sliceRestr](options []search.FilterOption, values []string) []search.FilterOption {
+func appendSliceOptions[Reg sliceRestr, Glob sliceRestr](options []search.ConnectionSearchOption, values []string) []search.ConnectionSearchOption {
 	unique := make(map[string]struct{})
 	regular := make(Reg, 0)
 	glob := make(Glob, 0)
@@ -324,10 +334,10 @@ func appendSliceOptions[Reg sliceRestr, Glob sliceRestr](options []search.Filter
 
 type stringRestr interface {
 	~string
-	search.FilterOption
+	search.ConnectionSearchOption
 }
 
-func appendStringOptions[Reg stringRestr, Glob stringRestr](options []search.FilterOption, values []string) []search.FilterOption {
+func appendStringOptions[Reg stringRestr, Glob stringRestr](options []search.ConnectionSearchOption, values []string) []search.ConnectionSearchOption {
 	unique := make(map[string]struct{})
 
 	for _, v := range values {

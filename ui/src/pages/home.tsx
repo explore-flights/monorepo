@@ -37,6 +37,7 @@ export function Home() {
     minLayover: Duration.fromMillis(1000*60*60),
     maxLayover: Duration.fromMillis(1000*60*60*6),
     maxDuration: Duration.fromMillis(1000*60*60*26),
+    countMultiLeg: true,
   });
   const [connections, setConnections] = useState<Connections>();
   const [share, setShare] = useState<ConnectionSearchShare>();
@@ -128,6 +129,7 @@ function paramsToRequest(params: ConnectionSearchParams): ConnectionsSearchReque
     minLayoverMS: params.minLayover.toMillis(),
     maxLayoverMS: params.maxLayover.toMillis(),
     maxDurationMS: params.maxDuration.toMillis(),
+    countMultiLeg: params.countMultiLeg,
     includeAirport: params.includeAirport,
     excludeAirport: params.excludeAirport,
     includeFlightNumber: params.includeFlightNumber,
@@ -147,6 +149,7 @@ function requestToParams(req: ConnectionsSearchRequest): ConnectionSearchParams 
     minLayover: Duration.fromMillis(req.minLayoverMS),
     maxLayover: Duration.fromMillis(req.maxLayoverMS),
     maxDuration: Duration.fromMillis(req.maxDurationMS),
+    countMultiLeg: req.countMultiLeg,
     includeAirport: req.includeAirport,
     excludeAirport: req.excludeAirport,
     includeFlightNumber: req.includeFlightNumber,

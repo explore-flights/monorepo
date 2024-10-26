@@ -25,6 +25,7 @@ export interface ConnectionSearchParams {
   readonly minLayover: Duration<true>;
   readonly maxLayover: Duration<true>;
   readonly maxDuration: Duration<true>;
+  readonly countMultiLeg: boolean;
   readonly includeAirport?: ReadonlyArray<string>;
   readonly excludeAirport?: ReadonlyArray<string>;
   readonly includeFlightNumber?: ReadonlyArray<string>;
@@ -111,7 +112,6 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
 
   return (
     <Form
-      variant={'embedded'}
       actions={
       <SpaceBetween size={'xs'} direction={'horizontal'}>
         <Button onClick={onShare} loading={isLoading} disabled={errors !== null} iconName={'share'}>Share</Button>
@@ -124,7 +124,8 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
           gridDefinition={[
             { colspan: { default: 12, xs: 6, m: 3 } },
             { colspan: { default: 12, xs: 6, m: 3 } },
-            { colspan: { default: 12, xs: 12, m: 6 } },
+            { colspan: { default: 12, xs: 6, m: 3 } },
+            { colspan: { default: 12, xs: 6, m: 3 } },
             { colspan: { default: 12, xs: 6, m: 3 } },
             { colspan: { default: 12, xs: 6, m: 3 } },
             { colspan: { default: 12, xs: 6, m: 3 } },
@@ -202,6 +203,13 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
               rangeSelectorMode={'absolute-only'}
               disabled={isLoading}
             />
+          </FormField>
+
+          <FormField label={'Count Multi-Leg'}>
+            <Toggle
+              checked={params.countMultiLeg}
+              onChange={(e) => onChange((prev) => ({ ...prev, countMultiLeg: e.detail.checked }))}
+            >If active, each leg of a multi-leg flight counts as a full flight</Toggle>
           </FormField>
 
           <FormField label={'Max Flights'} errorText={errors?.maxFlights}>
