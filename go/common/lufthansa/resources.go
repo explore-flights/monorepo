@@ -1,14 +1,18 @@
 package lufthansa
 
-type pagedResourceMetaLink struct {
+type resourceMetaLink struct {
 	Href string `json:"@Href"`
 	Rel  string `json:"@Rel"`
 }
 
+type resourceMeta struct {
+	Version string             `json:"@Version"`
+	Link    []resourceMetaLink `json:"Link"`
+}
+
 type pagedResourceMeta struct {
-	Version    string                  `json:"@Version"`
-	Link       []pagedResourceMetaLink `json:"Link"`
-	TotalCount int                     `json:"TotalCount"`
+	resourceMeta
+	TotalCount int `json:"TotalCount"`
 }
 
 type pagedResource[D any] interface {
@@ -99,4 +103,11 @@ func (r aircraftResource[D]) Data() []D {
 
 func (r aircraftResource[D]) Meta() pagedResourceMeta {
 	return r.Inner.Meta
+}
+
+type seatAvailabilityResource struct {
+	Inner struct {
+		SeatAvailability
+		Meta resourceMeta `json:"Meta"`
+	} `json:"SeatAvailabilityResource"`
 }

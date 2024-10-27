@@ -12,6 +12,7 @@ import (
 	"golang.org/x/time/rate"
 	"io"
 	"maps"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -26,12 +27,12 @@ var (
 	ErrRateLimitWouldExceedDeadline = errors.New("rate limit wait would deadline")
 )
 
-type responseStatusErr struct {
+type ResponseStatusErr struct {
 	StatusCode int
 	Status     string
 }
 
-func (e responseStatusErr) Error() string {
+func (e ResponseStatusErr) Error() string {
 	return e.Status
 }
 
@@ -84,6 +85,10 @@ func NewClient(clientId, clientSecret string, opts ...ClientOption) *Client {
 
 	for _, opt := range opts {
 		opt(c)
+	}
+
+	if c.limiter == nil {
+		c.limiter = rate.NewLimiter(rate.Inf, math.MaxInt)
 	}
 
 	c.httpClient = cmp.Or(c.httpClient, http.DefaultClient)
@@ -218,6 +223,33 @@ func (c *Client) FlightSchedulesRaw(ctx context.Context, airlines []common.Airli
 	return err
 }
 
+func (c *Client) SeatMap(ctx context.Context, fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass CabinClass) (SeatAvailability, error) {
+	path := c.buildSeatMapPath(fn, departureAirport, arrivalAirport, departureDate, cabinClass)
+	data, err := doRequest[seatAvailabilityResource](ctx, c, http.MethodGet, path, nil, nil, readJsonFunc[seatAvailabilityResource]())
+	if err != nil {
+		var def SeatAvailability
+		return def, err
+	}
+
+	return data.Inner.SeatAvailability, nil
+}
+
+func (c *Client) SeatMapRaw(ctx context.Context, fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass CabinClass) (json.RawMessage, error) {
+	path := c.buildSeatMapPath(fn, departureAirport, arrivalAirport, departureDate, cabinClass)
+	return doRequest[json.RawMessage](ctx, c, http.MethodGet, path, nil, nil, readJsonFunc[json.RawMessage]())
+}
+
+func (c *Client) buildSeatMapPath(fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass CabinClass) string {
+	return fmt.Sprintf(
+		"/v1/offers/seatmaps/%s/%s/%s/%s/%s",
+		url.PathEscape(fn),
+		url.PathEscape(departureAirport),
+		url.PathEscape(arrivalAirport),
+		url.PathEscape(departureDate.String()),
+		url.PathEscape(string(cabinClass)),
+	)
+}
+
 func doRequestFlightSchedules[T any](ctx context.Context, c *Client, airlines []common.AirlineIdentifier, startDate, endDate xtime.LocalDate, daysOfOperation []time.Weekday, f func(r io.Reader) (T, error), options ...FlightSchedulesOption) (T, error) {
 	options = append(options, WithAirlines(airlines))
 	options = append(options, WithStartDate(startDate))
@@ -237,7 +269,7 @@ func doRequestFlightSchedules[T any](ctx context.Context, c *Client, airlines []
 	for len(errs) < maxRetries {
 		r, err := doRequest[T](ctx, c, http.MethodGet, "/v1/flight-schedules/flightschedules/passenger", q, nil, f)
 		if err != nil {
-			var statusErr responseStatusErr
+			var statusErr ResponseStatusErr
 			if errors.As(err, &statusErr) && (isBadElementStatus(statusErr.StatusCode) || isRetryableStatus(statusErr.StatusCode)) {
 				errs = append(errs, err)
 				continue
@@ -265,7 +297,7 @@ func doRequest[T any](ctx context.Context, c *Client, method, path string, q url
 
 	if resp.StatusCode != http.StatusOK {
 		var def T
-		return def, responseStatusErr{
+		return def, ResponseStatusErr{
 			StatusCode: resp.StatusCode,
 			Status:     resp.Status,
 		}
@@ -315,7 +347,7 @@ func doRequestPage[T pagedResource[D], D any](ctx context.Context, c *Client, me
 			_ = resp.Body.Close()
 
 			if pageSize > 1 && isBadElementStatus(resp.StatusCode) {
-				var statusErr responseStatusErr
+				var statusErr ResponseStatusErr
 
 				subPageSizeLeft := pageSize / 2
 				subPageSizeRight := pageSize - subPageSizeLeft
@@ -343,7 +375,7 @@ func doRequestPage[T pagedResource[D], D any](ctx context.Context, c *Client, me
 				return results, nextPageOffset, hasNextPage, nil
 			}
 
-			errs = append(errs, responseStatusErr{
+			errs = append(errs, ResponseStatusErr{
 				StatusCode: resp.StatusCode,
 				Status:     resp.Status,
 			})

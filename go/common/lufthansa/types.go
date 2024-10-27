@@ -2,6 +2,9 @@ package lufthansa
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"strconv"
 )
 
 type Coordinate struct {
@@ -78,41 +81,58 @@ type Aircraft struct {
 type Array[T any] []T
 
 func (a *Array[T]) UnmarshalJSON(data []byte) error {
-	var err error
-	*a, err = unmarshalArray[T](data)
-	return err
+	var values []T
+	if err1 := json.Unmarshal(data, &values); err1 != nil {
+		var single T
+		if err2 := json.Unmarshal(data, &single); err2 != nil {
+			return fmt.Errorf("failed to unmarshal lufthansa.Array: %w", errors.Join(err1, err2))
+		}
+
+		values = []T{single}
+	}
+
+	if values == nil {
+		values = make([]T, 0)
+	}
+
+	*a = values
+
+	return nil
 }
 
-func unmarshalArray[T any](data []byte) ([]T, error) {
-	var v any
-	if err := json.Unmarshal(data, &v); err != nil {
-		return nil, err
+type JsonStrAsInt int
+
+func (v *JsonStrAsInt) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
 	}
 
-	var values []any
-	switch v := v.(type) {
-	case []any:
-		values = v
-	case nil:
-		values = nil
-	default:
-		values = []any{v}
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return err
 	}
 
-	s := make([]T, 0, len(values))
-	for _, entry := range values {
-		b, err := json.Marshal(entry)
-		if err != nil {
-			return nil, err
-		}
+	*v = JsonStrAsInt(i)
+	return nil
+}
 
-		var value T
-		if err = json.Unmarshal(b, &value); err != nil {
-			return nil, err
-		}
+func (v JsonStrAsInt) MarshalJSON() ([]byte, error) {
+	return json.Marshal(strconv.Itoa(int(v)))
+}
 
-		s = append(s, value)
+type Code string
+
+func (v *Code) UnmarshalJSON(data []byte) error {
+	var raw map[string]string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
 	}
 
-	return s, nil
+	*v = Code(raw["Code"])
+	return nil
+}
+
+func (v Code) MarshalJSON() ([]byte, error) {
+	return json.Marshal(map[string]string{"Code": string(v)})
 }
