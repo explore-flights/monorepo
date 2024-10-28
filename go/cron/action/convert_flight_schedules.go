@@ -12,7 +12,6 @@ import (
 	"github.com/explore-flights/monorepo/go/common/concurrent"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/common/xtime"
-	"golang.org/x/sync/errgroup"
 	"strings"
 	"sync"
 	"time"
@@ -68,96 +67,58 @@ func (a *cfsAction) Handle(ctx context.Context, params ConvertFlightSchedulesPar
 }
 
 func (a *cfsAction) convertAndUpsertAll(ctx context.Context, inputBucket, inputPrefix, outputBucket, outputPrefix string, ldrs xtime.LocalDateRanges) (xtime.LocalDateRanges, error) {
-	queryDates := make(chan xtime.LocalDate, 10)
-	go func() {
-		defer close(queryDates)
-
-		for d := range ldrs.Compact().Iter() {
-			select {
-			case queryDates <- d:
-
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	touchedDates := make(chan xtime.LocalDate)
 	locks := concurrent.NewMap[xtime.LocalDate, *sync.Mutex]()
-	g, gCtx := errgroup.WithContext(ctx)
+	wg := concurrent.WorkGroup[xtime.LocalDate, xtime.LocalDateRanges, xtime.LocalDateRanges]{
+		Parallelism: 10,
+		Worker: func(ctx context.Context, queryDate xtime.LocalDate, acc xtime.LocalDateRanges) (xtime.LocalDateRanges, error) {
+			fmt.Printf("loading and converting %v\n", queryDate)
 
-	for i := range 10 {
-		g.Go(func() error {
-			for {
-				select {
-				case queryDate, ok := <-queryDates:
-					if !ok {
-						return nil
-					}
+			flights, err := a.convertSingle(ctx, inputBucket, inputPrefix, queryDate)
+			if err != nil {
+				return acc, err
+			}
 
-					fmt.Printf("goroutine %d: loading and converting %v\n", i, queryDate)
+			flightsByDepartureDateUTC := make(map[xtime.LocalDate][]*common.Flight)
+			for _, f := range flights {
+				flightsByDepartureDateUTC[f.DepartureDateUTC()] = append(flightsByDepartureDateUTC[f.DepartureDateUTC()], f)
+			}
 
-					flights, err := a.convertSingle(ctx, inputBucket, inputPrefix, queryDate)
-					if err != nil {
-						return err
-					}
+			for departureDateUTC, flights := range flightsByDepartureDateUTC {
+				acc = acc.Add(departureDateUTC)
 
-					flightsByDepartureDateUTC := make(map[xtime.LocalDate][]*common.Flight)
-					for _, f := range flights {
-						flightsByDepartureDateUTC[f.DepartureDateUTC()] = append(flightsByDepartureDateUTC[f.DepartureDateUTC()], f)
-					}
-
-					for departureDateUTC, flights := range flightsByDepartureDateUTC {
-						select {
-						case touchedDates <- departureDateUTC:
-						case <-ctx.Done():
-							return ctx.Err()
+				err = func() error {
+					mtx := locks.Compute(departureDateUTC, func(v *sync.Mutex, exists bool) *sync.Mutex {
+						if !exists {
+							v = new(sync.Mutex)
 						}
 
-						err = func() error {
-							mtx, _ := locks.LoadOrStore(departureDateUTC, new(sync.Mutex))
-							mtx.Lock()
-							defer mtx.Unlock()
+						return v
+					})
 
-							fmt.Printf("goroutine %d: upserting %v\n", i, departureDateUTC)
+					mtx.Lock()
+					defer mtx.Unlock()
 
-							return a.upsertFlights(gCtx, outputBucket, outputPrefix, departureDateUTC, queryDate, flights)
-						}()
+					fmt.Printf("upserting %v\n", departureDateUTC)
 
-						if err != nil {
-							return err
-						}
-					}
+					return a.upsertFlights(ctx, outputBucket, outputPrefix, departureDateUTC, queryDate, flights)
+				}()
 
-				case <-gCtx.Done():
-					return gCtx.Err()
+				if err != nil {
+					return acc, err
 				}
 			}
-		})
+
+			return acc, nil
+		},
+		Combiner: func(ctx context.Context, a, b xtime.LocalDateRanges) (xtime.LocalDateRanges, error) {
+			return a.ExpandAll(b), nil
+		},
+		Finisher: func(ctx context.Context, acc xtime.LocalDateRanges) (xtime.LocalDateRanges, error) {
+			return acc, nil
+		},
 	}
 
-	done := make(chan xtime.LocalDateRanges)
-	go func() {
-		defer close(done)
-
-		touchedRanges := make(xtime.LocalDateRanges, 0)
-		for d := range touchedDates {
-			touchedRanges = touchedRanges.Add(d)
-		}
-
-		done <- touchedRanges
-	}()
-
-	err := func() error {
-		defer close(touchedDates)
-		return g.Wait()
-	}()
-
-	if err != nil {
-		return nil, err
-	}
-
-	return <-done, nil
+	return wg.RunSeq(ctx, ldrs.Compact().Iter())
 }
 
 func (a *cfsAction) convertSingle(ctx context.Context, inputBucket, inputPrefix string, d xtime.LocalDate) ([]*common.Flight, error) {

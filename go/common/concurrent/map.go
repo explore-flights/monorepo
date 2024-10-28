@@ -14,6 +14,7 @@ type RWMap[K comparable, V any] interface {
 	Delete(k K)
 	LoadAndDelete(k K) (V, bool)
 	LoadOrStore(k K, v V) (V, bool)
+	Compute(k K, f func(V, bool) V) V
 	Swap(k K, v V) (V, bool)
 	Locked(f func(m RWMap[K, V]))
 }
@@ -89,6 +90,19 @@ func (cm Map[K, V]) unsafeLoadOrStore(k K, v V) (V, bool) {
 
 	cm.m[k] = v
 	return v, false
+}
+
+func (cm Map[K, V]) Compute(k K, f func(V, bool) V) V {
+	cm.mtx.Lock()
+	defer cm.mtx.Unlock()
+	return cm.unsafeCompute(k, f)
+}
+
+func (cm Map[K, V]) unsafeCompute(k K, f func(V, bool) V) V {
+	v, ok := cm.m[k]
+	v = f(v, ok)
+	cm.m[k] = v
+	return v
 }
 
 func (cm Map[K, V]) Swap(k K, v V) (V, bool) {
@@ -178,6 +192,10 @@ func (mp rwMapProxy[K, V]) LoadAndDelete(k K) (V, bool) {
 
 func (mp rwMapProxy[K, V]) LoadOrStore(k K, v V) (V, bool) {
 	return Map[K, V](mp).unsafeLoadOrStore(k, v)
+}
+
+func (mp rwMapProxy[K, V]) Compute(k K, f func(V, bool) V) V {
+	return Map[K, V](mp).unsafeCompute(k, f)
 }
 
 func (mp rwMapProxy[K, V]) Swap(k K, v V) (V, bool) {
