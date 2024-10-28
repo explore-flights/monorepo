@@ -34,26 +34,31 @@ export class SfnConstruct extends Construct {
 
     const checkRemainingChoice = new Choice(this, 'CheckRemaining', {});
 
-    const definition = new LambdaInvoke(this, 'PrepareDailyCron', {
-      lambdaFunction: props.cronLambda_1G,
-      payload: TaskInput.fromObject({
-        'action': 'cron',
-        'params': {
-          'prepareDailyCron': {
-            'time': JsonPath.stringAt('$.time'),
-            'offset': -1,
-            'total': 30 * 12,
+    const definition = new Choice(this, 'CheckInitial', {})
+      .when(
+        Condition.isNotPresent('$.loadScheduleRanges'),
+        new LambdaInvoke(this, 'PrepareDailyCron', {
+          lambdaFunction: props.cronLambda_1G,
+          payload: TaskInput.fromObject({
+            'action': 'cron',
+            'params': {
+              'prepareDailyCron': {
+                'time': JsonPath.stringAt('$.time'),
+                'offset': -1,
+                'total': 30 * 12,
+              },
+            },
+          }),
+          payloadResponseOnly: true,
+          resultSelector: {
+            'completed': [],
+            'remaining': JsonPath.objectAt('$.prepareDailyCron.dateRanges'),
           },
-        },
-      }),
-      payloadResponseOnly: true,
-      resultSelector: {
-        'completed': [],
-        'remaining': JsonPath.objectAt('$.prepareDailyCron.dateRanges'),
-      },
-      resultPath: '$.loadScheduleRanges',
-      retryOnServiceExceptions: true,
-    })
+          resultPath: '$.loadScheduleRanges',
+          retryOnServiceExceptions: true,
+        }),
+      )
+      .afterwards({ includeOtherwise: true })
       .next(
         checkRemainingChoice
           // region loop body -> remaining dates
