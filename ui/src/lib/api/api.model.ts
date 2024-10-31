@@ -127,3 +127,109 @@ export interface FlightSchedule {
   suffix: string;
   variants: ReadonlyArray<FlightScheduleVariant>;
 }
+
+export interface SeatMap {
+  cabinClasses: ReadonlyArray<CabinClass>;
+  decks: ReadonlyArray<SeatMapDeck>;
+}
+
+export interface SeatMapDeck {
+  wingPosition: ReadonlyArray<[number, number]>;
+  exitRowPosition: ReadonlyArray<[number, number]>;
+  cabins: ReadonlyArray<SeatMapCabin>;
+}
+
+export interface SeatMapCabin {
+  cabinClass: CabinClass;
+  seatColumns: ReadonlyArray<string>;
+  componentColumns: ReadonlyArray<ColumnIdentifier>;
+  rows: ReadonlyArray<SeatMapRow>;
+}
+
+export interface SeatMapRow {
+  number: number;
+  front: ReadonlyArray<ReadonlyArray<SeatMapColumnComponent | null>>;
+  seats: ReadonlyArray<SeatMapColumnSeat | null>;
+  rear: ReadonlyArray<ReadonlyArray<SeatMapColumnComponent | null>>;
+}
+
+interface SeatMapColumn {
+  type: string;
+  features: ReadonlyArray<string>;
+}
+
+export interface SeatMapColumnSeat extends SeatMapColumn {
+  type: 'seat',
+  features: ReadonlyArray<SeatFeature>;
+}
+
+export interface SeatMapColumnComponent extends SeatMapColumn {
+  type: 'component',
+  features: [ComponentFeature];
+}
+
+export interface ColumnIdentifier {
+  position: ColumnPosition;
+  repeat: number;
+}
+
+export enum CabinClass {
+  ECO = 'ECO',
+  PRECO = 'PRECO',
+  BUSINESS = 'BIZ',
+  FIRST = 'FIRST',
+}
+
+export enum ColumnPosition {
+  LEFT = 'L',
+  LEFT_CENTER = 'LC',
+  CENTER = 'C',
+  RIGHT_CENTER = 'RC',
+  RIGHT = 'R',
+}
+
+export enum SeatFeature {
+  RESTRICTED = '1',
+  NOT_ALLOWED_FOR_INFANT = '1A',
+  RESTRICTED_RECLINE = '1D',
+  WINDOW_WITHOUT_WINDOW = '1W',
+  NO_SEAT_AT_LOCATION = '8',
+  CENTER = '9',
+  AISLE = 'A',
+  BASSINET_FACILITY = 'B',
+  BUSINESS_CLASS_BED = 'BC',
+  EXIT_ROW = 'E',
+  ECONOMY_PLUS = 'EP',
+  ECONOMY = 'ES',
+  HANDICAPPED_FACILITY = 'H',
+  SUITABLE_FOR_ADULT_WITH_INFANT = 'I',
+  NOT_SUITABLE_FOR_CHILD = 'IE',
+  JUMP = 'JP',
+  BULKHEAD = 'K',
+  LEG_SPACE = 'L',
+  LEFT_SIDE = 'LS',
+  PREFERENTIAL = 'O',
+  OVERWING = 'OW',
+  QUIET_ZONE = 'Q',
+  RIGHT_SIDE = 'RS',
+  UPPER_DECK = 'UP',
+  WINDOW = 'W',
+  WINDOW_AND_AISLE_TOGETHER = 'WA',
+  BUFFER_ZONE = 'Z',
+}
+
+export enum ComponentFeature {
+  AIRPHONE = 'AR',
+  BAR = 'BA',
+  BULKHEAD = 'BK',
+  CLOSET = 'CL',
+  EXIT_DOOR = 'D',
+  EMERGENCY_EXIT = 'E',
+  GALLEY = 'G',
+  LAVATORY = 'LA',
+  LUGGAGE_STORAGE = 'LG',
+  MOVIE_SCREEN = 'MV',
+  STORAGE_SPACE = 'SO',
+  STAIRS = 'ST',
+  TABLE = 'TA',
+}

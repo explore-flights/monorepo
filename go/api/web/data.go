@@ -10,6 +10,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/labstack/echo/v4"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -46,8 +47,8 @@ func NewFlightNumberEndpoint(dh *data.Handler) echo.HandlerFunc {
 func NewSeatMapEndpoint(dh *data.Handler, lhc *lufthansa.Client) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		fnRaw := c.Param("fn")
-		departureAirport := c.Param("departure")
-		arrivalAirport := c.Param("arrival")
+		departureAirport := strings.ToUpper(c.Param("departure"))
+		arrivalAirport := strings.ToUpper(c.Param("arrival"))
 		departureDateRaw := c.Param("date")
 		aircraft := c.Param("aircraft")
 

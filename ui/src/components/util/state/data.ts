@@ -53,6 +53,32 @@ export function useFlightSchedule(flightNumber: string) {
   });
 }
 
+export function useSeatMap(flightNumber: string,
+                           departureAirport: string,
+                           arrivalAirport: string,
+                           departureTime: DateTime<true>,
+                           aircraftType: string,
+                           aircraftConfigurationVersion: string) {
+
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['seatmap', flightNumber, departureAirport, arrivalAirport, departureTime, aircraftType, aircraftConfigurationVersion],
+    queryFn: async () => {
+      const { body } = expectSuccess(await apiClient.getSeatMap(flightNumber, departureAirport, arrivalAirport, departureTime, aircraftType, aircraftConfigurationVersion));
+      return body;
+    },
+    retry: (count, e) => {
+      if (count > 3) {
+        return false;
+      } else if (e instanceof ApiError && (e.response.status === 400 || e.response.status === 404)) {
+        return false;
+      }
+
+      return true;
+    },
+  });
+}
+
 export function useSearch(query: string, enabled: boolean) {
   const { apiClient } = useHttpClient();
   return useQuery({

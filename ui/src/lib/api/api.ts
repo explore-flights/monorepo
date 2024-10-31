@@ -8,10 +8,12 @@ import {
   AuthInfo,
   ConnectionSearchShare,
   ConnectionsSearchRequest,
-  ConnectionsSearchResponseWithSearch, ConnectionsSearchResponse, Flight, FlightSchedule
+  ConnectionsSearchResponseWithSearch,
+  ConnectionsSearchResponse,
+  FlightSchedule, SeatMap
 } from './api.model';
-import { DateTime } from 'luxon';
 import { ConcurrencyLimit } from './concurrency-limit';
+import { DateTime } from 'luxon';
 
 const KindSuccess = 0;
 const KindApiError = 1;
@@ -98,6 +100,26 @@ export class ApiClient {
         body: JSON.stringify(req),
       },
     ));
+  }
+
+  getSeatMap(flightNumber: string,
+             departureAirport: string,
+             arrivalAirport: string,
+             departureTime: DateTime<true>,
+             aircraftType: string,
+             aircraftConfigurationVersion: string): Promise<ApiResponse<SeatMap>> {
+
+    const url = [
+      '/data/flight',
+      encodeURIComponent(flightNumber),
+      'seatmap',
+      encodeURIComponent(departureAirport),
+      encodeURIComponent(arrivalAirport),
+      encodeURIComponent(departureTime.toISODate()),
+      encodeURIComponent(`${aircraftType}-${aircraftConfigurationVersion}`),
+    ].join('/');
+
+    return transform(this.httpClient.fetch(url));
   }
 
   search(query: string): Promise<ApiResponse<ReadonlyArray<string>>> {
