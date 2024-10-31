@@ -33,11 +33,15 @@ export class ApiLambdaConstruct extends Construct {
       ssmGoogleClientSecret,
       ssmSessionRsaPriv,
       ssmSessionRsaPub,
+      ssmLufthansaClientId,
+      ssmLufthansaClientSecret,
     ] = [
       this.ssmSecureString('/google/client-id'),
       this.ssmSecureString('/google/client-secret'),
       this.ssmSecureString('/api/session/id_rsa'),
       this.ssmSecureString('/api/session/id_rsa.pub'),
+      this.ssmSecureString('/lufthansa/client-id'),
+      this.ssmSecureString('/lufthansa/client-secret'),
     ];
 
     this.lambda = new Function(this, 'ApiLambda', {
@@ -57,6 +61,8 @@ export class ApiLambdaConstruct extends Construct {
         FLIGHTS_SSM_GOOGLE_CLIENT_SECRET: ssmGoogleClientSecret.parameterName,
         FLIGHTS_SSM_SESSION_RSA_PRIV: ssmSessionRsaPriv.parameterName,
         FLIGHTS_SSM_SESSION_RSA_PUB: ssmSessionRsaPub.parameterName,
+        FLIGHTS_SSM_LUFTHANSA_CLIENT_ID: ssmLufthansaClientId.parameterName,
+        FLIGHTS_SSM_LUFTHANSA_CLIENT_SECRET: ssmLufthansaClientSecret.parameterName,
       },
       layers: [
         LayerVersion.fromLayerVersionArn(

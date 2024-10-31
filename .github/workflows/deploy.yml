@@ -181,4 +181,4 @@ jobs:
           aws-region: ${{ secrets.AWS_CDK_REGION }}
       - name: 'Deploy'
         run: |
-          cdk --app ./cdk.out deploy --require-approval never "Data-Prod" "Website-Prod" "Cron-Prod" "Route53-Prod" --parameters "Cron-Prod:lhApiClientId=${{ secrets.LH_API_CLIENT_ID }}" --parameters "Cron-Prod:lhApiClientSecret=${{ secrets.LH_API_CLIENT_SECRET }}" --parameters "Cron-Prod:webhookUrl=${{ secrets.WEBHOOK_URL }}"
+          cdk --app ./cdk.out deploy --require-approval never "Data-Prod" "Website-Prod" "Cron-Prod" "Route53-Prod" --parameters "Cron-Prod:webhookUrl=${{ secrets.WEBHOOK_URL }}"

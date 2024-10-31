@@ -18,14 +18,6 @@ export class CronStack extends cdk.Stack {
     const cronLambda = new CronLambdaConstruct(this, 'CronLambda', {
       cronLambdaZipPath: props.cronLambdaZipPath,
       dataBucket: props.dataBucket,
-      lhApiClientId: cdk.SecretValue.cfnParameter(new cdk.CfnParameter(this, 'lhApiClientId', {
-        type: 'String',
-        noEcho: true,
-      })),
-      lhApiClientSecret: cdk.SecretValue.cfnParameter(new cdk.CfnParameter(this, 'lhApiClientSecret', {
-        type: 'String',
-        noEcho: true,
-      })),
     });
 
     const sfn = new SfnConstruct(this, 'SFN', {

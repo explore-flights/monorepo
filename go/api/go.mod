@@ -14,6 +14,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/labstack/echo/v4 v4.12.0
 	golang.org/x/sync v0.8.0
+	golang.org/x/time v0.7.0
 	google.golang.org/protobuf v1.35.1
 )
 
@@ -49,7 +50,6 @@ require (
 	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
-	golang.org/x/time v0.7.0 // indirect
 )
 
 replace github.com/explore-flights/monorepo/go/common v0.0.0 => ../common

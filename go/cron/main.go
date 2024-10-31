@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/cron/action"
 	"golang.org/x/time/rate"
@@ -16,21 +18,6 @@ import (
 	"syscall"
 	"time"
 )
-
-var lhClientId string
-var lhClientSecret string
-
-func init() {
-	lhClientId = os.Getenv("FLIGHTS_LH_API_CLIENT_ID")
-	if lhClientId == "" {
-		panic("env variable FLIGHTS_LH_API_CLIENT_ID required")
-	}
-
-	lhClientSecret = os.Getenv("FLIGHTS_LH_API_CLIENT_SECRET")
-	if lhClientSecret == "" {
-		panic("env variable FLIGHTS_LH_API_CLIENT_SECRET required")
-	}
-}
 
 type InputEvent struct {
 	Action string          `json:"action"`
@@ -46,16 +33,55 @@ func main() {
 		panic(err)
 	}
 
-	lambda.StartWithOptions(newHandler(s3.NewFromConfig(cfg)), lambda.WithContext(ctx))
+	s3c := s3.NewFromConfig(cfg)
+	lhc, err := lufthansaClient(ctx, cfg)
+	if err != nil {
+		panic(err)
+	}
+
+	lambda.StartWithOptions(newHandler(s3c, lhc), lambda.WithContext(ctx))
 }
 
-func newHandler(s3c *s3.Client) func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
-	lhc := lufthansa.NewClient(
-		lhClientId,
-		lhClientSecret,
-		lufthansa.WithRateLimiter(rate.NewLimiter(rate.Every(time.Hour)*490, 1)),
-	)
+func lufthansaClient(ctx context.Context, cfg aws.Config) (*lufthansa.Client, error) {
+	envNames := []string{"FLIGHTS_SSM_LUFTHANSA_CLIENT_ID", "FLIGHTS_SSM_LUFTHANSA_CLIENT_SECRET"}
+	reqNames := make([]string, 0, len(envNames))
+	lookup := make(map[string]string)
 
+	for _, envName := range envNames {
+		reqName := os.Getenv(envName)
+		if reqName == "" {
+			return nil, fmt.Errorf("env variable %s required", envName)
+		}
+
+		reqNames = append(reqNames, reqName)
+		lookup[reqName] = envName
+	}
+
+	ssmc := ssm.NewFromConfig(cfg)
+	resp, err := ssmc.GetParameters(ctx, &ssm.GetParametersInput{
+		Names:          reqNames,
+		WithDecryption: aws.Bool(true),
+	})
+
+	if err != nil {
+		return nil, err
+	} else if len(resp.InvalidParameters) > 0 {
+		return nil, fmt.Errorf("ssm invalid parameters: %v", resp.InvalidParameters)
+	}
+
+	result := make(map[string]string)
+	for _, p := range resp.Parameters {
+		result[lookup[*p.Name]] = *p.Value
+	}
+
+	return lufthansa.NewClient(
+		result["FLIGHTS_SSM_LUFTHANSA_CLIENT_ID"],
+		result["FLIGHTS_SSM_LUFTHANSA_CLIENT_SECRET"],
+		lufthansa.WithRateLimiter(rate.NewLimiter(rate.Every(time.Hour)*490, 1)),
+	), nil
+}
+
+func newHandler(s3c *s3.Client, lhc *lufthansa.Client) func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
 	lCountriesAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).CountriesRaw, "countries")
 	lCitiesAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).CitiesRaw, "cities")
 	lAirportsAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).AirportsRaw, "airports")

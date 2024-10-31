@@ -10,9 +10,12 @@ import (
 	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/explore-flights/monorepo/go/api/web"
 	"github.com/explore-flights/monorepo/go/common/local"
+	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/gofrs/uuid/v5"
+	"golang.org/x/time/rate"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 func echoPort() int {
@@ -53,4 +56,12 @@ func authorizationHandler(ctx context.Context, s3c auth.MinimalS3Client) (*web.A
 		auth.NewRepo(s3c, "flights_auth_bucket"),
 		auth.NewSessionJwtConverter(kid.String(), priv, &priv.PublicKey),
 	)
+}
+
+func lufthansaClient() (*lufthansa.Client, error) {
+	return lufthansa.NewClient(
+		os.Getenv("FLIGHTS_LUFTHANSA_CLIENT_ID"),
+		os.Getenv("FLIGHTS_LUFTHANSA_CLIENT_SECRET"),
+		lufthansa.WithRateLimiter(rate.NewLimiter(rate.Every(time.Hour)*490, 1)),
+	), nil
 }

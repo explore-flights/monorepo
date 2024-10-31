@@ -1,4 +1,3 @@
-import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import {
   Architecture,
@@ -11,12 +10,11 @@ import {
 import { Duration } from 'aws-cdk-lib';
 import { Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
+import { IStringParameter, StringParameter } from 'aws-cdk-lib/aws-ssm';
 
 export interface CronLambdaConstructProps {
   cronLambdaZipPath: string;
   dataBucket: IBucket;
-  lhApiClientId: cdk.SecretValue;
-  lhApiClientSecret: cdk.SecretValue;
 }
 
 export class CronLambdaConstruct extends Construct {
@@ -26,6 +24,14 @@ export class CronLambdaConstruct extends Construct {
   constructor(scope: Construct, id: string, props: CronLambdaConstructProps) {
     super(scope, id);
 
+    const [
+      ssmLufthansaClientId,
+      ssmLufthansaClientSecret,
+    ] = [
+      this.ssmSecureString('/lufthansa/client-id'),
+      this.ssmSecureString('/lufthansa/client-secret'),
+    ];
+
     const lambdaBaseProps = {
       runtime: Runtime.PROVIDED_AL2023,
       architecture: Architecture.ARM_64,
@@ -33,8 +39,8 @@ export class CronLambdaConstruct extends Construct {
       code: Code.fromAsset(props.cronLambdaZipPath),
       handler: 'bootstrap',
       environment: {
-        FLIGHTS_LH_API_CLIENT_ID: props.lhApiClientId.unsafeUnwrap(),
-        FLIGHTS_LH_API_CLIENT_SECRET: props.lhApiClientSecret.unsafeUnwrap(),
+        FLIGHTS_SSM_LUFTHANSA_CLIENT_ID: ssmLufthansaClientId.parameterName,
+        FLIGHTS_SSM_LUFTHANSA_CLIENT_SECRET: ssmLufthansaClientSecret.parameterName,
       },
       tracing: Tracing.DISABLED,
       role: new Role(this, 'CronLambdaRole', {
@@ -61,5 +67,9 @@ export class CronLambdaConstruct extends Construct {
       props.dataBucket.grantReadWrite(fn, 'processed/schedules/*');
       props.dataBucket.grantReadWrite(fn, 'processed/metadata/*');
     }
+  }
+
+  private ssmSecureString(name: string): IStringParameter {
+    return StringParameter.fromSecureStringParameterAttributes(this, name, { parameterName: name });
   }
 }

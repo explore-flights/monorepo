@@ -108,3 +108,13 @@ func (fs *FlightSchedule) List(start, end time.Time) iter.Seq2[xtime.LocalDate, 
 		}
 	}
 }
+
+func (fs *FlightSchedule) Find(d xtime.LocalDate, departureAirport, arrivalAirport string) (*FlightScheduleVariant, bool) {
+	for _, fsv := range fs.Variants {
+		if fsv.Ranges.Contains(d) && fsv.Data.DepartureAirport == departureAirport && fsv.Data.ArrivalAirport == arrivalAirport {
+			return fsv, true
+		}
+	}
+
+	return nil, false
+}

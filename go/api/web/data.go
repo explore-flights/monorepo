@@ -3,8 +3,11 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/lufthansa"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"time"
@@ -37,6 +40,74 @@ func NewFlightNumberEndpoint(dh *data.Handler) echo.HandlerFunc {
 
 		fs, err := dh.FlightSchedule(c.Request().Context(), fn)
 		return jsonResponse(c, fs, err, func(v *common.FlightSchedule) bool { return v == nil })
+	}
+}
+
+func NewSeatMapEndpoint(dh *data.Handler, lhc *lufthansa.Client) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		fnRaw := c.Param("fn")
+		departureAirport := c.Param("departure")
+		arrivalAirport := c.Param("arrival")
+		departureDateRaw := c.Param("date")
+		aircraft := c.Param("aircraft")
+
+		fn, err := common.ParseFlightNumber(fnRaw)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, err)
+		}
+
+		if len(departureAirport) != 3 || len(arrivalAirport) != 3 {
+			return echo.NewHTTPError(http.StatusBadRequest)
+		}
+
+		departureDate, err := xtime.ParseLocalDate(departureDateRaw)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, err)
+		}
+
+		fs, err := dh.FlightSchedule(c.Request().Context(), fn)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError)
+		} else if fs == nil {
+			return echo.NewHTTPError(http.StatusNotFound)
+		}
+
+		fsd, ok := fs.Find(departureDate, departureAirport, arrivalAirport)
+		if !ok {
+			return echo.NewHTTPError(http.StatusNotFound)
+		}
+
+		if fmt.Sprintf("%s-%s", fsd.Data.AircraftType, fsd.Data.AircraftConfigurationVersion) != aircraft {
+			return echo.NewHTTPError(http.StatusNotFound)
+		}
+
+		cabinClasses := []lufthansa.CabinClass{lufthansa.CabinClassEco, lufthansa.CabinClassPremiumEco, lufthansa.CabinClassBusiness, lufthansa.CabinClassFirst}
+		rawSeatMaps := make(map[lufthansa.CabinClass]lufthansa.SeatAvailability)
+
+		for _, cabinClass := range cabinClasses {
+			sm, err := lhc.SeatMap(
+				c.Request().Context(),
+				fn.String(),
+				departureAirport,
+				arrivalAirport,
+				departureDate,
+				cabinClass,
+			)
+
+			if err != nil {
+				var rse lufthansa.ResponseStatusErr
+				if !errors.As(err, &rse) || rse.StatusCode != http.StatusNotFound {
+					return echo.NewHTTPError(http.StatusBadGateway, err)
+				}
+			} else {
+				rawSeatMaps[cabinClass] = sm
+			}
+		}
+
+		sm := normalizeSeatMaps(rawSeatMaps)
+
+		addExpirationHeaders(c, time.Now(), time.Hour*24*3)
+		return c.JSON(http.StatusOK, sm)
 	}
 }
 

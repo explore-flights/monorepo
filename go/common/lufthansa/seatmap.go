@@ -1,6 +1,8 @@
 package lufthansa
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 type CabinClass string
 
@@ -113,9 +115,25 @@ const (
 
 type SeatAvailability struct {
 	Flights     json.RawMessage    `json:"Flights"`
-	CabinLayout json.RawMessage    `json:"CabinLayout"`
+	CabinLayout *CabinLayout       `json:"CabinLayout,omitempty"`
 	SeatDisplay Array[SeatDisplay] `json:"SeatDisplay"`
 	SeatDetails Array[SeatDetail]  `json:"SeatDetails"`
+}
+
+func (sa SeatAvailability) Details(start, end int) []SeatDetail {
+	details := make([]SeatDetail, 0, (end-start)*10)
+	for _, sd := range sa.SeatDetails {
+		if int(sd.Location.Row.Number) >= start && int(sd.Location.Row.Number) <= end {
+			details = append(details, sd)
+		}
+	}
+
+	return details
+}
+
+type CabinLayout struct {
+	WingPosition    SeatDisplayRows        `json:"WingPosition"`
+	ExitRowPosition Array[SeatDisplayRows] `json:"ExitRowPosition"`
 }
 
 type SeatDisplayColumn struct {
@@ -134,14 +152,16 @@ type SeatDisplayComponent struct {
 }
 
 type SeatDisplayComponentLocation struct {
-	Row struct {
-		Position    JsonStrAsInt               `json:"Position"`
-		Orientation ComponentRowCharacteristic `json:"Orientation"`
-	} `json:"Row"`
+	Row    SeatDisplayComponentLocationRow `json:"Row"`
 	Column struct {
 		Position ComponentColumnCharacteristic `json:"Position"`
 	} `json:"Column"`
 	Type ComponentCharacteristic `json:"Type"`
+}
+
+type SeatDisplayComponentLocationRow struct {
+	Position    JsonStrAsInt               `json:"Position"`
+	Orientation ComponentRowCharacteristic `json:"Orientation"`
 }
 
 type SeatDisplay struct {
