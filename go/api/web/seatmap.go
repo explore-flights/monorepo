@@ -15,8 +15,8 @@ type SeatMap struct {
 }
 
 type SeatMapDeck struct {
-	WingPosition    RowRanges      `json:"wingPosition"`
-	ExitRowPosition RowRanges      `json:"exitRowPosition"`
+	WingPosition    RowRanges      `json:"wingPosition,omitempty"`
+	ExitRowPosition RowRanges      `json:"exitRowPosition,omitempty"`
 	Cabins          []SeatMapCabin `json:"cabins"`
 }
 
@@ -127,8 +127,14 @@ func normalizeSeatMaps(rawSeatMaps map[lufthansa.CabinClass]lufthansa.SeatAvaila
 			if sm.Decks[i] == nil {
 				sm.Decks[i] = d
 			} else {
-				sm.Decks[i].WingPosition = sm.Decks[i].WingPosition.Expand(d.WingPosition)
-				sm.Decks[i].ExitRowPosition = sm.Decks[i].ExitRowPosition.Expand(d.ExitRowPosition)
+				if len(d.WingPosition) > 0 {
+					sm.Decks[i].WingPosition = sm.Decks[i].WingPosition.Expand(d.WingPosition)
+				}
+
+				if len(d.ExitRowPosition) > 0 {
+					sm.Decks[i].ExitRowPosition = sm.Decks[i].ExitRowPosition.Expand(d.ExitRowPosition)
+				}
+
 				sm.Decks[i].Cabins = append(sm.Decks[i].Cabins, d.Cabins...)
 			}
 		}
@@ -181,11 +187,16 @@ func normalizeSeatMap(cabinClass string, sm lufthansa.SeatAvailability) (*SeatMa
 		deck.Cabins = append(deck.Cabins, normalizeSeatMapCabin(cabinClass, sd, details))
 
 		if sm.CabinLayout != nil {
-			deck.WingPosition = RowRanges{RowRange{int(sm.CabinLayout.WingPosition.First), int(sm.CabinLayout.WingPosition.Last)}}
-			deck.ExitRowPosition = make(RowRanges, 0)
+			if int(sm.CabinLayout.WingPosition.First) != 0 && int(sm.CabinLayout.WingPosition.Last) != 0 {
+				deck.WingPosition = RowRanges{RowRange{int(sm.CabinLayout.WingPosition.First), int(sm.CabinLayout.WingPosition.Last)}}
+			}
 
-			for _, erp := range sm.CabinLayout.ExitRowPosition {
-				deck.ExitRowPosition = deck.ExitRowPosition.Expand(RowRanges{RowRange{int(erp.First), int(erp.Last)}})
+			if len(sm.CabinLayout.ExitRowPosition) > 0 {
+				deck.ExitRowPosition = make(RowRanges, 0)
+
+				for _, erp := range sm.CabinLayout.ExitRowPosition {
+					deck.ExitRowPosition = deck.ExitRowPosition.Expand(RowRanges{RowRange{int(erp.First), int(erp.Last)}})
+				}
 			}
 		}
 	}

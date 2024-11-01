@@ -134,8 +134,8 @@ export interface SeatMap {
 }
 
 export interface SeatMapDeck {
-  wingPosition: ReadonlyArray<[number, number]>;
-  exitRowPosition: ReadonlyArray<[number, number]>;
+  wingPosition?: ReadonlyArray<[number, number]>;
+  exitRowPosition?: ReadonlyArray<[number, number]>;
   cabins: ReadonlyArray<SeatMapCabin>;
 }
 
