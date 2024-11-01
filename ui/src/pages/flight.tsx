@@ -1,17 +1,17 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
-  Alert, Badge, Box, Calendar,
+  Alert, Badge, Box, Button, Calendar,
   ColumnLayout, Container,
   ContentLayout, DateInput,
   ExpandableSection, FormField,
-  Header, KeyValuePairs, Link, Pagination, Popover, PropertyFilter, PropertyFilterProps,
+  Header, KeyValuePairs, Link, Modal, Pagination, Popover, PropertyFilter, PropertyFilterProps,
   Spinner, StatusIndicator,
   Table
 } from '@cloudscape-design/components';
 import { CodeView } from '@cloudscape-design/code-view';
 import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
-import { useAircraft, useAirports, useFlightSchedule } from '../components/util/state/data';
+import { useAircraft, useAirports, useFlightSchedule, useSeatMap } from '../components/util/state/data';
 import { ErrorNotificationContent } from '../components/util/context/app-controls';
 import { Aircraft, Airport, FlightSchedule } from '../lib/api/api.model';
 import { DateTime, Duration, FixedOffsetZone, WeekdayNumbers } from 'luxon';
@@ -23,6 +23,7 @@ import {
 import { ApiError } from '../lib/api/api';
 import { FlightLink } from '../components/common/flight-link';
 import { BulletSeperator, Join } from '../components/common/join';
+import { SeatMapView } from '../components/seatmap/seatmap';
 
 export function FlightView() {
   const { id } = useParams();
@@ -133,6 +134,8 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
     pagination: { pageSize: 25 },
   });
 
+  const [seatMapFlight, setSeatMapFlight] = useState<ScheduledFlight>();
+
   function queryForScheduledFlight(flight: ScheduledFlight) {
     let query = new URLSearchParams();
     query = withDepartureAirportFilter(query, flight.departureAirport.raw);
@@ -141,156 +144,168 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
   }
 
   return (
-    <ColumnLayout columns={1}>
-      <Container>
-        <KeyValuePairs
-          columns={3}
-          items={[
+    <>
+      <ColumnLayout columns={1}>
+        <Container>
+          <KeyValuePairs
+            columns={3}
+            items={[
+              {
+                label: 'Airline',
+                value: flightSchedule.airline,
+              },
+              {
+                label: 'Number',
+                value: `${flightSchedule.flightNumber}`,
+              },
+              {
+                label: 'Suffix',
+                value: flightSchedule.suffix || <Popover content={'This schedule has no suffix'} dismissButton={false}><StatusIndicator type={'info'}>None</StatusIndicator></Popover>,
+              },
+              {
+                label: 'Departure Airports',
+                value: (
+                  <ColumnLayout columns={1} variant={'text-grid'}>
+                    {...(summary.departureAirports.map((v) => <AirportCell {...v} />))}
+                  </ColumnLayout>
+                ),
+              },
+              {
+                label: 'Arrival Airports',
+                value: (
+                  <ColumnLayout columns={1} variant={'text-grid'}>
+                    {...(summary.arrivalAirports.map((v) => <AirportCell {...v} />))}
+                  </ColumnLayout>
+                ),
+              },
+              {
+                label: 'Routes',
+                value: (
+                  <ColumnLayout columns={1} variant={'text-grid'}>
+                    {...(summary.routes.map((v) => <RouteCell route={v} />))}
+                  </ColumnLayout>
+                ),
+              },
+              {
+                label: 'Aircraft',
+                value: (
+                  <ColumnLayout columns={1} variant={'text-grid'}>
+                    {...(summary.aircraft.map(([v, count]) => <AircraftCell {...v} count={count} />))}
+                  </ColumnLayout>
+                ),
+              },
+              {
+                label: 'Duration',
+                value: (
+                  <ColumnLayout columns={1} variant={'text-grid'}>
+                    <Box variant={'strong'}>Min: <Box variant={'span'}>{summary.duration.min.shiftTo('hours', 'minutes').toHuman({ unitDisplay: 'short' })}</Box></Box>
+                    <Box variant={'strong'}>Max: <Box variant={'span'}>{summary.duration.max.shiftTo('hours', 'minutes').toHuman({ unitDisplay: 'short' })}</Box></Box>
+                  </ColumnLayout>
+                ),
+              },
+              {
+                label: 'Operating Days',
+                value: <OperatingDaysCell operatingDays={summary.operatingDays} />,
+              },
+              {
+                label: 'Operated As',
+                value: <FlightNumberList flightNumbers={summary.operatedAs} exclude={flightNumber} />,
+              },
+              {
+                label: 'Codeshares',
+                value: <FlightNumberList flightNumbers={summary.codeShares} exclude={flightNumber} />,
+              },
+              {
+                label: 'Links',
+                value: (
+                  <ColumnLayout columns={1} variant={'text-grid'}>
+                    <Link href={`https://www.flightradar24.com/data/flights/${flightNumber.toLowerCase()}`} external={true}>flightradar24.com</Link>
+                    <Link href={`https://www.flightera.net/flight/${flightNumber}`} external={true}>flightera.net</Link>
+                    <Link href={`https://www.flightstats.com/v2/flight-tracker/${flightSchedule.airline}/${flightSchedule.flightNumber}${flightSchedule.suffix}`} external={true}>flightstats.com</Link>
+                  </ColumnLayout>
+                ),
+              },
+            ]}
+          />
+        </Container>
+        <Table
+          items={items}
+          {...collectionProps}
+          header={<Header counter={`(${filteredFlights.length}/${flights.length})`}>Flights</Header>}
+          pagination={<Pagination {...paginationProps}  />}
+          filter={<TableFilter
+            query={filterQuery}
+            setQuery={setFilterQuery}
+            summary={summary}
+          />}
+          variant={'stacked'}
+          stickyColumns={{ first: 0, last: 1 }}
+          columnDefinitions={[
             {
-              label: 'Airline',
-              value: flightSchedule.airline,
+              id: 'departure_time',
+              header: 'Departure Time',
+              cell: (v) => <TimeCell value={v.departureTime} />,
+              sortingField: 'departureTime',
             },
             {
-              label: 'Number',
-              value: `${flightSchedule.flightNumber}`,
+              id: 'operated_as',
+              header: 'Operated As',
+              cell: (v) => <InternalFlightLink flightNumber={v.operatedAs} query={queryForScheduledFlight(v)} exclude={flightNumber} />,
             },
             {
-              label: 'Suffix',
-              value: flightSchedule.suffix || <Popover content={'This schedule has no suffix'} dismissButton={false}><StatusIndicator type={'info'}>None</StatusIndicator></Popover>,
+              id: 'departure_airport',
+              header: 'Departure Airport',
+              cell: (v) => <AirportCell {...v.departureAirport} />,
+              sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.departureAirport.raw.localeCompare(b.departureAirport.raw), []),
             },
             {
-              label: 'Departure Airports',
-              value: (
-                <ColumnLayout columns={1} variant={'text-grid'}>
-                  {...(summary.departureAirports.map((v) => <AirportCell {...v} />))}
-                </ColumnLayout>
-              ),
+              id: 'arrival_airport',
+              header: 'Arrival Airport',
+              cell: (v) => <AirportCell {...v.arrivalAirport} />,
+              sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.arrivalAirport.raw.localeCompare(b.arrivalAirport.raw), []),
             },
             {
-              label: 'Arrival Airports',
-              value: (
-                <ColumnLayout columns={1} variant={'text-grid'}>
-                  {...(summary.arrivalAirports.map((v) => <AirportCell {...v} />))}
-                </ColumnLayout>
-              ),
+              id: 'arrival_time',
+              header: 'Arrival Time',
+              cell: (v) => <TimeCell value={v.arrivalTime} />,
             },
             {
-              label: 'Routes',
-              value: (
-                <ColumnLayout columns={1} variant={'text-grid'}>
-                  {...(summary.routes.map((v) => <RouteCell route={v} />))}
-                </ColumnLayout>
-              ),
+              id: 'aircraft',
+              header: 'Aircraft',
+              cell: (v) => <AircraftCell {...v.aircraft} />,
+              sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.aircraft.raw.localeCompare(b.aircraft.raw), []),
             },
             {
-              label: 'Aircraft',
-              value: (
-                <ColumnLayout columns={1} variant={'text-grid'}>
-                  {...(summary.aircraft.map(([v, count]) => <AircraftCell {...v} count={count} />))}
-                </ColumnLayout>
-              ),
+              id: 'duration',
+              header: 'Duration',
+              cell: (v) => v.arrivalTime.diff(v.departureTime).rescale().toHuman({ unitDisplay: 'short' }),
+              sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => {
+                const aDuration = a.arrivalTime.diff(a.departureTime);
+                const bDuration = b.arrivalTime.diff(b.departureTime);
+                return aDuration.toMillis() - bDuration.toMillis();
+              }, []),
             },
             {
-              label: 'Duration',
-              value: (
-                <ColumnLayout columns={1} variant={'text-grid'}>
-                  <Box variant={'strong'}>Min: <Box variant={'span'}>{summary.duration.min.shiftTo('hours', 'minutes').toHuman({ unitDisplay: 'short' })}</Box></Box>
-                  <Box variant={'strong'}>Max: <Box variant={'span'}>{summary.duration.max.shiftTo('hours', 'minutes').toHuman({ unitDisplay: 'short' })}</Box></Box>
-                </ColumnLayout>
-              ),
+              id: 'code_shares',
+              header: 'Codeshares',
+              cell: (v) => <FlightNumberList flightNumbers={v.codeShares} query={queryForScheduledFlight(v)} exclude={flightNumber} />,
             },
             {
-              label: 'Operating Days',
-              value: <OperatingDaysCell operatingDays={summary.operatingDays} />,
-            },
-            {
-              label: 'Operated As',
-              value: <FlightNumberList flightNumbers={summary.operatedAs} exclude={flightNumber} />,
-            },
-            {
-              label: 'Codeshares',
-              value: <FlightNumberList flightNumbers={summary.codeShares} exclude={flightNumber} />,
-            },
-            {
-              label: 'Links',
-              value: (
-                <ColumnLayout columns={1} variant={'text-grid'}>
-                  <Link href={`https://www.flightradar24.com/data/flights/${flightNumber.toLowerCase()}`} external={true}>flightradar24.com</Link>
-                  <Link href={`https://www.flightera.net/flight/${flightNumber}`} external={true}>flightera.net</Link>
-                  <Link href={`https://www.flightstats.com/v2/flight-tracker/${flightSchedule.airline}/${flightSchedule.flightNumber}${flightSchedule.suffix}`} external={true}>flightstats.com</Link>
-                </ColumnLayout>
-              ),
+              id: 'actions',
+              header: 'Actions',
+              cell: (v) => <Button onClick={() => setSeatMapFlight(v)}>Seatmap</Button>,
+              width: '147px',
+              minWidth: '147px',
             },
           ]}
         />
-      </Container>
-      <Table
-        items={items}
-        {...collectionProps}
-        header={<Header counter={`(${filteredFlights.length}/${flights.length})`}>Flights</Header>}
-        pagination={<Pagination {...paginationProps}  />}
-        filter={<TableFilter
-          query={filterQuery}
-          setQuery={setFilterQuery}
-          summary={summary}
-        />}
-        variant={'stacked'}
-        columnDefinitions={[
-          {
-            id: 'departure_time',
-            header: 'Departure Time',
-            cell: (v) => <TimeCell value={v.departureTime} />,
-            sortingField: 'departureTime',
-          },
-          {
-            id: 'operated_as',
-            header: 'Operated As',
-            cell: (v) => <InternalFlightLink flightNumber={v.operatedAs} query={queryForScheduledFlight(v)} exclude={flightNumber} />,
-          },
-          {
-            id: 'departure_airport',
-            header: 'Departure Airport',
-            cell: (v) => <AirportCell {...v.departureAirport} />,
-            sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.departureAirport.raw.localeCompare(b.departureAirport.raw), []),
-          },
-          {
-            id: 'arrival_airport',
-            header: 'Arrival Airport',
-            cell: (v) => <AirportCell {...v.arrivalAirport} />,
-            sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.arrivalAirport.raw.localeCompare(b.arrivalAirport.raw), []),
-          },
-          {
-            id: 'arrival_time',
-            header: 'Arrival Time',
-            cell: (v) => <TimeCell value={v.arrivalTime} />,
-          },
-          {
-            id: 'aircraft',
-            header: 'Aircraft',
-            cell: (v) => <AircraftCell {...v.aircraft} />,
-            sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.aircraft.raw.localeCompare(b.aircraft.raw), []),
-          },
-          {
-            id: 'duration',
-            header: 'Duration',
-            cell: (v) => v.arrivalTime.diff(v.departureTime).rescale().toHuman({ unitDisplay: 'short' }),
-            sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => {
-              const aDuration = a.arrivalTime.diff(a.departureTime);
-              const bDuration = b.arrivalTime.diff(b.departureTime);
-              return aDuration.toMillis() - bDuration.toMillis();
-            }, []),
-          },
-          {
-            id: 'code_shares',
-            header: 'Codeshares',
-            cell: (v) => <FlightNumberList flightNumbers={v.codeShares} query={queryForScheduledFlight(v)} exclude={flightNumber} />,
-          }
-        ]}
-      />
-      <ExpandableSection headerText={'Raw Data'} variant={'stacked'}>
-        <CodeView content={JSON.stringify(flightSchedule, null, 2)} highlight={jsonHighlight} lineNumbers={true} />
-      </ExpandableSection>
-    </ColumnLayout>
+        <ExpandableSection headerText={'Raw Data'} variant={'stacked'}>
+          <CodeView content={JSON.stringify(flightSchedule, null, 2)} highlight={jsonHighlight} lineNumbers={true} />
+        </ExpandableSection>
+      </ColumnLayout>
+
+      <SeatMapModal flight={seatMapFlight} onDismiss={() => setSeatMapFlight(undefined)} />
+    </>
   );
 }
 
@@ -439,6 +454,44 @@ function TableFilter({ query, setQuery, summary }: TableFilterProps) {
         },
       ]}
     />
+  );
+}
+
+function SeatMapModal({ flight, onDismiss }: { flight?: ScheduledFlight, onDismiss: () => void }) {
+  return (
+    <Modal
+      onDismiss={onDismiss}
+      visible={!!flight}
+      header={flight ? `Seatmap ${flight.operatedAs}, ${flight.departureTime.toISODate()}` : 'Seatmap'}
+      size={'large'}
+    >
+      {flight && <SeatMapModalContent flight={flight} />}
+    </Modal>
+  );
+}
+
+function SeatMapModalContent({ flight }: { flight: ScheduledFlight }) {
+  const seatMapQuery = useSeatMap(
+    flight.operatedAs,
+    flight.departureAirport.raw,
+    flight.arrivalAirport.raw,
+    flight.departureTime,
+    flight.aircraft.raw,
+    flight.aircraftConfigurationVersion,
+  );
+
+  if (seatMapQuery.isLoading || seatMapQuery.isPending) {
+    return (
+      <Spinner size={'large'} />
+    );
+  } else if (seatMapQuery.isError) {
+    return (
+      <ErrorNotificationContent error={seatMapQuery.error} />
+    );
+  }
+
+  return (
+    <SeatMapView data={seatMapQuery.data} />
   );
 }
 
