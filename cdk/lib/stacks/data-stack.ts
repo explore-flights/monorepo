@@ -29,6 +29,12 @@ export class DataStack extends cdk.Stack {
           noncurrentVersionExpiration: Duration.days(1),
           noncurrentVersionsToRetain: 2,
         },
+        {
+          enabled: true,
+          expiration: Duration.days(3),
+          noncurrentVersionExpiration: Duration.days(1),
+          prefix: 'tmp/',
+        },
       ],
     });
   }

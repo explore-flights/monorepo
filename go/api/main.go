@@ -45,7 +45,7 @@ func main() {
 	}
 
 	connHandler := search.NewConnectionsHandler(fr)
-	dataHandler := data.NewHandler(s3c, bucket)
+	dataHandler := data.NewHandler(s3c, lhc, bucket)
 
 	e := echo.New()
 	e.Use(authHandler.Middleware)
@@ -71,7 +71,7 @@ func main() {
 	e.GET("/data/airports.json", web.NewAirportsEndpoint(dataHandler))
 	e.GET("/data/aircraft.json", web.NewAircraftEndpoint(dataHandler))
 	e.GET("/data/flight/:fn", web.NewFlightNumberEndpoint(dataHandler))
-	e.GET("/data/flight/:fn/seatmap/:departure/:arrival/:date/:aircraft", web.NewSeatMapEndpoint(dataHandler, lhc))
+	e.GET("/data/flight/:fn/seatmap/:departure/:arrival/:date/:aircraft", web.NewSeatMapEndpoint(dataHandler))
 
 	if err := run(ctx, e); err != nil {
 		panic(err)

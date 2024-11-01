@@ -44,7 +44,7 @@ func NewFlightNumberEndpoint(dh *data.Handler) echo.HandlerFunc {
 	}
 }
 
-func NewSeatMapEndpoint(dh *data.Handler, lhc *lufthansa.Client) echo.HandlerFunc {
+func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		fnRaw := c.Param("fn")
 		departureAirport := strings.ToUpper(c.Param("departure"))
@@ -86,9 +86,9 @@ func NewSeatMapEndpoint(dh *data.Handler, lhc *lufthansa.Client) echo.HandlerFun
 		rawSeatMaps := make(map[lufthansa.CabinClass]lufthansa.SeatAvailability)
 
 		for _, cabinClass := range cabinClasses {
-			sm, err := lhc.SeatMap(
+			sm, err := dh.SeatMap(
 				c.Request().Context(),
-				fn.String(),
+				fn,
 				departureAirport,
 				arrivalAirport,
 				departureDate,
@@ -96,12 +96,11 @@ func NewSeatMapEndpoint(dh *data.Handler, lhc *lufthansa.Client) echo.HandlerFun
 			)
 
 			if err != nil {
-				var rse lufthansa.ResponseStatusErr
-				if !errors.As(err, &rse) || rse.StatusCode != http.StatusNotFound {
-					return echo.NewHTTPError(http.StatusBadGateway, err)
-				}
-			} else {
-				rawSeatMaps[cabinClass] = sm
+				return echo.NewHTTPError(http.StatusInternalServerError)
+			}
+
+			if sm != nil {
+				rawSeatMaps[cabinClass] = *sm
 			}
 		}
 
