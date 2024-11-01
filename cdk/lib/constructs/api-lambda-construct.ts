@@ -87,7 +87,14 @@ export class ApiLambdaConstruct extends Construct {
     this.lambda.addToRolePolicy(new PolicyStatement({
       effect: Effect.ALLOW,
       actions: ['ssm:GetParameters'],
-      resources: [ssmGoogleClientId, ssmGoogleClientSecret, ssmSessionRsaPriv, ssmSessionRsaPub].map((v) => v.parameterArn),
+      resources: [
+        ssmGoogleClientId,
+        ssmGoogleClientSecret,
+        ssmSessionRsaPriv,
+        ssmSessionRsaPub,
+        ssmLufthansaClientId,
+        ssmLufthansaClientSecret,
+      ].map((v) => v.parameterArn),
     }));
 
     props.dataBucket.grantRead(this.lambda, 'processed/flights/*');

@@ -8,7 +8,7 @@ import {
   Tracing
 } from 'aws-cdk-lib/aws-lambda';
 import { Duration } from 'aws-cdk-lib';
-import { Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { IStringParameter, StringParameter } from 'aws-cdk-lib/aws-ssm';
 
@@ -66,6 +66,15 @@ export class CronLambdaConstruct extends Construct {
       props.dataBucket.grantReadWrite(fn, 'processed/flights/*');
       props.dataBucket.grantReadWrite(fn, 'processed/schedules/*');
       props.dataBucket.grantReadWrite(fn, 'processed/metadata/*');
+
+      fn.addToRolePolicy(new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['ssm:GetParameters'],
+        resources: [
+          ssmLufthansaClientId,
+          ssmLufthansaClientSecret,
+        ].map((v) => v.parameterArn),
+      }));
     }
   }
 
