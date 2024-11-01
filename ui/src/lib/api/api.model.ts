@@ -143,6 +143,7 @@ export interface SeatMapCabin {
   cabinClass: CabinClass;
   seatColumns: ReadonlyArray<string>;
   componentColumns: ReadonlyArray<ColumnIdentifier>;
+  aisle: ReadonlyArray<number>;
   rows: ReadonlyArray<SeatMapRow>;
 }
 

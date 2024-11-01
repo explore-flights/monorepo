@@ -24,6 +24,7 @@ type SeatMapCabin struct {
 	CabinClass       string             `json:"cabinClass"`
 	SeatColumns      []string           `json:"seatColumns"`
 	ComponentColumns []ColumnIdentifier `json:"componentColumns"`
+	Aisle            common.Set[int]    `json:"aisle"`
 	Rows             []SeatMapRow       `json:"rows"`
 }
 
@@ -209,6 +210,7 @@ func normalizeSeatMapCabin(cabinClass string, sd lufthansa.SeatDisplay, details 
 		CabinClass:       cabinClass,
 		SeatColumns:      make([]string, 0, len(sd.Columns)),
 		ComponentColumns: make([]ColumnIdentifier, 0),
+		Aisle:            make(common.Set[int]),
 		Rows:             make([]SeatMapRow, 0),
 	}
 
@@ -292,6 +294,10 @@ func normalizeSeatMapCabin(cabinClass string, sd lufthansa.SeatDisplay, details 
 					break
 				}
 
+				if isLeftOfAisle(i, details) {
+					cabin.Aisle[slices.Index(cabin.SeatColumns, seatDetail.Location.Column)] = struct{}{}
+				}
+
 				currRow, cabin.Rows = appendSeat(cabin.SeatColumns, cabin.Rows, currRow, seatDetail)
 				detailsOffset = i
 			}
@@ -325,7 +331,12 @@ func normalizeSeatMapCabin(cabinClass string, sd lufthansa.SeatDisplay, details 
 
 	// add all remaining seats
 	for i := detailsOffset; i < len(details); i++ {
-		currRow, cabin.Rows = appendSeat(cabin.SeatColumns, cabin.Rows, currRow, details[i])
+		seatDetail := details[i]
+		if isLeftOfAisle(i, details) {
+			cabin.Aisle[slices.Index(cabin.SeatColumns, seatDetail.Location.Column)] = struct{}{}
+		}
+
+		currRow, cabin.Rows = appendSeat(cabin.SeatColumns, cabin.Rows, currRow, seatDetail)
 	}
 
 	if currRow.Number != 0 {
@@ -333,6 +344,32 @@ func normalizeSeatMapCabin(cabinClass string, sd lufthansa.SeatDisplay, details 
 	}
 
 	return cabin
+}
+
+func isLeftOfAisle(i int, details []lufthansa.SeatDetail) bool {
+	sd := details[i]
+	if slices.Contains(sd.Location.Row.Characteristics.Characteristic, lufthansa.SeatCharacteristicExitRow) {
+		// ignore for exit row, those tend to be special
+		return false
+	}
+
+	if slices.Contains(sd.Location.Row.Characteristics.Characteristic, lufthansa.SeatCharacteristicAisle) {
+		row := sd.Location.Row.Number
+		if isSameRowAndEmptyOrNextToAisle(i+1, row, details) && !isLeftOfAisle(i+1, details) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isSameRowAndEmptyOrNextToAisle(i int, row lufthansa.JsonStrAsInt, details []lufthansa.SeatDetail) bool {
+	if i >= len(details) {
+		return false
+	}
+
+	sd := details[i]
+	return sd.Location.Row.Number == row && (isEmptySeat(sd) || slices.Contains(sd.Location.Row.Characteristics.Characteristic, lufthansa.SeatCharacteristicAisle))
 }
 
 func appendSeat(columns []string, rows []SeatMapRow, currRow SeatMapRow, sd lufthansa.SeatDetail) (SeatMapRow, []SeatMapRow) {
