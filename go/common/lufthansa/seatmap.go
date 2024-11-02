@@ -2,6 +2,7 @@ package lufthansa
 
 import (
 	"encoding/json"
+	"slices"
 )
 
 type CabinClass string
@@ -173,6 +174,14 @@ type SeatDisplay struct {
 
 type SeatDetail struct {
 	Location SeatDetailLocation `json:"Location"`
+}
+
+func (sd SeatDetail) HasCharacteristic(c SeatCharacteristic) bool {
+	return slices.Contains(sd.Location.Row.Characteristics.Characteristic, c)
+}
+
+func (sd SeatDetail) Empty() bool {
+	return sd.HasCharacteristic(SeatCharacteristicNoSeatAtLocation) || sd.Location.Column == "" || len(sd.Location.Row.Characteristics.Characteristic) < 1
 }
 
 type SeatDetailLocation struct {

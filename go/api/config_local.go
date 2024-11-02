@@ -3,6 +3,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -32,7 +33,7 @@ func s3Client(ctx context.Context) (*local.S3Client, error) {
 }
 
 func dataBucket() (string, error) {
-	return "flights_data_bucket", nil
+	return cmp.Or(os.Getenv("FLIGHTS_DATA_BUCKET"), "flights_data_bucket"), nil
 }
 
 func flightRepo(ctx context.Context, s3c search.MinimalS3Client, bucket string) (*search.FlightRepo, error) {
