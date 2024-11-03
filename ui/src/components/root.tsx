@@ -125,11 +125,7 @@ export function RootLayout({
 
 function HeaderSelectorFixAppLayout(props: AppLayoutProps) {
   const { headerSelector, ...appLayoutProps } = props;
-  const [key, setKey] = useState(`a${Date.now()}-${Math.random()}`);
-
-  useEffect(() => {
-    setKey(`a${Date.now()}-${Math.random()}`);
-  }, [headerSelector]);
+  const key = useMemo(() => `a${Date.now()}-${Math.random()}`, [headerSelector]);
 
   return (
     <AppLayout key={key} headerSelector={headerSelector} {...appLayoutProps} />
