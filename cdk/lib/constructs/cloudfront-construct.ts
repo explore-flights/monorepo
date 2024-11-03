@@ -179,7 +179,7 @@ export class CloudfrontConstruct extends Construct {
           compress: true,
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
-          cachePolicy: CachePolicy.USE_ORIGIN_CACHE_CONTROL_HEADERS_QUERY_STRINGS,
+          cachePolicy: CachePolicy.CACHING_OPTIMIZED,
           originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
           responseHeadersPolicy: cacheOverridableResponseHeadersPolicy,
         },
