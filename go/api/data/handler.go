@@ -420,7 +420,7 @@ func (h *Handler) Airlines(ctx context.Context, prefix string) ([]common.Airline
 	}), nil
 }
 
-func (h *Handler) SeatMap(ctx context.Context, fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.CabinClass) (*lufthansa.SeatAvailability, error) {
+func (h *Handler) SeatMap(ctx context.Context, fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.RequestCabinClass) (*lufthansa.SeatAvailability, error) {
 	sm, found, err := h.loadSeatMapFromS3(ctx, fn, departureAirport, arrivalAirport, departureDate, cabinClass)
 	if err != nil {
 		return nil, err
@@ -450,7 +450,7 @@ func (h *Handler) SeatMap(ctx context.Context, fn common.FlightNumber, departure
 	return sm, adapt.S3PutJson(ctx, h.s3c, h.bucket, s3Key, sm)
 }
 
-func (h *Handler) loadSeatMapFromLH(ctx context.Context, fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.CabinClass) (*lufthansa.SeatAvailability, error) {
+func (h *Handler) loadSeatMapFromLH(ctx context.Context, fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.RequestCabinClass) (*lufthansa.SeatAvailability, error) {
 	sm, err := h.lhc.SeatMap(
 		ctx,
 		fn.String(),
@@ -472,7 +472,7 @@ func (h *Handler) loadSeatMapFromLH(ctx context.Context, fn common.FlightNumber,
 	return &sm, nil
 }
 
-func (h *Handler) loadSeatMapFromS3(ctx context.Context, fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.CabinClass) (*lufthansa.SeatAvailability, bool, error) {
+func (h *Handler) loadSeatMapFromS3(ctx context.Context, fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.RequestCabinClass) (*lufthansa.SeatAvailability, bool, error) {
 	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(h.bucket),
 		Key:    aws.String(h.seatMapS3Key(fn, departureAirport, arrivalAirport, departureDate, cabinClass)),
@@ -496,7 +496,7 @@ func (h *Handler) loadSeatMapFromS3(ctx context.Context, fn common.FlightNumber,
 	return sm, true, nil
 }
 
-func (h *Handler) seatMapS3Key(fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.CabinClass) string {
+func (h *Handler) seatMapS3Key(fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.RequestCabinClass) string {
 	return fmt.Sprintf("tmp/seatmap/%s/%s/%s/%s/%s.json", fn.String(), departureAirport, arrivalAirport, departureDate.String(), cabinClass)
 }
 

@@ -96,7 +96,78 @@ func (rr RowRanges) Expand(other RowRanges) RowRanges {
 	return result
 }
 
-func normalizeSeatMaps(rawSeatMaps map[lufthansa.CabinClass]lufthansa.SeatAvailability) SeatMap {
+func deduplicateSeatMaps(rawSeatMaps map[lufthansa.RequestCabinClass]lufthansa.SeatAvailability) {
+	type Key struct {
+		cc   lufthansa.RequestCabinClass
+		rows lufthansa.SeatDisplayRows
+	}
+
+	type NonMatch struct {
+		cc          lufthansa.RequestCabinClass
+		generalized bool
+	}
+
+	match := make(common.Set[Key])
+	nonMatch := make(map[Key][]NonMatch)
+
+	for cc, seatMap := range rawSeatMaps {
+		for _, sd := range seatMap.SeatDisplay {
+			generalizedCC, ok := generalizeCabinType(sd.CabinType)
+			key := Key{generalizedCC, sd.Rows}
+
+			if ok && cc == generalizedCC {
+				match[key] = struct{}{}
+			} else {
+				nonMatch[key] = append(nonMatch[key], NonMatch{cc, ok})
+			}
+		}
+	}
+
+	for key, nonMatchedRequestCCs := range nonMatch {
+		if !match.Contains(key) {
+			if len(nonMatchedRequestCCs) > 1 {
+				// only remove if there is more than 1 non-matches, keeping the first successfully generalized one, if any
+				idx := slices.IndexFunc(nonMatchedRequestCCs, func(nm NonMatch) bool {
+					return nm.generalized
+				})
+
+				if idx == -1 {
+					nonMatchedRequestCCs = nonMatchedRequestCCs[1:]
+				} else {
+					// replace element at index with the last in slice
+					nonMatchedRequestCCs[idx] = nonMatchedRequestCCs[len(nonMatchedRequestCCs)-1]
+					// remove the last element
+					nonMatchedRequestCCs = nonMatchedRequestCCs[:len(nonMatchedRequestCCs)-1]
+				}
+			} else {
+				// if there is only one, do not remove any
+				nonMatchedRequestCCs = nil
+			}
+		}
+
+		for _, nonMatchedRequestCC := range nonMatchedRequestCCs {
+			if sm, ok := rawSeatMaps[nonMatchedRequestCC.cc]; ok {
+				sm.SeatDisplay = slices.DeleteFunc(sm.SeatDisplay, func(sd lufthansa.SeatDisplay) bool {
+					return sd.Rows == key.rows
+				})
+
+				sm.SeatDetails = slices.DeleteFunc(sm.SeatDetails, func(sd lufthansa.SeatDetail) bool {
+					return sd.Location.Row.Number >= key.rows.First && sd.Location.Row.Number <= key.rows.Last
+				})
+
+				if len(sm.SeatDetails) > 0 || len(sm.SeatDisplay) > 0 {
+					rawSeatMaps[nonMatchedRequestCC.cc] = sm
+				} else {
+					delete(rawSeatMaps, nonMatchedRequestCC.cc)
+				}
+			}
+		}
+	}
+}
+
+func normalizeSeatMaps(rawSeatMaps map[lufthansa.RequestCabinClass]lufthansa.SeatAvailability) SeatMap {
+	deduplicateSeatMaps(rawSeatMaps)
+
 	sm := SeatMap{
 		CabinClasses: make(common.Set[string]),
 		Decks:        make([]*SeatMapDeck, 0),
@@ -241,20 +312,20 @@ func normalizeSeatMapCabin(cabinClass string, sd lufthansa.SeatDisplay, details 
 
 	slices.SortFunc(cabin.ComponentColumns, func(a, b ColumnIdentifier) int {
 		idx := func(v string) int {
-			switch v {
-			case string(lufthansa.ComponentColumnCharacteristicLeftSide):
+			switch lufthansa.ComponentColumnCharacteristic(v) {
+			case lufthansa.ComponentColumnCharacteristicLeftSide:
 				return 0
 
-			case string(lufthansa.ComponentColumnCharacteristicLeftCenter):
+			case lufthansa.ComponentColumnCharacteristicLeftCenter:
 				return 1
 
-			case string(lufthansa.ComponentColumnCharacteristicCenter):
+			case lufthansa.ComponentColumnCharacteristicCenter:
 				return 2
 
-			case string(lufthansa.ComponentColumnCharacteristicRightCenter):
+			case lufthansa.ComponentColumnCharacteristicRightCenter:
 				return 3
 
-			case string(lufthansa.ComponentColumnCharacteristicRightSide):
+			case lufthansa.ComponentColumnCharacteristicRightSide:
 				return 4
 			}
 
@@ -357,7 +428,7 @@ func isLeftOfAisle(i int, details []lufthansa.SeatDetail) bool {
 	} else if sd.HasCharacteristic(lufthansa.SeatCharacteristicExitRow) {
 		// ignore for exit row, those tend to be special
 		return false
-	} else if !sd.HasCharacteristic(lufthansa.SeatCharacteristicAisle) {
+	} else if !sd.AisleAccess() {
 		return false
 	}
 
@@ -377,7 +448,7 @@ func isNextToAisle(i int, details []lufthansa.SeatDetail) bool {
 		return true
 	}
 
-	return details[i].HasCharacteristic(lufthansa.SeatCharacteristicAisle)
+	return details[i].AisleAccess()
 }
 
 func appendSeat(columns []string, rows []SeatMapRow, currRow SeatMapRow, sd lufthansa.SeatDetail) (SeatMapRow, []SeatMapRow) {
@@ -452,20 +523,52 @@ func appendComponent(seatColumns []string, componentColumns []ColumnIdentifier, 
 	return currRow, rows
 }
 
-func normalizeCabinClass(cc lufthansa.CabinClass) string {
+func normalizeCabinClass(cc lufthansa.RequestCabinClass) string {
 	switch cc {
-	case lufthansa.CabinClassEco:
+	case lufthansa.RequestCabinClassEco:
 		return "ECO"
 
-	case lufthansa.CabinClassPremiumEco:
+	case lufthansa.RequestCabinClassPremiumEco:
 		return "PRECO"
 
-	case lufthansa.CabinClassBusiness:
+	case lufthansa.RequestCabinClassBusiness:
 		return "BIZ"
 
-	case lufthansa.CabinClassFirst:
+	case lufthansa.RequestCabinClassFirst:
 		return "FIRST"
 	}
 
 	return string(cc)
+}
+
+func generalizeCabinType(cabinType lufthansa.Code) (lufthansa.RequestCabinClass, bool) {
+	switch lufthansa.RequestCabinClass(cabinType) {
+	case lufthansa.RequestCabinClassFirst:
+		return lufthansa.RequestCabinClassFirst, true
+
+	case lufthansa.RequestCabinClassBusiness:
+		return lufthansa.RequestCabinClassBusiness, true
+
+	case lufthansa.RequestCabinClassPremiumEco:
+		return lufthansa.RequestCabinClassPremiumEco, true
+
+	case lufthansa.RequestCabinClassEco:
+		return lufthansa.RequestCabinClassEco, true
+	}
+
+	switch lufthansa.CabinClass(cabinType) {
+	case lufthansa.CabinClassFirstClass, lufthansa.CabinClassFirstClassPremium, lufthansa.CabinClassFirstClassDiscounted:
+		return lufthansa.RequestCabinClassFirst, true
+
+	case lufthansa.CabinClassBusinessClass, lufthansa.CabinClassBusinessClassPremium, lufthansa.CabinClassBusinessClassDiscounted:
+		return lufthansa.RequestCabinClassBusiness, true
+
+	case lufthansa.CabinClassCoachEconomyPremium:
+		return lufthansa.RequestCabinClassPremiumEco, true
+
+	case lufthansa.CabinClassCoachEconomy, lufthansa.CabinClassCoachEconomyDiscounted1, lufthansa.CabinClassCoachEconomyDiscounted2, lufthansa.CabinClassCoachEconomyDiscounted3, lufthansa.CabinClassCoachEconomyDiscounted4, lufthansa.CabinClassCoachEconomyDiscounted5:
+		return lufthansa.RequestCabinClassEco, true
+	}
+
+	return lufthansa.RequestCabinClass(cabinType), false
 }

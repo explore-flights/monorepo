@@ -223,7 +223,7 @@ func (c *Client) FlightSchedulesRaw(ctx context.Context, airlines []common.Airli
 	return err
 }
 
-func (c *Client) SeatMap(ctx context.Context, fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass CabinClass) (SeatAvailability, error) {
+func (c *Client) SeatMap(ctx context.Context, fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass RequestCabinClass) (SeatAvailability, error) {
 	path := c.buildSeatMapPath(fn, departureAirport, arrivalAirport, departureDate, cabinClass)
 	data, err := doRequest[seatAvailabilityResource](ctx, c, http.MethodGet, path, nil, nil, readJsonFunc[seatAvailabilityResource]())
 	if err != nil {
@@ -234,12 +234,12 @@ func (c *Client) SeatMap(ctx context.Context, fn, departureAirport, arrivalAirpo
 	return data.Inner.SeatAvailability, nil
 }
 
-func (c *Client) SeatMapRaw(ctx context.Context, fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass CabinClass) (json.RawMessage, error) {
+func (c *Client) SeatMapRaw(ctx context.Context, fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass RequestCabinClass) (json.RawMessage, error) {
 	path := c.buildSeatMapPath(fn, departureAirport, arrivalAirport, departureDate, cabinClass)
 	return doRequest[json.RawMessage](ctx, c, http.MethodGet, path, nil, nil, readJsonFunc[json.RawMessage]())
 }
 
-func (c *Client) buildSeatMapPath(fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass CabinClass) string {
+func (c *Client) buildSeatMapPath(fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass RequestCabinClass) string {
 	return fmt.Sprintf(
 		"/v1/offers/seatmaps/%s/%s/%s/%s/%s",
 		url.PathEscape(fn),

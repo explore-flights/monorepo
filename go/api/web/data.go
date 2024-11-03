@@ -82,8 +82,13 @@ func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusNotFound)
 		}
 
-		cabinClasses := []lufthansa.CabinClass{lufthansa.CabinClassEco, lufthansa.CabinClassPremiumEco, lufthansa.CabinClassBusiness, lufthansa.CabinClassFirst}
-		rawSeatMaps := make(map[lufthansa.CabinClass]lufthansa.SeatAvailability)
+		cabinClasses := []lufthansa.RequestCabinClass{
+			lufthansa.RequestCabinClassEco,
+			lufthansa.RequestCabinClassPremiumEco,
+			lufthansa.RequestCabinClassBusiness,
+			lufthansa.RequestCabinClassFirst,
+		}
+		rawSeatMaps := make(map[lufthansa.RequestCabinClass]lufthansa.SeatAvailability)
 
 		for _, cabinClass := range cabinClasses {
 			sm, err := dh.SeatMap(

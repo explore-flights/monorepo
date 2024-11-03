@@ -6,12 +6,35 @@ import (
 )
 
 type CabinClass string
+type RequestCabinClass CabinClass
 
 const (
-	CabinClassFirst      = CabinClass("F")
-	CabinClassBusiness   = CabinClass("C")
-	CabinClassPremiumEco = CabinClass("E")
-	CabinClassEco        = CabinClass("M")
+	CabinClassFirstClassDiscounted    = CabinClass("A")
+	CabinClassCoachEconomyDiscounted1 = CabinClass("B")
+	CabinClassBusinessClass           = CabinClass("C")
+	CabinClassBusinessClassDiscounted = CabinClass("D")
+	CabinClassShuttleService1         = CabinClass("E")
+	CabinClassFirstClass              = CabinClass("F")
+	CabinClassConditionalReservation  = CabinClass("G")
+	CabinClassCoachEconomyDiscounted2 = CabinClass("H")
+	CabinClassBusinessClassPremium    = CabinClass("J")
+	CabinClassThrift                  = CabinClass("K")
+	CabinClassThriftDiscounted1       = CabinClass("L")
+	CabinClassCoachEconomyDiscounted3 = CabinClass("M")
+	CabinClassFirstClassPremium       = CabinClass("P")
+	CabinClassCoachEconomyDiscounted4 = CabinClass("Q")
+	CabinClassSupersonic              = CabinClass("R")
+	CabinClassStandardClass           = CabinClass("S")
+	CabinClassCoachEconomyDiscounted5 = CabinClass("T")
+	CabinClassShuttleService2         = CabinClass("U")
+	CabinClassThriftDiscounted2       = CabinClass("V")
+	CabinClassCoachEconomyPremium     = CabinClass("W")
+	CabinClassCoachEconomy            = CabinClass("Y")
+
+	RequestCabinClassFirst      = RequestCabinClass("F")
+	RequestCabinClassBusiness   = RequestCabinClass("C")
+	RequestCabinClassPremiumEco = RequestCabinClass("E")
+	RequestCabinClassEco        = RequestCabinClass("M")
 )
 
 type SeatCharacteristic Code
@@ -178,6 +201,10 @@ type SeatDetail struct {
 
 func (sd SeatDetail) HasCharacteristic(c SeatCharacteristic) bool {
 	return slices.Contains(sd.Location.Row.Characteristics.Characteristic, c)
+}
+
+func (sd SeatDetail) AisleAccess() bool {
+	return sd.HasCharacteristic(SeatCharacteristicAisle) || sd.HasCharacteristic(SeatCharacteristicWindowAndAisleTogether)
 }
 
 func (sd SeatDetail) Empty() bool {
