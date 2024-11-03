@@ -338,6 +338,11 @@ func normalizeSeatMapCabin(cabinClass string, sd lufthansa.SeatDisplay, details 
 		)
 	})
 
+	// remove empty seats
+	details = slices.DeleteFunc(details, func(sd lufthansa.SeatDetail) bool {
+		return sd.Empty()
+	})
+
 	// sort seat details by row number and column
 	slices.SortFunc(details, func(a, b lufthansa.SeatDetail) int {
 		return cmp.Or(
@@ -423,9 +428,7 @@ func isLeftOfAisle(i int, details []lufthansa.SeatDetail) bool {
 	}
 
 	sd := details[i]
-	if sd.Empty() {
-		return false
-	} else if sd.HasCharacteristic(lufthansa.SeatCharacteristicExitRow) {
+	if sd.HasCharacteristic(lufthansa.SeatCharacteristicExitRow) {
 		// ignore for exit row, those tend to be special
 		return false
 	} else if !sd.AisleAccess() {
@@ -452,10 +455,6 @@ func isNextToAisle(i int, details []lufthansa.SeatDetail) bool {
 }
 
 func appendSeat(columns []string, rows []SeatMapRow, currRow SeatMapRow, sd lufthansa.SeatDetail) (SeatMapRow, []SeatMapRow) {
-	if sd.Empty() {
-		return currRow, rows
-	}
-
 	seatDetailRowNumber := int(sd.Location.Row.Number)
 
 	if currRow.Number != seatDetailRowNumber {
