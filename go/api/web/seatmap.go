@@ -428,8 +428,8 @@ func isLeftOfAisle(i int, details []lufthansa.SeatDetail) bool {
 	}
 
 	sd := details[i]
-	if sd.HasCharacteristic(lufthansa.SeatCharacteristicExitRow) {
-		// ignore for exit row, those tend to be special
+	if sd.HasCharacteristic(lufthansa.SeatCharacteristicExitRow) || isFirstOrLastRowWithinCabin(i, details) {
+		// ignore for exit/first/last row, those tend to be special
 		return false
 	} else if !sd.AisleAccess() {
 		return false
@@ -444,6 +444,15 @@ func isSameRow(i int, row lufthansa.JsonStrAsInt, details []lufthansa.SeatDetail
 	}
 
 	return details[i].Location.Row.Number == row
+}
+
+func isFirstOrLastRowWithinCabin(i int, details []lufthansa.SeatDetail) bool {
+	if i < 0 || i >= len(details) {
+		return false
+	}
+
+	row := details[i].Location.Row.Number
+	return details[0].Location.Row.Number == row || details[len(details)-1].Location.Row.Number == row
 }
 
 func isNextToAisle(i int, details []lufthansa.SeatDetail) bool {
