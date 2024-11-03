@@ -501,11 +501,19 @@ func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIden
 			for _, variant := range fs.Variants {
 				if variant.Data.ServiceType == "J" && variant.Data.AircraftType == aircraftType && variant.Data.AircraftConfigurationVersion == aircraftConfigurationVersion {
 					fn := fs.Number()
-					result[fn] = append(result[fn], RouteAndRanges{
-						DepartureAirport: variant.Data.DepartureAirport,
-						ArrivalAirport:   variant.Data.ArrivalAirport,
-						Ranges:           variant.Ranges,
+					idx := slices.IndexFunc(result[fn], func(rr RouteAndRanges) bool {
+						return rr.DepartureAirport == variant.Data.DepartureAirport && rr.ArrivalAirport == variant.Data.ArrivalAirport
 					})
+
+					if idx == -1 {
+						result[fn] = append(result[fn], RouteAndRanges{
+							DepartureAirport: variant.Data.DepartureAirport,
+							ArrivalAirport:   variant.Data.ArrivalAirport,
+							Ranges:           variant.Ranges,
+						})
+					} else {
+						result[fn][idx].Ranges = result[fn][idx].Ranges.ExpandAll(variant.Ranges)
+					}
 				}
 			}
 		}
