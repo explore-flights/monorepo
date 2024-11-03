@@ -14,18 +14,29 @@ import {
   BadgeProps,
   Box,
   ColumnLayout,
-  Container,
-  Header,
   Popover,
-  SpaceBetween
+  SpaceBetween, Tabs, TabsProps
 } from '@cloudscape-design/components';
 import classes from './seatmap.module.scss';
 
 export function SeatMapView({ data }: { data: SeatMap }) {
+  const tabs = useMemo(() => {
+    const result: Array<TabsProps.Tab> = [];
+    for (let i = 0; i < data.decks.length; i++) {
+      result.push({
+        id: `${i}`,
+        label: i === 0 ? 'Main' : 'Upper',
+        content: <SeatMapDeckView deck={data.decks[i]} />,
+      });
+    }
+
+    return result;
+  }, [data]);
+
   return (
     <ColumnLayout columns={1}>
       <CabinClasses cabinClasses={data.cabinClasses} />
-      {...data.decks.map((deck, i) => <SeatMapDeckView deck={deck} index={i} />)}
+      <Tabs tabs={tabs} />
     </ColumnLayout>
   );
 }
@@ -41,11 +52,11 @@ function CabinClasses({ cabinClasses }: { cabinClasses: ReadonlyArray<CabinClass
   );
 }
 
-function SeatMapDeckView({ index, deck }: { index: number, deck: SeatMapDeck }) {
+function SeatMapDeckView({ deck }: { deck: SeatMapDeck }) {
   return (
-    <Container header={<Header variant={'h3'}>{index === 0 ? 'Main' : 'Upper'}</Header>}>
+    <>
       {...deck.cabins.map((cabin) => <SeatMapCabinView cabin={cabin} />)}
-    </Container>
+    </>
   );
 }
 
@@ -80,7 +91,7 @@ function SeatMapRowSeatsView({ cabin, row, seats }: { cabin: SeatMapCabin, row: 
       }
 
       if (cabin.aisle.includes(i)) {
-        nodes.push(<div></div>);
+        nodes.push(<div className={classes['aisle']}></div>);
       }
     }
 
