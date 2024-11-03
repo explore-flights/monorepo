@@ -10,6 +10,12 @@ export function SideNav() {
     <SideNavigation
       items={[
         {
+          type: 'link',
+          text: 'Allegris',
+          href: useHref('/allegris'),
+        },
+        { type: 'divider' },
+        {
           type: 'section-group',
           title: 'Tools',
           items: [

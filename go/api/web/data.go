@@ -116,6 +116,29 @@ func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
 	}
 }
 
+func NewQueryFlightSchedulesEndpoint(dh *data.Handler) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		airline := strings.ToUpper(c.Param("airline"))
+		aircraftType := strings.ToUpper(c.Param("aircraftType"))
+		aircraftConfigurationVersion := strings.ToUpper(c.Param("aircraftConfigurationVersion"))
+
+		result, err := dh.QuerySchedules(
+			c.Request().Context(),
+			common.AirlineIdentifier(airline),
+			aircraftType,
+			aircraftConfigurationVersion,
+		)
+
+		if err != nil {
+			noCache(c)
+			return echo.NewHTTPError(http.StatusInternalServerError)
+		}
+
+		addExpirationHeaders(c, time.Now(), time.Hour*3)
+		return c.JSON(http.StatusOK, result)
+	}
+}
+
 func jsonResponse[T any](c echo.Context, v T, err error, isEmpty func(T) bool) error {
 	if err != nil {
 		noCache(c)

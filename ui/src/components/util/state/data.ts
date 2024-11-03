@@ -79,6 +79,26 @@ export function useSeatMap(flightNumber: string,
   });
 }
 
+export function useQueryFlightSchedules(airline: string, aircraftType: string, aircraftConfigurationVersion: string) {
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['query_flight_schedules', airline, aircraftType, aircraftConfigurationVersion],
+    queryFn: async () => {
+      const { body } = expectSuccess(await apiClient.queryFlightSchedules(airline, aircraftType, aircraftConfigurationVersion));
+      return body;
+    },
+    retry: (count, e) => {
+      if (count > 3) {
+        return false;
+      } else if (e instanceof ApiError && (e.response.status === 400 || e.response.status === 404)) {
+        return false;
+      }
+
+      return true;
+    },
+  });
+}
+
 export function useSearch(query: string, enabled: boolean) {
   const { apiClient } = useHttpClient();
   return useQuery({

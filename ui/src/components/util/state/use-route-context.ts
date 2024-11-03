@@ -36,6 +36,11 @@ const ROUTES = [{
       ],
     },
     {
+      path: 'allegris',
+      title: 'Allegris',
+      breadcrumb: 'Allegris',
+    },
+    {
       path: 'tools',
       children: [
         {

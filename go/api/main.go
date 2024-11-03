@@ -72,6 +72,7 @@ func main() {
 	e.GET("/data/aircraft.json", web.NewAircraftEndpoint(dataHandler))
 	e.GET("/data/flight/:fn", web.NewFlightNumberEndpoint(dataHandler))
 	e.GET("/data/flight/:fn/seatmap/:departure/:arrival/:date/:aircraft", web.NewSeatMapEndpoint(dataHandler))
+	e.GET("/data/:airline/schedule/:aircraftType/:aircraftConfigurationVersion", web.NewQueryFlightSchedulesEndpoint(dataHandler))
 
 	if err := run(ctx, e); err != nil {
 		panic(err)

@@ -234,3 +234,11 @@ export enum ComponentFeature {
   STAIRS = 'ST',
   TABLE = 'TA',
 }
+
+export type QueryScheduleResponse = Record<string, ReadonlyArray<RouteAndRanges>>;
+
+export interface RouteAndRanges {
+  departureAirport: string;
+  arrivalAirport: string;
+  ranges: ReadonlyArray<[string, string]>;
+}

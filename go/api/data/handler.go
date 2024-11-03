@@ -16,6 +16,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"io"
+	"iter"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -156,6 +157,12 @@ type Aircraft struct {
 	Code      string `json:"code"`
 	EquipCode string `json:"equipCode"`
 	Name      string `json:"name"`
+}
+
+type RouteAndRanges struct {
+	DepartureAirport string                `json:"departureAirport"`
+	ArrivalAirport   string                `json:"arrivalAirport"`
+	Ranges           xtime.LocalDateRanges `json:"ranges"`
 }
 
 type MinimalS3Client interface {
@@ -338,48 +345,25 @@ func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
 }
 
 func (h *Handler) FlightSchedule(ctx context.Context, fn common.FlightNumber) (*common.FlightSchedule, error) {
-	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(h.bucket),
-		Key:    aws.String(fmt.Sprintf("processed/schedules/%s.json.gz", fn.Airline)),
+	var fs *common.FlightSchedule
+	return fs, h.flightSchedules(ctx, fn.Airline, func(seq iter.Seq[jstream.KV]) error {
+		for kv := range seq {
+			if kv.Key == fn.String() {
+				b, err := json.Marshal(kv.Value)
+				if err != nil {
+					return err
+				}
+
+				if err = json.Unmarshal(b, &fs); err != nil {
+					return err
+				}
+
+				return nil
+			}
+		}
+
+		return nil
 	})
-
-	if err != nil {
-		if adapt.IsS3NotFound(err) {
-			return nil, nil
-		} else {
-			return nil, err
-		}
-	}
-
-	defer resp.Body.Close()
-
-	r, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	decoder := jstream.NewDecoder(r, 1).EmitKV()
-	for mv := range decoder.Stream() {
-		if kv := mv.Value.(jstream.KV); kv.Key == fn.String() {
-			b, err := json.Marshal(kv.Value)
-			if err != nil {
-				return nil, err
-			}
-
-			var fs *common.FlightSchedule
-			if err = json.Unmarshal(b, &fs); err != nil {
-				return nil, err
-			}
-
-			return fs, nil
-		}
-	}
-
-	if err = decoder.Err(); err != nil {
-		return nil, err
-	}
-
-	return nil, nil
 }
 
 func (h *Handler) FlightNumbers(ctx context.Context, prefix string, limit int) ([]common.FlightNumber, error) {
@@ -498,6 +482,77 @@ func (h *Handler) loadSeatMapFromS3(ctx context.Context, fn common.FlightNumber,
 
 func (h *Handler) seatMapS3Key(fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.RequestCabinClass) string {
 	return fmt.Sprintf("tmp/seatmap/%s/%s/%s/%s/%s.json", fn.String(), departureAirport, arrivalAirport, departureDate.String(), cabinClass)
+}
+
+func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIdentifier, aircraftType, aircraftConfigurationVersion string) (map[common.FlightNumber][]RouteAndRanges, error) {
+	result := make(map[common.FlightNumber][]RouteAndRanges)
+	return result, h.flightSchedules(ctx, airline, func(seq iter.Seq[jstream.KV]) error {
+		for kv := range seq {
+			b, err := json.Marshal(kv.Value)
+			if err != nil {
+				return err
+			}
+
+			var fs *common.FlightSchedule
+			if err = json.Unmarshal(b, &fs); err != nil {
+				return err
+			}
+
+			for _, variant := range fs.Variants {
+				if variant.Data.ServiceType == "J" && variant.Data.AircraftType == aircraftType && variant.Data.AircraftConfigurationVersion == aircraftConfigurationVersion {
+					fn := fs.Number()
+					result[fn] = append(result[fn], RouteAndRanges{
+						DepartureAirport: variant.Data.DepartureAirport,
+						ArrivalAirport:   variant.Data.ArrivalAirport,
+						Ranges:           variant.Ranges,
+					})
+				}
+			}
+		}
+
+		return nil
+	})
+}
+
+func (h *Handler) flightSchedules(ctx context.Context, airline common.AirlineIdentifier, fn func(seq iter.Seq[jstream.KV]) error) error {
+	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(h.bucket),
+		Key:    aws.String(fmt.Sprintf("processed/schedules/%s.json.gz", airline)),
+	})
+
+	if err != nil {
+		if adapt.IsS3NotFound(err) {
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	defer resp.Body.Close()
+
+	r, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	decoder := jstream.NewDecoder(r, 1).EmitKV()
+	err = fn(func(yield func(jstream.KV) bool) {
+		for mv := range decoder.Stream() {
+			if !yield(mv.Value.(jstream.KV)) {
+				return
+			}
+		}
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if err = decoder.Err(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (h *Handler) loadCsv(ctx context.Context, name string) (*csvReader, error) {

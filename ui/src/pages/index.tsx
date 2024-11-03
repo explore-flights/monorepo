@@ -12,6 +12,7 @@ import { MmQuickSearch } from './tools/mm-quick-search';
 import { Links } from './tools/links';
 import { FlightView } from './flight';
 import { FlightSelect } from './flight-select';
+import { Allegris } from './allegris';
 
 // region router
 const router = createBrowserRouter([
@@ -40,6 +41,10 @@ const router = createBrowserRouter([
       {
         path: 'flight/:id',
         element: <FlightView />,
+      },
+      {
+        path: 'allegris',
+        element: <Allegris />,
       },
       {
         path: 'tools/mm-quick-search',
