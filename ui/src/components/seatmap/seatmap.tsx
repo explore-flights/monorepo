@@ -10,6 +10,7 @@ import {
   SeatMapRow
 } from '../../lib/api/api.model';
 import {
+  Alert,
   Badge,
   BadgeProps,
   Box,
@@ -35,6 +36,7 @@ export function SeatMapView({ data }: { data: SeatMap }) {
 
   return (
     <ColumnLayout columns={1}>
+      <Alert type={'warning'} header={'Work In Progress'}>The Seatmap View is still work in progress. The data might not be fully accurate, especially the aisle in business- and first-class cabins might not be displayed correctly.</Alert>
       <CabinClasses cabinClasses={data.cabinClasses} />
       <Tabs tabs={tabs} />
     </ColumnLayout>

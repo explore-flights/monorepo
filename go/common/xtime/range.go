@@ -94,6 +94,15 @@ func (ldrs LocalDateRanges) Iter() iter.Seq[LocalDate] {
 	}
 }
 
+func (ldrs LocalDateRanges) Span() (LocalDateRange, bool) {
+	sorted := slices.SortedFunc(ldrs.Iter(), LocalDate.Compare)
+	if len(sorted) < 1 {
+		return LocalDateRange{}, false
+	}
+
+	return LocalDateRange{sorted[0], sorted[len(sorted)-1]}, true
+}
+
 func (ldrs LocalDateRanges) ExpandAll(other LocalDateRanges) LocalDateRanges {
 	return NewLocalDateRanges(xiter.Combine(ldrs.Iter(), other.Iter()))
 }

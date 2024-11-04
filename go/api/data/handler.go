@@ -159,10 +159,10 @@ type Aircraft struct {
 	Name      string `json:"name"`
 }
 
-type RouteAndRanges struct {
-	DepartureAirport string                `json:"departureAirport"`
-	ArrivalAirport   string                `json:"arrivalAirport"`
-	Ranges           xtime.LocalDateRanges `json:"ranges"`
+type RouteAndRange struct {
+	DepartureAirport string               `json:"departureAirport"`
+	ArrivalAirport   string               `json:"arrivalAirport"`
+	Range            xtime.LocalDateRange `json:"range"`
 }
 
 type MinimalS3Client interface {
@@ -484,8 +484,8 @@ func (h *Handler) seatMapS3Key(fn common.FlightNumber, departureAirport, arrival
 	return fmt.Sprintf("tmp/seatmap/%s/%s/%s/%s/%s.json", fn.String(), departureAirport, arrivalAirport, departureDate.String(), cabinClass)
 }
 
-func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIdentifier, aircraftType, aircraftConfigurationVersion string) (map[common.FlightNumber][]RouteAndRanges, error) {
-	result := make(map[common.FlightNumber][]RouteAndRanges)
+func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIdentifier, aircraftType, aircraftConfigurationVersion string) (map[common.FlightNumber][]RouteAndRange, error) {
+	result := make(map[common.FlightNumber][]RouteAndRange)
 	return result, h.flightSchedules(ctx, airline, func(seq iter.Seq[jstream.KV]) error {
 		for kv := range seq {
 			b, err := json.Marshal(kv.Value)
@@ -499,20 +499,29 @@ func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIden
 			}
 
 			for _, variant := range fs.Variants {
-				if variant.Data.ServiceType == "J" && variant.Data.AircraftType == aircraftType && variant.Data.AircraftConfigurationVersion == aircraftConfigurationVersion {
-					fn := fs.Number()
-					idx := slices.IndexFunc(result[fn], func(rr RouteAndRanges) bool {
-						return rr.DepartureAirport == variant.Data.DepartureAirport && rr.ArrivalAirport == variant.Data.ArrivalAirport
-					})
+				fn := fs.Number()
 
-					if idx == -1 {
-						result[fn] = append(result[fn], RouteAndRanges{
-							DepartureAirport: variant.Data.DepartureAirport,
-							ArrivalAirport:   variant.Data.ArrivalAirport,
-							Ranges:           variant.Ranges,
+				if variant.Data.ServiceType == "J" && variant.Data.AircraftType == aircraftType && variant.Data.AircraftConfigurationVersion == aircraftConfigurationVersion && variant.Data.OperatedAs == fn {
+					if span, ok := variant.Ranges.Span(); ok {
+						idx := slices.IndexFunc(result[fn], func(rr RouteAndRange) bool {
+							return rr.DepartureAirport == variant.Data.DepartureAirport && rr.ArrivalAirport == variant.Data.ArrivalAirport
 						})
-					} else {
-						result[fn][idx].Ranges = result[fn][idx].Ranges.ExpandAll(variant.Ranges)
+
+						if idx == -1 {
+							result[fn] = append(result[fn], RouteAndRange{
+								DepartureAirport: variant.Data.DepartureAirport,
+								ArrivalAirport:   variant.Data.ArrivalAirport,
+								Range:            span,
+							})
+						} else {
+							if result[fn][idx].Range[0].Compare(span[0]) > 0 {
+								result[fn][idx].Range[0] = span[0]
+							}
+
+							if result[fn][idx].Range[1].Compare(span[1]) < 0 {
+								result[fn][idx].Range[1] = span[1]
+							}
+						}
 					}
 				}
 			}

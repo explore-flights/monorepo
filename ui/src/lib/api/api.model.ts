@@ -235,10 +235,10 @@ export enum ComponentFeature {
   TABLE = 'TA',
 }
 
-export type QueryScheduleResponse = Record<string, ReadonlyArray<RouteAndRanges>>;
+export type QueryScheduleResponse = Record<string, ReadonlyArray<RouteAndRange>>;
 
-export interface RouteAndRanges {
+export interface RouteAndRange {
   departureAirport: string;
   arrivalAirport: string;
-  ranges: ReadonlyArray<[string, string]>;
+  range: [string, string];
 }

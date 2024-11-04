@@ -1,98 +1,77 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Box, ContentLayout, Header, Pagination, Table } from '@cloudscape-design/components';
 import { useQueryFlightSchedules } from '../components/util/state/data';
 import { UseQueryResult } from '@tanstack/react-query';
 import { QueryScheduleResponse } from '../lib/api/api.model';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { FlightLink } from '../components/common/flight-link';
-import { withDepartureAirportFilter, withDepartureDateFilter } from './flight';
+import {
+  withAircraftConfigurationVersionFilter,
+  withAircraftTypeFilter,
+  withDepartureAirportFilter,
+} from './flight';
 import { DateTime } from 'luxon';
+import { AircraftConfigurationVersion } from '../lib/consts';
+import { ErrorNotificationContent, useAppControls } from '../components/util/context/app-controls';
 
 const AIRCRAFT_TYPE_A350_900 = '359';
-const ALLEGRIS_CONFIGURATION = 'C38E24M201';
-const ALLEGRIS_WITH_FIRST_CONFIGURATION = 'F4C38E24M201';
 
 export function Allegris() {
-  const queryRegular = useQueryFlightSchedules('LH', AIRCRAFT_TYPE_A350_900, ALLEGRIS_CONFIGURATION);
-  const queryWithFirst = useQueryFlightSchedules('LH', AIRCRAFT_TYPE_A350_900, ALLEGRIS_WITH_FIRST_CONFIGURATION);
+  const queryRegular = useQueryFlightSchedules('LH', AIRCRAFT_TYPE_A350_900, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS);
+  const queryWithFirst = useQueryFlightSchedules('LH', AIRCRAFT_TYPE_A350_900, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST);
 
   return (
     <ContentLayout header={<Header variant={'h1'}>Allegris Routes</Header>}>
       <AllegrisTable title={'No First'} query={queryRegular} />
       <AllegrisTable title={'With First'} query={queryWithFirst} />
     </ContentLayout>
-  )
+  );
 }
 
-interface BaseTableItem {
+interface TableItem {
   flightNumber: string;
   departureAirport: string;
   arrivalAirport: string;
-  rangeStart?: DateTime<true>;
-  rangeEnd?: DateTime<true>;
-  children?: ReadonlyArray<ChildTableItem>;
-}
-
-interface ParentTableItem extends BaseTableItem {
-  children: ReadonlyArray<ChildTableItem>;
-}
-
-interface ChildTableItem extends BaseTableItem {
   rangeStart: DateTime<true>;
   rangeEnd: DateTime<true>;
-  children: undefined;
 }
 
-type TableItem = ParentTableItem | ChildTableItem;
-
 function AllegrisTable({ title, query }: { title: string, query: UseQueryResult<QueryScheduleResponse, Error> }) {
+  const { notification } = useAppControls();
   const rawItems = useMemo(() => {
     const result: Array<TableItem> = [];
     if (query.data) {
-      for (const [flightNumber, routesAndRanges] of Object.entries(query.data)) {
-        for (const routeAndRanges of routesAndRanges) {
-          const children: Array<ChildTableItem> = [];
-          let overallRangeStart: DateTime<true> | null = null;
-          let overallRangeEnd: DateTime<true> | null = null;
+      for (const [flightNumber, routeAndRanges] of Object.entries(query.data)) {
+        for (const routeAndRange of routeAndRanges) {
+          const rangeStart = DateTime.fromISO(routeAndRange.range[0]);
+          const rangeEnd = DateTime.fromISO(routeAndRange.range[1]);
 
-          for (const [rangeStartRaw, rangeEndRaw] of routeAndRanges.ranges) {
-            const rangeStart = DateTime.fromISO(rangeStartRaw);
-            const rangeEnd = DateTime.fromISO(rangeEndRaw);
-
-            if (rangeStart.isValid && rangeEnd.isValid) {
-              children.push({
-                flightNumber: flightNumber,
-                departureAirport: routeAndRanges.departureAirport,
-                arrivalAirport: routeAndRanges.arrivalAirport,
-                rangeStart: rangeStart,
-                rangeEnd: rangeEnd,
-                children: undefined,
-              });
-
-              if (!overallRangeStart || rangeStart < overallRangeStart) {
-                overallRangeStart = rangeStart;
-              }
-
-              if (!overallRangeEnd || rangeEnd > overallRangeEnd) {
-                overallRangeEnd = rangeEnd;
-              }
-            }
+          if (rangeStart.isValid && rangeEnd.isValid) {
+            result.push({
+              flightNumber: flightNumber,
+              departureAirport: routeAndRange.departureAirport,
+              arrivalAirport: routeAndRange.arrivalAirport,
+              rangeStart: rangeStart,
+              rangeEnd: rangeEnd,
+            });
           }
-
-          result.push({
-            flightNumber: flightNumber,
-            departureAirport: routeAndRanges.departureAirport,
-            arrivalAirport: routeAndRanges.arrivalAirport,
-            children: children,
-            rangeStart: overallRangeStart ?? undefined,
-            rangeEnd: overallRangeEnd ?? undefined,
-          });
         }
       }
     }
 
     return result;
   }, [query.data]);
+
+  useEffect(() => {
+    if (query.status === 'error') {
+      notification.addOnce({
+        type: 'error',
+        header: `Failed to load '${title}' Allegris Routes`,
+        content: <ErrorNotificationContent error={query.error} />,
+        dismissible: true,
+      });
+    }
+  }, [query.status, title]);
 
   const { items, collectionProps, paginationProps } = useCollection(rawItems, {
     sorting: {
@@ -105,8 +84,6 @@ function AllegrisTable({ title, query }: { title: string, query: UseQueryResult<
     },
     pagination: { pageSize: 25 },
   });
-
-  const [expandedItems, setExpandedItems] = useState<ReadonlyArray<TableItem>>([]);
 
   return (
     <Table
@@ -124,10 +101,9 @@ function AllegrisTable({ title, query }: { title: string, query: UseQueryResult<
           cell: (v) => {
             let query = new URLSearchParams();
             query = withDepartureAirportFilter(query, v.departureAirport);
-
-            if (!v.children) {
-              query = withDepartureDateFilter(query, v.rangeStart);
-            }
+            query = withAircraftTypeFilter(query, AIRCRAFT_TYPE_A350_900);
+            query = withAircraftConfigurationVersionFilter(query, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS);
+            query = withAircraftConfigurationVersionFilter(query, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST);
 
             return <FlightLink flightNumber={v.flightNumber} query={query} external={true} target={'_blank'} />;
           },
@@ -158,28 +134,6 @@ function AllegrisTable({ title, query }: { title: string, query: UseQueryResult<
           sortingField: 'rangeEnd',
         },
       ]}
-      expandableRows={{
-        getItemChildren: (item) => item.children ?? [],
-        isItemExpandable: (item) => item.children !== undefined,
-        expandedItems: expandedItems,
-        onExpandableItemToggle: (e) => {
-          const item = e.detail.item;
-          const expand = e.detail.expanded;
-
-          setExpandedItems((prev) => {
-            if (expand) {
-              return [...prev, item];
-            }
-
-            const index = prev.indexOf(item);
-            if (index === -1) {
-              return prev;
-            }
-
-            return prev.toSpliced(index, 1);
-          });
-        },
-      }}
     />
   );
 }

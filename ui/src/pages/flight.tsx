@@ -24,6 +24,7 @@ import { ApiError } from '../lib/api/api';
 import { FlightLink } from '../components/common/flight-link';
 import { BulletSeperator, Join } from '../components/common/join';
 import { SeatMapView } from '../components/seatmap/seatmap';
+import { AircraftConfigurationVersion } from '../lib/consts';
 
 export function FlightView() {
   const { id } = useParams();
@@ -89,6 +90,7 @@ interface FlightScheduleSummary {
   arrivalAirports: ReadonlyArray<Maybe<Airport>>;
   routes: ReadonlyArray<[Maybe<Airport>, Maybe<Airport>]>;
   aircraft: ReadonlyArray<[Maybe<Aircraft>, number]>;
+  aircraftConfigurationVersions: ReadonlyArray<string>;
   operatingDays: ReadonlyArray<WeekdayNumbers>;
   duration: {
     min: Duration<true>,
@@ -270,10 +272,16 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
               cell: (v) => <TimeCell value={v.arrivalTime} />,
             },
             {
-              id: 'aircraft',
+              id: 'aircraft_type',
               header: 'Aircraft',
               cell: (v) => <AircraftCell {...v.aircraft} />,
               sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.aircraft.raw.localeCompare(b.aircraft.raw), []),
+            },
+            {
+              id: 'aircraft_configuration_version',
+              header: 'Aircraft Configuration Version',
+              cell: (v) => aircraftConfigurationVersionToName(v.aircraftConfigurationVersion),
+              sortingField: 'aircraftConfigurationVersion',
             },
             {
               id: 'duration',
@@ -416,7 +424,8 @@ function TableFilter({ query, setQuery, summary }: TableFilterProps) {
       query={query}
       onChange={(e) => setQuery(e.detail)}
       filteringOptions={[
-        ...(summary.aircraft.map(([v]) => ({ propertyKey: 'aircraft', value: v.raw, label: v.value?.name ?? v.raw }))),
+        ...(summary.aircraft.map(([v]) => ({ propertyKey: 'aircraft_type', value: v.raw, label: v.value?.name ?? v.raw }))),
+        ...(summary.aircraftConfigurationVersions.map((v) => ({ propertyKey: 'aircraft_configuration_version', value: v, label: aircraftConfigurationVersionToName(v) }))),
         ...(summary.departureAirports.map((v) => ({ propertyKey: 'departure_airport', value: v.raw, label: v.value?.name ?? v.raw }))),
         ...(summary.arrivalAirports.map((v) => ({ propertyKey: 'arrival_airport', value: v.raw, label: v.value?.name ?? v.raw }))),
         ...(summary.operatingDays.map((v) => ({ propertyKey: 'operating_day', value: v.toString(10), label: weekdayNumberToName(v) }))),
@@ -429,26 +438,51 @@ function TableFilter({ query, setQuery, summary }: TableFilterProps) {
           groupValuesLabel: 'Departure Time values',
         },
         {
-          key: 'aircraft',
-          operators: ['=', '!='],
+          key: 'aircraft_type',
+          operators: [
+            { operator: '=', tokenType: 'enum' },
+            { operator: '!=', tokenType: 'enum' },
+          ],
           propertyLabel: 'Aircraft',
           groupValuesLabel: 'Aircraft values',
         },
         {
+          key: 'aircraft_configuration_version',
+          operators: [
+            { operator: '=', tokenType: 'enum' },
+            { operator: '!=', tokenType: 'enum' },
+          ],
+          propertyLabel: 'Aircraft Configuration Version',
+          groupValuesLabel: 'Aircraft Configuration Version values',
+        },
+        {
           key: 'departure_airport',
-          operators: ['=', '!='],
+          operators: [
+            { operator: '=', tokenType: 'enum' },
+            { operator: '!=', tokenType: 'enum' },
+          ],
           propertyLabel: 'Departure Airport',
           groupValuesLabel: 'Departure Airport values',
         },
         {
           key: 'arrival_airport',
-          operators: ['=', '!='],
+          operators: [
+            { operator: '=', tokenType: 'enum' },
+            { operator: '!=', tokenType: 'enum' },
+          ],
           propertyLabel: 'Arrival Airport',
           groupValuesLabel: 'Arrival Airport values',
         },
         {
           key: 'operating_day',
-          operators: ['>=', '>', '=', '<', '<=', '!='],
+          operators: [
+            { operator: '=', tokenType: 'enum' },
+            { operator: '!=', tokenType: 'enum' },
+            '>=',
+            '>',
+            '<',
+            '<=',
+          ],
           propertyLabel: 'Operating Day',
           groupValuesLabel: 'Operating Day values',
         },
@@ -462,7 +496,7 @@ function SeatMapModal({ flight, onDismiss }: { flight?: ScheduledFlight, onDismi
     <Modal
       onDismiss={onDismiss}
       visible={!!flight}
-      header={flight ? `Seatmap ${flight.operatedAs}, ${flight.departureTime.toISODate()}` : 'Seatmap'}
+      header={flight ? `Seatmap ${flight.operatedAs}, ${flight.departureTime.toISODate()} (${flight.aircraftConfigurationVersion})` : 'Seatmap'}
       size={'large'}
     >
       {flight && <SeatMapModalContent flight={flight} />}
@@ -507,6 +541,16 @@ function weekdayNumberToName(n: WeekdayNumbers): string {
   })[n];
 }
 
+function aircraftConfigurationVersionToName(v: string): string {
+  return ({
+    [AircraftConfigurationVersion.LH_A350_900_ALLEGRIS]: 'Allegris',
+    [AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST]: 'Allegris with First',
+    [AircraftConfigurationVersion.LH_A350_900_LH_CONFIG]: 'A350-900 LH Config',
+    [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_1]: 'LH/Philippines Config 1',
+    [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_2]: 'LH/Philippines Config 2',
+  })[v] ?? v;
+}
+
 function buildDateOperator(op: PropertyFilterOperator): PropertyFilterOperatorExtended<string> {
   return {
     operator: op,
@@ -531,6 +575,7 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
   const arrivalAirports: Array<string> = [];
   const routes: Array<[string, string]> = [];
   const aircraft: Array<[string, number]> = [];
+  const aircraftConfigurationVersions: Array<string> = [];
   const operatingDays: Array<WeekdayNumbers> = [];
   const operatedAs: Array<string> = [];
   const codeShares: Array<string> = [];
@@ -558,6 +603,10 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
     let aircraftIndex = aircraft.findIndex((v) => v[0] === variant.data.aircraftType);
     if (aircraftIndex === -1) {
       aircraftIndex = aircraft.push([variant.data.aircraftType, 0]) - 1;
+    }
+
+    if (!aircraftConfigurationVersions.includes(variant.data.aircraftConfigurationVersion)) {
+      aircraftConfigurationVersions.push(variant.data.aircraftConfigurationVersion);
     }
 
     if (!operatedAs.includes(variant.data.operatedAs)) {
@@ -634,6 +683,7 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
         { raw: b, value: airportLookup.get(b) },
       ]),
       aircraft: aircraft.map(([id, count]) => [{ raw: id, value: aircraftLookup.get(id) }, count]),
+      aircraftConfigurationVersions: aircraftConfigurationVersions,
       operatingDays: operatingDays,
       duration: {
         min: minDuration,
@@ -704,16 +754,40 @@ function evaluateFilter(flight: ScheduledFlight, query: PropertyFilterProps.Quer
 }
 
 function evaluateToken(flight: ScheduledFlight, token: PropertyFilterProps.Token) {
-  const filterValue = token.value as string;
+  if (!token.propertyKey) {
+    return false;
+  }
+
+  if (Array.isArray(token.value)) {
+    const values = token.value as Array<string>;
+    const ifMatch = token.operator === '=';
+
+    for (const value of values) {
+      if (evaluateTokenSingle(flight, token.propertyKey, '=', value)) {
+        return ifMatch;
+      }
+    }
+
+    return !ifMatch;
+  } else {
+    return evaluateTokenSingle(flight, token.propertyKey, token.operator, `${token.value}`);
+  }
+}
+
+function evaluateTokenSingle(flight: ScheduledFlight, propertyKey: string, operator: string, filterValue: string) {
   let cmpResult = 0;
 
-  switch (token.propertyKey) {
+  switch (propertyKey) {
     case 'departure_time':
       cmpResult = flight.departureTime.toFormat('yyyy-MM-dd').localeCompare(filterValue);
       break;
 
-    case 'aircraft':
+    case 'aircraft_type':
       cmpResult = flight.aircraft.raw.localeCompare(filterValue);
+      break;
+
+    case 'aircraft_configuration_version':
+      cmpResult = flight.aircraftConfigurationVersion.localeCompare(filterValue);
       break;
 
     case 'departure_airport':
@@ -729,7 +803,7 @@ function evaluateToken(flight: ScheduledFlight, token: PropertyFilterProps.Token
       break;
   }
 
-  switch (token.operator) {
+  switch (operator) {
     case '<':
       return cmpResult < 0;
 
@@ -754,13 +828,22 @@ function evaluateToken(flight: ScheduledFlight, token: PropertyFilterProps.Token
 
 function parseSearchParams(v: URLSearchParams): PropertyFilterProps.Query | null {
   const tokens: Array<PropertyFilterProps.Token> = [];
-  for (const prop of ['departure_time', 'aircraft', 'departure_airport', 'arrival_airport', 'operating_day']) {
-    for (const value of v.getAll(prop)) {
-      tokens.push({
-        propertyKey: prop,
-        value: value,
-        operator: '=',
-      });
+  for (const prop of ['departure_time', 'aircraft_type', 'aircraft_configuration_version', 'departure_airport', 'arrival_airport', 'operating_day']) {
+    const values = v.getAll(prop);
+    if (values.length >= 1) {
+      if (values.length === 1) {
+        tokens.push({
+          propertyKey: prop,
+          value: values[0],
+          operator: '=',
+        });
+      } else {
+        tokens.push({
+          propertyKey: prop,
+          value: values,
+          operator: '=',
+        });
+      }
     }
   }
 
@@ -781,5 +864,15 @@ export function withDepartureDateFilter(q: URLSearchParams, date: DateTime<true>
 
 export function withDepartureAirportFilter(q: URLSearchParams, airport: string): URLSearchParams {
   q.append('departure_airport', airport);
+  return q;
+}
+
+export function withAircraftTypeFilter(q: URLSearchParams, aircraftType: string): URLSearchParams {
+  q.append('aircraft_type', aircraftType);
+  return q;
+}
+
+export function withAircraftConfigurationVersionFilter(q: URLSearchParams, aircraftConfigurationVersion: string): URLSearchParams {
+  q.append('aircraft_configuration_version', aircraftConfigurationVersion);
   return q;
 }
