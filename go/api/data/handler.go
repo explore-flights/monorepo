@@ -404,8 +404,9 @@ func (h *Handler) Airlines(ctx context.Context, prefix string) ([]common.Airline
 	}), nil
 }
 
-func (h *Handler) SeatMap(ctx context.Context, fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.RequestCabinClass) (*lufthansa.SeatAvailability, error) {
-	sm, found, err := h.loadSeatMapFromS3(ctx, fn, departureAirport, arrivalAirport, departureDate, cabinClass)
+func (h *Handler) SeatMap(ctx context.Context, fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.RequestCabinClass, aircraftType, aircraftConfigurationVersion string) (*lufthansa.SeatAvailability, error) {
+	s3Key := h.seatMapS3Key(fn.Airline, aircraftType, aircraftConfigurationVersion, cabinClass)
+	sm, found, err := h.loadSeatMapFromS3(ctx, s3Key)
 	if err != nil {
 		return nil, err
 	}
@@ -419,6 +420,8 @@ func (h *Handler) SeatMap(ctx context.Context, fn common.FlightNumber, departure
 			slog.String("arrivalAirport", arrivalAirport),
 			slog.String("departureDate", departureDate.String()),
 			slog.String("cabinClass", string(cabinClass)),
+			slog.String("aircraftType", aircraftType),
+			slog.String("aircraftConfigurationVersion", aircraftConfigurationVersion),
 			slog.Bool("isNull", sm == nil),
 		)
 
@@ -430,7 +433,6 @@ func (h *Handler) SeatMap(ctx context.Context, fn common.FlightNumber, departure
 		return nil, err
 	}
 
-	s3Key := h.seatMapS3Key(fn, departureAirport, arrivalAirport, departureDate, cabinClass)
 	return sm, adapt.S3PutJson(ctx, h.s3c, h.bucket, s3Key, sm)
 }
 
@@ -456,10 +458,10 @@ func (h *Handler) loadSeatMapFromLH(ctx context.Context, fn common.FlightNumber,
 	return &sm, nil
 }
 
-func (h *Handler) loadSeatMapFromS3(ctx context.Context, fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.RequestCabinClass) (*lufthansa.SeatAvailability, bool, error) {
+func (h *Handler) loadSeatMapFromS3(ctx context.Context, s3Key string) (*lufthansa.SeatAvailability, bool, error) {
 	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(h.bucket),
-		Key:    aws.String(h.seatMapS3Key(fn, departureAirport, arrivalAirport, departureDate, cabinClass)),
+		Key:    aws.String(s3Key),
 	})
 
 	if err != nil {
@@ -480,8 +482,8 @@ func (h *Handler) loadSeatMapFromS3(ctx context.Context, fn common.FlightNumber,
 	return sm, true, nil
 }
 
-func (h *Handler) seatMapS3Key(fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.RequestCabinClass) string {
-	return fmt.Sprintf("tmp/seatmap/%s/%s/%s/%s/%s.json", fn.String(), departureAirport, arrivalAirport, departureDate.String(), cabinClass)
+func (h *Handler) seatMapS3Key(airline common.AirlineIdentifier, aircraftType, aircraftConfigurationVersion string, cabinClass lufthansa.RequestCabinClass) string {
+	return fmt.Sprintf("tmp/seatmap/%s/%s/%s/%s.json", airline, aircraftType, aircraftConfigurationVersion, cabinClass)
 }
 
 func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIdentifier, aircraftType, aircraftConfigurationVersion string) (map[common.FlightNumber][]RouteAndRange, error) {

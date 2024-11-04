@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"errors"
-	"fmt"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
@@ -50,7 +49,11 @@ func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
 		departureAirport := strings.ToUpper(c.Param("departure"))
 		arrivalAirport := strings.ToUpper(c.Param("arrival"))
 		departureDateRaw := c.Param("date")
-		aircraft := c.Param("aircraft")
+		aircraftType, aircraftConfigurationVersion, ok := strings.Cut(c.Param("aircraft"), "-")
+
+		if !ok {
+			return echo.NewHTTPError(http.StatusBadRequest)
+		}
 
 		fn, err := common.ParseFlightNumber(fnRaw)
 		if err != nil {
@@ -78,7 +81,7 @@ func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusNotFound)
 		}
 
-		if fmt.Sprintf("%s-%s", fsd.Data.AircraftType, fsd.Data.AircraftConfigurationVersion) != aircraft {
+		if fsd.Data.AircraftType != aircraftType || fsd.Data.AircraftConfigurationVersion != aircraftConfigurationVersion {
 			return echo.NewHTTPError(http.StatusNotFound)
 		}
 
@@ -98,6 +101,8 @@ func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
 				arrivalAirport,
 				departureDate,
 				cabinClass,
+				aircraftType,
+				aircraftConfigurationVersion,
 			)
 
 			if err != nil {
