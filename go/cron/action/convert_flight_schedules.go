@@ -337,7 +337,7 @@ func convertFlightSchedulesToFlights(queryDate xtime.LocalDate, lastModified tim
 		}
 	}
 
-	result := make([]*common.Flight, 0, len(lookup)-len(codeShareIds))
+	result := make([]*common.Flight, 0, len(lookup))
 	for fid, f := range lookup {
 		if _, ok := codeShareIds[fid]; !ok {
 			result = append(result, f)
