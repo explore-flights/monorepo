@@ -82,9 +82,9 @@ func (a *cfAction) convertAll(ctx context.Context, bucket, prefix string, dateRa
 				if fs, ok := byFlightNumber[fn]; ok {
 					if variant, ok := fs.Variant(fsd); ok {
 						variant.Ranges = variant.Ranges.Add(d)
-						variant.Metadata.CreationTime = xtime.Min(variant.Metadata.CreationTime, md.CreationTime)
-						variant.Metadata.RangesUpdateTime = xtime.Max(variant.Metadata.RangesUpdateTime, md.RangesUpdateTime)
-						variant.Metadata.DataUpdateTime = xtime.Min(variant.Metadata.DataUpdateTime, md.DataUpdateTime)
+						variant.Metadata.CreationTime = common.Min(variant.Metadata.CreationTime, md.CreationTime)
+						variant.Metadata.RangesUpdateTime = common.Max(variant.Metadata.RangesUpdateTime, md.RangesUpdateTime)
+						variant.Metadata.DataUpdateTime = common.Min(variant.Metadata.DataUpdateTime, md.DataUpdateTime)
 					} else {
 						fs.Variants = append(fs.Variants, &common.FlightScheduleVariant{
 							Ranges:   xtime.NewLocalDateRanges(xiter.Single(d)),
@@ -283,11 +283,11 @@ func combineSchedules(fs *common.FlightSchedule, existing *common.FlightSchedule
 		if variant, ok := fs.Variant(existingVariant.Data); ok {
 			if len(existingVariant.Ranges) > 0 {
 				variant.Ranges = variant.Ranges.ExpandAll(existingVariant.Ranges)
-				variant.Metadata.RangesUpdateTime = xtime.Max(variant.Metadata.RangesUpdateTime, existingVariant.Metadata.RangesUpdateTime)
+				variant.Metadata.RangesUpdateTime = common.Max(variant.Metadata.RangesUpdateTime, existingVariant.Metadata.RangesUpdateTime)
 			}
 
-			variant.Metadata.CreationTime = xtime.Min(variant.Metadata.CreationTime, existingVariant.Metadata.CreationTime)
-			variant.Metadata.DataUpdateTime = xtime.Min(variant.Metadata.DataUpdateTime, existingVariant.Metadata.DataUpdateTime)
+			variant.Metadata.CreationTime = common.Min(variant.Metadata.CreationTime, existingVariant.Metadata.CreationTime)
+			variant.Metadata.DataUpdateTime = common.Min(variant.Metadata.DataUpdateTime, existingVariant.Metadata.DataUpdateTime)
 		} else if len(variant.Ranges) > 0 {
 			fs.Variants = append(fs.Variants, existingVariant)
 		}

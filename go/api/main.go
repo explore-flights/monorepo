@@ -76,6 +76,8 @@ func main() {
 	e.GET("/data/:airline/schedule/:aircraftType/:aircraftConfigurationVersion/v2", web.NewQueryFlightSchedulesEndpoint(dataHandler))
 	e.GET("/data/:fn/:departureDate/:departureAirport/feed.rss", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/rss+xml", (*feeds.Feed).WriteRss))
 	e.GET("/data/:fn/:departureDate/:departureAirport/feed.atom", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/atom+xml", (*feeds.Feed).WriteAtom))
+	e.GET("/data/allegris/feed.rss", web.NewAllegrisUpdateFeedEndpoint(dataHandler, "application/rss+xml", (*feeds.Feed).WriteRss))
+	e.GET("/data/allegris/feed.atom", web.NewAllegrisUpdateFeedEndpoint(dataHandler, "application/atom+xml", (*feeds.Feed).WriteAtom))
 
 	if err := run(ctx, e); err != nil {
 		panic(err)

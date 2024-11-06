@@ -529,7 +529,7 @@ func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIden
 				fn := fs.Number()
 
 				if variant.Data.ServiceType == "J" && variant.Data.AircraftType == aircraftType && variant.Data.AircraftConfigurationVersion == aircraftConfigurationVersion && variant.Data.OperatedAs == fn {
-					if span, ok := variant.Ranges.Span(); ok {
+					if cnt, span := variant.Ranges.Span(); cnt > 0 {
 						idx := slices.IndexFunc(result[fn], func(rr RouteAndRange) bool {
 							return rr.DepartureAirport == variant.Data.DepartureAirport && rr.ArrivalAirport == variant.Data.ArrivalAirport
 						})
@@ -555,6 +555,32 @@ func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIden
 		}
 
 		return nil
+	})
+}
+
+func (h *Handler) FlightSchedules(ctx context.Context, airline common.AirlineIdentifier, fn func(seq iter.Seq[*common.FlightSchedule]) error) error {
+	return h.flightSchedules(ctx, airline, func(seq iter.Seq[jstream.KV]) error {
+		var internalErr error
+		err := fn(func(yield func(*common.FlightSchedule) bool) {
+			for kv := range seq {
+				var b []byte
+				b, internalErr = json.Marshal(kv.Value)
+				if internalErr != nil {
+					return
+				}
+
+				var fs *common.FlightSchedule
+				if internalErr = json.Unmarshal(b, &fs); internalErr != nil {
+					return
+				}
+
+				if !yield(fs) {
+					return
+				}
+			}
+		})
+
+		return errors.Join(internalErr, err)
 	})
 }
 
