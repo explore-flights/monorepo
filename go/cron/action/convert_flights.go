@@ -275,25 +275,25 @@ func (a *cfAction) loadFlightSchedules(ctx context.Context, bucket, prefix strin
 }
 
 func combineSchedules(fs *common.FlightSchedule, existing *common.FlightSchedule, ignoreUtcDataRanges xtime.LocalDateRanges) *common.FlightSchedule {
-	for _, variant := range fs.Variants {
-		variant.Ranges = variant.Ranges.RemoveAll(func(d xtime.LocalDate) bool {
-			return ignoreUtcDataRanges.Contains(variant.DepartureDateUTC(d))
+	for _, existingVariant := range existing.Variants {
+		existingVariant.Ranges = existingVariant.Ranges.RemoveAll(func(d xtime.LocalDate) bool {
+			return ignoreUtcDataRanges.Contains(existingVariant.DepartureDateUTC(d))
 		})
 
-		if existingVariant, ok := existing.Variant(variant.Data); ok {
-			if len(variant.Ranges) > 0 {
-				existingVariant.Ranges = existingVariant.Ranges.ExpandAll(variant.Ranges)
-				existingVariant.Metadata.RangesUpdateTime = xtime.Max(existingVariant.Metadata.RangesUpdateTime, variant.Metadata.RangesUpdateTime)
+		if variant, ok := fs.Variant(existingVariant.Data); ok {
+			if len(existingVariant.Ranges) > 0 {
+				variant.Ranges = variant.Ranges.ExpandAll(existingVariant.Ranges)
+				variant.Metadata.RangesUpdateTime = xtime.Max(variant.Metadata.RangesUpdateTime, existingVariant.Metadata.RangesUpdateTime)
 			}
 
-			existingVariant.Metadata.CreationTime = xtime.Min(existingVariant.Metadata.CreationTime, variant.Metadata.CreationTime)
-			existingVariant.Metadata.DataUpdateTime = xtime.Min(existingVariant.Metadata.DataUpdateTime, variant.Metadata.DataUpdateTime)
+			variant.Metadata.CreationTime = xtime.Min(variant.Metadata.CreationTime, existingVariant.Metadata.CreationTime)
+			variant.Metadata.DataUpdateTime = xtime.Min(variant.Metadata.DataUpdateTime, existingVariant.Metadata.DataUpdateTime)
 		} else if len(variant.Ranges) > 0 {
-			existing.Variants = append(existing.Variants, variant)
+			fs.Variants = append(fs.Variants, existingVariant)
 		}
 	}
 
-	return existing
+	return fs
 }
 
 func convertFlightToData(f *common.Flight) common.FlightScheduleData {
