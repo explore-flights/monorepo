@@ -12,7 +12,6 @@ import (
 	"github.com/explore-flights/monorepo/go/common/xiter"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"golang.org/x/sync/errgroup"
-	"maps"
 	"time"
 )
 
@@ -58,7 +57,22 @@ func (a *cfAction) convertAll(ctx context.Context, bucket, prefix string, dateRa
 			d := f.DepartureDateLocal()
 			fsd := convertFlightToData(f)
 
-			for fn := range xiter.Combine(xiter.Single(f.Number()), maps.Keys(f.CodeShares)) {
+			metadataByFn := make(map[common.FlightNumber]common.FlightScheduleVariantMetadata)
+			metadataByFn[f.Number()] = common.FlightScheduleVariantMetadata{
+				CreationTime:     f.Metadata.CreationTime,
+				RangesUpdateTime: f.Metadata.CreationTime,
+				DataUpdateTime:   f.Metadata.UpdateTime,
+			}
+
+			for codeShareFn, codeShare := range f.CodeShares {
+				metadataByFn[codeShareFn] = common.FlightScheduleVariantMetadata{
+					CreationTime:     codeShare.Metadata.CreationTime,
+					RangesUpdateTime: codeShare.Metadata.CreationTime,
+					DataUpdateTime:   codeShare.Metadata.UpdateTime,
+				}
+			}
+
+			for fn, md := range metadataByFn {
 				byFlightNumber, ok := result[fn.Airline]
 				if !ok {
 					byFlightNumber = make(map[common.FlightNumber]*common.FlightSchedule)
@@ -68,10 +82,14 @@ func (a *cfAction) convertAll(ctx context.Context, bucket, prefix string, dateRa
 				if fs, ok := byFlightNumber[fn]; ok {
 					if variant, ok := fs.Variant(fsd); ok {
 						variant.Ranges = variant.Ranges.Add(d)
+						variant.Metadata.CreationTime = xtime.Min(variant.Metadata.CreationTime, md.CreationTime)
+						variant.Metadata.RangesUpdateTime = xtime.Max(variant.Metadata.RangesUpdateTime, md.RangesUpdateTime)
+						variant.Metadata.DataUpdateTime = xtime.Min(variant.Metadata.DataUpdateTime, md.DataUpdateTime)
 					} else {
 						fs.Variants = append(fs.Variants, &common.FlightScheduleVariant{
-							Ranges: xtime.NewLocalDateRanges(xiter.Single(d)),
-							Data:   fsd,
+							Ranges:   xtime.NewLocalDateRanges(xiter.Single(d)),
+							Data:     fsd,
+							Metadata: md,
 						})
 					}
 				} else {
@@ -81,8 +99,9 @@ func (a *cfAction) convertAll(ctx context.Context, bucket, prefix string, dateRa
 						Suffix:       fn.Suffix,
 						Variants: []*common.FlightScheduleVariant{
 							{
-								Ranges: xtime.NewLocalDateRanges(xiter.Single(d)),
-								Data:   fsd,
+								Ranges:   xtime.NewLocalDateRanges(xiter.Single(d)),
+								Data:     fsd,
+								Metadata: md,
 							},
 						},
 					}
@@ -185,16 +204,16 @@ func (a *cfAction) upsertFlightSchedules(ctx context.Context, bucket, prefix str
 
 	if existing != nil {
 		for fn, existingFs := range existing {
-			// remove all variants which should come in fresh because they were updated in this execution
-			// if they do not come in again, the flight was removed
-			existingFs.DeleteAll(func(fsv *common.FlightScheduleVariant, d xtime.LocalDate) bool {
-				return utcDateRanges.Contains(fsv.DepartureDateUTC(d))
-			})
+			if fs, ok := scheduleByFlightNumber[fn]; ok {
+				scheduleByFlightNumber[fn] = combineSchedules(fs, existingFs, utcDateRanges)
+			} else {
+				// remove all variants which should come in fresh because they were updated in this execution
+				// if they do not come in again, the flight was removed
+				existingFs.DeleteAll(func(fsv *common.FlightScheduleVariant, d xtime.LocalDate) bool {
+					return utcDateRanges.Contains(fsv.DepartureDateUTC(d))
+				})
 
-			if len(existingFs.Variants) >= 1 {
-				if fs, ok := scheduleByFlightNumber[fn]; ok {
-					scheduleByFlightNumber[fn] = combineSchedules(fs, existingFs)
-				} else {
+				if len(existingFs.Variants) > 0 {
 					scheduleByFlightNumber[fn] = existingFs
 				}
 			}
@@ -255,11 +274,21 @@ func (a *cfAction) loadFlightSchedules(ctx context.Context, bucket, prefix strin
 	return result, r.Close()
 }
 
-func combineSchedules(fs *common.FlightSchedule, existing *common.FlightSchedule) *common.FlightSchedule {
+func combineSchedules(fs *common.FlightSchedule, existing *common.FlightSchedule, ignoreUtcDataRanges xtime.LocalDateRanges) *common.FlightSchedule {
 	for _, variant := range fs.Variants {
+		variant.Ranges = variant.Ranges.RemoveAll(func(d xtime.LocalDate) bool {
+			return ignoreUtcDataRanges.Contains(variant.DepartureDateUTC(d))
+		})
+
 		if existingVariant, ok := existing.Variant(variant.Data); ok {
-			existingVariant.Ranges = existingVariant.Ranges.ExpandAll(variant.Ranges)
-		} else {
+			if len(variant.Ranges) > 0 {
+				existingVariant.Ranges = existingVariant.Ranges.ExpandAll(variant.Ranges)
+				existingVariant.Metadata.RangesUpdateTime = xtime.Max(existingVariant.Metadata.RangesUpdateTime, variant.Metadata.RangesUpdateTime)
+			}
+
+			existingVariant.Metadata.CreationTime = xtime.Min(existingVariant.Metadata.CreationTime, variant.Metadata.CreationTime)
+			existingVariant.Metadata.DataUpdateTime = xtime.Min(existingVariant.Metadata.DataUpdateTime, variant.Metadata.DataUpdateTime)
+		} else if len(variant.Ranges) > 0 {
 			existing.Variants = append(existing.Variants, variant)
 		}
 	}

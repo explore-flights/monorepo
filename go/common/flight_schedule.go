@@ -39,8 +39,9 @@ func (fsd FlightScheduleData) Equal(other FlightScheduleData) bool {
 }
 
 type FlightScheduleVariant struct {
-	Ranges xtime.LocalDateRanges `json:"ranges"`
-	Data   FlightScheduleData    `json:"data"`
+	Ranges   xtime.LocalDateRanges         `json:"ranges"`
+	Data     FlightScheduleData            `json:"data"`
+	Metadata FlightScheduleVariantMetadata `json:"metadata"`
 }
 
 func (fsv *FlightScheduleVariant) DepartureTime(d xtime.LocalDate) time.Time {
@@ -57,6 +58,12 @@ func (fsv *FlightScheduleVariant) DepartureDateUTC(d xtime.LocalDate) xtime.Loca
 
 func (fsv *FlightScheduleVariant) ArrivalTime(d xtime.LocalDate) time.Time {
 	return fsv.DepartureTime(d).Add(time.Duration(fsv.Data.DurationSeconds) * time.Second).In(time.FixedZone("", fsv.Data.ArrivalUTCOffset))
+}
+
+type FlightScheduleVariantMetadata struct {
+	CreationTime     time.Time `json:"creationTime"`
+	RangesUpdateTime time.Time `json:"rangesUpdateTime"`
+	DataUpdateTime   time.Time `json:"dateUpdateTime"`
 }
 
 type FlightSchedule struct {
