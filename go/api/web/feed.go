@@ -253,6 +253,14 @@ func NewAllegrisUpdateFeedEndpoint(dh *data.Handler, contentType string, writer 
 					Content:     content,
 					Description: content,
 				})
+
+				if feed.Created.IsZero() || feed.Created.After(created) {
+					feed.Created = created
+				}
+
+				if feed.Updated.IsZero() || feed.Updated.Before(updated) {
+					feed.Updated = updated
+				}
 			}
 		}
 
