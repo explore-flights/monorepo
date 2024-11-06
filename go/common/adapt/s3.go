@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"io"
+	"time"
 )
 
 type S3Getter interface {
@@ -23,6 +24,10 @@ type S3Lister interface {
 
 func S3GetJson(ctx context.Context, s3c S3Getter, bucket, key string, v any) error {
 	return S3Get(ctx, s3c, bucket, key, readJson(v))
+}
+
+func S3GetJsonWithLastModified(ctx context.Context, s3c S3Getter, bucket, key string, v any) (time.Time, error) {
+	return S3GetWithLastModified(ctx, s3c, bucket, key, readJson(v))
 }
 
 func S3GetRaw(ctx context.Context, s3c S3Getter, bucket, key string) ([]byte, error) {
@@ -42,6 +47,21 @@ func S3Get(ctx context.Context, s3c S3Getter, bucket, key string, fn func(r io.R
 
 	defer resp.Body.Close()
 	return fn(resp.Body)
+}
+
+func S3GetWithLastModified(ctx context.Context, s3c S3Getter, bucket, key string, fn func(r io.Reader) error) (time.Time, error) {
+	resp, err := s3c.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+
+	if err != nil {
+		var def time.Time
+		return def, err
+	}
+
+	defer resp.Body.Close()
+	return *resp.LastModified, fn(resp.Body)
 }
 
 func S3PutJson(ctx context.Context, s3c S3Putter, bucket, key string, v any) error {

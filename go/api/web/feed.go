@@ -11,13 +11,22 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
 )
 
 func NewFlightUpdateFeedEndpoint(dh *data.Handler, contentType string, writer func(*feeds.Feed, io.Writer) error) echo.HandlerFunc {
-	feedContent := func(f *common.Flight) string {
+	buildFeedId := func(fn common.FlightNumber, departureDateUtc xtime.LocalDate, departureAirport string) string {
+		q := make(url.Values)
+		q.Set("departure_airport", departureAirport)
+		q.Set("departure_date_utc", departureDateUtc.String())
+
+		return fmt.Sprintf("https://explore.flights/flight/%s?%s", fn.String(), q.Encode())
+	}
+
+	buildFeedContent := func(f *common.Flight) string {
 		content := fmt.Sprintf(
 			`
 Flight %s from %s to %s
@@ -54,42 +63,53 @@ Codeshares: %+v
 			return echo.NewHTTPError(http.StatusBadRequest, err)
 		}
 
-		feedId := baseUrl(c) + fmt.Sprintf("/%s/%s/%s", fn.String(), departureDate.String(), departureAirport)
-		link := &feeds.Link{Href: fmt.Sprintf("https://explore.flights/flight/%s", fn.String())}
+		feedId := buildFeedId(fn, departureDate, departureAirport)
+		link := &feeds.Link{
+			Href: feedId,
+			Rel:  "self",
+			Type: "text/html",
+		}
+
 		feed := &feeds.Feed{
 			Id:    feedId,
 			Title: fmt.Sprintf("Flight %s from %s on %s (UTC)", fn.String(), departureAirport, departureDate.String()),
 			Link:  link,
 		}
 
-		f, err := dh.Flight(c.Request().Context(), fn, departureDate, departureAirport, true)
+		f, lastModified, err := dh.Flight(c.Request().Context(), fn, departureDate, departureAirport, true)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError)
 		}
 
 		if f == nil {
-			now := time.Now()
+			created := time.Date(2024, time.May, 1, 0, 0, 0, 0, time.UTC)
 
-			feed.Created = now
-			feed.Updated = now
+			feed.Created = created
+			feed.Updated = lastModified
 			feed.Items = append(feed.Items, &feeds.Item{
-				Id:      feedId,
-				Title:   "Flight no longer available",
-				Link:    link,
-				Created: now,
-				Updated: now,
-				Content: "The flight is no longer available",
+				Id:          feedId,
+				IsPermaLink: "false",
+				Title:       "Flight no longer available",
+				Link:        link,
+				Created:     created,
+				Updated:     lastModified,
+				Content:     "The flight is no longer available",
+				Description: "The flight is no longer available",
 			})
 		} else {
 			feed.Created = f.Metadata.CreationTime
 			feed.Updated = f.Metadata.UpdateTime
+
+			content := buildFeedContent(f)
 			feed.Items = append(feed.Items, &feeds.Item{
-				Id:      feedId,
-				Title:   fmt.Sprintf("Flight %s from %s to %s on %s (local) updated", fn.String(), f.DepartureAirport, f.ArrivalAirport, f.DepartureTime.Format(time.DateOnly)),
-				Link:    link,
-				Created: f.Metadata.CreationTime,
-				Updated: f.Metadata.UpdateTime,
-				Content: feedContent(f),
+				Id:          feedId,
+				IsPermaLink: "false",
+				Title:       fmt.Sprintf("Flight %s from %s to %s on %s (local) updated", fn.String(), f.DepartureAirport, f.ArrivalAirport, f.DepartureTime.Format(time.DateOnly)),
+				Link:        link,
+				Created:     f.Metadata.CreationTime,
+				Updated:     f.Metadata.UpdateTime,
+				Content:     content,
+				Description: content,
 			})
 		}
 

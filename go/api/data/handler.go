@@ -22,6 +22,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var metroAreaMapping = map[string][2]string{
@@ -366,27 +367,28 @@ func (h *Handler) FlightSchedule(ctx context.Context, fn common.FlightNumber) (*
 	})
 }
 
-func (h *Handler) Flight(ctx context.Context, fn common.FlightNumber, departureDateUTC xtime.LocalDate, departureAirport string, allowCodeShare bool) (*common.Flight, error) {
+func (h *Handler) Flight(ctx context.Context, fn common.FlightNumber, departureDateUTC xtime.LocalDate, departureAirport string, allowCodeShare bool) (*common.Flight, time.Time, error) {
 	var flights []*common.Flight
-	if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/flights/"+departureDateUTC.Time(nil).Format("2006/01/02")+".json", &flights); err != nil {
+	lastModified, err := adapt.S3GetJsonWithLastModified(ctx, h.s3c, h.bucket, "processed/flights/"+departureDateUTC.Time(nil).Format("2006/01/02")+".json", &flights)
+	if err != nil {
 		if adapt.IsS3NotFound(err) {
-			return nil, nil
+			return nil, lastModified, nil
 		} else {
-			return nil, err
+			return nil, lastModified, err
 		}
 	}
 
 	for _, f := range flights {
 		if f.DepartureAirport == departureAirport {
 			if f.Number() == fn {
-				return f, nil
+				return f, lastModified, nil
 			} else if _, ok := f.CodeShares[fn]; allowCodeShare && ok {
-				return f, nil
+				return f, lastModified, nil
 			}
 		}
 	}
 
-	return nil, nil
+	return nil, lastModified, nil
 }
 
 func (h *Handler) FlightNumbers(ctx context.Context, prefix string, limit int) ([]common.FlightNumber, error) {

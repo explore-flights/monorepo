@@ -486,6 +486,12 @@ function TableFilter({ query, setQuery, summary }: TableFilterProps) {
           propertyLabel: 'Operating Day',
           groupValuesLabel: 'Operating Day values',
         },
+        {
+          key: 'departure_date_utc',
+          operators: ['=', '>=', '>', '<=', '<'].map((op) => buildDateOperator(op)),
+          propertyLabel: 'Departure Date UTC',
+          groupValuesLabel: 'Departure Date UTC values',
+        },
       ]}
     />
   );
@@ -801,6 +807,10 @@ function evaluateTokenSingle(flight: ScheduledFlight, propertyKey: string, opera
     case 'operating_day':
       cmpResult = flight.departureTime.weekday.toString(10).localeCompare(filterValue);
       break;
+
+    case 'departure_date_utc':
+      cmpResult = flight.departureTime.toUTC().toISODate().localeCompare(filterValue);
+      break;
   }
 
   switch (operator) {
@@ -828,7 +838,7 @@ function evaluateTokenSingle(flight: ScheduledFlight, propertyKey: string, opera
 
 function parseSearchParams(v: URLSearchParams): PropertyFilterProps.Query | null {
   const tokens: Array<PropertyFilterProps.Token> = [];
-  for (const prop of ['departure_time', 'aircraft_type', 'aircraft_configuration_version', 'departure_airport', 'arrival_airport', 'operating_day']) {
+  for (const prop of ['departure_time', 'aircraft_type', 'aircraft_configuration_version', 'departure_airport', 'arrival_airport', 'operating_day', 'departure_date_utc']) {
     const values = v.getAll(prop);
     if (values.length >= 1) {
       if (values.length === 1) {
