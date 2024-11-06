@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"github.com/explore-flights/monorepo/go/common/xtime"
+	"maps"
 	"regexp"
 	"strconv"
 	"strings"
@@ -129,6 +130,10 @@ type CodeShare struct {
 	Metadata     FlightMetadata `json:"metadata"`
 }
 
+func (cs CodeShare) DataEqual(other CodeShare) bool {
+	return maps.Equal(cs.DataElements, other.DataElements)
+}
+
 type FlightMetadata struct {
 	QueryDate    xtime.LocalDate `json:"queryDate"`
 	CreationTime time.Time       `json:"creationTime"`
@@ -174,4 +179,21 @@ func (f *Flight) Id() FlightId {
 
 func (f *Flight) Duration() time.Duration {
 	return f.ArrivalTime.Sub(f.DepartureTime)
+}
+
+func (f *Flight) DataEqual(other *Flight) bool {
+	return f.Airline == other.Airline &&
+		f.FlightNumber == other.FlightNumber &&
+		f.Suffix == other.Suffix &&
+		f.DepartureTime.Equal(other.DepartureTime) &&
+		f.DepartureAirport == other.DepartureAirport &&
+		f.ArrivalTime.Equal(other.ArrivalTime) &&
+		f.ArrivalAirport == other.ArrivalAirport &&
+		f.ServiceType == other.ServiceType &&
+		f.AircraftOwner == other.AircraftOwner &&
+		f.AircraftType == other.AircraftType &&
+		f.AircraftConfigurationVersion == other.AircraftConfigurationVersion &&
+		f.Registration == other.Registration &&
+		maps.Equal(f.DataElements, other.DataElements) &&
+		maps.EqualFunc(f.CodeShares, other.CodeShares, func(CodeShare, CodeShare) bool { return true }) // compare keys only
 }

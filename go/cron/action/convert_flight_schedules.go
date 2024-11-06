@@ -348,52 +348,66 @@ func convertFlightSchedulesToFlights(queryDate xtime.LocalDate, lastModified tim
 }
 
 func combineFlights(f, other *common.Flight) {
-	otherCodeShares := other.CodeShares
+	f.Metadata.CreationTime = xtime.Min(f.Metadata.CreationTime, other.Metadata.CreationTime)
 
-	if f.Metadata.CreationTime.After(other.Metadata.CreationTime) {
-		f.Metadata.CreationTime = other.Metadata.CreationTime
+	if f.DataEqual(other) {
+		f.Metadata.UpdateTime = xtime.Min(f.Metadata.UpdateTime, other.Metadata.UpdateTime)
+
+		for codeShareFn, codeShare := range f.CodeShares {
+			f.CodeShares[codeShareFn] = combineCodeShares(codeShare, other.CodeShares[codeShareFn])
+		}
 	} else {
-		f.DepartureTime = other.DepartureTime
-		f.DepartureAirport = other.DepartureAirport
-		f.ArrivalTime = other.ArrivalTime
-		f.ArrivalAirport = other.ArrivalAirport
-		f.ServiceType = other.ServiceType
-		f.AircraftOwner = other.AircraftOwner
-		f.AircraftType = other.AircraftType
-		f.AircraftConfigurationVersion = other.AircraftConfigurationVersion
-		f.Registration = other.Registration
-		f.DataElements = other.DataElements
-		f.Metadata.QueryDate = other.Metadata.QueryDate
+		otherIsNewer := f.Metadata.UpdateTime.Before(other.Metadata.UpdateTime)
+		otherCodeShares := other.CodeShares
 
-		otherCodeShares = f.CodeShares
-		f.CodeShares = other.CodeShares
-	}
+		if otherIsNewer {
+			f.DepartureTime = other.DepartureTime
+			f.DepartureAirport = other.DepartureAirport
+			f.ArrivalTime = other.ArrivalTime
+			f.ArrivalAirport = other.ArrivalAirport
+			f.ServiceType = other.ServiceType
+			f.AircraftOwner = other.AircraftOwner
+			f.AircraftType = other.AircraftType
+			f.AircraftConfigurationVersion = other.AircraftConfigurationVersion
+			f.Registration = other.Registration
+			f.DataElements = other.DataElements
 
-	if f.Metadata.UpdateTime.Before(other.Metadata.UpdateTime) {
-		f.Metadata.UpdateTime = other.Metadata.UpdateTime
-	}
+			otherCodeShares = f.CodeShares
+			f.CodeShares = other.CodeShares
 
-	for codeShareFn, otherCodeShare := range otherCodeShares {
-		if codeShare, ok := f.CodeShares[codeShareFn]; ok {
-			if codeShare.Metadata.CreationTime.After(otherCodeShare.Metadata.CreationTime) {
-				codeShare.Metadata.CreationTime = otherCodeShare.Metadata.CreationTime
-			}
+			f.Metadata.QueryDate = other.Metadata.QueryDate
+			f.Metadata.UpdateTime = other.Metadata.UpdateTime
+		}
 
-			if codeShare.Metadata.UpdateTime.Before(otherCodeShare.Metadata.UpdateTime) {
-				codeShare.Metadata.UpdateTime = otherCodeShare.Metadata.UpdateTime
-			}
-
-			for k, v := range otherCodeShare.DataElements {
-				if _, ok := codeShare.DataElements[k]; !ok {
-					codeShare.DataElements[k] = v
+		for codeShareFn, otherCodeShare := range otherCodeShares {
+			if codeShare, ok := f.CodeShares[codeShareFn]; ok {
+				f.CodeShares[codeShareFn] = combineCodeShares(codeShare, otherCodeShare)
+			} else {
+				if f.Metadata.QueryDate != otherCodeShare.Metadata.QueryDate {
+					f.CodeShares[codeShareFn] = otherCodeShare
 				}
-			}
-
-			f.CodeShares[codeShareFn] = codeShare
-		} else {
-			if f.Metadata.QueryDate != otherCodeShare.Metadata.QueryDate {
-				f.CodeShares[codeShareFn] = otherCodeShare
 			}
 		}
 	}
+}
+
+func combineCodeShares(a, b common.CodeShare) common.CodeShare {
+	a.Metadata.CreationTime = xtime.Min(a.Metadata.CreationTime, b.Metadata.CreationTime)
+
+	if a.DataEqual(b) {
+		a.Metadata.UpdateTime = xtime.Min(a.Metadata.UpdateTime, b.Metadata.UpdateTime)
+	} else {
+		bIsNewer := a.Metadata.UpdateTime.Before(b.Metadata.UpdateTime)
+		if bIsNewer {
+			a.Metadata.UpdateTime = b.Metadata.UpdateTime
+		}
+
+		for k, v := range b.DataElements {
+			if _, ok := a.DataElements[k]; !ok || bIsNewer {
+				a.DataElements[k] = v
+			}
+		}
+	}
+
+	return a
 }
