@@ -7,6 +7,7 @@ import (
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/explore-flights/monorepo/go/api/web"
+	"github.com/gorilla/feeds"
 	"github.com/labstack/echo/v4"
 	"log/slog"
 	"net/http"
@@ -73,6 +74,8 @@ func main() {
 	e.GET("/data/flight/:fn", web.NewFlightNumberEndpoint(dataHandler))
 	e.GET("/data/flight/:fn/seatmap/:departure/:arrival/:date/:aircraft", web.NewSeatMapEndpoint(dataHandler))
 	e.GET("/data/:airline/schedule/:aircraftType/:aircraftConfigurationVersion/v2", web.NewQueryFlightSchedulesEndpoint(dataHandler))
+	e.GET("/data/:fn/:departureDate/:departureAirport/feed.rss", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/rss+xml", (*feeds.Feed).WriteRss))
+	e.GET("/data/:fn/:departureDate/:departureAirport/feed.atom", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/atom+xml", (*feeds.Feed).WriteAtom))
 
 	if err := run(ctx, e); err != nil {
 		panic(err)

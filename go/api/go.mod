@@ -12,6 +12,7 @@ require (
 	github.com/goccy/go-graphviz v0.2.2
 	github.com/gofrs/uuid/v5 v5.3.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/gorilla/feeds v1.2.0
 	github.com/labstack/echo/v4 v4.12.0
 	golang.org/x/sync v0.8.0
 	golang.org/x/time v0.7.0

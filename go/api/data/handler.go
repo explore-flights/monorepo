@@ -366,6 +366,29 @@ func (h *Handler) FlightSchedule(ctx context.Context, fn common.FlightNumber) (*
 	})
 }
 
+func (h *Handler) Flight(ctx context.Context, fn common.FlightNumber, departureDateUTC xtime.LocalDate, departureAirport string, allowCodeShare bool) (*common.Flight, error) {
+	var flights []*common.Flight
+	if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/flights/"+departureDateUTC.Time(nil).Format("2006/01/02")+".json", &flights); err != nil {
+		if adapt.IsS3NotFound(err) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	for _, f := range flights {
+		if f.DepartureAirport == departureAirport {
+			if f.Number() == fn {
+				return f, nil
+			} else if _, ok := f.CodeShares[fn]; allowCodeShare && ok {
+				return f, nil
+			}
+		}
+	}
+
+	return nil, nil
+}
+
 func (h *Handler) FlightNumbers(ctx context.Context, prefix string, limit int) ([]common.FlightNumber, error) {
 	var fns []common.FlightNumber
 	if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/flightNumbers.json", &fns); err != nil {
