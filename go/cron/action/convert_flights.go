@@ -288,7 +288,7 @@ func combineSchedules(fs *common.FlightSchedule, existing *common.FlightSchedule
 
 			variant.Metadata.CreationTime = common.Min(variant.Metadata.CreationTime, existingVariant.Metadata.CreationTime)
 			variant.Metadata.DataUpdateTime = common.Min(variant.Metadata.DataUpdateTime, existingVariant.Metadata.DataUpdateTime)
-		} else if len(variant.Ranges) > 0 {
+		} else if len(existingVariant.Ranges) > 0 {
 			fs.Variants = append(fs.Variants, existingVariant)
 		}
 	}
