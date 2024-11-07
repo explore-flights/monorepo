@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { Box, ContentLayout, Header, Pagination, Table } from '@cloudscape-design/components';
+import { Box, Button, ContentLayout, Header, Pagination, SpaceBetween, Table } from '@cloudscape-design/components';
 import { useQueryFlightSchedules } from '../components/util/state/data';
 import { UseQueryResult } from '@tanstack/react-query';
 import { QueryScheduleResponse } from '../lib/api/api.model';
@@ -20,8 +20,15 @@ export function Allegris() {
   const queryRegular = useQueryFlightSchedules('LH', AIRCRAFT_TYPE_A350_900, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS);
   const queryWithFirst = useQueryFlightSchedules('LH', AIRCRAFT_TYPE_A350_900, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST);
 
+  const actions = (
+    <SpaceBetween direction={'horizontal'} size={'xs'}>
+      <Button href={'/data/allegris/feed.rss'} target={'_blank'} iconName={'download'}>RSS</Button>
+      <Button href={'/data/allegris/feed.atom'} target={'_blank'} iconName={'download'}>Atom</Button>
+    </SpaceBetween>
+  );
+
   return (
-    <ContentLayout header={<Header variant={'h1'}>Allegris Routes</Header>}>
+    <ContentLayout header={<Header variant={'h1'} actions={actions}>Allegris Routes</Header>}>
       <AllegrisTable title={'No First'} query={queryRegular} />
       <AllegrisTable title={'With First'} query={queryWithFirst} />
     </ContentLayout>
