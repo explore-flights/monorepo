@@ -332,7 +332,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
                 return (
                   <SpaceBetween direction={'vertical'} size={'xs'}>
                     <Button wrapText={false} variant={'inline-link'} href={`${baseLink}/feed.rss`} target={'_blank'} iconName={'download'}>RSS</Button>
-                    <Button wrapText={false} variant={'inline-link'} href={`${baseLink}/feed.rss`} target={'_blank'} iconName={'download'}>Atom</Button>
+                    <Button wrapText={false} variant={'inline-link'} href={`${baseLink}/feed.atom`} target={'_blank'} iconName={'download'}>Atom</Button>
                   </SpaceBetween>
                 );
               },
