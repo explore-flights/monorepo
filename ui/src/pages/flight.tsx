@@ -5,7 +5,7 @@ import {
   ColumnLayout, Container,
   ContentLayout, DateInput,
   ExpandableSection, FormField,
-  Header, KeyValuePairs, Link, Modal, Pagination, Popover, PropertyFilter, PropertyFilterProps,
+  Header, KeyValuePairs, Link, Modal, Pagination, Popover, PropertyFilter, PropertyFilterProps, SpaceBetween,
   Spinner, StatusIndicator,
   Table
 } from '@cloudscape-design/components';
@@ -280,7 +280,33 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
             {
               id: 'aircraft_configuration_version',
               header: 'Aircraft Configuration Version',
-              cell: (v) => aircraftConfigurationVersionToName(v.aircraftConfigurationVersion),
+              cell: (v) => {
+                const name = aircraftConfigurationVersionToName(v.aircraftConfigurationVersion);
+                return (
+                  <Popover
+                    header={v.aircraftConfigurationVersion}
+                    content={
+                      <KeyValuePairs
+                        columns={2}
+                        items={[
+                          {
+                            label: 'Name',
+                            value: name ?? 'unknown',
+                          },
+                          {
+                            label: 'Code',
+                            value: v.aircraftConfigurationVersion,
+                          },
+                          {
+                            label: 'Seatmap',
+                            value: <Button variant={'inline-link'} onClick={() => setSeatMapFlight(v)}>Open</Button>,
+                          },
+                        ]}
+                      />
+                    }
+                  >{name ?? v.aircraftConfigurationVersion}</Popover>
+                );
+              },
               sortingField: 'aircraftConfigurationVersion',
             },
             {
@@ -301,9 +327,15 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
             {
               id: 'actions',
               header: 'Actions',
-              cell: (v) => <Button onClick={() => setSeatMapFlight(v)}>Seatmap</Button>,
-              width: '147px',
-              minWidth: '147px',
+              cell: (v) => {
+                const baseLink = `/data/${flightNumber}/${v.departureTime.toUTC().toISODate()}/${v.departureAirport.raw}`;
+                return (
+                  <SpaceBetween direction={'vertical'} size={'xs'}>
+                    <Button wrapText={false} variant={'inline-link'} href={`${baseLink}/feed.rss`} target={'_blank'} iconName={'download'}>RSS</Button>
+                    <Button wrapText={false} variant={'inline-link'} href={`${baseLink}/feed.rss`} target={'_blank'} iconName={'download'}>Atom</Button>
+                  </SpaceBetween>
+                );
+              },
             },
           ]}
         />
@@ -425,7 +457,7 @@ function TableFilter({ query, setQuery, summary }: TableFilterProps) {
       onChange={(e) => setQuery(e.detail)}
       filteringOptions={[
         ...(summary.aircraft.map(([v]) => ({ propertyKey: 'aircraft_type', value: v.raw, label: v.value?.name ?? v.raw }))),
-        ...(summary.aircraftConfigurationVersions.map((v) => ({ propertyKey: 'aircraft_configuration_version', value: v, label: aircraftConfigurationVersionToName(v) }))),
+        ...(summary.aircraftConfigurationVersions.map((v) => ({ propertyKey: 'aircraft_configuration_version', value: v, label: aircraftConfigurationVersionToName(v) ?? v }))),
         ...(summary.departureAirports.map((v) => ({ propertyKey: 'departure_airport', value: v.raw, label: v.value?.name ?? v.raw }))),
         ...(summary.arrivalAirports.map((v) => ({ propertyKey: 'arrival_airport', value: v.raw, label: v.value?.name ?? v.raw }))),
         ...(summary.operatingDays.map((v) => ({ propertyKey: 'operating_day', value: v.toString(10), label: weekdayNumberToName(v) }))),
@@ -547,14 +579,14 @@ function weekdayNumberToName(n: WeekdayNumbers): string {
   })[n];
 }
 
-function aircraftConfigurationVersionToName(v: string): string {
+function aircraftConfigurationVersionToName(v: string): string | undefined {
   return ({
     [AircraftConfigurationVersion.LH_A350_900_ALLEGRIS]: 'Allegris',
     [AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST]: 'Allegris with First',
     [AircraftConfigurationVersion.LH_A350_900_LH_CONFIG]: 'A350-900 LH Config',
     [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_1]: 'LH/Philippines Config 1',
     [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_2]: 'LH/Philippines Config 2',
-  })[v] ?? v;
+  })[v] ?? undefined;
 }
 
 function buildDateOperator(op: PropertyFilterOperator): PropertyFilterOperatorExtended<string> {
