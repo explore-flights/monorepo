@@ -346,25 +346,16 @@ func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
 }
 
 func (h *Handler) FlightSchedule(ctx context.Context, fn common.FlightNumber) (*common.FlightSchedule, error) {
-	var fs *common.FlightSchedule
-	return fs, h.flightSchedules(ctx, fn.Airline, func(seq iter.Seq[jstream.KV]) error {
-		for kv := range seq {
-			if kv.Key == fn.String() {
-				b, err := json.Marshal(kv.Value)
-				if err != nil {
-					return err
-				}
+	schedules, err := h.flightSchedulesFull(ctx, fn.Airline)
+	if err != nil {
+		return nil, err
+	}
 
-				if err = json.Unmarshal(b, &fs); err != nil {
-					return err
-				}
+	if schedules == nil {
+		return nil, nil
+	}
 
-				return nil
-			}
-		}
-
-		return nil
-	})
+	return schedules[fn], nil
 }
 
 func (h *Handler) Flight(ctx context.Context, fn common.FlightNumber, departureDateUTC xtime.LocalDate, departureAirport string, allowCodeShare bool) (*common.Flight, time.Time, error) {
@@ -512,22 +503,15 @@ func (h *Handler) seatMapS3Key(airline common.AirlineIdentifier, aircraftType, a
 }
 
 func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIdentifier, aircraftType, aircraftConfigurationVersion string) (map[common.FlightNumber][]RouteAndRange, error) {
+	schedules, err := h.flightSchedulesFull(ctx, airline)
+	if err != nil {
+		return nil, err
+	}
+
 	result := make(map[common.FlightNumber][]RouteAndRange)
-	return result, h.flightSchedules(ctx, airline, func(seq iter.Seq[jstream.KV]) error {
-		for kv := range seq {
-			b, err := json.Marshal(kv.Value)
-			if err != nil {
-				return err
-			}
-
-			var fs *common.FlightSchedule
-			if err = json.Unmarshal(b, &fs); err != nil {
-				return err
-			}
-
+	if schedules != nil {
+		for fn, fs := range schedules {
 			for _, variant := range fs.Variants {
-				fn := fs.Number()
-
 				if variant.Data.ServiceType == "J" && variant.Data.AircraftType == aircraftType && variant.Data.AircraftConfigurationVersion == aircraftConfigurationVersion && variant.Data.OperatedAs == fn {
 					if cnt, span := variant.Ranges.Span(); cnt > 0 {
 						idx := slices.IndexFunc(result[fn], func(rr RouteAndRange) bool {
@@ -553,38 +537,12 @@ func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIden
 				}
 			}
 		}
+	}
 
-		return nil
-	})
+	return result, nil
 }
 
-func (h *Handler) FlightSchedules(ctx context.Context, airline common.AirlineIdentifier, fn func(seq iter.Seq[*common.FlightSchedule]) error) error {
-	return h.flightSchedules(ctx, airline, func(seq iter.Seq[jstream.KV]) error {
-		var internalErr error
-		err := fn(func(yield func(*common.FlightSchedule) bool) {
-			for kv := range seq {
-				var b []byte
-				b, internalErr = json.Marshal(kv.Value)
-				if internalErr != nil {
-					return
-				}
-
-				var fs *common.FlightSchedule
-				if internalErr = json.Unmarshal(b, &fs); internalErr != nil {
-					return
-				}
-
-				if !yield(fs) {
-					return
-				}
-			}
-		})
-
-		return errors.Join(internalErr, err)
-	})
-}
-
-func (h *Handler) flightSchedules(ctx context.Context, airline common.AirlineIdentifier, fn func(seq iter.Seq[jstream.KV]) error) error {
+func (h *Handler) flightSchedulesStream(ctx context.Context, airline common.AirlineIdentifier, fn func(seq iter.Seq[jstream.KV]) error) error {
 	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(h.bucket),
 		Key:    aws.String(fmt.Sprintf("processed/schedules/%s.json.gz", airline)),
@@ -623,6 +581,33 @@ func (h *Handler) flightSchedules(ctx context.Context, airline common.AirlineIde
 	}
 
 	return nil
+}
+
+func (h *Handler) flightSchedulesFull(ctx context.Context, airline common.AirlineIdentifier) (map[common.FlightNumber]*common.FlightSchedule, error) {
+	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(h.bucket),
+		Key:    aws.String(fmt.Sprintf("processed/schedules/%s.json.gz", airline)),
+	})
+
+	if err != nil {
+		if adapt.IsS3NotFound(err) {
+			return nil, nil
+		} else {
+			return nil, err
+		}
+	}
+
+	defer resp.Body.Close()
+
+	r, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	defer r.Close()
+
+	var schedules map[common.FlightNumber]*common.FlightSchedule
+	return schedules, json.NewDecoder(r).Decode(&schedules)
 }
 
 func (h *Handler) loadCsv(ctx context.Context, name string) (*csvReader, error) {
