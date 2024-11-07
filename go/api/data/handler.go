@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/bcicen/jstream"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/common/xtime"
+	jsoniter "github.com/json-iterator/go"
 	"io"
 	"iter"
 	"log/slog"
@@ -346,16 +346,20 @@ func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
 }
 
 func (h *Handler) FlightSchedule(ctx context.Context, fn common.FlightNumber) (*common.FlightSchedule, error) {
-	schedules, err := h.flightSchedulesFull(ctx, fn.Airline)
-	if err != nil {
-		return nil, err
-	}
+	var fs *common.FlightSchedule
+	err := h.flightSchedulesStream(ctx, fn.Airline, func(seq iter.Seq2[string, *onceIter[*common.FlightSchedule]]) error {
+		for fnRaw, scheduleIt := range seq {
+			if fnRaw == fn.String() {
+				var err error
+				fs, err = scheduleIt.Read()
+				return err
+			}
+		}
 
-	if schedules == nil {
-		return nil, nil
-	}
+		return nil
+	})
 
-	return schedules[fn], nil
+	return fs, err
 }
 
 func (h *Handler) Flight(ctx context.Context, fn common.FlightNumber, departureDateUTC xtime.LocalDate, departureAirport string, allowCodeShare bool) (*common.Flight, time.Time, error) {
@@ -503,14 +507,15 @@ func (h *Handler) seatMapS3Key(airline common.AirlineIdentifier, aircraftType, a
 }
 
 func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIdentifier, aircraftType, aircraftConfigurationVersion string) (map[common.FlightNumber][]RouteAndRange, error) {
-	schedules, err := h.flightSchedulesFull(ctx, airline)
-	if err != nil {
-		return nil, err
-	}
-
 	result := make(map[common.FlightNumber][]RouteAndRange)
-	if schedules != nil {
-		for fn, fs := range schedules {
+	err := h.flightSchedulesStream(ctx, airline, func(seq iter.Seq2[string, *onceIter[*common.FlightSchedule]]) error {
+		for _, scheduleIt := range seq {
+			fs, err := scheduleIt.Read()
+			if err != nil {
+				return err
+			}
+
+			fn := fs.Number()
 			for _, variant := range fs.Variants {
 				if variant.Data.ServiceType == "J" && variant.Data.AircraftType == aircraftType && variant.Data.AircraftConfigurationVersion == aircraftConfigurationVersion && variant.Data.OperatedAs == fn {
 					if cnt, span := variant.Ranges.Span(); cnt > 0 {
@@ -537,12 +542,14 @@ func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIden
 				}
 			}
 		}
-	}
 
-	return result, nil
+		return nil
+	})
+
+	return result, err
 }
 
-func (h *Handler) flightSchedulesStream(ctx context.Context, airline common.AirlineIdentifier, fn func(seq iter.Seq[jstream.KV]) error) error {
+func (h *Handler) flightSchedulesStream(ctx context.Context, airline common.AirlineIdentifier, fn func(seq iter.Seq2[string, *onceIter[*common.FlightSchedule]]) error) error {
 	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(h.bucket),
 		Key:    aws.String(fmt.Sprintf("processed/schedules/%s.json.gz", airline)),
@@ -563,51 +570,19 @@ func (h *Handler) flightSchedulesStream(ctx context.Context, airline common.Airl
 		return err
 	}
 
-	decoder := jstream.NewDecoder(r, 1).EmitKV()
-	err = fn(func(yield func(jstream.KV) bool) {
-		for mv := range decoder.Stream() {
-			if !yield(mv.Value.(jstream.KV)) {
-				return
-			}
-		}
-	})
-
-	if err != nil {
-		return err
-	}
-
-	if err = decoder.Err(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (h *Handler) flightSchedulesFull(ctx context.Context, airline common.AirlineIdentifier) (map[common.FlightNumber]*common.FlightSchedule, error) {
-	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(h.bucket),
-		Key:    aws.String(fmt.Sprintf("processed/schedules/%s.json.gz", airline)),
-	})
-
-	if err != nil {
-		if adapt.IsS3NotFound(err) {
-			return nil, nil
-		} else {
-			return nil, err
-		}
-	}
-
-	defer resp.Body.Close()
-
-	r, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
 	defer r.Close()
 
-	var schedules map[common.FlightNumber]*common.FlightSchedule
-	return schedules, json.NewDecoder(r).Decode(&schedules)
+	it := jsoniter.Parse(jsoniter.ConfigCompatibleWithStandardLibrary, r, 8196)
+	err = fn(func(yield func(string, *onceIter[*common.FlightSchedule]) bool) {
+		it.ReadObjectCB(func(value *jsoniter.Iterator, key string) bool {
+			oit := &onceIter[*common.FlightSchedule]{it: value}
+			defer oit.Consume()
+
+			return yield(key, oit)
+		})
+	})
+
+	return errors.Join(err, it.Error)
 }
 
 func (h *Handler) loadCsv(ctx context.Context, name string) (*csvReader, error) {
@@ -679,12 +654,26 @@ func (r *csvReader) Close() error {
 	return r.c.Close()
 }
 
-func compareBool(a, b bool) int {
-	if a == b {
-		return 0
-	} else if a {
-		return 1
-	} else {
-		return -1
+type onceIter[T any] struct {
+	it   *jsoniter.Iterator
+	v    T
+	err  error
+	read bool
+}
+
+func (it *onceIter[T]) Read() (T, error) {
+	if it.read {
+		return it.v, it.err
+	}
+
+	it.read = true
+	it.it.ReadVal(&it.v)
+	return it.v, it.err
+}
+
+func (it *onceIter[T]) Consume() {
+	if !it.read {
+		it.read = true
+		it.it.Skip()
 	}
 }

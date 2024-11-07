@@ -7,12 +7,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.28.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.2
-	github.com/bcicen/jstream v1.0.1
 	github.com/explore-flights/monorepo/go/common v0.0.0
 	github.com/goccy/go-graphviz v0.2.2
 	github.com/gofrs/uuid/v5 v5.3.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/gorilla/feeds v1.2.0
+	github.com/json-iterator/go v1.1.12
 	github.com/labstack/echo/v4 v4.12.0
 	golang.org/x/sync v0.8.0
 	golang.org/x/time v0.7.0
@@ -43,6 +43,8 @@ require (
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/tetratelabs/wazero v1.8.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
