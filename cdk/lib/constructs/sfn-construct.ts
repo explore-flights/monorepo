@@ -157,10 +157,9 @@ export class SfnConstruct extends Construct {
                   'action': 'update_metadata',
                   'params': {
                     'inputBucket': props.dataBucket.bucketName,
-                    'inputPrefix': PROCESSED_FLIGHTS_PREFIX,
+                    'inputPrefix': PROCESSED_SCHEDULES_PREFIX,
                     'outputBucket': props.dataBucket.bucketName,
                     'outputPrefix': PROCESSED_METADATA_PREFIX,
-                    'dateRanges': JsonPath.objectAt('$.convertSchedulesResponse.dateRanges'),
                   },
                 }),
                 payloadResponseOnly: true,

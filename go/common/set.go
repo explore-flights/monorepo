@@ -33,3 +33,9 @@ func (s Set[T]) Contains(value T) bool {
 	_, ok := s[value]
 	return ok
 }
+
+func (s Set[T]) Remove(value T) bool {
+	_, ok := s[value]
+	delete(s, value)
+	return ok
+}

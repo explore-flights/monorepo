@@ -12,4 +12,5 @@ type Action[IN any, OUT any] interface {
 type MinimalS3Client interface {
 	adapt.S3Getter
 	adapt.S3Putter
+	adapt.S3Lister
 }
