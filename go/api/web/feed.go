@@ -68,7 +68,7 @@ Codeshares: %+v
 		feedId := buildFeedId(fn, departureDate, departureAirport)
 		link := &feeds.Link{
 			Href: feedId,
-			Rel:  "self",
+			Rel:  "alternate",
 			Type: "text/html",
 		}
 
@@ -205,7 +205,7 @@ func NewAllegrisUpdateFeedEndpoint(dh *data.Handler, contentType string, writer 
 			Title: "Lufthansa Allegris Flights",
 			Link: &feeds.Link{
 				Href: feedId,
-				Rel:  "self",
+				Rel:  "alternate",
 				Type: "text/html",
 			},
 		}
@@ -245,7 +245,7 @@ func NewAllegrisUpdateFeedEndpoint(dh *data.Handler, contentType string, writer 
 					Title:       fmt.Sprintf("Flight %s operates on Allegris %s (%s)", fn.String(), suffix, aircraftConfigurationVersion),
 					Link: &feeds.Link{
 						Href: itemLink,
-						Rel:  "self",
+						Rel:  "alternate",
 						Type: "text/html",
 					},
 					Created:     created,
