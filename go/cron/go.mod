@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.55.3
 	github.com/bcicen/jstream v1.0.1
 	github.com/explore-flights/monorepo/go/common v0.0.0
+	github.com/gorilla/feeds v1.2.0
 	golang.org/x/sync v0.8.0
 	golang.org/x/time v0.7.0
 )

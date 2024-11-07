@@ -66,6 +66,7 @@ export class CronLambdaConstruct extends Construct {
       props.dataBucket.grantReadWrite(fn, 'processed/flights/*');
       props.dataBucket.grantReadWrite(fn, 'processed/schedules/*');
       props.dataBucket.grantReadWrite(fn, 'processed/metadata/*');
+      props.dataBucket.grantWrite(fn, 'processed/feed/*');
 
       fn.addToRolePolicy(new PolicyStatement({
         effect: Effect.ALLOW,

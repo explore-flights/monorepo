@@ -30,6 +30,7 @@ export class SfnConstruct extends Construct {
     const LH_FLIGHT_SCHEDULES_PREFIX = 'raw/LH_Public_Data/flightschedules/';
     const PROCESSED_FLIGHTS_PREFIX = 'processed/flights/';
     const PROCESSED_SCHEDULES_PREFIX = 'processed/schedules/';
+    const PROCESSED_ALLEGRIS_FEED_PREFIX = 'processed/feed/allegris/';
     const PROCESSED_METADATA_PREFIX = 'processed/metadata/';
 
     const checkRemainingChoice = new Choice(this, 'CheckRemaining', {});
@@ -133,6 +134,21 @@ export class SfnConstruct extends Construct {
                 }),
                 payloadResponseOnly: true,
                 resultPath: '$.convertFlightsResponse',
+                retryOnServiceExceptions: true,
+              }))
+              .next(new LambdaInvoke(this, 'UpdateAllegrisFeedTask', {
+                lambdaFunction: props.cronLambda_2G,
+                payload: TaskInput.fromObject({
+                  'action': 'update_allegris_feed',
+                  'params': {
+                    'inputBucket': props.dataBucket.bucketName,
+                    'inputPrefix': PROCESSED_SCHEDULES_PREFIX,
+                    'outputBucket': props.dataBucket.bucketName,
+                    'outputPrefix': PROCESSED_ALLEGRIS_FEED_PREFIX,
+                  },
+                }),
+                payloadResponseOnly: true,
+                resultPath: '$.updateAllegrisFeedResponse',
                 retryOnServiceExceptions: true,
               }))
               .next(new LambdaInvoke(this, 'UpdateMetadataTask', {
