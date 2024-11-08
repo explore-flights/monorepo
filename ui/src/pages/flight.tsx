@@ -33,38 +33,42 @@ export function FlightView() {
   }
 
   const flightScheduleResult = useFlightSchedule(id);
-  let content: React.ReactNode;
 
-  if (flightScheduleResult.data) {
-    content = <FlightScheduleContent flightSchedule={flightScheduleResult.data} />;
-  } else if (flightScheduleResult.status === 'pending') {
-    content = <Spinner size={'large'} />;
-  } else {
-    let error = flightScheduleResult.error;
-    if (!error) {
-      error = new Error(flightScheduleResult.status);
-    }
-
-    if (error instanceof ApiError && error.response.status >= 400 && error.response.status < 500) {
-      const query = new URLSearchParams();
-      query.set('q', id);
-
-      window.location.href = `/api/search?${query.toString()}`;
-      return <></>;
+  if (!flightScheduleResult.data) {
+    let content: React.ReactNode;
+    if (flightScheduleResult.status === 'pending') {
+      content = <Spinner size={'large'} />;
     } else {
-      content = (
-        <Alert type={'error'}>
-          <ErrorNotificationContent error={error} />
-        </Alert>
-      );
+      let error = flightScheduleResult.error;
+      if (!error) {
+        error = new Error(flightScheduleResult.status);
+      }
+
+      if (error instanceof ApiError && error.response.status >= 400 && error.response.status < 500) {
+        const query = new URLSearchParams();
+        query.set('q', id);
+
+        window.location.href = `/api/search?${query.toString()}`;
+        return <></>;
+      } else {
+        content = (
+          <Alert type={'error'}>
+            <ErrorNotificationContent error={error} />
+          </Alert>
+        );
+      }
     }
+
+    return (
+      <ContentLayout header={<Header variant={'h1'} description={'Loading ...'}>{id}</Header>}>
+        {content}
+      </ContentLayout>
+    );
   }
 
   return (
-    <ContentLayout header={<Header variant={'h1'}>Flight Detail</Header>}>
-      {content}
-    </ContentLayout>
-  )
+    <FlightScheduleContent flightSchedule={flightScheduleResult.data} />
+  );
 }
 
 interface Maybe<T> {
@@ -86,6 +90,7 @@ interface ScheduledFlight {
 }
 
 interface FlightScheduleSummary {
+  lastModified: DateTime<true>;
   departureAirports: ReadonlyArray<Maybe<Airport>>;
   arrivalAirports: ReadonlyArray<Maybe<Airport>>;
   routes: ReadonlyArray<[Maybe<Airport>, Maybe<Airport>]>;
@@ -107,9 +112,6 @@ interface ProcessedFlightSchedule {
 
 function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSchedule }) {
   const [searchParams] = useSearchParams();
-  const airportLookup = useAirportLookup();
-  const aircraftLookup = useAircraftLookup();
-
   const [filterQuery, setFilterQuery] = useState<PropertyFilterProps.Query>(parseSearchParams(searchParams) ?? {
     operation: 'and',
     tokens: [
@@ -121,8 +123,11 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
     ],
   });
 
+  const airportLookup = useAirportLookup();
+  const aircraftLookup = useAircraftLookup();
   const flightNumber = useMemo(() => `${flightSchedule.airline}${flightSchedule.flightNumber}${flightSchedule.suffix}`, [flightSchedule]);
   const { summary, flights, } = useMemo(() => processFlightSchedule(flightSchedule, airportLookup, aircraftLookup), [flightSchedule, airportLookup, aircraftLookup]);
+
   const filteredFlights = useFilteredFlights(flights, filterQuery);
   const { items, collectionProps, paginationProps } = useCollection(filteredFlights, {
     sorting: {
@@ -146,7 +151,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
   }
 
   return (
-    <>
+    <ContentLayout header={<Header variant={'h1'} description={`Last updated: ${summary.lastModified.toISO()}`}>{flightNumber}</Header>}>
       <ColumnLayout columns={1}>
         <Container>
           <KeyValuePairs
@@ -345,7 +350,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
       </ColumnLayout>
 
       <SeatMapModal flight={seatMapFlight} onDismiss={() => setSeatMapFlight(undefined)} />
-    </>
+    </ContentLayout>
   );
 }
 
@@ -609,6 +614,8 @@ function buildDateOperator(op: PropertyFilterOperator): PropertyFilterOperatorEx
 }
 
 function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Map<string, Airport>, aircraftLookup: Map<string, Aircraft>): ProcessedFlightSchedule {
+  let lastModified = DateTime.fromSeconds(0);
+
   const departureAirports: Array<string> = [];
   const arrivalAirports: Array<string> = [];
   const routes: Array<[string, string]> = [];
@@ -623,6 +630,12 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
   let maxDuration = Duration.fromMillis(Number.MIN_SAFE_INTEGER);
 
   for (const variant of flightSchedule.variants) {
+    lastModified = dateTimeMax(
+      lastModified,
+      DateTime.fromISO(variant.metadata.rangesUpdateTime, { setZone: true }),
+      DateTime.fromISO(variant.metadata.dateUpdateTime, { setZone: true }),
+    );
+
     const departureZone = FixedOffsetZone.instance(variant.data.departureUTCOffset / 60);
     const arrivalZone = FixedOffsetZone.instance(variant.data.arrivalUTCOffset / 60);
 
@@ -714,6 +727,7 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
 
   return {
     summary: {
+      lastModified: lastModified,
       departureAirports: departureAirports.map((v) => ({ raw: v, value: airportLookup.get(v) })),
       arrivalAirports: arrivalAirports.map((v) => ({ raw: v, value: airportLookup.get(v) })),
       routes: routes.map(([a, b]) => [
@@ -732,6 +746,17 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
     },
     flights: flights,
   };
+}
+
+function dateTimeMax(first: DateTime<true>, ...values: ReadonlyArray<DateTime<true | false>>): DateTime<true> {
+  let max = first;
+  for (const value of values) {
+    if (value.isValid) {
+      max = DateTime.max<true>(max, value);
+    }
+  }
+
+  return max;
 }
 
 function useAirportLookup() {

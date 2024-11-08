@@ -101,6 +101,12 @@ export interface ConnectionSearchShare {
   imageUrl: string;
 }
 
+export interface FlightScheduleVariantMetadata {
+  creationTime: string;
+  rangesUpdateTime: string;
+  dateUpdateTime: string;
+}
+
 export interface FlightScheduleVariantData {
   operatedAs: string;
   departureTime: string;
@@ -119,6 +125,7 @@ export interface FlightScheduleVariantData {
 export interface FlightScheduleVariant {
   ranges: ReadonlyArray<[string, string]>;
   data: FlightScheduleVariantData;
+  metadata: FlightScheduleVariantMetadata;
 }
 
 export interface FlightSchedule {
