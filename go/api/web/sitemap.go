@@ -17,17 +17,15 @@ func NewSitemapHandler(dh *data.Handler) echo.HandlerFunc {
 	const ttl = time.Hour * 3
 
 	return func(c echo.Context) error {
-		fns, err := dh.FlightNumbers(c.Request().Context(), "", -1)
+		fns, err := dh.FlightNumbersRaw(c.Request().Context())
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError)
 		}
 
 		baseURL := baseUrl(c)
-		now := time.Now()
-
 		res := c.Response()
 		res.Header().Set(echo.HeaderContentType, echo.MIMEApplicationXMLCharsetUTF8)
-		addExpirationHeaders(c, now, ttl)
+		addExpirationHeaders(c, time.Now(), ttl)
 
 		_, err = res.Write([]byte(xml.Header))
 		if err != nil {
@@ -48,22 +46,20 @@ func NewSitemapHandler(dh *data.Handler) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusInternalServerError)
 		}
 
-		for _, fn := range fns {
+		for fn, lastMod := range fns {
 			loc := baseURL + "/flight/" + fn.String()
 
-			if err = addSitemapURL(enc, loc, now); err != nil {
+			if err = addSitemapURL(enc, loc, lastMod); err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError)
 			}
 		}
 
-		err = enc.EncodeToken(xml.EndElement{
+		return enc.EncodeToken(xml.EndElement{
 			Name: xml.Name{
 				Local: "urlset",
 				Space: "http://www.sitemaps.org/schemas/sitemap/0.9",
 			},
 		})
-
-		return nil
 	}
 }
 

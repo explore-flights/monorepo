@@ -18,6 +18,7 @@ import (
 	"io"
 	"iter"
 	"log/slog"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -388,29 +389,37 @@ func (h *Handler) Flight(ctx context.Context, fn common.FlightNumber, departureD
 
 func (h *Handler) FlightNumbers(ctx context.Context, prefix string, limit int) ([]common.FlightNumber, error) {
 	var fns []common.FlightNumber
-	if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/flightNumbers.json", &fns); err != nil {
-		return nil, err
-	}
+	{
+		fnsRaw, err := h.FlightNumbersRaw(ctx)
+		if err != nil {
+			return nil, err
+		}
 
-	if prefix != "" {
-		fns = slices.DeleteFunc(fns, func(fn common.FlightNumber) bool {
-			return !strings.HasPrefix(fn.String(), prefix)
+		if prefix != "" {
+			maps.DeleteFunc(fnsRaw, func(fn common.FlightNumber, _ time.Time) bool {
+				return !strings.HasPrefix(fn.String(), prefix)
+			})
+		}
+
+		fns = slices.SortedFunc(maps.Keys(fnsRaw), func(a, b common.FlightNumber) int {
+			return cmp.Or(
+				cmp.Compare(a.Airline, b.Airline),
+				cmp.Compare(a.Number, b.Number),
+				cmp.Compare(a.Suffix, b.Suffix),
+			)
 		})
 	}
-
-	slices.SortFunc(fns, func(a, b common.FlightNumber) int {
-		return cmp.Or(
-			cmp.Compare(a.Airline, b.Airline),
-			cmp.Compare(a.Number, b.Number),
-			cmp.Compare(a.Suffix, b.Suffix),
-		)
-	})
 
 	if limit < 1 {
 		limit = len(fns)
 	}
 
 	return fns[:min(limit, len(fns))], nil
+}
+
+func (h *Handler) FlightNumbersRaw(ctx context.Context) (map[common.FlightNumber]time.Time, error) {
+	var fns map[common.FlightNumber]time.Time
+	return fns, adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/flightNumbers.json", &fns)
 }
 
 func (h *Handler) Airlines(ctx context.Context, prefix string) ([]common.AirlineIdentifier, error) {

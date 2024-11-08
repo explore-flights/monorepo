@@ -49,8 +49,7 @@ func NewVerifier(jwksUri string, opts ...Option) *Verifier {
 }
 
 func (v *Verifier) Key(ctx context.Context, kid string) (jose.JSONWebKey, error) {
-	jwk, ok := v.cache.Load(kid)
-	if ok {
+	if jwk, ok := v.cache.Load(kid); ok {
 		return jwk, nil
 	}
 

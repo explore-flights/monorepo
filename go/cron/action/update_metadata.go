@@ -12,6 +12,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common/xiter"
 	"golang.org/x/sync/errgroup"
 	"maps"
+	"time"
 )
 
 type UpdateMetadataParams struct {
@@ -36,7 +37,7 @@ type AddedAndRemoved struct {
 type metadata struct {
 	airports      common.Set[string]
 	airlines      common.Set[common.AirlineIdentifier]
-	flightNumbers common.Set[common.FlightNumber]
+	flightNumbers map[common.FlightNumber]time.Time
 	aircraft      common.Set[string]
 }
 
@@ -121,9 +122,11 @@ func (a *umdAction) worker(ctx context.Context, obj [2]string, md metadata) (met
 	md = a.ensureMetadata(md)
 	for fn, fs := range schedules {
 		md.airlines[fn.Airline] = struct{}{}
-		md.flightNumbers[fn] = struct{}{}
 
 		for _, variant := range fs.Variants {
+			md.flightNumbers[fn] = common.Max(md.flightNumbers[fn], variant.Metadata.RangesUpdateTime)
+			md.flightNumbers[fn] = common.Max(md.flightNumbers[fn], variant.Metadata.DataUpdateTime)
+
 			md.airports[variant.Data.DepartureAirport] = struct{}{}
 			md.airports[variant.Data.ArrivalAirport] = struct{}{}
 			md.aircraft[variant.Data.AircraftType] = struct{}{}
@@ -169,7 +172,7 @@ func (*umdAction) ensureMetadata(md metadata) metadata {
 	}
 
 	if md.flightNumbers == nil {
-		md.flightNumbers = make(common.Set[common.FlightNumber])
+		md.flightNumbers = make(map[common.FlightNumber]time.Time)
 	}
 
 	if md.aircraft == nil {
@@ -196,9 +199,31 @@ func (a *umdAction) updateMetadata(ctx context.Context, bucket, prefix string, m
 	})
 
 	g.Go(func() error {
-		var err error
-		output.FlightNumbers.Added, output.FlightNumbers.Removed, err = updateMetadata(ctx, a.s3c, bucket, prefix, "flightNumbers", md.flightNumbers)
-		return err
+		key := prefix + "flightNumbers.json"
+		{
+			var existing map[common.FlightNumber]time.Time
+			if err := adapt.S3GetJson(ctx, a.s3c, bucket, key, &existing); err != nil && !adapt.IsS3NotFound(err) {
+				return err
+			}
+
+			if existing != nil {
+				for fn := range md.flightNumbers {
+					_, ok := existing[fn]
+					delete(existing, fn)
+
+					if !ok {
+						output.FlightNumbers.Added += 1
+					}
+				}
+
+				output.FlightNumbers.Removed = len(existing)
+			} else {
+				output.FlightNumbers.Added = len(md.flightNumbers)
+				output.FlightNumbers.Removed = 0
+			}
+		}
+
+		return adapt.S3PutJson(ctx, a.s3c, bucket, key, md.flightNumbers)
 	})
 
 	g.Go(func() error {
