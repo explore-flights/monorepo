@@ -167,7 +167,7 @@ function FlightPopoverContent({ flight, aircraft }: { flight: Flight, aircraft?:
       <ValueWithLabel label={'Codeshares'}>
         <Join
           seperator={BulletSeperator}
-          items={flight.codeShares.map((v) => <FlightLink flightNumber={flightNumberToString(v)} external={true} target={'_blank'} />)}
+          items={flight.codeShares.map((v) => <FlightLink flightNumber={flightNumberToString(v)} target={'_blank'} />)}
         />
       </ValueWithLabel>
     </KeyValuePairs>

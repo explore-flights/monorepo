@@ -82,7 +82,7 @@ export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTab
             query = withDepartureDateFilter(query, v.departureTime);
             query = withDepartureAirportFilter(query, v.departureAirport);
 
-            return <FlightLink flightNumber={flightNumberToString(v.flightNumber)} query={query} external={true} target={'_blank'} />;
+            return <FlightLink flightNumber={flightNumberToString(v.flightNumber)} query={query} target={'_blank'} />;
           },
         },
         {
@@ -154,7 +154,7 @@ export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTab
             return (
               <Join
                 seperator={BulletSeperator}
-                items={v.codeShares.map((v) => <FlightLink flightNumber={flightNumberToString(v)} query={query} external={true} target={'_blank'} />)}
+                items={v.codeShares.map((v) => <FlightLink flightNumber={flightNumberToString(v)} query={query} target={'_blank'} />)}
               />
             );
           },

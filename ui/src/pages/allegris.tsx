@@ -112,7 +112,7 @@ function AllegrisTable({ title, query }: { title: string, query: UseQueryResult<
             query = withAircraftConfigurationVersionFilter(query, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS);
             query = withAircraftConfigurationVersionFilter(query, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST);
 
-            return <FlightLink flightNumber={v.flightNumber} query={query} external={true} target={'_blank'} />;
+            return <FlightLink flightNumber={v.flightNumber} query={query} target={'_blank'} />;
           },
           sortingField: 'flightNumber',
         },

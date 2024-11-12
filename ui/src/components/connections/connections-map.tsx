@@ -187,7 +187,7 @@ function AirportPopoverContent({ node }: { node: AirportNode }) {
         value: (
           <ColumnLayout columns={Math.min(Math.max(node.incomingFlights.length, 1), 4)} variant={'text-grid'}>
             {...node.incomingFlights.map((v) => (
-              <FlightLink flightNumber={v.flightNumber} target={'_blank'} external={true}>
+              <FlightLink flightNumber={v.flightNumber} target={'_blank'}>
                 {v.flightNumber}&nbsp;({v.departureAirport.airport.code})
               </FlightLink>
             ))}
@@ -202,7 +202,7 @@ function AirportPopoverContent({ node }: { node: AirportNode }) {
         value: (
           <ColumnLayout columns={Math.min(Math.max(node.outgoingFlights.length, 1), 4)} variant={'text-grid'}>
             {...node.outgoingFlights.map((v) => (
-              <FlightLink flightNumber={v.flightNumber} target={'_blank'} external={true}>
+              <FlightLink flightNumber={v.flightNumber} target={'_blank'}>
                 {v.flightNumber}&nbsp;({v.arrivalAirport.airport.code})
               </FlightLink>
             ))}
