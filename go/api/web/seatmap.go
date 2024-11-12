@@ -6,6 +6,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/common/xiter"
 	"iter"
+	"maps"
 	"slices"
 )
 
@@ -173,11 +174,11 @@ func normalizeSeatMaps(rawSeatMaps map[lufthansa.RequestCabinClass]lufthansa.Sea
 		Decks:        make([]*SeatMapDeck, 0),
 	}
 
-	for cc, rawSeatMap := range rawSeatMaps {
-		cc := normalizeCabinClass(cc)
+	for rawCc, rawSeatMap := range rawSeatMaps {
+		cc := normalizeCabinClass(rawCc)
 		sm.CabinClasses[cc] = struct{}{}
 
-		main, upper := normalizeSeatMap(cc, rawSeatMap)
+		main, upper := normalizeSeatMap(rawCc, cc, rawSeatMap)
 		for i, d := range []*SeatMapDeck{main, upper} {
 			if d == nil {
 				continue
@@ -232,7 +233,7 @@ func normalizeSeatMaps(rawSeatMaps map[lufthansa.RequestCabinClass]lufthansa.Sea
 	return sm
 }
 
-func normalizeSeatMap(cabinClass string, sm lufthansa.SeatAvailability) (*SeatMapDeck, *SeatMapDeck) {
+func normalizeSeatMap(rawCc lufthansa.RequestCabinClass, cabinClass string, sm lufthansa.SeatAvailability) (*SeatMapDeck, *SeatMapDeck) {
 	var main, upper *SeatMapDeck
 
 	for _, sd := range sm.SeatDisplay {
@@ -256,7 +257,7 @@ func normalizeSeatMap(cabinClass string, sm lufthansa.SeatAvailability) (*SeatMa
 			deck = main
 		}
 
-		deck.Cabins = append(deck.Cabins, normalizeSeatMapCabin(cabinClass, sd, details))
+		deck.Cabins = append(deck.Cabins, normalizeSeatMapCabin(rawCc, cabinClass, sd, details))
 
 		if sm.CabinLayout != nil {
 			if int(sm.CabinLayout.WingPosition.First) != 0 && int(sm.CabinLayout.WingPosition.Last) != 0 {
@@ -276,12 +277,12 @@ func normalizeSeatMap(cabinClass string, sm lufthansa.SeatAvailability) (*SeatMa
 	return main, upper
 }
 
-func normalizeSeatMapCabin(cabinClass string, sd lufthansa.SeatDisplay, details []lufthansa.SeatDetail) SeatMapCabin {
+func normalizeSeatMapCabin(rawCc lufthansa.RequestCabinClass, cabinClass string, sd lufthansa.SeatDisplay, details []lufthansa.SeatDetail) SeatMapCabin {
 	cabin := SeatMapCabin{
 		CabinClass:       cabinClass,
 		SeatColumns:      make([]string, 0, len(sd.Columns)),
 		ComponentColumns: make([]ColumnIdentifier, 0),
-		Aisle:            make(common.Set[int]),
+		Aisle:            nil,
 		Rows:             make([]SeatMapRow, 0),
 	}
 
@@ -358,6 +359,7 @@ func normalizeSeatMapCabin(cabinClass string, sd lufthansa.SeatDisplay, details 
 	var currRow SeatMapRow
 	detailsOffset := 0
 	compOffsetByRow := make(map[lufthansa.SeatDisplayComponentLocationRow]int)
+	aisleByRow := make(map[int]common.Set[int])
 
 	for compRelativeIdx, comp := range sd.Components {
 		colRepeats := make(map[lufthansa.ComponentColumnCharacteristic]int)
@@ -371,7 +373,13 @@ func normalizeSeatMapCabin(cabinClass string, sd lufthansa.SeatDisplay, details 
 				}
 
 				if isLeftOfAisle(i, details) {
-					cabin.Aisle[slices.Index(cabin.SeatColumns, seatDetail.Location.Column)] = struct{}{}
+					aisle, ok := aisleByRow[int(seatDetail.Location.Row.Number)]
+					if !ok {
+						aisle = make(common.Set[int])
+						aisleByRow[int(seatDetail.Location.Row.Number)] = aisle
+					}
+
+					aisle[slices.Index(cabin.SeatColumns, seatDetail.Location.Column)] = struct{}{}
 				}
 
 				currRow, cabin.Rows = appendSeat(cabin.SeatColumns, cabin.Rows, currRow, seatDetail)
@@ -409,7 +417,13 @@ func normalizeSeatMapCabin(cabinClass string, sd lufthansa.SeatDisplay, details 
 	for i := detailsOffset; i < len(details); i++ {
 		seatDetail := details[i]
 		if isLeftOfAisle(i, details) {
-			cabin.Aisle[slices.Index(cabin.SeatColumns, seatDetail.Location.Column)] = struct{}{}
+			aisle, ok := aisleByRow[int(seatDetail.Location.Row.Number)]
+			if !ok {
+				aisle = make(common.Set[int])
+				aisleByRow[int(seatDetail.Location.Row.Number)] = aisle
+			}
+
+			aisle[slices.Index(cabin.SeatColumns, seatDetail.Location.Column)] = struct{}{}
 		}
 
 		currRow, cabin.Rows = appendSeat(cabin.SeatColumns, cabin.Rows, currRow, seatDetail)
@@ -419,7 +433,87 @@ func normalizeSeatMapCabin(cabinClass string, sd lufthansa.SeatDisplay, details 
 		cabin.Rows = append(cabin.Rows, currRow)
 	}
 
+	cabin.Aisle = findCorrectAisle(rawCc, cabin.SeatColumns, aisleByRow)
+
 	return cabin
+}
+
+func findCorrectAisle(rawCc lufthansa.RequestCabinClass, columns []string, aisleByRow map[int]common.Set[int]) common.Set[int] {
+	var commonAisleConfigs [][]int
+	switch rawCc {
+	case lufthansa.RequestCabinClassEco:
+		commonAisleConfigs = [][]int{
+			{slices.Index(columns, "C")},
+			{slices.Index(columns, "C"), slices.Index(columns, "G")},
+		}
+
+	case lufthansa.RequestCabinClassPremiumEco:
+		commonAisleConfigs = [][]int{
+			{slices.Index(columns, "C")},
+			{slices.Index(columns, "C"), slices.Index(columns, "G")},
+		}
+
+	case lufthansa.RequestCabinClassBusiness:
+		commonAisleConfigs = [][]int{
+			{slices.Index(columns, "C")},
+			{slices.Index(columns, "C"), slices.Index(columns, "G")},
+			{slices.Index(columns, "A"), slices.Index(columns, "F")}, // SQ business a380
+		}
+
+	case lufthansa.RequestCabinClassFirst:
+		commonAisleConfigs = [][]int{
+			{slices.Index(columns, "C")},
+			{slices.Index(columns, "A")}, // SQ first a380
+			{slices.Index(columns, "C"), slices.Index(columns, "G")},
+			{slices.Index(columns, "A"), slices.Index(columns, "G")}, // LH first 747
+		}
+	}
+
+	maxScore := 0
+	maxScoreRows := make([]int, 0)
+
+	for row, aisle := range aisleByRow {
+		if len(aisle) >= 1 && len(aisle) <= 2 {
+			score := 0
+
+			for otherRow, otherAisle := range aisleByRow {
+				if row != otherRow && maps.Equal(aisle, otherAisle) {
+					score += 1
+				}
+			}
+
+			for _, commonConfig := range commonAisleConfigs {
+				if len(aisle) == len(commonConfig) {
+					match := true
+					for _, col := range commonConfig {
+						if !aisle.Contains(col) {
+							match = false
+							break
+						}
+					}
+
+					if match {
+						score += 1
+						break
+					}
+				}
+			}
+
+			if score > maxScore {
+				maxScore = score
+				maxScoreRows = []int{row}
+			} else if score == maxScore && !slices.Contains(maxScoreRows, row) {
+				maxScoreRows = append(maxScoreRows, row)
+			}
+		}
+	}
+
+	if len(maxScoreRows) < 1 {
+		return make(common.Set[int])
+	}
+
+	slices.Sort(maxScoreRows)
+	return aisleByRow[maxScoreRows[len(maxScoreRows)/2]]
 }
 
 func isLeftOfAisle(i int, details []lufthansa.SeatDetail) bool {
@@ -428,10 +522,7 @@ func isLeftOfAisle(i int, details []lufthansa.SeatDetail) bool {
 	}
 
 	sd := details[i]
-	if sd.HasCharacteristic(lufthansa.SeatCharacteristicExitRow) || isFirstOrLastRowWithinCabin(i, details) {
-		// ignore for exit/first/last row, those tend to be special
-		return false
-	} else if !sd.AisleAccess() {
+	if !sd.AisleAccess() {
 		return false
 	}
 
