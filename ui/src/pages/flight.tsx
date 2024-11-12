@@ -216,11 +216,11 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
               },
               {
                 label: 'Operated As',
-                value: <FlightNumberList flightNumbers={summary.operatedAs} exclude={flightNumber} />,
+                value: <FlightNumberList flightNumbers={summary.operatedAs} exclude={flightNumber} rel={'alternate'} />,
               },
               {
                 label: 'Codeshares',
-                value: <FlightNumberList flightNumbers={summary.codeShares} exclude={flightNumber} />,
+                value: <FlightNumberList flightNumbers={summary.codeShares} exclude={flightNumber} rel={'alternate'} />,
               },
               {
                 label: 'Links',
@@ -257,7 +257,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
             {
               id: 'operated_as',
               header: 'Operated As',
-              cell: (v) => <InternalFlightLink flightNumber={v.operatedAs} query={queryForScheduledFlight(v)} exclude={flightNumber} />,
+              cell: (v) => <InternalFlightLink flightNumber={v.operatedAs} query={queryForScheduledFlight(v)} exclude={flightNumber} rel={'alternate nofollow'} />,
             },
             {
               id: 'departure_airport',
@@ -327,7 +327,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
             {
               id: 'code_shares',
               header: 'Codeshares',
-              cell: (v) => <FlightNumberList flightNumbers={v.codeShares} query={queryForScheduledFlight(v)} exclude={flightNumber} />,
+              cell: (v) => <FlightNumberList flightNumbers={v.codeShares} query={queryForScheduledFlight(v)} exclude={flightNumber} rel={'alternate nofollow'} />,
             },
             {
               id: 'actions',
@@ -432,21 +432,21 @@ function OperatingDaysCell({ operatingDays }: { operatingDays: ReadonlyArray<Wee
   );
 }
 
-function FlightNumberList({ flightNumbers, query, exclude }: { flightNumbers: ReadonlyArray<string>, query?: URLSearchParams, exclude?: string }) {
+function FlightNumberList({ flightNumbers, query, exclude, rel }: { flightNumbers: ReadonlyArray<string>, query?: URLSearchParams, exclude?: string, rel?: string }) {
   return (
     <Join
       seperator={BulletSeperator}
-      items={flightNumbers.toSorted().map((v) => <InternalFlightLink flightNumber={v} query={query} exclude={exclude} />)}
+      items={flightNumbers.toSorted().map((v) => <InternalFlightLink flightNumber={v} query={query} exclude={exclude} rel={rel} />)}
     />
   );
 }
 
-function InternalFlightLink({ flightNumber, query, exclude }: { flightNumber: string, query?: URLSearchParams, exclude?: string }) {
+function InternalFlightLink({ flightNumber, query, exclude, rel }: { flightNumber: string, query?: URLSearchParams, exclude?: string, rel?: string }) {
   if (flightNumber === exclude) {
     return flightNumber;
   }
 
-  return <FlightLink flightNumber={flightNumber} query={query} />;
+  return <FlightLink flightNumber={flightNumber} query={query} rel={rel} />;
 }
 
 interface TableFilterProps {
