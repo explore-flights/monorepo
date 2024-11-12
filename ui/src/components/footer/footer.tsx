@@ -16,8 +16,8 @@ export default function FlightsFooter(props: FlightsFooterProps) {
   return (
     <footer id="flights-custom-footer" className={classes['flights-footer']}>
       <SpaceBetween size={isMobile ? 'xs' : 'm'} direction={isMobile ? 'vertical' : 'horizontal'}>
-        <RouterLink to={'/legal'}>Legal</RouterLink>
-        <RouterLink to={'/privacy-policy'}>Privacy Policy</RouterLink>
+        <RouterLink to={'/legal'} rel={'terms-of-service'}>Legal</RouterLink>
+        <RouterLink to={'/privacy-policy'} rel={'privacy-policy'}>Privacy Policy</RouterLink>
         <Link variant={'secondary'} href={'#'} onFollow={props.onPrivacyPreferencesClick}>Privacy Preferences</Link>
         <Box variant={'span'}>© 2024 Felix</Box>
       </SpaceBetween>
