@@ -1,7 +1,7 @@
 import React from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Container, ContentLayout, Header, TextContent } from '@cloudscape-design/components';
-import { RouterLink } from '../components/common/router-link';
+import { FlightLink } from '../components/common/flight-link';
 
 export function FlightSelect() {
   const [searchParams] = useSearchParams();
@@ -23,7 +23,7 @@ export function FlightSelect() {
 function FlightLinkListItem({ flightNumber }: { flightNumber: string }) {
   return (
     <li>
-      <RouterLink to={`/flight/${encodeURIComponent(flightNumber)}`}>{flightNumber}</RouterLink>
+      <FlightLink flightNumber={flightNumber} />
     </li>
   )
 }
