@@ -85,6 +85,7 @@ func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusNotFound)
 		}
 
+		allowFetchFresh := fsd.DepartureTime(departureDate).After(time.Now().Add(-time.Hour * 3))
 		cabinClasses := []lufthansa.RequestCabinClass{
 			lufthansa.RequestCabinClassEco,
 			lufthansa.RequestCabinClassPremiumEco,
@@ -103,10 +104,15 @@ func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
 				cabinClass,
 				aircraftType,
 				aircraftConfigurationVersion,
+				allowFetchFresh,
 			)
 
 			if err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError)
+				if errors.Is(err, data.ErrSeatMapFreshFetchRequired) {
+					return echo.NewHTTPError(http.StatusBadRequest, "Seatmaps can only be requested until 3 hours prior to departure")
+				} else {
+					return echo.NewHTTPError(http.StatusInternalServerError)
+				}
 			}
 
 			if sm != nil {

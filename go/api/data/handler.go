@@ -26,6 +26,8 @@ import (
 	"time"
 )
 
+var ErrSeatMapFreshFetchRequired = errors.New("fresh fetch required but not allowed")
+
 var metroAreaMapping = map[string][2]string{
 	// region Asia
 	"PEK": {"BJS", "Beijing, China"},
@@ -433,7 +435,7 @@ func (h *Handler) Airlines(ctx context.Context, prefix string) ([]common.Airline
 	}), nil
 }
 
-func (h *Handler) SeatMap(ctx context.Context, fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.RequestCabinClass, aircraftType, aircraftConfigurationVersion string) (*lufthansa.SeatAvailability, error) {
+func (h *Handler) SeatMap(ctx context.Context, fn common.FlightNumber, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass lufthansa.RequestCabinClass, aircraftType, aircraftConfigurationVersion string, allowFetchFresh bool) (*lufthansa.SeatAvailability, error) {
 	s3Key := h.seatMapS3Key(fn.Airline, aircraftType, aircraftConfigurationVersion, cabinClass)
 	sm, found, err := h.loadSeatMapFromS3(ctx, s3Key)
 	if err != nil {
@@ -455,6 +457,10 @@ func (h *Handler) SeatMap(ctx context.Context, fn common.FlightNumber, departure
 		)
 
 		return sm, nil
+	}
+
+	if !allowFetchFresh {
+		return nil, ErrSeatMapFreshFetchRequired
 	}
 
 	sm, err = h.loadSeatMapFromLH(ctx, fn, departureAirport, arrivalAirport, departureDate, cabinClass)
