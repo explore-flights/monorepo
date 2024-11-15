@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/explore-flights/monorepo/go/api/web"
 	"github.com/gorilla/feeds"
+	lwamw "github.com/its-felix/aws-lwa-go-middleware"
 	"github.com/labstack/echo/v4"
 	"log/slog"
 	"net/http"
@@ -49,10 +51,37 @@ func main() {
 	dataHandler := data.NewHandler(s3c, lhc, bucket)
 
 	e := echo.New()
-	e.Use(authHandler.Middleware)
+	e.Use(
+		lwamw.EchoMiddleware(
+			lwamw.WithMaskError(),
+			lwamw.WithRemoveHeaders(),
+		),
+		authHandler.Middleware,
+	)
 
 	jsonConnEdp := web.NewConnectionsEndpoint(connHandler, "json")
 	pngConnEdp := web.NewConnectionsEndpoint(connHandler, "png")
+
+	e.GET("/api/lwamw", func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		result := make(map[string]any)
+
+		if deadline, ok := ctx.Deadline(); ok {
+			result["deadline"] = deadline
+		}
+
+		var rc json.RawMessage
+		if lwamw.RequestContext(ctx, &rc) {
+			result["requestContext"] = rc
+		}
+
+		if lc, ok := lwamw.LambdaContext(ctx); ok {
+			result["lambdaContext"] = lc
+		}
+
+		return c.JSONPretty(http.StatusOK, result, "\t")
+	})
 
 	e.POST("/api/connections/json", jsonConnEdp)
 	e.GET("/api/connections/json/:payload", jsonConnEdp)

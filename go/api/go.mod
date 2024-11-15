@@ -12,6 +12,7 @@ require (
 	github.com/gofrs/uuid/v5 v5.3.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/gorilla/feeds v1.2.0
+	github.com/its-felix/aws-lwa-go-middleware v0.1.0
 	github.com/json-iterator/go v1.1.12
 	github.com/labstack/echo/v4 v4.12.0
 	golang.org/x/sync v0.8.0
@@ -20,6 +21,7 @@ require (
 )
 
 require (
+	github.com/aws/aws-lambda-go v1.47.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.6 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.41 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.17 // indirect
