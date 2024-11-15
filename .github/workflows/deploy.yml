@@ -11,6 +11,7 @@ env:
   WORKSPACE_ARTIFACT_API: 'explore_flights_api_artifact'
   WORKSPACE_ARTIFACT_CRON: 'explore_flights_cron_artifact'
   WORKSPACE_ARTIFACT_UI: 'explore_flights_ui_artifact'
+  WORKSPACE_ARTIFACT_OTEL_COLLECTOR: 'otel_collector_artifact'
   WORKSPACE_ARTIFACT_CDK: 'explore_flights_cdk_artifact'
 
 jobs:
@@ -98,6 +99,33 @@ jobs:
           path: 'ui/${{ env.WORKSPACE_ARTIFACT_UI }}.zip'
           retention-days: 1
 
+  build_otel_collector:
+    name: 'Build otel collector'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+      - name: 'Setup go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'opentelemetry-lambda/collector/go.mod'
+          cache-dependency-path: 'opentelemetry-lambda/collector/go.sum'
+      - name: 'Build'
+        working-directory: 'opentelemetry-lambda/collector'
+        env:
+          GOOS: 'linux'
+          GOARCH: 'arm64' # keep this in sync with the arch configured in CDK!
+          CGO_ENABLED: '0'
+          BUILDTAGS: 'lambdacomponents.custom,lambdacomponents.receiver.otlp,lambdacomponents.processor.decouple,lambdacomponents.exporter.otlphttp'
+        run: |
+          make build
+      - name: 'Store otel collector artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.WORKSPACE_ARTIFACT_OTEL_COLLECTOR }}
+          path: 'opentelemetry-lambda/collector/build/extensions/collector'
+          retention-days: 1
+
   build_and_synth_cdk:
     name: 'Build and synth cdk'
     runs-on: ubuntu-latest
@@ -105,6 +133,7 @@ jobs:
       - build_and_test_api
       - build_and_test_cron
       - build_ui
+      - build_otel_collector
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
@@ -127,6 +156,20 @@ jobs:
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_UI }}
           path: 'cdk/'
+      - name: 'Download otel collector artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.WORKSPACE_ARTIFACT_OTEL_COLLECTOR }}
+          path: .
+      - name: 'Prepare otel collector lambda extension bundle'
+        run: |
+          mkdir lambda_layer_bundle
+          mkdir lambda_layer_bundle/extensions
+          mv collector lambda_layer_bundle/extensions/layer
+          cp collector.yaml lambda_layer_bundle/
+          chmod +x lambda_layer_bundle/extensions/layer
+          (cd lambda_layer_bundle && zip -r cdk/otel_collector_layer_bundle.zip .)
+          rm -rf lambda_layer_bundle
       - name: 'Setup node'
         uses: actions/setup-node@v4
         with:

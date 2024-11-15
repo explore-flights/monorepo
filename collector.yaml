@@ -1,0 +1,41 @@
+# https://opentelemetry.io/docs/collector/configuration
+# https://github.com/open-telemetry/opentelemetry-lambda/blob/main/collector/README.md
+# https://grafana.com/docs/grafana-cloud/data-configuration/otlp/send-data-otlp/
+
+# for authorization:
+# 1. find the instance id at https://grafana.com/orgs/gw2auth/stacks (Grafana -> Details -> Instance ID)
+# 2. generate an API Key with MetricsPublisher role at https://grafana.com/orgs/gw2auth/api-keys
+# 3. execute: echo -n "<instance-id>:<api-key>" | base64
+# 4. The header must be "Basic <result of previous command>"
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+
+processors:
+  decouple:
+
+exporters:
+  otlphttp:
+    endpoint: "https://otlp-gateway-prod-eu-west-0.grafana.net/otlp"
+    headers:
+      authorization: ${env:GRAFANA_CLOUD_AUTH}
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [decouple]
+      exporters: [otlphttp]
+    metrics:
+      receivers: [otlp]
+      processors: [decouple]
+      exporters: [otlphttp]
+    logs:
+      receivers: [otlp]
+      processors: [decouple]
+      exporters: [otlphttp]
