@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/api/data"
@@ -61,27 +60,6 @@ func main() {
 
 	jsonConnEdp := web.NewConnectionsEndpoint(connHandler, "json")
 	pngConnEdp := web.NewConnectionsEndpoint(connHandler, "png")
-
-	e.GET("/api/lwamw", func(c echo.Context) error {
-		ctx := c.Request().Context()
-
-		result := make(map[string]any)
-
-		if deadline, ok := ctx.Deadline(); ok {
-			result["deadline"] = deadline
-		}
-
-		var rc json.RawMessage
-		if lwamw.RequestContext(ctx, &rc) {
-			result["requestContext"] = rc
-		}
-
-		if lc, ok := lwamw.LambdaContext(ctx); ok {
-			result["lambdaContext"] = lc
-		}
-
-		return c.JSONPretty(http.StatusOK, result, "\t")
-	})
 
 	e.POST("/api/connections/json", jsonConnEdp)
 	e.GET("/api/connections/json/:payload", jsonConnEdp)
