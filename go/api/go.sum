@@ -62,8 +62,8 @@ github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeN
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
 github.com/gorilla/feeds v1.2.0 h1:O6pBiXJ5JHhPvqy53NsjKOThq+dNFm8+DFrxBEdzSCc=
 github.com/gorilla/feeds v1.2.0/go.mod h1:WMib8uJP3BbY+X8Szd1rA5Pzhdfh+HCCAYT2z7Fza6Y=
-github.com/its-felix/aws-lwa-go-middleware v0.1.0 h1:u3Q+5o8HFOQVpm53ZSI+NFEy+j1dre7c2WzqArLuHuk=
-github.com/its-felix/aws-lwa-go-middleware v0.1.0/go.mod h1:OrGl0WPwyTf73ZeMqz+y9DemRVlksXm5zwuypLV9DxQ=
+github.com/its-felix/aws-lwa-go-middleware v0.1.1 h1:lrHe/T/B7NuODL2ScP6xG5bF5DUPCAm0xE1Ig3n/S7w=
+github.com/its-felix/aws-lwa-go-middleware v0.1.1/go.mod h1:OrGl0WPwyTf73ZeMqz+y9DemRVlksXm5zwuypLV9DxQ=
 github.com/jmespath/go-jmespath v0.4.0 h1:BEgLn5cpjn8UN1mAw4NjwDrS35OdebyEtFe+9YPoQUg=
 github.com/jmespath/go-jmespath v0.4.0/go.mod h1:T8mJZnbsbmF+m6zOOFylbeCJqk5+pHWvzYPziyZiYoo=
 github.com/jmespath/go-jmespath/internal/testify v1.5.1 h1:shLQSRRSCCPj3f2gpwzGwWFoC7ycTf1rcQZHOlsJ6N8=
