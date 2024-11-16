@@ -170,7 +170,7 @@ jobs:
           mv collector lambda_layer_bundle/extensions/layer
           cp collector.yaml lambda_layer_bundle/
           chmod +x lambda_layer_bundle/extensions/layer
-          (cd lambda_layer_bundle && zip -r cdk/otel_collector_layer_bundle.zip .)
+          (cd lambda_layer_bundle && zip -r ../cdk/otel_collector_layer_bundle.zip .)
           rm -rf lambda_layer_bundle
       - name: 'Setup node'
         uses: actions/setup-node@v4
