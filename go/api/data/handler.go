@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -521,49 +522,6 @@ func (h *Handler) seatMapS3Key(airline common.AirlineIdentifier, aircraftType, a
 	return fmt.Sprintf("tmp/seatmap/%s/%s/%s/%s.json", airline, aircraftType, aircraftConfigurationVersion, cabinClass)
 }
 
-func (h *Handler) QuerySchedules(ctx context.Context, airline common.AirlineIdentifier, aircraftType, aircraftConfigurationVersion string) (map[common.FlightNumber][]RouteAndRange, error) {
-	result := make(map[common.FlightNumber][]RouteAndRange)
-	err := h.flightSchedulesStream(ctx, airline, func(seq iter.Seq2[string, *onceIter[*common.FlightSchedule]]) error {
-		for _, scheduleIt := range seq {
-			fs, err := scheduleIt.Read()
-			if err != nil {
-				return err
-			}
-
-			fn := fs.Number()
-			for _, variant := range fs.Variants {
-				if variant.Data.ServiceType == "J" && variant.Data.AircraftType == aircraftType && variant.Data.AircraftConfigurationVersion == aircraftConfigurationVersion && variant.Data.OperatedAs == fn {
-					if cnt, span := variant.Ranges.Span(); cnt > 0 {
-						idx := slices.IndexFunc(result[fn], func(rr RouteAndRange) bool {
-							return rr.DepartureAirport == variant.Data.DepartureAirport && rr.ArrivalAirport == variant.Data.ArrivalAirport
-						})
-
-						if idx == -1 {
-							result[fn] = append(result[fn], RouteAndRange{
-								DepartureAirport: variant.Data.DepartureAirport,
-								ArrivalAirport:   variant.Data.ArrivalAirport,
-								Range:            span,
-							})
-						} else {
-							if result[fn][idx].Range[0].Compare(span[0]) > 0 {
-								result[fn][idx].Range[0] = span[0]
-							}
-
-							if result[fn][idx].Range[1].Compare(span[1]) < 0 {
-								result[fn][idx].Range[1] = span[1]
-							}
-						}
-					}
-				}
-			}
-		}
-
-		return nil
-	})
-
-	return result, err
-}
-
 func (h *Handler) flightSchedulesStream(ctx context.Context, airline common.AirlineIdentifier, fn func(seq iter.Seq2[string, *onceIter[*common.FlightSchedule]]) error) error {
 	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(h.bucket),
@@ -590,10 +548,10 @@ func (h *Handler) flightSchedulesStream(ctx context.Context, airline common.Airl
 	it := jsoniter.Parse(jsoniter.ConfigCompatibleWithStandardLibrary, r, 8196)
 	err = fn(func(yield func(string, *onceIter[*common.FlightSchedule]) bool) {
 		it.ReadObjectCB(func(value *jsoniter.Iterator, key string) bool {
-			oit := &onceIter[*common.FlightSchedule]{it: value}
+			oit := onceIter[*common.FlightSchedule]{it: value}
 			defer oit.Consume()
 
-			return yield(key, oit)
+			return yield(key, &oit)
 		})
 	})
 
@@ -672,23 +630,19 @@ func (r *csvReader) Close() error {
 type onceIter[T any] struct {
 	it   *jsoniter.Iterator
 	v    T
-	err  error
-	read bool
+	read atomic.Bool
 }
 
 func (it *onceIter[T]) Read() (T, error) {
-	if it.read {
-		return it.v, it.err
+	if it.read.CompareAndSwap(false, true) {
+		it.it.ReadVal(&it.v)
 	}
 
-	it.read = true
-	it.it.ReadVal(&it.v)
-	return it.v, it.err
+	return it.v, it.it.Error
 }
 
 func (it *onceIter[T]) Consume() {
-	if !it.read {
-		it.read = true
+	if it.read.CompareAndSwap(false, true) {
 		it.it.Skip()
 	}
 }

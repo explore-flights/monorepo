@@ -127,7 +127,7 @@ func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
 	}
 }
 
-func NewQueryFlightSchedulesEndpoint(dh *data.Handler) echo.HandlerFunc {
+func NewFlightSchedulesByConfigurationEndpoint(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		airline := strings.ToUpper(c.Param("airline"))
 		aircraftType := strings.ToUpper(c.Param("aircraftType"))
@@ -135,9 +135,11 @@ func NewQueryFlightSchedulesEndpoint(dh *data.Handler) echo.HandlerFunc {
 
 		result, err := dh.QuerySchedules(
 			c.Request().Context(),
-			common.AirlineIdentifier(airline),
-			aircraftType,
-			aircraftConfigurationVersion,
+			data.WithServiceType("J"),
+			data.WithAirlines(common.AirlineIdentifier(airline)),
+			data.WithAircraftType(aircraftType),
+			data.WithAircraftConfigurationVersion(aircraftConfigurationVersion),
+			data.WithIgnoreCodeShares(),
 		)
 
 		if err != nil {

@@ -68,6 +68,7 @@ func main() {
 	e.POST("/api/connections/share", web.NewConnectionsShareCreateEndpoint())
 	e.GET("/api/connections/share/:payload", web.NewConnectionsShareHTMLEndpoint())
 	e.GET("/api/search", web.NewSearchEndpoint(dataHandler))
+	e.GET("/api/schedule/search", web.NewQueryFlightSchedulesEndpoint(dataHandler))
 
 	e.HEAD("/auth/info", authHandler.AuthInfo)
 	e.POST("/auth/logout", authHandler.Logout)
@@ -80,7 +81,7 @@ func main() {
 	e.GET("/data/aircraft.json", web.NewAircraftEndpoint(dataHandler))
 	e.GET("/data/flight/:fn", web.NewFlightNumberEndpoint(dataHandler))
 	e.GET("/data/flight/:fn/seatmap/:departure/:arrival/:date/:aircraft", web.NewSeatMapEndpoint(dataHandler))
-	e.GET("/data/:airline/schedule/:aircraftType/:aircraftConfigurationVersion/v2", web.NewQueryFlightSchedulesEndpoint(dataHandler))
+	e.GET("/data/:airline/schedule/:aircraftType/:aircraftConfigurationVersion/v2", web.NewFlightSchedulesByConfigurationEndpoint(dataHandler))
 	e.GET("/data/:fn/:departureDate/:departureAirport/feed.rss", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/rss+xml", (*feeds.Feed).WriteRss))
 	e.GET("/data/:fn/:departureDate/:departureAirport/feed.atom", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/atom+xml", (*feeds.Feed).WriteAtom))
 	e.GET("/data/allegris/feed.rss", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".rss"))
