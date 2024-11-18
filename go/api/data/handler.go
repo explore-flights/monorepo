@@ -159,9 +159,10 @@ type Airport struct {
 }
 
 type Aircraft struct {
-	Code      string `json:"code"`
-	EquipCode string `json:"equipCode"`
-	Name      string `json:"name"`
+	Code           string             `json:"code"`
+	EquipCode      string             `json:"equipCode"`
+	Name           string             `json:"name"`
+	Configurations common.Set[string] `json:"configurations"`
 }
 
 type RouteAndRange struct {
@@ -304,16 +305,9 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 }
 
 func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
-	relevantAircraftCodes := make(common.Set[string])
-	{
-		var aircraft map[string]common.Set[string]
-		if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/aircraft.json", &aircraft); err != nil {
-			return nil, err
-		}
-
-		for code := range aircraft {
-			relevantAircraftCodes[code] = struct{}{}
-		}
+	var relevantAircraft map[string]common.Set[string]
+	if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/aircraft.json", &relevantAircraft); err != nil {
+		return nil, err
 	}
 
 	var aircraft []lufthansa.Aircraft
@@ -323,26 +317,29 @@ func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
 
 	result := make([]Aircraft, 0, len(aircraft))
 	for _, a := range aircraft {
-		if _, ok := relevantAircraftCodes[a.AircraftCode]; !ok {
+		configurations, ok := relevantAircraft[a.AircraftCode]
+		if !ok {
 			continue
 		}
 
-		delete(relevantAircraftCodes, a.AircraftCode)
+		delete(relevantAircraft, a.AircraftCode)
 
 		result = append(result, Aircraft{
-			Code:      a.AircraftCode,
-			EquipCode: a.AirlineEquipCode,
-			Name:      findName(a.Names, "EN"),
+			Code:           a.AircraftCode,
+			EquipCode:      a.AirlineEquipCode,
+			Name:           findName(a.Names, "EN"),
+			Configurations: configurations,
 		})
 	}
 
-	for code := range relevantAircraftCodes {
+	for code, configurations := range relevantAircraft {
 		slog.WarnContext(ctx, "no data found for aircraft", slog.String("code", code))
 
 		result = append(result, Aircraft{
-			Code:      code,
-			EquipCode: "",
-			Name:      code,
+			Code:           code,
+			EquipCode:      "",
+			Name:           code,
+			Configurations: configurations,
 		})
 	}
 
