@@ -13,6 +13,13 @@ import (
 	"time"
 )
 
+func NewAirlinesEndpoint(dh *data.Handler) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		airlines, err := dh.Airlines(c.Request().Context(), "")
+		return jsonResponse(c, airlines, err, func(v []common.AirlineIdentifier) bool { return false })
+	}
+}
+
 func NewAirportsEndpoint(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		airports, err := dh.Airports(c.Request().Context())

@@ -44,6 +44,11 @@ const ROUTES = [{
       path: 'tools',
       children: [
         {
+          path: 'flight-search',
+          title: 'Flight Search',
+          breadcrumb: 'Flight Search',
+        },
+        {
           path: 'mm-quick-search',
           title: 'M&M Quick Search',
           breadcrumb: 'M&M Quick Search',

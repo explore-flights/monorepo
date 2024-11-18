@@ -77,6 +77,7 @@ func main() {
 	e.GET("/auth/oauth2/code/:issuer", authHandler.Code)
 
 	e.GET("/data/sitemap.xml", web.NewSitemapHandler(dataHandler))
+	e.GET("/data/airlines.json", web.NewAirlinesEndpoint(dataHandler))
 	e.GET("/data/airports.json", web.NewAirportsEndpoint(dataHandler))
 	e.GET("/data/aircraft.json", web.NewAircraftEndpoint(dataHandler))
 	e.GET("/data/flight/:fn", web.NewFlightNumberEndpoint(dataHandler))

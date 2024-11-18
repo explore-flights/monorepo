@@ -1,21 +1,21 @@
 import { Aircraft } from '../../lib/api/api.model';
 import React, { useMemo } from 'react';
-import { Multiselect, MultiselectProps } from '@cloudscape-design/components';
+import { Select, SelectProps } from '@cloudscape-design/components';
 
-export interface AircraftMultiselectProps {
+export interface AircraftSelectProps {
   aircraft: ReadonlyArray<Aircraft>;
-  selectedAircraftCodes: ReadonlyArray<string>;
+  selectedAircraftCode: string | null;
   loading: boolean;
   disabled: boolean;
-  onChange: (options: ReadonlyArray<string>) => void;
+  onChange: (v: string | null) => void;
   placeholder?: string;
 }
 
-export function AircraftMultiselect({ aircraft, selectedAircraftCodes, loading, disabled, onChange, placeholder }: AircraftMultiselectProps) {
+export function AircraftSelect({ aircraft, selectedAircraftCode, loading, disabled, onChange, placeholder }: AircraftSelectProps) {
   const [options, optionByAircraftCode] = useMemo(() => {
-    const optionByAircraftCode: Record<string, MultiselectProps.Option> = {};
-    const otherOptions: Array<MultiselectProps.Option> = [];
-    const groups: ReadonlyArray<{ name: string, options: Array<MultiselectProps.Option> }> = [
+    const optionByAircraftCode: Record<string, SelectProps.Option> = {};
+    const otherOptions: Array<SelectProps.Option> = [];
+    const groups: ReadonlyArray<{ name: string, options: Array<SelectProps.Option> }> = [
       { name: 'Airbus', options: [] },
       { name: 'Boeing', options: [] },
       { name: 'Embraer', options: [] },
@@ -30,7 +30,7 @@ export function AircraftMultiselect({ aircraft, selectedAircraftCodes, loading, 
         label: a.name,
         value: a.code,
         description: a.equipCode,
-      } satisfies MultiselectProps.Option;
+      } satisfies SelectProps.Option;
 
       let addedToGroup = false;
       for (const group of groups) {
@@ -48,7 +48,7 @@ export function AircraftMultiselect({ aircraft, selectedAircraftCodes, loading, 
       optionByAircraftCode[a.code] = option;
     }
 
-    const options: Array<MultiselectProps.Option | MultiselectProps.OptionGroup> = [];
+    const options: Array<SelectProps.Option | SelectProps.OptionGroup> = [];
     for (const group of groups) {
       if (group.options.length > 0) {
         options.push({
@@ -63,27 +63,21 @@ export function AircraftMultiselect({ aircraft, selectedAircraftCodes, loading, 
     return [options, optionByAircraftCode];
   }, [aircraft]);
 
-  const selectedOptions = useMemo(() => {
-    const result: Array<MultiselectProps.Option> = [];
-    for (const aircraftCode of selectedAircraftCodes) {
-      const option = optionByAircraftCode[aircraftCode];
-      if (option) {
-        result.push(option);
-      }
+  const selectedOption = useMemo(() => {
+    if (!selectedAircraftCode) {
+      return null;
     }
 
-    return result;
-  }, [optionByAircraftCode, selectedAircraftCodes]);
+    return optionByAircraftCode[selectedAircraftCode];
+  }, [optionByAircraftCode, selectedAircraftCode]);
 
   return (
-    <Multiselect
+    <Select
       options={options}
-      selectedOptions={selectedOptions}
-      onChange={(e) => onChange(e.detail.selectedOptions.flatMap((v) => v.value ? [v.value] : []))}
-      keepOpen={true}
+      selectedOption={selectedOption}
+      onChange={(e) => onChange(e.detail.selectedOption?.value ?? null)}
       virtualScroll={true}
       filteringType={'auto'}
-      tokenLimit={2}
       disabled={disabled}
       statusType={loading ? 'loading' : 'finished'}
       placeholder={placeholder}

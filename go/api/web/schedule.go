@@ -16,14 +16,19 @@ func NewQueryFlightSchedulesEndpoint(dh *data.Handler) echo.HandlerFunc {
 			data.WithIgnoreCodeShares(),
 		}
 
+		highFrequencyFilters := 0
 		for k, values := range c.QueryParams() {
 			if len(values) < 1 {
 				continue
 			}
 
 			subOpts := make([]data.QueryScheduleOption, 0, len(values))
+			isHighFrequency := false
+
 			switch k {
 			case "airline":
+				isHighFrequency = true
+
 				for _, value := range values {
 					subOpts = append(subOpts, data.WithAirlines(common.AirlineIdentifier(value)))
 				}
@@ -69,6 +74,8 @@ func NewQueryFlightSchedulesEndpoint(dh *data.Handler) echo.HandlerFunc {
 				}
 
 			case "minDepartureTime":
+				isHighFrequency = true
+
 				minDepartureTime, err := time.Parse(time.RFC3339, values[0])
 				if err != nil {
 					return echo.NewHTTPError(http.StatusBadRequest, err.Error())
@@ -77,6 +84,8 @@ func NewQueryFlightSchedulesEndpoint(dh *data.Handler) echo.HandlerFunc {
 				subOpts = append(subOpts, data.WithMinDepartureTime(minDepartureTime))
 
 			case "maxDepartureTime":
+				isHighFrequency = true
+
 				maxDepartureTime, err := time.Parse(time.RFC3339, values[0])
 				if err != nil {
 					return echo.NewHTTPError(http.StatusBadRequest, err.Error())
@@ -87,10 +96,14 @@ func NewQueryFlightSchedulesEndpoint(dh *data.Handler) echo.HandlerFunc {
 
 			if len(subOpts) > 0 {
 				options = append(options, data.WithAny(subOpts...))
+
+				if isHighFrequency {
+					highFrequencyFilters++
+				}
 			}
 		}
 
-		if len(options) < 3 {
+		if (len(options) - highFrequencyFilters) < 3 {
 			return echo.NewHTTPError(http.StatusBadRequest, "too few filters")
 		}
 

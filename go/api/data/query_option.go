@@ -232,7 +232,7 @@ func WithAll(opts ...QueryScheduleOption) QueryScheduleOption {
 		childs := make([]querySchedulesOptions, len(opts))
 
 		for i, opt := range opts {
-			err = errors.Join(err, opt(&childs[i]))
+			err = errors.Join(err, childs[i].apply(opt))
 		}
 
 		return errors.Join(err, o.and(childs))
@@ -249,7 +249,7 @@ func WithAny(opts ...QueryScheduleOption) QueryScheduleOption {
 		childs := make([]querySchedulesOptions, len(opts))
 
 		for i, opt := range opts {
-			err = errors.Join(err, opt(&childs[i]))
+			err = errors.Join(err, childs[i].apply(opt))
 		}
 
 		return errors.Join(err, o.or(childs))

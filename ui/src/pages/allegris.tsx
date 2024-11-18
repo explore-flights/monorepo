@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { Box, Button, ContentLayout, Header, Pagination, SpaceBetween, Table } from '@cloudscape-design/components';
-import { useQueryFlightSchedules } from '../components/util/state/data';
+import { useFlightSchedulesByConfiguration } from '../components/util/state/data';
 import { UseQueryResult } from '@tanstack/react-query';
 import { QueryScheduleResponse } from '../lib/api/api.model';
 import { useCollection } from '@cloudscape-design/collection-hooks';
@@ -17,8 +17,8 @@ import { ErrorNotificationContent, useAppControls } from '../components/util/con
 const AIRCRAFT_TYPE_A350_900 = '359';
 
 export function Allegris() {
-  const queryRegular = useQueryFlightSchedules('LH', AIRCRAFT_TYPE_A350_900, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS);
-  const queryWithFirst = useQueryFlightSchedules('LH', AIRCRAFT_TYPE_A350_900, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST);
+  const queryRegular = useFlightSchedulesByConfiguration('LH', AIRCRAFT_TYPE_A350_900, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS);
+  const queryWithFirst = useFlightSchedulesByConfiguration('LH', AIRCRAFT_TYPE_A350_900, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST);
 
   const actions = (
     <SpaceBetween direction={'horizontal'} size={'xs'}>

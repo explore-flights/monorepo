@@ -19,6 +19,7 @@ export function SideNav() {
           type: 'section-group',
           title: 'Tools',
           items: [
+            { type: 'link', text: 'Flight Search', href: useHref('/tools/flight-search') },
             { type: 'link', text: 'M&M Quick Search', href: useHref('/tools/mm-quick-search') },
             { type: 'link', text: 'Links', href: useHref('/tools/links') },
           ],

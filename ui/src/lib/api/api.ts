@@ -10,7 +10,7 @@ import {
   ConnectionsSearchRequest,
   ConnectionsSearchResponseWithSearch,
   ConnectionsSearchResponse,
-  FlightSchedule, SeatMap, QueryScheduleResponse
+  FlightSchedule, SeatMap, QueryScheduleResponse, QuerySchedulesRequest
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -64,6 +64,10 @@ export class ApiClient {
       (status) => status >= 200 && status < 300 ? {} : null,
       204,
     );
+  }
+
+  getAirlines(): Promise<ApiResponse<ReadonlyArray<string>>> {
+    return transform(this.httpClient.fetch('/data/airlines.json'));
   }
 
   getAirports(): Promise<ApiResponse<Airports>> {
@@ -122,8 +126,50 @@ export class ApiClient {
     return transform(this.httpClient.fetch(url));
   }
 
-  queryFlightSchedules(airline: string, aircraftType: string, aircraftConfigurationVersion: string): Promise<ApiResponse<QueryScheduleResponse>> {
+  getFlightSchedulesByConfiguration(airline: string, aircraftType: string, aircraftConfigurationVersion: string): Promise<ApiResponse<QueryScheduleResponse>> {
     return transform(this.httpClient.fetch(`/data/${encodeURIComponent(airline)}/schedule/${encodeURIComponent(aircraftType)}/${aircraftConfigurationVersion}/v2`));
+  }
+
+  queryFlightSchedules(req: QuerySchedulesRequest): Promise<ApiResponse<QueryScheduleResponse>> {
+    const params = new URLSearchParams();
+
+    for (const airline of req.airline ?? []) {
+      params.append('airline', airline);
+    }
+
+    for (const aircraftType of req.aircraftType ?? []) {
+      params.append('aircraftType', aircraftType);
+    }
+
+    for (const aircraftConfigurationVersion of req.aircraftConfigurationVersion ?? []) {
+      params.append('aircraftConfigurationVersion', aircraftConfigurationVersion);
+    }
+
+    for (const [aircraftType, aircraftConfigurationVersion] of req.aircraft ?? []) {
+      params.append('aircraft', `${aircraftType}-${aircraftConfigurationVersion}`);
+    }
+
+    for (const departureAirport of req.departureAirport ?? []) {
+      params.append('departureAirport', departureAirport);
+    }
+
+    for (const arrivalAirport of req.arrivalAirport ?? []) {
+      params.append('arrivalAirport', arrivalAirport);
+    }
+
+    for (const [departureAirport, arrivalAirport] of req.route ?? []) {
+      params.append('route', `${departureAirport}-${arrivalAirport}`);
+    }
+
+    if (req.minDepartureTime) {
+      params.set('minDepartureTime', req.minDepartureTime.toISO());
+    }
+
+    if (req.maxDepartureTime) {
+      params.set('maxDepartureTime', req.maxDepartureTime.toISO());
+    }
+
+    return transform(this.httpClient.fetch(`/api/schedule/search?${params.toString()}`));
   }
 
   search(query: string): Promise<ApiResponse<ReadonlyArray<string>>> {

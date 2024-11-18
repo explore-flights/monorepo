@@ -1,3 +1,5 @@
+import { DateTime } from 'luxon';
+
 export type JsonObject = { [k: string]: JsonType };
 export type JsonArray = ReadonlyArray<JsonType>;
 export type JsonType = JsonObject | JsonArray | string | number | boolean | null;
@@ -94,6 +96,7 @@ export interface Aircraft {
   code: string;
   equipCode: string;
   name: string;
+  configurations: ReadonlyArray<string>;
 }
 
 export interface ConnectionSearchShare {
@@ -240,6 +243,18 @@ export enum ComponentFeature {
   STORAGE_SPACE = 'SO',
   STAIRS = 'ST',
   TABLE = 'TA',
+}
+
+export interface QuerySchedulesRequest {
+  airline?: ReadonlyArray<string>;
+  aircraftType?: ReadonlyArray<string>;
+  aircraftConfigurationVersion?: ReadonlyArray<string>;
+  aircraft?: ReadonlyArray<[string, string]>;
+  departureAirport?: ReadonlyArray<string>;
+  arrivalAirport?: ReadonlyArray<string>;
+  route?: ReadonlyArray<[string, string]>;
+  minDepartureTime?: DateTime<true>;
+  maxDepartureTime?: DateTime<true>;
 }
 
 export type QueryScheduleResponse = Record<string, ReadonlyArray<RouteAndRange>>;
