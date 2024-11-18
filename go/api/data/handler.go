@@ -304,14 +304,14 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 }
 
 func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
-	relevantAircraftCodes := make(map[string]struct{})
+	relevantAircraftCodes := make(common.Set[string])
 	{
-		var aircraft []string
+		var aircraft map[string]common.Set[string]
 		if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/aircraft.json", &aircraft); err != nil {
 			return nil, err
 		}
 
-		for _, code := range aircraft {
+		for code := range aircraft {
 			relevantAircraftCodes[code] = struct{}{}
 		}
 	}

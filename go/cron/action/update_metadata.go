@@ -38,7 +38,7 @@ type metadata struct {
 	airports      common.Set[string]
 	airlines      common.Set[common.AirlineIdentifier]
 	flightNumbers map[common.FlightNumber]time.Time
-	aircraft      common.Set[string]
+	aircraft      map[string]common.Set[string]
 }
 
 type umdAction struct {
@@ -129,7 +129,14 @@ func (a *umdAction) worker(ctx context.Context, obj [2]string, md metadata) (met
 
 			md.airports[variant.Data.DepartureAirport] = struct{}{}
 			md.airports[variant.Data.ArrivalAirport] = struct{}{}
-			md.aircraft[variant.Data.AircraftType] = struct{}{}
+
+			aircraftConfigurationVersions, ok := md.aircraft[variant.Data.AircraftType]
+			if !ok {
+				aircraftConfigurationVersions = make(common.Set[string])
+				md.aircraft[variant.Data.AircraftType] = aircraftConfigurationVersions
+			}
+
+			aircraftConfigurationVersions[variant.Data.AircraftConfigurationVersion] = struct{}{}
 		}
 	}
 
@@ -176,7 +183,7 @@ func (*umdAction) ensureMetadata(md metadata) metadata {
 	}
 
 	if md.aircraft == nil {
-		md.aircraft = make(common.Set[string])
+		md.aircraft = make(map[string]common.Set[string])
 	}
 
 	return md
@@ -227,9 +234,31 @@ func (a *umdAction) updateMetadata(ctx context.Context, bucket, prefix string, m
 	})
 
 	g.Go(func() error {
-		var err error
-		output.Aircraft.Added, output.Aircraft.Removed, err = updateMetadata(ctx, a.s3c, bucket, prefix, "aircraft", md.aircraft)
-		return err
+		key := prefix + "aircraft.json"
+		{
+			var existing map[string]common.Set[string]
+			if err := adapt.S3GetJson(ctx, a.s3c, bucket, key, &existing); err != nil && !adapt.IsS3NotFound(err) {
+				return err
+			}
+
+			if existing != nil {
+				for aircraftType := range md.aircraft {
+					_, ok := existing[aircraftType]
+					delete(existing, aircraftType)
+
+					if !ok {
+						output.Aircraft.Added += 1
+					}
+				}
+
+				output.Aircraft.Removed = len(existing)
+			} else {
+				output.Aircraft.Added = len(md.aircraft)
+				output.Aircraft.Removed = 0
+			}
+		}
+
+		return adapt.S3PutJson(ctx, a.s3c, bucket, key, md.aircraft)
 	})
 
 	return output, g.Wait()
