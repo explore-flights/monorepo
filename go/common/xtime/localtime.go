@@ -2,35 +2,27 @@ package xtime
 
 import (
 	"cmp"
-	"encoding/json"
 	"fmt"
 	"time"
 )
 
-var (
-	ltZero   LocalTime
-	Midnight = ltZero
-)
-
-type LocalTime struct {
-	Hour int
-	Min  int
-	Sec  int
-}
+type LocalTime time.Duration
 
 func NewLocalTime(t time.Time) LocalTime {
 	hour, minute, sec := t.Clock()
-	return LocalTime{
-		Hour: hour,
-		Min:  minute,
-		Sec:  sec,
-	}
+
+	d := time.Duration(0)
+	d += time.Duration(hour) * time.Hour
+	d += time.Duration(minute) * time.Minute
+	d += time.Duration(sec) * time.Second
+
+	return LocalTime(d)
 }
 
 func ParseLocalTime(v string) (LocalTime, error) {
 	t, err := time.Parse("15:04:05", v)
 	if err != nil {
-		return LocalTime{}, err
+		return LocalTime(0), err
 	}
 
 	return NewLocalTime(t), nil
@@ -45,26 +37,45 @@ func MustParseLocalTime(v string) LocalTime {
 	return t
 }
 
+func (lt LocalTime) Clock() (int, int, int) {
+	d := time.Duration(lt).Truncate(time.Second)
+	hour := d / time.Hour
+	d %= time.Hour
+
+	minute := d / time.Minute
+	d %= time.Minute
+
+	second := d / time.Second
+
+	return int(hour), int(minute), int(second)
+}
+
 func (lt LocalTime) Time(d LocalDate, loc *time.Location) time.Time {
-	return time.Date(d.Year, d.Month, d.Day, lt.Hour, lt.Min, lt.Sec, 0, cmp.Or(loc, time.UTC))
+	year, month, day := d.Date()
+	hour, minute, second := lt.Clock()
+	return time.Date(year, month, day, hour, minute, second, 0, cmp.Or(loc, time.UTC))
 }
 
 func (lt LocalTime) String() string {
-	return fmt.Sprintf("%02d:%02d:%02d", lt.Hour, lt.Min, lt.Sec)
+	d := time.Duration(lt).Truncate(time.Second)
+	hour := d / time.Hour
+	d %= time.Hour
+
+	minute := d / time.Minute
+	d %= time.Minute
+
+	second := d / time.Second
+
+	return fmt.Sprintf("%02d:%02d:%02d", hour, minute, second)
 }
 
-func (lt *LocalTime) UnmarshalJSON(data []byte) error {
-	var v string
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-
+func (lt *LocalTime) UnmarshalText(text []byte) error {
 	var err error
-	*lt, err = ParseLocalTime(v)
+	*lt, err = ParseLocalTime(string(text))
 
 	return err
 }
 
-func (lt LocalTime) MarshalJSON() ([]byte, error) {
-	return json.Marshal(lt.String())
+func (lt LocalTime) MarshalText() ([]byte, error) {
+	return []byte(lt.String()), nil
 }

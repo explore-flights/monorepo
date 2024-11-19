@@ -197,7 +197,7 @@ func WithIgnoreCodeShares() QueryScheduleOption {
 func WithMinDepartureTime(minDepartureTime time.Time) QueryScheduleOption {
 	return func(o *querySchedulesOptions) error {
 		o.variantPredicates = append(o.variantPredicates, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-			if cnt, span := fsv.Ranges.Span(); cnt > 0 {
+			if span, ok := fsv.Ranges.Span(); ok {
 				return fsv.DepartureTime(span[1]).After(minDepartureTime)
 			}
 
@@ -211,7 +211,7 @@ func WithMinDepartureTime(minDepartureTime time.Time) QueryScheduleOption {
 func WithMaxDepartureTime(maxDepartureTime time.Time) QueryScheduleOption {
 	return func(o *querySchedulesOptions) error {
 		o.variantPredicates = append(o.variantPredicates, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-			if cnt, span := fsv.Ranges.Span(); cnt > 0 {
+			if span, ok := fsv.Ranges.Span(); ok {
 				return fsv.DepartureTime(span[0]).Before(maxDepartureTime)
 			}
 

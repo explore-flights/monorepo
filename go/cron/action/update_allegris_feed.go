@@ -221,8 +221,8 @@ func (a *uafAction) buildItemContent(fn common.FlightNumber, variants []*common.
 	result := fmt.Sprintf("Flight %s operates Allegris on:\n", fn.String())
 	for _, route := range routesSorted {
 		ldrs := rangeByRoute[route]
-		if cnt, span := ldrs.Span(); cnt > 0 {
-			result += fmt.Sprintf("%s - %s from %s until %s (%d days)\n", route[0], route[1], span[0].String(), span[1].String(), cnt)
+		if span, ok := ldrs.Span(); ok {
+			result += fmt.Sprintf("%s - %s from %s until %s (%d days)\n", route[0], route[1], span[0].String(), span[1].String(), ldrs.Count())
 		}
 	}
 

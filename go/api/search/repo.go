@@ -36,7 +36,7 @@ func (fr *FlightRepo) Flights(ctx context.Context, start, end xtime.LocalDate) (
 	g, ctx := errgroup.WithContext(ctx)
 	curr := start
 
-	for curr.Compare(end) <= 0 {
+	for curr <= end {
 		d := curr
 		g.Go(func() error {
 			flights, err := fr.flightsInternal(ctx, d)
@@ -52,7 +52,7 @@ func (fr *FlightRepo) Flights(ctx context.Context, start, end xtime.LocalDate) (
 			return nil
 		})
 
-		curr = curr.Next()
+		curr += 1
 	}
 
 	return result, g.Wait()

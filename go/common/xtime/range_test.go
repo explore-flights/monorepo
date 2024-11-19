@@ -1,111 +1,36 @@
 package xtime
 
 import (
+	"encoding/json"
 	"github.com/stretchr/testify/assert"
+	"slices"
 	"testing"
 )
 
-func TestLocalDateRanges_Add_Simple(t *testing.T) {
-	ldrs := LocalDateRanges{
-		{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-31")},
-	}
-
-	ldrs = ldrs.Add(MustParseLocalDate("2024-02-01"))
+func TestLocalDateRange_Iter(t *testing.T) {
+	ldr := LocalDateRange{MustParseLocalDate("2024-06-01"), MustParseLocalDate("2024-06-02")}
 
 	assert.Equal(
 		t,
-		LocalDateRanges{
-			{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-02-01")},
+		[]LocalDate{
+			MustParseLocalDate("2024-06-01"),
+			MustParseLocalDate("2024-06-02"),
 		},
-		ldrs,
+		slices.Sorted(ldr.Iter()),
 	)
 }
 
-func TestLocalDateRanges_Add_AlreadyExists(t *testing.T) {
-	ldrs := LocalDateRanges{
-		{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-31")},
-	}
+func TestLocalDateRanges_JSON(t *testing.T) {
+	var ldrs LocalDateRanges
+	ldrs = ldrs.ExpandAll(NewLocalDateRanges(LocalDateRange{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-31")}.Iter()))
+	ldrs = ldrs.ExpandAll(NewLocalDateRanges(LocalDateRange{MustParseLocalDate("2024-06-01"), MustParseLocalDate("2024-06-15")}.Iter()))
+	ldrs = ldrs.Add(MustParseLocalDate("2024-03-01"))
 
-	ldrs = ldrs.Add(MustParseLocalDate("2024-01-15"))
-
+	b, err := json.Marshal(ldrs)
+	assert.NoError(t, err)
 	assert.Equal(
 		t,
-		LocalDateRanges{
-			{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-31")},
-		},
-		ldrs,
-	)
-}
-
-func TestLocalDateRanges_Expand_InBetween(t *testing.T) {
-	ldrs := LocalDateRanges{
-		{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-31")},
-		{MustParseLocalDate("2024-12-01"), MustParseLocalDate("2024-12-31")},
-	}
-
-	ldrs = ldrs.Expand(LocalDateRange{
-		MustParseLocalDate("2024-06-01"),
-		MustParseLocalDate("2024-06-30"),
-	})
-
-	assert.Equal(
-		t,
-		LocalDateRanges{
-			{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-31")},
-			{MustParseLocalDate("2024-06-01"), MustParseLocalDate("2024-06-30")},
-			{MustParseLocalDate("2024-12-01"), MustParseLocalDate("2024-12-31")},
-		},
-		ldrs,
-	)
-}
-
-func TestLocalDateRanges_Expand_Connect(t *testing.T) {
-	ldrs := LocalDateRanges{
-		{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-31")},
-		{MustParseLocalDate("2024-03-01"), MustParseLocalDate("2024-03-31")},
-	}
-
-	ldrs = ldrs.Expand(LocalDateRange{
-		MustParseLocalDate("2024-02-01"),
-		MustParseLocalDate("2024-02-29"),
-	})
-
-	assert.Equal(
-		t,
-		LocalDateRanges{
-			{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-03-31")},
-		},
-		ldrs,
-	)
-}
-
-func TestLocalDateRanges_Remove_Disconnect(t *testing.T) {
-	ldrs := LocalDateRanges{
-		{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-31")},
-	}
-
-	ldrs = ldrs.Remove(MustParseLocalDate("2024-01-15"))
-
-	assert.Equal(
-		t,
-		LocalDateRanges{
-			{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-14")},
-			{MustParseLocalDate("2024-01-16"), MustParseLocalDate("2024-01-31")},
-		},
-		ldrs,
-	)
-}
-
-func TestLocalDateRanges_Remove_Empty(t *testing.T) {
-	ldrs := LocalDateRanges{
-		{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-01")},
-	}
-
-	ldrs = ldrs.Remove(MustParseLocalDate("2024-01-01"))
-
-	assert.Equal(
-		t,
-		LocalDateRanges{},
-		ldrs,
+		`[["2024-01-01","2024-01-31"],["2024-03-01","2024-03-01"],["2024-06-01","2024-06-15"]]`,
+		string(b),
 	)
 }

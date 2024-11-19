@@ -2,22 +2,33 @@ package xtime
 
 import (
 	"cmp"
-	"encoding/json"
-	"iter"
 	"time"
 )
 
-var ldZero LocalDate
+var unixZero = time.Unix(0, 0)
 
-type LocalDate struct {
-	Year  int
-	Month time.Month
-	Day   int
-}
+type LocalDate int64
 
 func NewLocalDate(t time.Time) LocalDate {
-	year, month, day := t.Date()
-	return LocalDate{year, month, day}
+	year1 := 1970
+	year2 := t.Year() - 1 // exclude the current year for leap year calculations
+	mul := 1
+
+	if year1 > year2 {
+		year1, year2 = year2, year1
+		mul = -1
+	}
+
+	totalYears := year2 - year1 + 1
+	leapYears1 := year1/4 - year1/100 + year1/400
+	leapYears2 := year2/4 - year2/100 + year2/400
+	leapYears := leapYears2 - leapYears1
+	regularYears := totalYears - leapYears
+
+	totalDays := regularYears*365 + leapYears*366
+	totalDays += t.YearDay() - 1
+
+	return LocalDate(totalDays * mul)
 }
 
 func ParseLocalDate(v string) (LocalDate, error) {
@@ -38,55 +49,30 @@ func (ld LocalDate) String() string {
 	return ld.Time(nil).Format(time.DateOnly)
 }
 
+func (ld LocalDate) Date() (int, time.Month, int) {
+	return unixZero.AddDate(0, 0, int(ld)).Date()
+}
+
 func (ld LocalDate) Time(loc *time.Location) time.Time {
-	return time.Date(ld.Year, ld.Month, ld.Day, 0, 0, 0, 0, cmp.Or(loc, time.UTC))
+	year, month, day := ld.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, cmp.Or(loc, time.UTC))
 }
 
 func (ld LocalDate) DaysUntil(other LocalDate) int {
-	return int(other.Time(nil).Sub(ld.Time(nil)) / (time.Hour * 24))
-}
-
-func (ld LocalDate) Next() LocalDate {
-	return NewLocalDate(ld.Time(nil).AddDate(0, 0, 1))
-}
-
-func (ld LocalDate) Compare(other LocalDate) int {
-	return ld.Time(nil).Compare(other.Time(nil))
-}
-
-func (ld LocalDate) Until(endInclusive LocalDate) iter.Seq[LocalDate] {
-	return func(yield func(LocalDate) bool) {
-		curr := ld
-		for curr.Compare(endInclusive) <= 0 {
-			if !yield(curr) {
-				break
-			}
-
-			curr = curr.Next()
-		}
-	}
+	return int(other - ld)
 }
 
 func (ld LocalDate) IsZero() bool {
-	return ld == ldZero
+	return ld == 0
 }
 
-func (ld LocalDate) Weekday() time.Weekday {
-	return ld.Time(nil).Weekday()
-}
-
-func (ld *LocalDate) UnmarshalJSON(data []byte) error {
-	var v string
-	if err := json.Unmarshal(data, &v); err != nil {
-		return err
-	}
-
+func (ld *LocalDate) UnmarshalText(text []byte) error {
 	var err error
-	*ld, err = ParseLocalDate(v)
+	*ld, err = ParseLocalDate(string(text))
 
 	return err
 }
 
-func (ld LocalDate) MarshalJSON() ([]byte, error) {
-	return json.Marshal(ld.String())
+func (ld LocalDate) MarshalText() ([]byte, error) {
+	return []byte(ld.String()), nil
 }

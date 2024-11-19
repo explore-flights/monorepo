@@ -87,7 +87,7 @@ func (fs *FlightSchedule) DeleteAll(fn func(*FlightScheduleVariant, xtime.LocalD
 			return fn(fsv, d)
 		})
 
-		return len(fsv.Ranges) < 1
+		return fsv.Ranges.Empty()
 	})
 }
 

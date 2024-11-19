@@ -54,7 +54,6 @@ func (a *lfsAction) Handle(ctx context.Context, params LoadFlightSchedulesParams
 	}
 
 	result := LoadFlightSchedulesOutput{
-		Completed: make(xtime.LocalDateRanges, 0),
 		Remaining: params.DateRanges.Compact(),
 	}
 

@@ -1,127 +1,116 @@
 package xtime
 
 import (
+	"encoding/json"
 	"github.com/explore-flights/monorepo/go/common/xiter"
 	"iter"
-	"slices"
 )
 
 type LocalDateRange [2]LocalDate
 
 func (ldr LocalDateRange) Iter() iter.Seq[LocalDate] {
-	return ldr[0].Until(ldr[1])
-}
+	return func(yield func(LocalDate) bool) {
+		curr := ldr[0]
+		for curr <= ldr[1] {
+			if !yield(curr) {
+				return
+			}
 
-func (ldr LocalDateRange) Days() int {
-	return ldr[0].DaysUntil(ldr[1])
-}
-
-func (ldr LocalDateRange) Contains(d LocalDate) bool {
-	return ldr[0].Compare(d) <= 0 && ldr[1].Compare(d) >= 0
-}
-
-func (ldr LocalDateRange) Intersect(other LocalDateRange) (LocalDateRange, bool) {
-	var start LocalDate
-	var end LocalDate
-
-	if ldr[0].Compare(other[0]) > 0 {
-		start = ldr[0]
-	} else {
-		start = other[0]
+			curr += 1
+		}
 	}
-
-	if ldr[1].Compare(other[1]) < 0 {
-		end = ldr[1]
-	} else {
-		end = other[1]
-	}
-
-	if start.Compare(end) > 0 {
-		return LocalDateRange{}, false
-	}
-
-	return LocalDateRange{start, end}, true
 }
 
-type LocalDateRanges []LocalDateRange
+type LocalDateRanges LocalDateBitSet
 
 func NewLocalDateRanges(dates iter.Seq[LocalDate]) LocalDateRanges {
-	result := make(LocalDateRanges, 0)
-	var currRange LocalDateRange
-	for _, d := range slices.SortedFunc(dates, LocalDate.Compare) {
-		if currRange[0].IsZero() {
-			currRange[0] = d
-		}
+	var result LocalDateBitSet
 
-		if !currRange[1].IsZero() && currRange[1] != d && currRange[1].Next() != d {
-			result = append(result, currRange)
-			currRange[0] = d
-		}
-
-		currRange[1] = d
+	for d := range dates {
+		result = result.Add(d)
 	}
 
-	if !currRange[1].IsZero() {
-		result = append(result, currRange)
+	return LocalDateRanges(result.Compact())
+}
+
+func (ldrs *LocalDateRanges) UnmarshalJSON(b []byte) error {
+	var v []LocalDateRange
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
 	}
 
-	return result
+	var result LocalDateBitSet
+	for _, r := range v {
+		for d := range r.Iter() {
+			result = result.Add(d)
+		}
+	}
+
+	*ldrs = LocalDateRanges(result)
+
+	return nil
+}
+
+func (ldrs LocalDateRanges) MarshalJSON() ([]byte, error) {
+	result := make([]LocalDateRange, 0)
+
+	var start LocalDate
+	var prev LocalDate
+
+	for d := range LocalDateBitSet(ldrs).Iter {
+		if start == 0 {
+			start = d
+		}
+
+		if prev != 0 && prev != d-1 {
+			result = append(result, LocalDateRange{start, prev})
+			start = d
+		}
+
+		prev = d
+	}
+
+	if prev != 0 {
+		result = append(result, LocalDateRange{start, prev})
+	}
+
+	return json.Marshal(result)
 }
 
 func (ldrs LocalDateRanges) Compact() LocalDateRanges {
-	return NewLocalDateRanges(ldrs.Iter())
+	return LocalDateRanges(LocalDateBitSet(ldrs).Compact())
 }
 
 func (ldrs LocalDateRanges) Contains(d LocalDate) bool {
-	for _, ldr := range ldrs {
-		if ldr.Contains(d) {
-			return true
-		}
-	}
-
-	return false
+	return LocalDateBitSet(ldrs).Contains(d)
 }
 
 func (ldrs LocalDateRanges) Iter() iter.Seq[LocalDate] {
-	return func(yield func(LocalDate) bool) {
-		for _, ldr := range ldrs {
-			for d := range ldr.Iter() {
-				if !yield(d) {
-					return
-				}
-			}
-		}
-	}
+	return LocalDateBitSet(ldrs).Iter
 }
 
-func (ldrs LocalDateRanges) Span() (int, LocalDateRange) {
-	sorted := slices.SortedFunc(ldrs.Iter(), LocalDate.Compare)
-	if len(sorted) < 1 {
-		return 0, LocalDateRange{}
-	}
+func (ldrs LocalDateRanges) Span() (LocalDateRange, bool) {
+	return LocalDateBitSet(ldrs).Span()
+}
 
-	return len(sorted), LocalDateRange{sorted[0], sorted[len(sorted)-1]}
+func (ldrs LocalDateRanges) Count() int {
+	return LocalDateBitSet(ldrs).Count()
+}
+
+func (ldrs LocalDateRanges) Empty() bool {
+	return LocalDateBitSet(ldrs).Empty()
 }
 
 func (ldrs LocalDateRanges) ExpandAll(other LocalDateRanges) LocalDateRanges {
-	return NewLocalDateRanges(xiter.Combine(ldrs.Iter(), other.Iter()))
-}
-
-func (ldrs LocalDateRanges) Expand(ldr LocalDateRange) LocalDateRanges {
-	return ldrs.ExpandAll(LocalDateRanges{ldr})
+	return LocalDateRanges(LocalDateBitSet(ldrs).Or(LocalDateBitSet(other)))
 }
 
 func (ldrs LocalDateRanges) Add(d LocalDate) LocalDateRanges {
-	return ldrs.Expand(LocalDateRange{d, d})
+	return LocalDateRanges(LocalDateBitSet(ldrs).Add(d))
 }
 
-func (ldrs LocalDateRanges) Remove(rm LocalDate) LocalDateRanges {
-	return NewLocalDateRanges(xiter.Filter(
-		ldrs.Iter(),
-		func(d LocalDate) bool {
-			return d != rm
-		},
-	))
+func (ldrs LocalDateRanges) Remove(d LocalDate) LocalDateRanges {
+	return LocalDateRanges(LocalDateBitSet(ldrs).Remove(d))
 }
 
 func (ldrs LocalDateRanges) RemoveAll(fn func(LocalDate) bool) LocalDateRanges {

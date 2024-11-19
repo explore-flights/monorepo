@@ -61,7 +61,6 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 		output.MergeDateRanges = make([]xtime.LocalDateRanges, len(params.MergeDateRanges))
 
 		for i, merge := range params.MergeDateRanges {
-			output.MergeDateRanges[i] = make(xtime.LocalDateRanges, 0)
 			for _, r := range merge {
 				output.MergeDateRanges[i] = output.MergeDateRanges[i].ExpandAll(r)
 			}

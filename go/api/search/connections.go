@@ -100,7 +100,9 @@ func findConnections(
 		}, 0)
 
 		currDate := xtime.NewLocalDate(minDeparture.UTC())
-		for currDate.Compare(xtime.NewLocalDate(maxDeparture.UTC())) <= 0 {
+		maxDate := xtime.NewLocalDate(maxDeparture.UTC())
+
+		for currDate <= maxDate {
 			for _, origin := range origins {
 				d := common.Departure{
 					Airport: origin,
@@ -184,7 +186,7 @@ func findConnections(
 				}
 			}
 
-			currDate = currDate.Next()
+			currDate += 1
 		}
 
 		for _, w := range working {

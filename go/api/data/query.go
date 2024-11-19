@@ -41,8 +41,8 @@ func (h *Handler) QuerySchedules(ctx context.Context, opts ...QueryScheduleOptio
 			if idx == -1 {
 				acc[fn] = append(acc[fn], rr)
 			} else {
-				existingRRs[idx].Range[0] = common.Min(existingRRs[idx].Range[0], rr.Range[0])
-				existingRRs[idx].Range[1] = common.Max(existingRRs[idx].Range[1], rr.Range[1])
+				existingRRs[idx].Range[0] = min(existingRRs[idx].Range[0], rr.Range[0])
+				existingRRs[idx].Range[1] = max(existingRRs[idx].Range[1], rr.Range[1])
 			}
 		} else {
 			acc[fn] = append(acc[fn], rr)
@@ -73,7 +73,7 @@ func (h *Handler) QuerySchedules(ctx context.Context, opts ...QueryScheduleOptio
 							continue
 						}
 
-						if cnt, span := variant.Ranges.Span(); cnt > 0 {
+						if span, ok := variant.Ranges.Span(); ok {
 							accumulate(acc, fn, RouteAndRange{
 								DepartureAirport: variant.Data.DepartureAirport,
 								ArrivalAirport:   variant.Data.ArrivalAirport,
