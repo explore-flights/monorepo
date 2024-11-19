@@ -17,7 +17,7 @@ import { LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
 export interface SfnConstructProps {
   dataBucket: IBucket;
   cronLambda_1G: IFunction;
-  cronLambda_2G: IFunction;
+  cronLambda_4G: IFunction;
   webhookUrl: cdk.SecretValue;
 }
 
@@ -105,7 +105,7 @@ export class SfnConstruct extends Construct {
           // region conversion
           .otherwise(
             new LambdaInvoke(this, 'ConvertSchedulesTask', {
-              lambdaFunction: props.cronLambda_2G,
+              lambdaFunction: props.cronLambda_4G,
               payload: TaskInput.fromObject({
                 'action': 'convert_flight_schedules',
                 'params': {
@@ -121,7 +121,7 @@ export class SfnConstruct extends Construct {
               retryOnServiceExceptions: true,
             })
               .next(new LambdaInvoke(this, 'ConvertFlightsTask', {
-                lambdaFunction: props.cronLambda_2G,
+                lambdaFunction: props.cronLambda_4G,
                 payload: TaskInput.fromObject({
                   'action': 'convert_flights',
                   'params': {
@@ -137,7 +137,7 @@ export class SfnConstruct extends Construct {
                 retryOnServiceExceptions: true,
               }))
               .next(new LambdaInvoke(this, 'UpdateAllegrisFeedTask', {
-                lambdaFunction: props.cronLambda_2G,
+                lambdaFunction: props.cronLambda_4G,
                 payload: TaskInput.fromObject({
                   'action': 'update_allegris_feed',
                   'params': {
@@ -152,7 +152,7 @@ export class SfnConstruct extends Construct {
                 retryOnServiceExceptions: true,
               }))
               .next(new LambdaInvoke(this, 'UpdateMetadataTask', {
-                lambdaFunction: props.cronLambda_2G,
+                lambdaFunction: props.cronLambda_4G,
                 payload: TaskInput.fromObject({
                   'action': 'update_metadata',
                   'params': {
