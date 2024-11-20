@@ -27,10 +27,10 @@ func NewLocalDateRanges(dates iter.Seq[LocalDate]) LocalDateRanges {
 	var result LocalDateBitSet
 
 	for d := range dates {
-		result = result.Add(d)
+		result = result.Add(d).Compact()
 	}
 
-	return LocalDateRanges(result.Compact())
+	return LocalDateRanges(result)
 }
 
 func (ldrs *LocalDateRanges) UnmarshalJSON(b []byte) error {
@@ -42,7 +42,7 @@ func (ldrs *LocalDateRanges) UnmarshalJSON(b []byte) error {
 	var result LocalDateBitSet
 	for _, r := range v {
 		for d := range r.Iter() {
-			result = result.Add(d)
+			result = result.Add(d).Compact()
 		}
 	}
 
@@ -98,15 +98,15 @@ func (ldrs LocalDateRanges) Empty() bool {
 }
 
 func (ldrs LocalDateRanges) ExpandAll(other LocalDateRanges) LocalDateRanges {
-	return LocalDateRanges(LocalDateBitSet(ldrs).Or(LocalDateBitSet(other)))
+	return LocalDateRanges(LocalDateBitSet(ldrs).Or(LocalDateBitSet(other)).Compact())
 }
 
 func (ldrs LocalDateRanges) Add(d LocalDate) LocalDateRanges {
-	return LocalDateRanges(LocalDateBitSet(ldrs).Add(d))
+	return LocalDateRanges(LocalDateBitSet(ldrs).Add(d).Compact())
 }
 
 func (ldrs LocalDateRanges) Remove(d LocalDate) LocalDateRanges {
-	return LocalDateRanges(LocalDateBitSet(ldrs).Remove(d))
+	return LocalDateRanges(LocalDateBitSet(ldrs).Remove(d).Compact())
 }
 
 func (ldrs LocalDateRanges) RemoveAll(fn func(LocalDate) bool) LocalDateRanges {
