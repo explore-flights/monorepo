@@ -77,6 +77,20 @@ func (ldrs LocalDateRanges) MarshalJSON() ([]byte, error) {
 	return json.Marshal(result)
 }
 
+func (ldrs LocalDateRanges) String() string {
+	s := ""
+	for d := range ldrs.Iter() {
+		s += d.String()
+		s += " "
+	}
+
+	if len(s) > 0 {
+		s = s[:len(s)-1]
+	}
+
+	return "[" + s + "]"
+}
+
 func (ldrs LocalDateRanges) Contains(d LocalDate) bool {
 	return LocalDateBitSet(ldrs).Contains(d)
 }
