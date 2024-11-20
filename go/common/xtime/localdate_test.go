@@ -11,6 +11,10 @@ func TestNewLocalDate(t *testing.T) {
 	assert.Equal(t, LocalDate(0), NewLocalDate(time.Date(1970, time.January, 1, 0, 0, 0, 0, time.FixedZone("", -60*60*14))))
 	assert.Equal(t, LocalDate(0), NewLocalDate(time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)))
 	assert.Equal(t, LocalDate(0), NewLocalDate(time.Date(1970, time.January, 1, 23, 59, 59, 0, time.FixedZone("", 60*60*14))))
+
+	assert.Equal(t, LocalDate(-365), NewLocalDate(time.Date(1969, time.January, 1, 0, 0, 0, 0, time.UTC)))
+	assert.Equal(t, LocalDate(365), NewLocalDate(time.Date(1971, time.January, 1, 0, 0, 0, 0, time.UTC)))
+	assert.Equal(t, LocalDate(165), NewLocalDate(time.Date(1970, time.June, 15, 0, 0, 0, 0, time.UTC)))
 }
 
 func TestParseLocalDate(t *testing.T) {

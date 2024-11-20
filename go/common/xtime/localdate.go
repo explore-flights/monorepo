@@ -11,7 +11,7 @@ type LocalDate int64
 
 func NewLocalDate(t time.Time) LocalDate {
 	year1 := 1970
-	year2 := t.Year() - 1 // exclude the current year for leap year calculations
+	year2 := t.Year()
 	mul := 1
 
 	if year1 > year2 {
@@ -19,7 +19,8 @@ func NewLocalDate(t time.Time) LocalDate {
 		mul = -1
 	}
 
-	totalYears := year2 - year1 + 1
+	totalYears := year2 - year1
+	year2 -= 1 // exclude the current year for leap year calculations
 	leapYears1 := year1/4 - year1/100 + year1/400
 	leapYears2 := year2/4 - year2/100 + year2/400
 	leapYears := leapYears2 - leapYears1
