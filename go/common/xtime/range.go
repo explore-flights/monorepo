@@ -77,10 +77,6 @@ func (ldrs LocalDateRanges) MarshalJSON() ([]byte, error) {
 	return json.Marshal(result)
 }
 
-func (ldrs LocalDateRanges) Compact() LocalDateRanges {
-	return LocalDateRanges(LocalDateBitSet(ldrs).Compact())
-}
-
 func (ldrs LocalDateRanges) Contains(d LocalDate) bool {
 	return LocalDateBitSet(ldrs).Contains(d)
 }

@@ -118,7 +118,7 @@ func (a *cfsAction) convertAndUpsertAll(ctx context.Context, inputBucket, inputP
 		},
 	}
 
-	return wg.RunSeq(ctx, ldrs.Compact().Iter())
+	return wg.RunSeq(ctx, ldrs.Iter())
 }
 
 func (a *cfsAction) convertSingle(ctx context.Context, inputBucket, inputPrefix string, d xtime.LocalDate) ([]*common.Flight, error) {

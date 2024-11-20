@@ -54,7 +54,7 @@ func (a *lfsAction) Handle(ctx context.Context, params LoadFlightSchedulesParams
 	}
 
 	result := LoadFlightSchedulesOutput{
-		Remaining: params.DateRanges.Compact(),
+		Remaining: params.DateRanges,
 	}
 
 	for d := range result.Remaining.Iter() {
