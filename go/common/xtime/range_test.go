@@ -16,14 +16,14 @@ func TestLocalDateRange_Iter(t *testing.T) {
 			MustParseLocalDate("2024-06-01"),
 			MustParseLocalDate("2024-06-02"),
 		},
-		slices.Sorted(ldr.Iter()),
+		slices.Sorted(ldr.Iter),
 	)
 }
 
 func TestLocalDateRanges_JSON(t *testing.T) {
 	var ldrs LocalDateRanges
-	ldrs = ldrs.ExpandAll(NewLocalDateRanges(LocalDateRange{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-31")}.Iter()))
-	ldrs = ldrs.ExpandAll(NewLocalDateRanges(LocalDateRange{MustParseLocalDate("2024-06-01"), MustParseLocalDate("2024-06-15")}.Iter()))
+	ldrs = ldrs.ExpandAll(NewLocalDateRanges(LocalDateRange{MustParseLocalDate("2024-01-01"), MustParseLocalDate("2024-01-31")}.Iter))
+	ldrs = ldrs.ExpandAll(NewLocalDateRanges(LocalDateRange{MustParseLocalDate("2024-06-01"), MustParseLocalDate("2024-06-15")}.Iter))
 	ldrs = ldrs.Add(MustParseLocalDate("2024-03-01"))
 
 	b, err := json.Marshal(ldrs)

@@ -53,7 +53,7 @@ func (c *cronAction) Handle(ctx context.Context, params CronParams) (CronOutput,
 		output.PrepareDailyCron = &struct {
 			DateRanges xtime.LocalDateRanges `json:"dateRanges"`
 		}{
-			DateRanges: xtime.NewLocalDateRanges(ldr.Iter()),
+			DateRanges: xtime.NewLocalDateRanges(ldr.Iter),
 		}
 	}
 

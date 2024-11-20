@@ -125,7 +125,7 @@ func (a *cfAction) convertAll(ctx context.Context, bucket, prefix string, dateRa
 }
 
 func (a *cfAction) loadRanges(ctx context.Context, bucket, prefix string, ldrs xtime.LocalDateRanges, ch chan<- *common.Flight) error {
-	for d := range ldrs.Iter() {
+	for d := range ldrs.Iter {
 		if err := a.loadSingle(ctx, bucket, prefix, d, ch); err != nil {
 			return err
 		}

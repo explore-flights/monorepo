@@ -8,16 +8,14 @@ import (
 
 type LocalDateRange [2]LocalDate
 
-func (ldr LocalDateRange) Iter() iter.Seq[LocalDate] {
-	return func(yield func(LocalDate) bool) {
-		curr := ldr[0]
-		for curr <= ldr[1] {
-			if !yield(curr) {
-				return
-			}
-
-			curr += 1
+func (ldr LocalDateRange) Iter(yield func(LocalDate) bool) {
+	curr := ldr[0]
+	for curr <= ldr[1] {
+		if !yield(curr) {
+			return
 		}
+
+		curr += 1
 	}
 }
 
@@ -41,7 +39,7 @@ func (ldrs *LocalDateRanges) UnmarshalJSON(b []byte) error {
 
 	var result LocalDateBitSet
 	for _, r := range v {
-		for d := range r.Iter() {
+		for d := range r.Iter {
 			result = result.Add(d).Compact()
 		}
 	}
@@ -79,7 +77,7 @@ func (ldrs LocalDateRanges) MarshalJSON() ([]byte, error) {
 
 func (ldrs LocalDateRanges) String() string {
 	s := ""
-	for d := range ldrs.Iter() {
+	for d := range ldrs.Iter {
 		s += d.String()
 		s += " "
 	}
@@ -95,8 +93,8 @@ func (ldrs LocalDateRanges) Contains(d LocalDate) bool {
 	return LocalDateBitSet(ldrs).Contains(d)
 }
 
-func (ldrs LocalDateRanges) Iter() iter.Seq[LocalDate] {
-	return LocalDateBitSet(ldrs).Iter
+func (ldrs LocalDateRanges) Iter(yield func(d LocalDate) bool) {
+	LocalDateBitSet(ldrs).Iter(yield)
 }
 
 func (ldrs LocalDateRanges) Span() (LocalDateRange, bool) {
@@ -125,7 +123,7 @@ func (ldrs LocalDateRanges) Remove(d LocalDate) LocalDateRanges {
 
 func (ldrs LocalDateRanges) RemoveAll(fn func(LocalDate) bool) LocalDateRanges {
 	return NewLocalDateRanges(xiter.Filter(
-		ldrs.Iter(),
+		ldrs.Iter,
 		func(d LocalDate) bool {
 			return !fn(d)
 		},

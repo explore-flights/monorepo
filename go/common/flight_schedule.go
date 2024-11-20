@@ -104,7 +104,7 @@ func (fs *FlightSchedule) Variant(fsd FlightScheduleData) (*FlightScheduleVarian
 func (fs *FlightSchedule) List(start, end time.Time) iter.Seq2[xtime.LocalDate, *FlightScheduleVariant] {
 	return func(yield func(xtime.LocalDate, *FlightScheduleVariant) bool) {
 		for _, fsv := range fs.Variants {
-			for d := range fsv.Ranges.Iter() {
+			for d := range fsv.Ranges.Iter {
 				t := fsv.DepartureTime(d)
 				if t.Compare(start) >= 0 && t.Compare(end) <= 0 {
 					if !yield(d, fsv) {

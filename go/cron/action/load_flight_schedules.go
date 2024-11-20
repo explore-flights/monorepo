@@ -57,7 +57,7 @@ func (a *lfsAction) Handle(ctx context.Context, params LoadFlightSchedulesParams
 		Remaining: params.DateRanges,
 	}
 
-	for d := range result.Remaining.Iter() {
+	for d := range result.Remaining.Iter {
 		if err := a.loadSingle(ctx, params.OutputBucket, params.OutputPrefix, d); err != nil {
 			if params.AllowPartial && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, lufthansa.ErrRateLimitWouldExceedDeadline)) {
 				err = nil
