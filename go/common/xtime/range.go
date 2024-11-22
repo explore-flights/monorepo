@@ -109,6 +109,10 @@ func (ldrs LocalDateRanges) Empty() bool {
 	return LocalDateBitSet(ldrs).Empty()
 }
 
+func (ldrs LocalDateRanges) Clone() LocalDateRanges {
+	return LocalDateRanges(LocalDateBitSet(ldrs).Clone())
+}
+
 func (ldrs LocalDateRanges) ExpandAll(other LocalDateRanges) LocalDateRanges {
 	return LocalDateRanges(LocalDateBitSet(ldrs).Or(LocalDateBitSet(other)).Compact())
 }

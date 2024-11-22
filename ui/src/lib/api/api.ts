@@ -127,7 +127,7 @@ export class ApiClient {
   }
 
   getFlightSchedulesByConfiguration(airline: string, aircraftType: string, aircraftConfigurationVersion: string): Promise<ApiResponse<QueryScheduleResponse>> {
-    return transform(this.httpClient.fetch(`/data/${encodeURIComponent(airline)}/schedule/${encodeURIComponent(aircraftType)}/${aircraftConfigurationVersion}/v2`));
+    return transform(this.httpClient.fetch(`/data/${encodeURIComponent(airline)}/schedule/${encodeURIComponent(aircraftType)}/${aircraftConfigurationVersion}/v3`));
   }
 
   queryFlightSchedules(req: QuerySchedulesRequest): Promise<ApiResponse<QueryScheduleResponse>> {

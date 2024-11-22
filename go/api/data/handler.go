@@ -165,12 +165,6 @@ type Aircraft struct {
 	Configurations common.Set[string] `json:"configurations"`
 }
 
-type RouteAndRange struct {
-	DepartureAirport string               `json:"departureAirport"`
-	ArrivalAirport   string               `json:"arrivalAirport"`
-	Range            xtime.LocalDateRange `json:"range"`
-}
-
 type MinimalS3Client interface {
 	adapt.S3Getter
 	adapt.S3Lister

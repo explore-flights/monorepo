@@ -60,6 +60,20 @@ func (fsv *FlightScheduleVariant) ArrivalTime(d xtime.LocalDate) time.Time {
 	return fsv.DepartureTime(d).Add(time.Duration(fsv.Data.DurationSeconds) * time.Second).In(time.FixedZone("", fsv.Data.ArrivalUTCOffset))
 }
 
+func (fsv *FlightScheduleVariant) Clone(ranges bool) *FlightScheduleVariant {
+	cp := &(*fsv)
+
+	if ranges {
+		cp.Ranges = cp.Ranges.Clone()
+	} else {
+		cp.Ranges = xtime.LocalDateRanges{}
+	}
+
+	cp.Data.CodeShares = maps.Clone(cp.Data.CodeShares)
+
+	return cp
+}
+
 type FlightScheduleVariantMetadata struct {
 	CreationTime     time.Time `json:"creationTime"`
 	RangesUpdateTime time.Time `json:"rangesUpdateTime"`
@@ -124,4 +138,20 @@ func (fs *FlightSchedule) Find(d xtime.LocalDate, departureAirport, arrivalAirpo
 	}
 
 	return nil, false
+}
+
+func (fs *FlightSchedule) Clone(variants bool) *FlightSchedule {
+	cp := &(*fs)
+
+	if variants {
+		cp.Variants = make([]*FlightScheduleVariant, len(fs.Variants))
+
+		for i, fsv := range fs.Variants {
+			cp.Variants[i] = fsv.Clone(true)
+		}
+	} else {
+		cp.Variants = make([]*FlightScheduleVariant, 0, len(fs.Variants))
+	}
+
+	return cp
 }

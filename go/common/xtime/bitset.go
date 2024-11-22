@@ -165,3 +165,10 @@ func (bs LocalDateBitSet) Count() int {
 func (bs LocalDateBitSet) Empty() bool {
 	return bs.bitset.BitLen() < 1
 }
+
+func (bs LocalDateBitSet) Clone() LocalDateBitSet {
+	return LocalDateBitSet{
+		offset: bs.offset,
+		bitset: *new(big.Int).Set(&bs.bitset),
+	}
+}

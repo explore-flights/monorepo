@@ -7,10 +7,9 @@ import (
 	"github.com/explore-flights/monorepo/go/common/xiter"
 	"iter"
 	"maps"
-	"slices"
 )
 
-func (h *Handler) QuerySchedules(ctx context.Context, opts ...QueryScheduleOption) (map[common.FlightNumber][]RouteAndRange, error) {
+func (h *Handler) QuerySchedules(ctx context.Context, opts ...QueryScheduleOption) (map[common.FlightNumber]*common.FlightSchedule, error) {
 	var o querySchedulesOptions
 	if err := o.apply(opts...); err != nil {
 		return nil, err
@@ -32,28 +31,24 @@ func (h *Handler) QuerySchedules(ctx context.Context, opts ...QueryScheduleOptio
 		airlineCount = len(o.airlines)
 	}
 
-	accumulate := func(acc map[common.FlightNumber][]RouteAndRange, fn common.FlightNumber, rr RouteAndRange) {
-		if existingRRs, ok := acc[fn]; ok {
-			idx := slices.IndexFunc(existingRRs, func(existingRR RouteAndRange) bool {
-				return existingRR.DepartureAirport == rr.DepartureAirport && existingRR.ArrivalAirport == rr.ArrivalAirport
-			})
-
-			if idx == -1 {
-				acc[fn] = append(acc[fn], rr)
+	accumulate := func(acc map[common.FlightNumber]*common.FlightSchedule, fn common.FlightNumber, fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) {
+		if existingFs, ok := acc[fn]; ok {
+			if existingFsv, ok := existingFs.Variant(fsv.Data); ok {
+				existingFsv.Ranges = existingFsv.Ranges.ExpandAll(fsv.Ranges)
 			} else {
-				existingRRs[idx].Range[0] = min(existingRRs[idx].Range[0], rr.Range[0])
-				existingRRs[idx].Range[1] = max(existingRRs[idx].Range[1], rr.Range[1])
+				existingFs.Variants = append(existingFs.Variants, fsv.Clone(true))
 			}
 		} else {
-			acc[fn] = append(acc[fn], rr)
+			acc[fn] = fs.Clone(false)
+			acc[fn].Variants = append(acc[fn].Variants, fsv.Clone(true))
 		}
 	}
 
-	wg := concurrent.WorkGroup[common.AirlineIdentifier, map[common.FlightNumber][]RouteAndRange, map[common.FlightNumber][]RouteAndRange]{
+	wg := concurrent.WorkGroup[common.AirlineIdentifier, map[common.FlightNumber]*common.FlightSchedule, map[common.FlightNumber]*common.FlightSchedule]{
 		Parallelism: min(uint(airlineCount), 10),
-		Worker: func(ctx context.Context, airline common.AirlineIdentifier, acc map[common.FlightNumber][]RouteAndRange) (map[common.FlightNumber][]RouteAndRange, error) {
+		Worker: func(ctx context.Context, airline common.AirlineIdentifier, acc map[common.FlightNumber]*common.FlightSchedule) (map[common.FlightNumber]*common.FlightSchedule, error) {
 			if acc == nil {
-				acc = make(map[common.FlightNumber][]RouteAndRange)
+				acc = make(map[common.FlightNumber]*common.FlightSchedule)
 			}
 
 			return acc, h.flightSchedulesStream(ctx, airline, func(seq iter.Seq2[string, *onceIter[*common.FlightSchedule]]) error {
@@ -63,22 +58,20 @@ func (h *Handler) QuerySchedules(ctx context.Context, opts ...QueryScheduleOptio
 						return err
 					}
 
-					if !o.testSchedule(fs) {
+					fs, ok := o.visitSchedule(fs)
+					if !ok {
 						continue
 					}
 
 					fn := fs.Number()
-					for _, variant := range fs.Variants {
-						if !o.testVariant(fs, variant) {
+					for _, fsv := range fs.Variants {
+						fsv, ok = o.visitVariant(fs, fsv)
+						if !ok {
 							continue
 						}
 
-						if span, ok := variant.Ranges.Span(); ok {
-							accumulate(acc, fn, RouteAndRange{
-								DepartureAirport: variant.Data.DepartureAirport,
-								ArrivalAirport:   variant.Data.ArrivalAirport,
-								Range:            span,
-							})
+						if !fsv.Ranges.Empty() {
+							accumulate(acc, fn, fs, fsv)
 						}
 					}
 				}
@@ -86,24 +79,24 @@ func (h *Handler) QuerySchedules(ctx context.Context, opts ...QueryScheduleOptio
 				return nil
 			})
 		},
-		Combiner: func(ctx context.Context, a, b map[common.FlightNumber][]RouteAndRange) (map[common.FlightNumber][]RouteAndRange, error) {
+		Combiner: func(ctx context.Context, a, b map[common.FlightNumber]*common.FlightSchedule) (map[common.FlightNumber]*common.FlightSchedule, error) {
 			if a == nil {
-				a = make(map[common.FlightNumber][]RouteAndRange)
+				a = make(map[common.FlightNumber]*common.FlightSchedule)
 			}
 
 			if b != nil {
-				for fn, rrs := range b {
-					for _, rr := range rrs {
-						accumulate(a, fn, rr)
+				for fn, fs := range b {
+					for _, fsv := range fs.Variants {
+						accumulate(a, fn, fs, fsv)
 					}
 				}
 			}
 
 			return a, nil
 		},
-		Finisher: func(ctx context.Context, acc map[common.FlightNumber][]RouteAndRange) (map[common.FlightNumber][]RouteAndRange, error) {
+		Finisher: func(ctx context.Context, acc map[common.FlightNumber]*common.FlightSchedule) (map[common.FlightNumber]*common.FlightSchedule, error) {
 			if acc == nil {
-				acc = make(map[common.FlightNumber][]RouteAndRange)
+				acc = make(map[common.FlightNumber]*common.FlightSchedule)
 			}
 
 			return acc, nil

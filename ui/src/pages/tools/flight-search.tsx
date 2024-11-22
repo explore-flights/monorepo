@@ -1,14 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  AttributeEditor, Box,
-  Button,
+  AttributeEditor, Button,
   ColumnLayout,
   Container,
   ContentLayout, DateRangePicker, DateRangePickerProps,
   Form,
   FormField, Grid,
-  Header, Pagination, Select, SelectProps, Table
+  Header, Select, SelectProps
 } from '@cloudscape-design/components';
 import { Aircraft, QueryScheduleResponse, QuerySchedulesRequest } from '../../lib/api/api.model';
 import { useAircraft, useAirlines, useAirports, useQueryFlightSchedules } from '../../components/util/state/data';
@@ -19,8 +18,13 @@ import { AircraftConfigurationVersion } from '../../lib/consts';
 import { UseQueryResult } from '@tanstack/react-query';
 import { ErrorNotificationContent, useAppControls } from '../../components/util/context/app-controls';
 import { DateTime } from 'luxon';
-import { useCollection } from '@cloudscape-design/collection-hooks';
-import { FlightLink } from '../../components/common/flight-link';
+import { SchedulesTable, ScheduleTableItem } from '../../components/schedules/schedules-table';
+import {
+  withAircraftConfigurationVersionFilter,
+  withAircraftTypeFilter,
+  withArrivalAirportFilter,
+  withDepartureAirportFilter, withDepartureDateFilter
+} from '../flight';
 
 export function FlightSearch() {
   const [request, setRequest] = useState<QuerySchedulesRequest>({});
@@ -463,39 +467,8 @@ function AircraftConfigurationSelect({ aircraft, selectedAircraftCode, selectedA
   );
 }
 
-interface TableItem {
-  flightNumber: string;
-  departureAirport: string;
-  arrivalAirport: string;
-  rangeStart: DateTime<true>;
-  rangeEnd: DateTime<true>;
-}
-
 function ResultTable({ title, query }: { title: string, query: UseQueryResult<QueryScheduleResponse, Error> }) {
   const { notification } = useAppControls();
-  const rawItems = useMemo(() => {
-    const result: Array<TableItem> = [];
-    if (query.data) {
-      for (const [flightNumber, routeAndRanges] of Object.entries(query.data)) {
-        for (const routeAndRange of routeAndRanges) {
-          const rangeStart = DateTime.fromISO(routeAndRange.range[0]);
-          const rangeEnd = DateTime.fromISO(routeAndRange.range[1]);
-
-          if (rangeStart.isValid && rangeEnd.isValid) {
-            result.push({
-              flightNumber: flightNumber,
-              departureAirport: routeAndRange.departureAirport,
-              arrivalAirport: routeAndRange.arrivalAirport,
-              rangeStart: rangeStart,
-              rangeEnd: rangeEnd,
-            });
-          }
-        }
-      }
-    }
-
-    return result;
-  }, [query.data]);
 
   useEffect(() => {
     if (query.status === 'error') {
@@ -508,59 +481,40 @@ function ResultTable({ title, query }: { title: string, query: UseQueryResult<Qu
     }
   }, [query.status, title]);
 
-  const { items, collectionProps, paginationProps } = useCollection(rawItems, {
-    sorting: {
-      defaultState: {
-        isDescending: false,
-        sortingColumn: {
-          sortingField: 'rangeStart',
-        },
-      },
-    },
-    pagination: { pageSize: 25 },
-  });
-
   return (
-    <Table
-      {...collectionProps}
-      items={items}
-      filter={<Header counter={`(${rawItems.length})`}>{title}</Header>}
-      pagination={<Pagination {...paginationProps}  />}
-      variant={'container'}
+    <SchedulesTable
+      title={title}
+      items={query.data ? Object.values(query.data) : []}
       loading={query.isLoading}
-      empty={<Box>No flights found</Box>}
-      columnDefinitions={[
-        {
-          id: 'flight_number',
-          header: 'Flight Number',
-          cell: (v) => <FlightLink flightNumber={v.flightNumber} target={'_blank'} />,
-          sortingField: 'flightNumber',
-        },
-        {
-          id: 'departure_airport',
-          header: 'Departure Airport',
-          cell: (v) => v.departureAirport,
-          sortingField: 'departureAirport',
-        },
-        {
-          id: 'arrival_airport',
-          header: 'Arrival Airport',
-          cell: (v) => v.arrivalAirport,
-          sortingField: 'arrivalAirport',
-        },
-        {
-          id: 'range_start',
-          header: 'First Operating Day',
-          cell: (v) => v.rangeStart?.toISODate() ?? '',
-          sortingField: 'rangeStart',
-        },
-        {
-          id: 'range_end',
-          header: 'Last Operating Day',
-          cell: (v) => v.rangeEnd?.toISODate() ?? '',
-          sortingField: 'rangeEnd',
-        },
-      ]}
+      flightLinkQuery={useCallback((v: ScheduleTableItem) => {
+        let query = new URLSearchParams();
+
+        const minDepartureDate = DateTime.fromISO(v.operatingRange[0]);
+        const maxDepartureDate = DateTime.fromISO(v.operatingRange[1]);
+
+        if (minDepartureDate.isValid) {
+          query = withDepartureDateFilter(query, minDepartureDate, '>=');
+        }
+
+        if (maxDepartureDate.isValid) {
+          query = withDepartureDateFilter(query, maxDepartureDate, '<=');
+        }
+
+        query = withDepartureAirportFilter(query, v.departureAirport.raw);
+        query = withArrivalAirportFilter(query, v.arrivalAirport.raw);
+
+        if (v.type === 'child') {
+          query = withAircraftTypeFilter(query, v.aircraft.raw);
+          query = withAircraftConfigurationVersionFilter(query, v.aircraftConfigurationVersion);
+        } else {
+          for (const child of v.children) {
+            query = withAircraftTypeFilter(query, child.aircraft.raw);
+            query = withAircraftConfigurationVersionFilter(query, child.aircraftConfigurationVersion);
+          }
+        }
+
+        return query;
+      }, [])}
     />
   );
 }

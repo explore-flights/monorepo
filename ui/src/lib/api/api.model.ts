@@ -257,10 +257,4 @@ export interface QuerySchedulesRequest {
   maxDepartureTime?: DateTime<true>;
 }
 
-export type QueryScheduleResponse = Record<string, ReadonlyArray<RouteAndRange>>;
-
-export interface RouteAndRange {
-  departureAirport: string;
-  arrivalAirport: string;
-  range: [string, string];
-}
+export type QueryScheduleResponse = Record<string, FlightSchedule>;

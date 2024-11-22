@@ -24,7 +24,8 @@ import { ApiError } from '../lib/api/api';
 import { FlightLink } from '../components/common/flight-link';
 import { BulletSeperator, Join } from '../components/common/join';
 import { SeatMapView } from '../components/seatmap/seatmap';
-import { AircraftConfigurationVersion } from '../lib/consts';
+import { aircraftConfigurationVersionToName } from '../lib/consts';
+import { AircraftConfigurationVersionText, AirportText } from '../components/common/text';
 
 export function FlightView() {
   const { id } = useParams();
@@ -173,7 +174,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
                 label: 'Departure Airports',
                 value: (
                   <ColumnLayout columns={1} variant={'text-grid'}>
-                    {...(summary.departureAirports.map((v) => <AirportCell {...v} />))}
+                    {...(summary.departureAirports.map((v) => <AirportText code={v.raw} airport={v.value} />))}
                   </ColumnLayout>
                 ),
               },
@@ -181,7 +182,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
                 label: 'Arrival Airports',
                 value: (
                   <ColumnLayout columns={1} variant={'text-grid'}>
-                    {...(summary.arrivalAirports.map((v) => <AirportCell {...v} />))}
+                    {...(summary.arrivalAirports.map((v) => <AirportText code={v.raw} airport={v.value} />))}
                   </ColumnLayout>
                 ),
               },
@@ -262,13 +263,13 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
             {
               id: 'departure_airport',
               header: 'Departure Airport',
-              cell: (v) => <AirportCell {...v.departureAirport} />,
+              cell: (v) => <AirportText code={v.departureAirport.raw} airport={v.departureAirport.value} />,
               sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.departureAirport.raw.localeCompare(b.departureAirport.raw), []),
             },
             {
               id: 'arrival_airport',
               header: 'Arrival Airport',
-              cell: (v) => <AirportCell {...v.arrivalAirport} />,
+              cell: (v) => <AirportText code={v.arrivalAirport.raw} airport={v.arrivalAirport.value} />,
               sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => a.arrivalAirport.raw.localeCompare(b.arrivalAirport.raw), []),
             },
             {
@@ -286,30 +287,23 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
               id: 'aircraft_configuration_version',
               header: 'Aircraft Configuration Version',
               cell: (v) => {
-                const name = aircraftConfigurationVersionToName(v.aircraftConfigurationVersion);
                 return (
-                  <Popover
-                    header={v.aircraftConfigurationVersion}
-                    content={
-                      <KeyValuePairs
-                        columns={2}
-                        items={[
-                          {
-                            label: 'Name',
-                            value: name ?? 'unknown',
-                          },
-                          {
-                            label: 'Code',
-                            value: v.aircraftConfigurationVersion,
-                          },
-                          {
-                            label: 'Seatmap',
-                            value: <Button variant={'inline-link'} onClick={() => setSeatMapFlight(v)}>Open</Button>,
-                          },
-                        ]}
-                      />
-                    }
-                  >{name ?? v.aircraftConfigurationVersion}</Popover>
+                  <AircraftConfigurationVersionText
+                    value={v.aircraftConfigurationVersion}
+                    popoverContent={<KeyValuePairs
+                      columns={2}
+                      items={[
+                        {
+                          label: 'Code',
+                          value: v.aircraftConfigurationVersion,
+                        },
+                        {
+                          label: 'Seatmap',
+                          value: <Button variant={'inline-link'} onClick={() => setSeatMapFlight(v)}>Open</Button>,
+                        },
+                      ]}
+                    />}
+                  />
                 );
               },
               sortingField: 'aircraftConfigurationVersion',
@@ -352,14 +346,6 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
       <SeatMapModal flight={seatMapFlight} onDismiss={() => setSeatMapFlight(undefined)} />
     </ContentLayout>
   );
-}
-
-function AirportCell({ raw, value }: { raw: string, value?: Airport }) {
-  if (value) {
-    return <Popover content={value.name} dismissButton={false}>{raw}</Popover>;
-  }
-
-  return raw;
 }
 
 function AircraftCell({ raw, value, count }: { raw: string, value?: Aircraft, count?: number }) {
@@ -406,9 +392,9 @@ function RouteCell({ route }: { route: [Maybe<Airport>, Maybe<Airport>] }) {
   const [departure, arrival] = route;
   return (
     <>
-      <AirportCell {...departure} />
+      <AirportText code={departure.raw} airport={departure.value} />
       &nbsp;—&nbsp;
-      <AirportCell {...arrival} />
+      <AirportText code={arrival.raw} airport={arrival.value} />
     </>
   );
 }
@@ -582,16 +568,6 @@ function weekdayNumberToName(n: WeekdayNumbers): string {
     6: 'SAT',
     7: 'SUN',
   })[n];
-}
-
-function aircraftConfigurationVersionToName(v: string): string | undefined {
-  return ({
-    [AircraftConfigurationVersion.LH_A350_900_ALLEGRIS]: 'Allegris',
-    [AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST]: 'Allegris with First',
-    [AircraftConfigurationVersion.LH_A350_900_LH_CONFIG]: 'A350-900 LH Config',
-    [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_1]: 'LH/Philippines Config 1',
-    [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_2]: 'LH/Philippines Config 2',
-  })[v] ?? undefined;
 }
 
 function buildDateOperator(op: PropertyFilterOperator): PropertyFilterOperatorExtended<string> {
@@ -914,6 +890,24 @@ function parseSearchParams(v: URLSearchParams): PropertyFilterProps.Query | null
     }
   }
 
+  const minDepartureDate = v.get('departure_date_gte');
+  if (minDepartureDate) {
+    tokens.push({
+      propertyKey: 'departure_time',
+      value: minDepartureDate,
+      operator: '>=',
+    });
+  }
+
+  const maxDepartureDate = v.get('departure_date_lte');
+  if (maxDepartureDate) {
+    tokens.push({
+      propertyKey: 'departure_time',
+      value: maxDepartureDate,
+      operator: '<=',
+    });
+  }
+
   if (tokens.length < 1) {
     return null;
   }
@@ -924,13 +918,31 @@ function parseSearchParams(v: URLSearchParams): PropertyFilterProps.Query | null
   } satisfies PropertyFilterProps.Query;
 }
 
-export function withDepartureDateFilter(q: URLSearchParams, date: DateTime<true>): URLSearchParams {
-  q.append('departure_time', date.toISODate());
+export function withDepartureDateFilter(q: URLSearchParams, date: DateTime<true>, operator: '=' | '>=' | '<=' = '='): URLSearchParams {
+  switch (operator) {
+    case '=':
+      q.append('departure_time', date.toISODate());
+      break;
+
+    case '>=':
+      q.append('departure_date_gte', date.toISODate());
+      break;
+
+    case '<=':
+      q.append('departure_date_lte', date.toISODate());
+      break;
+  }
+
   return q;
 }
 
 export function withDepartureAirportFilter(q: URLSearchParams, airport: string): URLSearchParams {
   q.append('departure_airport', airport);
+  return q;
+}
+
+export function withArrivalAirportFilter(q: URLSearchParams, airport: string): URLSearchParams {
+  q.append('arrival_airport', airport);
   return q;
 }
 

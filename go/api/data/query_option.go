@@ -3,19 +3,20 @@ package data
 import (
 	"errors"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"maps"
 	"time"
 )
 
 type QueryScheduleOption func(*querySchedulesOptions) error
 
-type schedulePredicate func(fs *common.FlightSchedule) bool
-type variantPredicate func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool
+type scheduleVisitor func(fs *common.FlightSchedule) (*common.FlightSchedule, bool)
+type variantVisitor func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) (*common.FlightScheduleVariant, bool)
 
 type querySchedulesOptions struct {
-	airlines           common.Set[common.AirlineIdentifier]
-	schedulePredicates []schedulePredicate
-	variantPredicates  []variantPredicate
+	airlines         common.Set[common.AirlineIdentifier]
+	scheduleVisitors []scheduleVisitor
+	variantVisitors  []variantVisitor
 }
 
 func (o *querySchedulesOptions) apply(opts ...QueryScheduleOption) error {
@@ -36,8 +37,8 @@ func (o *querySchedulesOptions) and(opts []querySchedulesOptions) error {
 			err = errors.Join(err, errors.New("cannot use airline filter in AND clauses"))
 		}
 
-		o.schedulePredicates = append(o.schedulePredicates, child.schedulePredicates...)
-		o.variantPredicates = append(o.variantPredicates, child.variantPredicates...)
+		o.scheduleVisitors = append(o.scheduleVisitors, child.scheduleVisitors...)
+		o.variantVisitors = append(o.variantVisitors, child.variantVisitors...)
 	}
 
 	return err
@@ -45,70 +46,74 @@ func (o *querySchedulesOptions) and(opts []querySchedulesOptions) error {
 
 func (o *querySchedulesOptions) or(opts []querySchedulesOptions) error {
 	var err error
-	fsPredicates := make([]schedulePredicate, 0)
-	fsvPredicates := make([]variantPredicate, 0)
+	fsVisitors := make([]scheduleVisitor, 0)
+	fsvVisitors := make([]variantVisitor, 0)
 
 	for _, child := range opts {
-		if len(child.schedulePredicates) > 0 && len(child.variantPredicates) > 0 {
+		if len(child.scheduleVisitors) > 0 && len(child.variantVisitors) > 0 {
 			err = errors.Join(err, errors.New("cannot use both schedule and variant filters in OR clauses"))
 		}
 
 		maps.Copy(o.airlines, child.airlines)
 
-		if len(child.schedulePredicates) > 0 {
-			fsPredicates = append(fsPredicates, child.testSchedule)
+		if len(child.scheduleVisitors) > 0 {
+			fsVisitors = append(fsVisitors, child.visitSchedule)
 		}
 
-		if len(child.variantPredicates) > 0 {
-			fsvPredicates = append(fsvPredicates, child.testVariant)
+		if len(child.variantVisitors) > 0 {
+			fsvVisitors = append(fsvVisitors, child.visitVariant)
 		}
 	}
 
-	if len(fsPredicates) > 0 {
-		o.schedulePredicates = append(o.schedulePredicates, func(fs *common.FlightSchedule) bool {
-			for _, p := range fsPredicates {
-				if p(fs) {
-					return true
+	if len(fsVisitors) > 0 {
+		o.scheduleVisitors = append(o.scheduleVisitors, func(fs *common.FlightSchedule) (*common.FlightSchedule, bool) {
+			for _, p := range fsVisitors {
+				if modFs, ok := p(fs); ok {
+					return modFs, true
 				}
 			}
 
-			return false
+			return fs, false
 		})
 	}
 
-	if len(fsvPredicates) > 0 {
-		o.variantPredicates = append(o.variantPredicates, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-			for _, p := range fsvPredicates {
-				if p(fs, fsv) {
-					return true
+	if len(fsvVisitors) > 0 {
+		o.variantVisitors = append(o.variantVisitors, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) (*common.FlightScheduleVariant, bool) {
+			for _, p := range fsvVisitors {
+				if modFsv, ok := p(fs, fsv); ok {
+					return modFsv, true
 				}
 			}
 
-			return false
+			return fsv, false
 		})
 	}
 
 	return err
 }
 
-func (o *querySchedulesOptions) testSchedule(fs *common.FlightSchedule) bool {
-	for _, p := range o.schedulePredicates {
-		if !p(fs) {
-			return false
+func (o *querySchedulesOptions) visitSchedule(fs *common.FlightSchedule) (*common.FlightSchedule, bool) {
+	for _, p := range o.scheduleVisitors {
+		if modFs, ok := p(fs); !ok {
+			return fs, false
+		} else {
+			fs = modFs
 		}
 	}
 
-	return true
+	return fs, true
 }
 
-func (o *querySchedulesOptions) testVariant(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-	for _, p := range o.variantPredicates {
-		if !p(fs, fsv) {
-			return false
+func (o *querySchedulesOptions) visitVariant(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) (*common.FlightScheduleVariant, bool) {
+	for _, p := range o.variantVisitors {
+		if modFsv, ok := p(fs, fsv); !ok {
+			return fsv, false
+		} else {
+			fsv = modFsv
 		}
 	}
 
-	return true
+	return fsv, true
 }
 
 func WithAirlines(airlines ...common.AirlineIdentifier) QueryScheduleOption {
@@ -126,8 +131,8 @@ func WithFlightNumber(fn common.FlightNumber) QueryScheduleOption {
 		o.airlines = make(common.Set[common.AirlineIdentifier])
 		o.airlines[fn.Airline] = struct{}{}
 
-		o.schedulePredicates = append(o.schedulePredicates, func(fs *common.FlightSchedule) bool {
-			return fs.Number() == fn
+		o.scheduleVisitors = append(o.scheduleVisitors, func(fs *common.FlightSchedule) (*common.FlightSchedule, bool) {
+			return fs, fs.Number() == fn
 		})
 
 		return nil
@@ -136,8 +141,8 @@ func WithFlightNumber(fn common.FlightNumber) QueryScheduleOption {
 
 func WithServiceType(serviceType string) QueryScheduleOption {
 	return func(o *querySchedulesOptions) error {
-		o.variantPredicates = append(o.variantPredicates, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-			return fsv.Data.ServiceType == serviceType
+		o.variantVisitors = append(o.variantVisitors, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) (*common.FlightScheduleVariant, bool) {
+			return fsv, fsv.Data.ServiceType == serviceType
 		})
 
 		return nil
@@ -146,8 +151,8 @@ func WithServiceType(serviceType string) QueryScheduleOption {
 
 func WithAircraftType(aircraftType string) QueryScheduleOption {
 	return func(o *querySchedulesOptions) error {
-		o.variantPredicates = append(o.variantPredicates, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-			return fsv.Data.AircraftType == aircraftType
+		o.variantVisitors = append(o.variantVisitors, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) (*common.FlightScheduleVariant, bool) {
+			return fsv, fsv.Data.AircraftType == aircraftType
 		})
 
 		return nil
@@ -156,8 +161,8 @@ func WithAircraftType(aircraftType string) QueryScheduleOption {
 
 func WithAircraftConfigurationVersion(aircraftConfigurationVersion string) QueryScheduleOption {
 	return func(o *querySchedulesOptions) error {
-		o.variantPredicates = append(o.variantPredicates, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-			return fsv.Data.AircraftConfigurationVersion == aircraftConfigurationVersion
+		o.variantVisitors = append(o.variantVisitors, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) (*common.FlightScheduleVariant, bool) {
+			return fsv, fsv.Data.AircraftConfigurationVersion == aircraftConfigurationVersion
 		})
 
 		return nil
@@ -166,8 +171,8 @@ func WithAircraftConfigurationVersion(aircraftConfigurationVersion string) Query
 
 func WithDepartureAirport(airport string) QueryScheduleOption {
 	return func(o *querySchedulesOptions) error {
-		o.variantPredicates = append(o.variantPredicates, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-			return fsv.Data.DepartureAirport == airport
+		o.variantVisitors = append(o.variantVisitors, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) (*common.FlightScheduleVariant, bool) {
+			return fsv, fsv.Data.DepartureAirport == airport
 		})
 
 		return nil
@@ -176,8 +181,8 @@ func WithDepartureAirport(airport string) QueryScheduleOption {
 
 func WithArrivalAirport(airport string) QueryScheduleOption {
 	return func(o *querySchedulesOptions) error {
-		o.variantPredicates = append(o.variantPredicates, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-			return fsv.Data.ArrivalAirport == airport
+		o.variantVisitors = append(o.variantVisitors, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) (*common.FlightScheduleVariant, bool) {
+			return fsv, fsv.Data.ArrivalAirport == airport
 		})
 
 		return nil
@@ -186,8 +191,8 @@ func WithArrivalAirport(airport string) QueryScheduleOption {
 
 func WithIgnoreCodeShares() QueryScheduleOption {
 	return func(o *querySchedulesOptions) error {
-		o.variantPredicates = append(o.variantPredicates, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-			return fs.Number() == fsv.Data.OperatedAs
+		o.variantVisitors = append(o.variantVisitors, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) (*common.FlightScheduleVariant, bool) {
+			return fsv, fs.Number() == fsv.Data.OperatedAs
 		})
 
 		return nil
@@ -196,12 +201,18 @@ func WithIgnoreCodeShares() QueryScheduleOption {
 
 func WithMinDepartureTime(minDepartureTime time.Time) QueryScheduleOption {
 	return func(o *querySchedulesOptions) error {
-		o.variantPredicates = append(o.variantPredicates, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-			if span, ok := fsv.Ranges.Span(); ok {
-				return fsv.DepartureTime(span[1]).After(minDepartureTime)
+		o.variantVisitors = append(o.variantVisitors, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) (*common.FlightScheduleVariant, bool) {
+			subRanges := fsv.Ranges.RemoveAll(func(d xtime.LocalDate) bool {
+				return fsv.DepartureTime(d).Before(minDepartureTime)
+			})
+
+			if subRanges.Empty() {
+				return fsv, false
 			}
 
-			return false
+			fsv = fsv.Clone(false)
+			fsv.Ranges = subRanges
+			return fsv, true
 		})
 
 		return nil
@@ -210,12 +221,18 @@ func WithMinDepartureTime(minDepartureTime time.Time) QueryScheduleOption {
 
 func WithMaxDepartureTime(maxDepartureTime time.Time) QueryScheduleOption {
 	return func(o *querySchedulesOptions) error {
-		o.variantPredicates = append(o.variantPredicates, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) bool {
-			if span, ok := fsv.Ranges.Span(); ok {
-				return fsv.DepartureTime(span[0]).Before(maxDepartureTime)
+		o.variantVisitors = append(o.variantVisitors, func(fs *common.FlightSchedule, fsv *common.FlightScheduleVariant) (*common.FlightScheduleVariant, bool) {
+			subRanges := fsv.Ranges.RemoveAll(func(d xtime.LocalDate) bool {
+				return fsv.DepartureTime(d).After(maxDepartureTime)
+			})
+
+			if subRanges.Empty() {
+				return fsv, false
 			}
 
-			return false
+			fsv = fsv.Clone(false)
+			fsv.Ranges = subRanges
+			return fsv, true
 		})
 
 		return nil
