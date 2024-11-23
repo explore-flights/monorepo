@@ -507,9 +507,19 @@ function ResultTable({ title, query }: { title: string, query: UseQueryResult<Qu
           query = withAircraftTypeFilter(query, v.aircraft.raw);
           query = withAircraftConfigurationVersionFilter(query, v.aircraftConfigurationVersion);
         } else {
+          const uniqueAircraft = new Map<string, {}>();
+          const uniqueConfiguration = new Map<string, {}>();
+
           for (const child of v.children) {
-            query = withAircraftTypeFilter(query, child.aircraft.raw);
-            query = withAircraftConfigurationVersionFilter(query, child.aircraftConfigurationVersion);
+            if (!uniqueAircraft.has(child.aircraft.raw)) {
+              uniqueAircraft.set(child.aircraft.raw, {});
+              query = withAircraftTypeFilter(query, child.aircraft.raw);
+            }
+
+            if (!uniqueConfiguration.has(child.aircraftConfigurationVersion)) {
+              uniqueConfiguration.set(child.aircraftConfigurationVersion, {});
+              query = withAircraftConfigurationVersionFilter(query, child.aircraftConfigurationVersion);
+            }
           }
         }
 
