@@ -12,7 +12,10 @@ import (
 func NewQueryFlightSchedulesEndpoint(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		options := []data.QueryScheduleOption{
-			data.WithServiceType("J"),
+			data.WithAny(
+				data.WithServiceType("J"),
+				data.WithServiceType("U"),
+			),
 			data.WithIgnoreCodeShares(),
 		}
 
