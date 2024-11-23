@@ -198,13 +198,6 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 		}
 	}
 
-	r, err := h.loadCsv(ctx, "airports")
-	if err != nil {
-		return AirportsResponse{}, err
-	}
-
-	defer r.Close()
-
 	metroAreas := make(map[string]MetropolitanArea)
 	resp := AirportsResponse{
 		Airports:          make([]Airport, 0),
@@ -224,16 +217,8 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 		}
 	}
 
-	for {
-		row, err := r.Read()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-
-			return AirportsResponse{}, err
-		}
-
+	var err error
+	for row := range h.readCSV(ctx, "airports", &err) {
 		code := strings.TrimSpace(row["iata_code"])
 		if _, ok := relevantAirportCodes[code]; !ok {
 			continue
@@ -255,6 +240,10 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 		}
 
 		addAirport(airport)
+	}
+
+	if err != nil {
+		return AirportsResponse{}, err
 	}
 
 	if len(relevantAirportCodes) > 0 {
@@ -549,20 +538,54 @@ func (h *Handler) flightSchedulesStream(ctx context.Context, airline common.Airl
 	return errors.Join(err, it.Error)
 }
 
-func (h *Handler) loadCsv(ctx context.Context, name string) (*csvReader, error) {
-	resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(h.bucket),
-		Key:    aws.String("raw/ourairports_data/" + name + ".csv"),
-	})
+func (h *Handler) readCSV(ctx context.Context, name string, outErr *error) iter.Seq[map[string]string] {
+	return func(yield func(map[string]string) bool) {
+		resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
+			Bucket: aws.String(h.bucket),
+			Key:    aws.String("raw/ourairports_data/" + name + ".csv"),
+		})
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			*outErr = err
+			return
+		}
+
+		defer resp.Body.Close()
+
+		r := csv.NewReader(resp.Body)
+
+		row, err := r.Read()
+		if err != nil {
+			*outErr = err
+			return
+		}
+
+		headers := make(map[string]int)
+		for i, v := range row {
+			headers[v] = i
+		}
+
+		for {
+			row, err = r.Read()
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					return
+				}
+
+				*outErr = err
+				return
+			}
+
+			values := make(map[string]string)
+			for name, i := range headers {
+				values[name] = row[i]
+			}
+
+			if !yield(values) {
+				return
+			}
+		}
 	}
-
-	return &csvReader{
-		r: csv.NewReader(resp.Body),
-		c: resp.Body,
-	}, nil
 }
 
 func findName(names lufthansa.Names, lang string) string {
@@ -580,42 +603,6 @@ func findName(names lufthansa.Names, lang string) string {
 	}
 
 	return r
-}
-
-type csvReader struct {
-	r      *csv.Reader
-	c      io.Closer
-	header []string
-}
-
-func (r *csvReader) Read() (map[string]string, error) {
-	row, err := r.r.Read()
-	if err != nil {
-		return nil, err
-	}
-
-	if r.header == nil {
-		r.header = make([]string, 0)
-		for _, v := range row {
-			r.header = append(r.header, v)
-		}
-
-		row, err = r.r.Read()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	result := make(map[string]string, len(r.header))
-	for i, v := range row {
-		result[r.header[i]] = v
-	}
-
-	return result, nil
-}
-
-func (r *csvReader) Close() error {
-	return r.c.Close()
 }
 
 type onceIter[T any] struct {
