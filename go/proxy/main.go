@@ -3,27 +3,22 @@ package main
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
-	"time"
 )
-
-func addAccessControlHeaders(h http.Header) {
-	h.Set("Access-Control-Allow-Origin", AllowOrigin)
-	h.Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	h.Set("Access-Control-Allow-Headers", "*")
-	h.Set("Access-Control-Allow-Credentials", "true")
-	h.Set("Access-Control-Max-Age", "86400")
-}
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
+
+	p, err := NewProxy("/milesandmore")
+	if err != nil {
+		panic(err)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("OPTIONS /", func(w http.ResponseWriter, req *http.Request) {
@@ -38,78 +33,36 @@ func main() {
 		_, _ = w.Write([]byte("github.com/explore-flights/monorepo/go/proxy"))
 	})
 
-	mux.HandleFunc("POST /milesandmore/", func(w http.ResponseWriter, req *http.Request) {
-		ctx, cancel := context.WithTimeout(req.Context(), time.Second*15)
-		defer cancel()
+	mux.Handle("POST /milesandmore/", p)
 
-		if req.Body != nil {
-			defer req.Body.Close()
-		}
-
-		outurl := "https://api.miles-and-more.com"
-		outurl += strings.TrimPrefix(req.URL.EscapedPath(), "/milesandmore")
-		if req.URL.RawQuery != "" {
-			outurl += "?"
-			outurl += req.URL.RawQuery
-		}
-
-		outreq, err := http.NewRequestWithContext(ctx, req.Method, outurl, req.Body)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte(err.Error()))
-			return
-		}
-
-		for k, v := range req.Header {
-			if strings.EqualFold(k, "user-agent") || strings.EqualFold(k, "accept") || strings.EqualFold(k, "x-api-key") {
-				outreq.Header[k] = v
-			}
-		}
-
-		outreq.Header.Set("Origin", "https://www.miles-and-more.com")
-		outreq.Header.Set("Referer", "https://www.miles-and-more.com/")
-
-		proxyresp, err := http.DefaultClient.Do(outreq)
-		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				w.WriteHeader(http.StatusRequestTimeout)
-			} else {
-				w.WriteHeader(http.StatusBadGateway)
-			}
-
-			_, _ = w.Write([]byte(err.Error()))
-			return
-		}
-
-		defer proxyresp.Body.Close()
-
-		if contentType := proxyresp.Header.Get("Content-Type"); contentType != "" {
-			w.Header().Set("Content-Type", contentType)
-		}
-
-		addAccessControlHeaders(w.Header())
-
-		w.WriteHeader(proxyresp.StatusCode)
-		_, _ = io.Copy(w, proxyresp.Body)
-	})
-
-	if err := run(ctx, &http.Server{Addr: "127.0.0.1:8090", Handler: mux}); err != nil {
+	if err = run(ctx, mux); err != nil {
 		panic(err)
 	}
+
+	slog.Info("proxy stopped")
 }
 
-func run(ctx context.Context, srv *http.Server) error {
+func run(ctx context.Context, handler http.Handler) error {
+	const addr = "127.0.0.1:8090"
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("proxy ready to accept connections", slog.String("addr", addr))
+
 	go func() {
 		<-ctx.Done()
-		if err := srv.Shutdown(context.Background()); err != nil {
+		if err := l.Close(); err != nil {
 			slog.Error("error shutting down the http server", slog.String("err", err.Error()))
 		}
 	}()
 
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := http.Serve(l, handler); err != nil && !errors.Is(err, net.ErrClosed) {
 		return err
 	}
 
