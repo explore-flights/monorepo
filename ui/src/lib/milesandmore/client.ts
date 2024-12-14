@@ -9,11 +9,7 @@ export enum FareFamily {
 }
 
 export enum CorporateCode {
-  LH = '223293',
-}
-
-export enum CompanyCode {
-  LH = 'LH',
+  LH = 223293,
 }
 
 export enum PassengerCode {
@@ -29,47 +25,32 @@ export enum Mode {
   BEST_BY_DAY = 'bestByDay',
 }
 
-export interface FrequentFlyer {
-  companyCode: CompanyCode;
-  priorityCode: number;
-}
-
 export interface Itinerary {
-  departureDateTime?: string;
+  departureDateTime: string;
   originLocationCode: string;
   destinationLocationCode: string;
 }
 
-export interface SearchPreferences {
-  mode: Mode;
-  showMilesPrice: boolean;
-}
-
-export interface Traveler {
-  passengerTypeCode: PassengerCode;
-}
-
 export interface TripDetails {
-  tripDuration: number;
+  tripDuration?: number;
   rangeOfDeparture: number;
 }
 
 export interface BestByRequest {
   commercialFareFamilies: ReadonlyArray<FareFamily>;
   corporateCodes: ReadonlyArray<CorporateCode>;
+  countryOfCommencement: 'DE',
   currencyCode: CurrencyCode;
-  frequentFlyer: FrequentFlyer;
   itineraries: ReadonlyArray<Itinerary>;
-  searchPreferences: SearchPreferences;
-  travelers: ReadonlyArray<Traveler>;
-  tripDetails?: TripDetails;
+  tripDetails: TripDetails;
 }
 
 export interface MMRequest {
   mode: Mode;
   fareFamily: FareFamily;
   travelers: ReadonlyArray<PassengerCode>;
-  departureDateTime: DateTime<true>;
+  minDepartureDateTime: DateTime<true>;
+  maxDepartureDateTime: DateTime<true>;
   origin: string;
   destination: string;
 }
@@ -96,15 +77,12 @@ export interface Flight {
 
 export interface Bound {
   fareFamilyCode: string;
-  originLocationCode: string;
-  destinationLocationCode: string;
-  flights: ReadonlyArray<Flight>;
+  flights: ReadonlyArray<{}>;
 }
 
 export interface MilesConversion {
   convertedMiles: {
     base: number;
-    total: number;
   };
 }
 
@@ -122,13 +100,19 @@ export interface ResponseDataEntry {
   departureDate: string;
   fareFamilyCode: string;
   bounds: ReadonlyArray<Bound>;
-  fareInfos: ReadonlyArray<unknown>;
+  fareInfos: ReadonlyArray<{}>;
   prices: Prices;
+}
+
+export interface Currency {
+  name: string;
+  decimalPlaces: number;
 }
 
 export interface ResponseDataDictionaries {
   aircraft: Record<string, string>;
   airline: Record<string, string>;
+  currency: Record<string, Currency>;
   flight: Record<string, FlightLookup>;
 }
 
@@ -151,38 +135,43 @@ export class MilesAndMoreClient {
   }
 
   async getBestBy(req: MMRequest): Promise<MMResponse> {
+    const today = DateTime.now();
+    let minDepartureDateTime = req.minDepartureDateTime;
+    if (today > minDepartureDateTime) {
+      minDepartureDateTime = today;
+    }
+
     const request = {
       commercialFareFamilies: [req.fareFamily],
       corporateCodes: [CorporateCode.LH],
+      countryOfCommencement: 'DE',
       currencyCode: CurrencyCode.EUR,
-      frequentFlyer: {
-        companyCode: CompanyCode.LH,
-        priorityCode: 0,
-      },
       itineraries: [
         {
-          departureDateTime: req.departureDateTime.toISODate() + 'T00:00:00',
+          departureDateTime: minDepartureDateTime.toISODate() + 'T00:00:00',
           originLocationCode: req.origin,
           destinationLocationCode: req.destination,
         },
       ],
-      searchPreferences: {
-        mode: req.mode,
-        showMilesPrice: true,
+      tripDetails: {
+        rangeOfDeparture: Math.ceil(minDepartureDateTime.until(req.maxDepartureDateTime).length('days')),
       },
-      travelers: req.travelers.map((v) => ({ passengerTypeCode: v })),
     } satisfies BestByRequest;
 
     const errs: Array<string> = [];
 
-    for (let i = 0; i < 3; i++) {
+    const maxAttempts = 1;
+    for (let i = 0; i < maxAttempts; i++) {
       const resp = await this.httpClient.fetch(
-        `http://127.0.0.1:8090/milesandmore/flights/v1/${req.mode === Mode.BEST_BY_MONTH ? 'bestbymonth' : 'bestbyday'}`,
+        `http://127.0.0.1:8090/milesandmore/flights/v3/${req.mode === Mode.BEST_BY_MONTH ? 'bestbymonth' : 'bestbyday'}`,
         {
           method: 'POST',
           body: JSON.stringify(request),
           headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json',
             'X-Api-Key': 'agGBZmuTGwFXWzVDg8ckGKGBytemE1nS',
+            'Rtw': 'true',
           },
         },
       );
@@ -195,6 +184,7 @@ export class MilesAndMoreClient {
           dictionaries: {
             aircraft: {},
             airline: {},
+            currency: {},
             flight: {},
           },
         };
