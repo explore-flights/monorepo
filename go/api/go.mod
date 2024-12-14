@@ -15,7 +15,7 @@ require (
 	github.com/its-felix/aws-lwa-go-middleware v0.1.1
 	github.com/json-iterator/go v1.1.12
 	github.com/labstack/echo/v4 v4.12.0
-	golang.org/x/sync v0.8.0
+	golang.org/x/sync v0.10.0
 	golang.org/x/time v0.7.0
 	google.golang.org/protobuf v1.35.1
 )
@@ -50,11 +50,11 @@ require (
 	github.com/tetratelabs/wazero v1.8.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
-	golang.org/x/crypto v0.28.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/image v0.21.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/text v0.19.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 )
 
 replace github.com/explore-flights/monorepo/go/common v0.0.0 => ../common
