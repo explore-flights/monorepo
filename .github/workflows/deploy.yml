@@ -6,6 +6,7 @@ on:
       - 'main'
     paths-ignore:
       - 'go/proxy/**'
+  workflow_dispatch:
 
 env:
   WORKSPACE_ARTIFACT_API: 'explore_flights_api_artifact'
