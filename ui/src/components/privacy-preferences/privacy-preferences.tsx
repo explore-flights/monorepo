@@ -43,19 +43,19 @@ export default function PrivacyPreferences({ onDismiss, ...modalProps }: ModalPr
   const [consentLevels, setConsentLevels] = useConsent();
   const [consent, setConsent] = useState({
     functional: consentLevels.has(ConsentLevel.FUNCTIONALITY),
-    maptiler: consentLevels.has(ConsentLevel.MAPTILER),
+    versatiles: consentLevels.has(ConsentLevel.VERSATILES),
   });
 
   useEffect(() => {
     if (hasConsent) {
       setConsent({
         functional: consentLevels.has(ConsentLevel.FUNCTIONALITY),
-        maptiler: consentLevels.has(ConsentLevel.MAPTILER),
+        versatiles: consentLevels.has(ConsentLevel.VERSATILES),
       });
     } else {
       setConsent({
         functional: true,
-        maptiler: false,
+        versatiles: false,
       });
     }
   }, [hasConsent, consentLevels]);
@@ -63,7 +63,7 @@ export default function PrivacyPreferences({ onDismiss, ...modalProps }: ModalPr
   function onCancelClick(e: CustomEvent<unknown>) {
     setConsent({
       functional: consentLevels.has(ConsentLevel.FUNCTIONALITY),
-      maptiler: consentLevels.has(ConsentLevel.MAPTILER),
+      versatiles: consentLevels.has(ConsentLevel.VERSATILES),
     });
 
     if (onDismiss) {
@@ -77,8 +77,8 @@ export default function PrivacyPreferences({ onDismiss, ...modalProps }: ModalPr
       result.push(ConsentLevel.FUNCTIONALITY);
     }
 
-    if (consent.maptiler) {
-      result.push(ConsentLevel.MAPTILER);
+    if (consent.versatiles) {
+      result.push(ConsentLevel.VERSATILES);
     }
 
     setConsentLevels(result);
@@ -132,13 +132,13 @@ export default function PrivacyPreferences({ onDismiss, ...modalProps }: ModalPr
           }
         />
         <Category
-          name={'Maptiler'}
-          description={'Maptiler provides our site with the necessary data for the map component found on this site. When using the map component, your browser will automatically transfer connection metadata like your IP-Address and User-Agent to Maptiler.'}
+          name={'VersaTiles'}
+          description={'VersaTiles provides our site with the necessary data for the map component found on this site. When using the map component, your browser will automatically transfer connection metadata like your IP-Address and User-Agent to VersaTiles.'}
           checkbox={
             {
-              checked: consent.maptiler,
+              checked: consent.versatiles,
               disabled: false,
-              onChange: (event) => setConsent((prev) => ({ ...prev, maptiler: event.detail.checked })),
+              onChange: (event) => setConsent((prev) => ({ ...prev, versatiles: event.detail.checked })),
             }
           }
         />

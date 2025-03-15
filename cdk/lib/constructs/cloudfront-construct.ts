@@ -54,7 +54,7 @@ export class CloudfrontConstruct extends Construct {
         contentSecurityPolicy: {
           contentSecurityPolicy: [
             `default-src 'self'`,
-            `connect-src 'self' http://127.0.0.1:8090/ https://api.maptiler.com/`,
+            `connect-src 'self' http://127.0.0.1:8090/ https://tiles.versatiles.org/`,
             `style-src 'self' 'unsafe-inline'`,
             `font-src data:`,
             `img-src 'self' data: blob:`,

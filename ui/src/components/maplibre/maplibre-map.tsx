@@ -23,12 +23,8 @@ import {
 } from '@cloudscape-design/components';
 import { useConsent } from '../util/state/use-consent';
 import { ConsentLevel } from '../../lib/consent.model';
-
-const MAP_STYLE_URL = (() => {
-  const query = new URLSearchParams();
-  query.set('key', import.meta.env.VITE_MAPTILER_KEY);
-  return `https://api.maptiler.com/maps/basic-v2/style.json?${query.toString()}`;
-})();
+import { usePreferences } from '../util/state/use-preferences';
+import { ColorScheme } from '../../lib/preferences.model';
 
 function ComponentResize() {
   const map = useMap();
@@ -47,7 +43,7 @@ export function MaplibreMap(props: React.PropsWithChildren<MaplibreMapProps>) {
   const [allowOnce, setAllowOnce] = useState(false);
   const [consentLevels] = useConsent();
 
-  if (!allowOnce && !consentLevels.has(ConsentLevel.MAPTILER)) {
+  if (!allowOnce && !consentLevels.has(ConsentLevel.VERSATILES)) {
     return <MaplibreMapConsent {...props} onAllowOnceClick={() => setAllowOnce(true)} />;
   }
 
@@ -58,7 +54,7 @@ function MaplibreMapConsent({ height, onAllowOnceClick }: { height: string | num
   const [consentLevels, setConsentLevels] = useConsent();
 
   function onAllowClick() {
-    setConsentLevels([...consentLevels, ConsentLevel.MAPTILER]);
+    setConsentLevels([...consentLevels, ConsentLevel.VERSATILES]);
   }
 
   return (
@@ -67,7 +63,7 @@ function MaplibreMapConsent({ height, onAllowOnceClick }: { height: string | num
         <div className={classes['consent-content']}>
           <Grid gridDefinition={[{ colspan: { default: 12, xs: 10, s: 8 }, offset: { default: 0, xs: 1, s: 2 } }]}>
             <Container
-              header={<Header>Maptiler Consent</Header>}
+              header={<Header>VersaTiles Consent</Header>}
               footer={
                 <SpaceBetween size={'xs'} direction={'horizontal'}>
                   <Button variant={'primary'} onClick={onAllowClick}>Allow &amp; Remember</Button>
@@ -76,10 +72,9 @@ function MaplibreMapConsent({ height, onAllowOnceClick }: { height: string | num
               }
             >
               <SpaceBetween direction={'vertical'} size={'xs'}>
-                <Box>The map component loads resources from URLs provided by <Link href={'https://www.maptiler.com/copyright/'} external={true}>Maptiler</Link>.</Box>
-                <Box>Your browser will automatically transfer connection metadata like your IP-Address and User-Agent to Maptiler.</Box>
+                <Box>The map component loads resources from URLs provided by <Link href={'https://versatiles.org/'} external={true}>VersaTiles</Link>.</Box>
+                <Box>Your browser will automatically transfer connection metadata like your IP-Address and User-Agent to VersaTiles.</Box>
                 <Box>By using the map component you accept and allow this from happening. You can always opt-out of this by updating your privacy preferences.</Box>
-                <Box variant={'small'}>You can view Maptiler's privacy policy at <Link fontSize={'inherit'} href={'https://www.maptiler.com/privacy-policy/'} external={true}>https://www.maptiler.com/privacy-policy/</Link></Box>
               </SpaceBetween>
             </Container>
           </Grid>
@@ -90,6 +85,17 @@ function MaplibreMapConsent({ height, onAllowOnceClick }: { height: string | num
 }
 
 function MaplibreMapInternal({ children, height }: React.PropsWithChildren<MaplibreMapProps>) {
+  const [preferences] = usePreferences();
+  const mapStyleURL = useMemo(() => {
+    // https://github.com/versatiles-org/versatiles-style
+    const variant = ({
+      [ColorScheme.DARK]: 'graybeard',
+      [ColorScheme.LIGHT]: 'colorful',
+    })[preferences.effectiveColorScheme];
+
+    return `https://tiles.versatiles.org/assets/styles/${variant}/style.json`;
+  }, [preferences.effectiveColorScheme]);
+
   return (
     <Map
       style={{ height: height }}
@@ -98,7 +104,7 @@ function MaplibreMapInternal({ children, height }: React.PropsWithChildren<Mapli
         latitude: 0.0,
         zoom: 0,
       }}
-      mapStyle={MAP_STYLE_URL}
+      mapStyle={mapStyleURL}
     >
       <ComponentResize />
       <FullscreenControl />

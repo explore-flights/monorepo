@@ -6,7 +6,7 @@ import React from 'react';
 import { KeyValuePairs, ValueWithLabel } from '../components/common/key-value-pairs';
 import { Contact } from '../components/contact/contact';
 
-const LAST_UPDATED = new Date('2024-09-05');
+const LAST_UPDATED = new Date('2025-03-15');
 
 export function PrivacyPolicy() {
   return (
@@ -151,8 +151,8 @@ export function PrivacyPolicy() {
       <Container variant={'stacked'} header={<Header variant={'h2'}>Third-Party APIs</Header>}>
         <Box variant={'p'}>The privacy policies of the third-party APIs used by this site can be viewed at:</Box>
         <KeyValuePairs columns={1}>
-          <ValueWithLabel label={'Maptiler'}>
-            <Link href={'https://www.maptiler.com/privacy-policy/'} external={true}>https://www.maptiler.com/privacy-policy/</Link>
+          <ValueWithLabel label={'VersaTiles'}>
+            <Link href={'https://versatiles.org/'} external={true}>https://versatiles.org/</Link>
           </ValueWithLabel>
         </KeyValuePairs>
       </Container>
