@@ -19,7 +19,7 @@ export default function FlightsFooter(props: FlightsFooterProps) {
         <RouterLink to={'/legal'} rel={'terms-of-service'}>Legal</RouterLink>
         <RouterLink to={'/privacy-policy'} rel={'privacy-policy'}>Privacy Policy</RouterLink>
         <Link variant={'secondary'} href={'#'} onFollow={props.onPrivacyPreferencesClick}>Privacy Preferences</Link>
-        <Box variant={'span'}>© 2024 Felix</Box>
+        <Box variant={'span'}>© 2024-2025 Felix</Box>
       </SpaceBetween>
     </footer>
   );
