@@ -6,7 +6,6 @@ import {
   ContentLayout,
   Header, Modal
 } from '@cloudscape-design/components';
-import 'reactflow/dist/style.css';
 import { useHttpClient } from '../components/util/context/http-client';
 import { catchNotify, useAppControls } from '../components/util/context/app-controls';
 import { expectSuccess } from '../lib/api/api';

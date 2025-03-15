@@ -3,13 +3,19 @@ import {
   Background,
   Controls,
   Edge,
-  getConnectedEdges, Handle,
-  Node, NodeProps, Position,
-  ReactFlow, ReactFlowProvider,
+  getConnectedEdges,
+  Handle,
+  Node,
+  NodeProps,
+  NodeTypes,
+  Position,
+  ReactFlow,
+  ReactFlowProvider,
   useEdgesState,
   useNodesState,
   useReactFlow
-} from 'reactflow';
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import Dagre from '@dagrejs/dagre';
 import { DateTime } from 'luxon';
@@ -18,20 +24,22 @@ import { KeyValuePairs, ValueWithLabel } from '../common/key-value-pairs';
 import { flightNumberToString } from '../../lib/util/flight';
 import { BulletSeperator, Join } from '../common/join';
 import { FlightLink } from '../common/flight-link';
+import { usePreferences } from '../util/state/use-preferences';
+import { ColorScheme } from '../../lib/preferences.model';
 
-interface FlightNodeData {
+type FlightNodeData = {
   readonly type: 'flight';
   readonly flight: Flight;
   readonly aircraft?: Aircraft;
 }
 
-interface DepartureNodeData {
+type DepartureNodeData = {
   readonly type: 'departure';
   readonly airport: string;
   readonly label: string;
 }
 
-interface ArrivalNodeData {
+type ArrivalNodeData = {
   readonly type: 'arrival';
   readonly airport: string;
   readonly label: string;
@@ -39,7 +47,7 @@ interface ArrivalNodeData {
 
 type NodeData = FlightNodeData | DepartureNodeData | ArrivalNodeData;
 
-interface EdgeData {
+type EdgeData = {
   readonly source?: Flight;
   readonly target?: Flight;
 }
@@ -58,6 +66,8 @@ export function ConnectionsGraph(props: ConnectionsGraphProps) {
 }
 
 function ConnectionsGraphInternal({ connections, aircraftLookup }: ConnectionsGraphProps) {
+  const [preferences] = usePreferences();
+
   const { fitView } = useReactFlow();
   const getLayoutedElements = useCallback((nodes: ReadonlyArray<Node<NodeData>>, edges: ReadonlyArray<Edge<EdgeData>>) => {
     const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
@@ -77,12 +87,12 @@ function ConnectionsGraphInternal({ connections, aircraftLookup }: ConnectionsGr
     };
   }, []);
 
-  const nodeTypes = useMemo(() => ({
+  const nodeTypes = useMemo<NodeTypes>(() => ({
     flight: FlightNode,
   }), []);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<EdgeData>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<EdgeData>>([]);
 
   useEffect(() => {
     const [nodes, edges] = convertToGraph(connections, aircraftLookup);
@@ -92,7 +102,7 @@ function ConnectionsGraphInternal({ connections, aircraftLookup }: ConnectionsGr
     setEdges([...layouted.edges]);
 
     window.requestAnimationFrame(() => {
-      fitView();
+      fitView().then(() => {});
     });
   }, [getLayoutedElements, connections, aircraftLookup]);
 
@@ -109,14 +119,9 @@ function ConnectionsGraphInternal({ connections, aircraftLookup }: ConnectionsGr
           const connectedEdges = getConnectedEdges([node], edges);
           const ids = connectedEdges.map((v) => v.id);
 
-          setEdges((prev) => prev.map((edge) => {
-            edge.animated = ids.includes(edge.id);
-            return edge;
-          }));
+          setEdges((prev) => prev.map((edge) => ({ ...edge, animated: ids.includes(edge.id) })));
         }}
-        edgesUpdatable={false}
-        nodesDraggable={false}
-        nodesConnectable={false}
+        colorMode={preferences.effectiveColorScheme === ColorScheme.DARK ? 'dark' : 'light'}
       >
         <Controls showFitView={true} showZoom={true} showInteractive={false} />
         <Background />
@@ -125,7 +130,7 @@ function ConnectionsGraphInternal({ connections, aircraftLookup }: ConnectionsGr
   );
 }
 
-function FlightNode({ data }: NodeProps<FlightNodeData>) {
+function FlightNode({ data }: NodeProps<Node<FlightNodeData>>) {
   const { flight, aircraft } = data;
   const departure = DateTime.fromISO(flight.departureTime, { setZone: true });
   const arrival = DateTime.fromISO(flight.arrivalTime, { setZone: true });
@@ -216,6 +221,8 @@ function buildGraph(
           flight: flight,
           aircraft: (aircraftLookup ? aircraftLookup[flight.aircraftType] : undefined) ?? undefined,
         },
+        connectable: false,
+        draggable: false,
       } satisfies Node<FlightNodeData>;
 
       nodeLookup.set(connection.flightId, node);
@@ -240,6 +247,8 @@ function buildGraph(
             airport: flight.departureAirport,
             label: flight.departureAirport,
           },
+          connectable: false,
+          draggable: false,
         } satisfies Node<DepartureNodeData>;
 
         nodeLookup.set(departureNodeId, node);
@@ -256,6 +265,8 @@ function buildGraph(
           data: {
             target: flight,
           },
+          deletable: false,
+          focusable: false,
         } satisfies Edge<EdgeData>;
 
         edgeLookup.set(edgeId, edge);
@@ -277,6 +288,8 @@ function buildGraph(
             source: parentFlight,
             target: flight,
           },
+          deletable: false,
+          focusable: false,
         } satisfies Edge<EdgeData>;
 
         edgeLookup.set(edgeId, edge);
@@ -311,6 +324,8 @@ function buildGraph(
             airport: flight.arrivalAirport,
             label: flight.arrivalAirport,
           },
+          connectable: false,
+          draggable: false,
         } satisfies Node<ArrivalNodeData>;
 
         nodeLookup.set(arrivalNodeId, node);
@@ -328,6 +343,8 @@ function buildGraph(
           data: {
             source: flight,
           },
+          deletable: false,
+          focusable: false,
         } satisfies Edge<EdgeData>;
 
         edgeLookup.set(edgeId, edge);
