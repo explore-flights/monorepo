@@ -175,7 +175,7 @@ export function SmartLine({ src, dst }: { src: [number, number], dst: [number, n
         },
       }}
     >
-      <Layer key={layerId} id={layerId} type={'line'} source={sourceId} paint={{ 'line-color': lineColor }} />
+      <Layer key={layerId} id={layerId} type={'line'} source={sourceId} paint={{ 'line-color': lineColor, 'line-width': 3 }} />
     </Source>
   );
 }
