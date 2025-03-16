@@ -89,7 +89,7 @@ function MaplibreMapInternal({ children, height }: React.PropsWithChildren<Mapli
   const mapStyleURL = useMemo(() => {
     // https://github.com/versatiles-org/versatiles-style
     const variant = ({
-      [ColorScheme.DARK]: 'graybeard',
+      [ColorScheme.DARK]: 'eclipse',
       [ColorScheme.LIGHT]: 'colorful',
     })[preferences.effectiveColorScheme];
 
@@ -155,6 +155,12 @@ export function SmartLine({ src, dst }: { src: [number, number], dst: [number, n
     return [sourceId, layerId];
   }, [coordinates]);
 
+  const [preferences] = usePreferences();
+  const lineColor = useMemo(() => ({
+    [ColorScheme.DARK]: '#c6c6cd',
+    [ColorScheme.LIGHT]: '#000000',
+  })[preferences.effectiveColorScheme], [preferences.effectiveColorScheme])
+
   return (
     <Source
       key={sourceId}
@@ -169,7 +175,7 @@ export function SmartLine({ src, dst }: { src: [number, number], dst: [number, n
         },
       }}
     >
-      <Layer key={layerId} id={layerId} type={'line'} source={sourceId} />
+      <Layer key={layerId} id={layerId} type={'line'} source={sourceId} paint={{ 'line-color': lineColor }} />
     </Source>
   );
 }
