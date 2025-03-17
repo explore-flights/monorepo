@@ -18,7 +18,7 @@ import {
   Form,
   FormField,
   Grid,
-  Header, Link, Select, SelectProps, Table
+  Header, Input, Link, Select, SelectProps, Table
 } from '@cloudscape-design/components';
 import { AirportMultiselect } from '../../components/select/airport-multiselect';
 import { DateTime } from 'luxon';
@@ -75,6 +75,8 @@ export function MmQuickSearch() {
   const airportsQuery = useAirports();
 
   const [isLoading, setLoading] = useState(false);
+  const [countryOfCommencement, setCountryOfCommencement] = useState('DE');
+  const [currencyCode, setCurrencyCode] = useState('EUR');
   const [cabin, setCabin] = useState<SelectProps.Option>(CABIN_OPTIONS[2]);
   const [origins, setOrigins] = useState<ReadonlyArray<string>>([]);
   const [destinations, setDestinations] = useState<ReadonlyArray<string>>([]);
@@ -99,6 +101,8 @@ export function MmQuickSearch() {
             maxDepartureDateTime: maxDeparture,
             origin: origin,
             destination: destination,
+            countryOfCommencement: countryOfCommencement,
+            currencyCode: currencyCode,
           });
 
           promises.push([origin, destination, promise]);
@@ -148,12 +152,40 @@ export function MmQuickSearch() {
           <Form actions={<Button onClick={onSearch} loading={isLoading} iconName={'search'}>Search</Button>}>
             <Grid
               gridDefinition={[
-                { colspan: { default: 12, xs: 6, m: 3 } },
-                { colspan: { default: 12, xs: 6, m: 3 } },
-                { colspan: { default: 12, xs: 6, m: 3 } },
-                { colspan: { default: 12, xs: 12, m: 3 } },
+                { colspan: { default: 12, xs: 6, m: 6 } },
+                { colspan: { default: 12, xs: 6, m: 6 } },
+                { colspan: { default: 12, xs: 6, m: 4 } },
+                { colspan: { default: 12, xs: 6, m: 4 } },
+                { colspan: { default: 12, xs: 6, m: 4 } },
+                { colspan: { default: 12, xs: 12, m: 12 } },
               ]}
             >
+              <FormField
+                label={'Country of Commencement'}
+                description={'Set this to the country code of your origin. This will happen automatically in a later version'}
+                constraintText={'2 Letter Country Code'}
+                errorText={countryOfCommencement.length != 2 ? 'Must be a 2 letter country code' : ''}
+              >
+                <Input
+                  value={countryOfCommencement}
+                  onChange={(e) => setCountryOfCommencement(e.detail.value.trim().toUpperCase())}
+                  disabled={isLoading}
+                />
+              </FormField>
+
+              <FormField
+                label={'Currency Code'}
+                description={'Set this to the currency code of your origin. This will happen automatically in a later version'}
+                constraintText={'3 Letter Currency Code'}
+                errorText={currencyCode.length != 3 ? 'Must be a 3 letter currency code' : ''}
+              >
+                <Input
+                  value={currencyCode}
+                  onChange={(e) => setCurrencyCode(e.detail.value.trim().toUpperCase())}
+                  disabled={isLoading}
+                />
+              </FormField>
+
               <FormField label={'Cabin'}>
                 <Select
                   selectedOption={cabin}
@@ -183,7 +215,7 @@ export function MmQuickSearch() {
                 />
               </FormField>
 
-              <FormField label={'Departure'}>
+              <FormField label={'Departure'} stretch={true}>
                 <DateRangePicker
                   value={{ type: 'absolute', startDate: minDeparture.toISO(), endDate: maxDeparture.toISO() }}
                   onChange={(e) => {

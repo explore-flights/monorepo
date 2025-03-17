@@ -39,8 +39,8 @@ export interface TripDetails {
 export interface BestByRequest {
   commercialFareFamilies: ReadonlyArray<FareFamily>;
   corporateCodes: ReadonlyArray<CorporateCode>;
-  countryOfCommencement: 'DE',
-  currencyCode: CurrencyCode;
+  countryOfCommencement: string,
+  currencyCode: CurrencyCode | string;
   itineraries: ReadonlyArray<Itinerary>;
   tripDetails: TripDetails;
 }
@@ -53,6 +53,8 @@ export interface MMRequest {
   maxDepartureDateTime: DateTime<true>;
   origin: string;
   destination: string;
+  countryOfCommencement: string,
+  currencyCode: string,
 }
 
 export interface ArrivalDeparture {
@@ -144,8 +146,8 @@ export class MilesAndMoreClient {
     const request = {
       commercialFareFamilies: [req.fareFamily],
       corporateCodes: [CorporateCode.LH],
-      countryOfCommencement: 'DE',
-      currencyCode: CurrencyCode.EUR,
+      countryOfCommencement: req.countryOfCommencement,
+      currencyCode: req.currencyCode,
       itineraries: [
         {
           departureDateTime: minDepartureDateTime.toISODate() + 'T00:00:00',
