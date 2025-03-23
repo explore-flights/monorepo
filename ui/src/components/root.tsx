@@ -23,15 +23,17 @@ import PrivacyPreferences from './privacy-preferences/privacy-preferences';
 import FlightsFooter from './footer/footer';
 import FlightsHeader from './header/header';
 import { SideNav } from './sidenav/sidenav';
-import { AppControlsProvider } from './util/context/app-controls';
-import { AuthInfoProvider, useAuthInfo } from './util/context/auth-info';
+import { AppControlsProvider, catchNotify, useAppControls } from './util/context/app-controls';
+import { AuthInfoProvider } from './util/context/auth-info';
 import { BrowserStoreProvider } from './util/context/browser-store';
-import { HttpClientProvider } from './util/context/http-client';
+import { HttpClientProvider, useHttpClient } from './util/context/http-client';
 import { useHasConsent } from './util/state/use-consent';
 import { usePreferences } from './util/state/use-preferences';
 import { useDocumentTitle } from './util/state/use-route-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CookieBanner } from './cookie-banner/cookie-banner';
+import { expectSuccess } from '../lib/api/api';
+import { Markdown } from './markdown/markdown';
 
 interface AppControlsState {
   tools: {
@@ -65,6 +67,9 @@ export interface RootLayoutProps extends Omit<AppLayoutProps, 'content'> {
 export function RootLayout({
   headerHide, breadcrumbsHide, children, ...appLayoutProps 
 }: React.PropsWithChildren<RootLayoutProps>) {
+  const { apiClient } = useHttpClient();
+  const { notification } = useAppControls();
+
   const documentTitle = useDocumentTitle();
   const hasConsent = useHasConsent();
   const [cookiePrefVisible, setCookiePrefVisible] = useState(false);
@@ -77,6 +82,18 @@ export function RootLayout({
     document.title = documentTitle;
     return () => { document.title = restore; };
   }, [documentTitle]);
+
+  useEffect(() => {
+    (async () => {
+      const { body } = expectSuccess(await apiClient.getNotifications());
+      body.forEach((v) => notification.addOnce({
+        type: v.type,
+        header: v.header,
+        content: <Markdown md={v.content} />,
+        dismissible: true,
+      }));
+    })().catch(catchNotify(notification, 'Failed to load notifications'));
+  }, [apiClient, notification]);
 
   function onCookiePreferencesClick(e: CustomEvent<LinkProps.FollowDetail>) {
     e.preventDefault();

@@ -70,6 +70,8 @@ func main() {
 	e.GET("/api/search", web.NewSearchEndpoint(dataHandler))
 	e.GET("/api/schedule/search", web.NewQueryFlightSchedulesEndpoint(dataHandler))
 
+	e.GET("/api/notifications", web.NewNotificationsEndpoint(s3c, bucket))
+
 	e.HEAD("/auth/info", authHandler.AuthInfo)
 	e.POST("/auth/logout", authHandler.Logout)
 	e.GET("/auth/oauth2/register/:issuer", authHandler.Register)

@@ -258,3 +258,9 @@ export interface QuerySchedulesRequest {
 }
 
 export type QueryScheduleResponse = Record<string, FlightSchedule>;
+
+export interface Notification {
+  type: 'success' | 'info' | 'warning' | 'error' | 'in-progress';
+  header?: string;
+  content?: string;
+}

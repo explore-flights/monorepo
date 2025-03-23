@@ -10,7 +10,11 @@ import {
   ConnectionsSearchRequest,
   ConnectionsSearchResponseWithSearch,
   ConnectionsSearchResponse,
-  FlightSchedule, SeatMap, QueryScheduleResponse, QuerySchedulesRequest
+  FlightSchedule,
+  SeatMap,
+  QueryScheduleResponse,
+  QuerySchedulesRequest,
+  Notification,
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -192,6 +196,21 @@ export class ApiClient {
     }
 
     return transform(this.httpClient.fetch(url));
+  }
+
+  getNotifications(): Promise<ApiResponse<ReadonlyArray<Notification>>> {
+    return transform(
+      this.httpClient.fetch('/api/notifications'),
+      (status, body) => {
+        if (status === 502) {
+          return [];
+        }
+
+        return JSON.parse(body) as ReadonlyArray<Notification>;
+      },
+      200,
+      502,
+    );
   }
 
   logout(): Promise<ApiResponse<unknown>> {
