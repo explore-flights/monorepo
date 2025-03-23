@@ -27,7 +27,6 @@ import { AppControlsProvider } from './util/context/app-controls';
 import { AuthInfoProvider, useAuthInfo } from './util/context/auth-info';
 import { BrowserStoreProvider } from './util/context/browser-store';
 import { HttpClientProvider } from './util/context/http-client';
-import { useMobile } from './util/state/common';
 import { useHasConsent } from './util/state/use-consent';
 import { usePreferences } from './util/state/use-preferences';
 import { useDocumentTitle } from './util/state/use-route-context';
@@ -67,12 +66,10 @@ export function RootLayout({
   headerHide, breadcrumbsHide, children, ...appLayoutProps 
 }: React.PropsWithChildren<RootLayoutProps>) {
   const documentTitle = useDocumentTitle();
-  const [authInfo] = useAuthInfo();
   const hasConsent = useHasConsent();
   const [cookiePrefVisible, setCookiePrefVisible] = useState(false);
-  const isMobile = useMobile();
   const [splitPanelOpen, setSplitPanelOpen] = useState(true);
-  const [isNavigationOpen, setNavigationOpen] = useState(!isMobile && (authInfo !== undefined && authInfo !== null));
+  const [isNavigationOpen, setNavigationOpen] = useState(false);
   const appControlsState = useContext(AppControlsStateContext);
 
   useEffect(() => {
@@ -80,10 +77,6 @@ export function RootLayout({
     document.title = documentTitle;
     return () => { document.title = restore; };
   }, [documentTitle]);
-
-  useEffect(() => {
-    setNavigationOpen(!isMobile && (authInfo !== undefined && authInfo !== null));
-  }, [isMobile, authInfo]);
 
   function onCookiePreferencesClick(e: CustomEvent<LinkProps.FollowDetail>) {
     e.preventDefault();
