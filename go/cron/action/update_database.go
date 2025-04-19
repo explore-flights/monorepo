@@ -209,7 +209,13 @@ func (a *udAction) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, que
 
 func (a *udAction) dbInit(ctx context.Context, srcDbUri, dstDbFilePath string) func(execer driver.ExecerContext) error {
 	return func(execer driver.ExecerContext) error {
+		home, err := os.MkdirTemp("", "")
+		if err != nil {
+			return err
+		}
+
 		bootQueries := []string{
+			fmt.Sprintf(`SET home_directory = '%s'`, home),
 			`SET allow_persistent_secrets = false`,
 			`SET memory_limit = '8GB'`,
 			`
