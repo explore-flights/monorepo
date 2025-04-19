@@ -246,6 +246,10 @@ func (a *udAction) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath 
 	return func(execer driver.ExecerContext) error {
 		bootQueries := []common.Tuple[string, []driver.NamedValue]{
 			{
+				`SET threads TO 1`,
+				[]driver.NamedValue{},
+			},
+			{
 				`SET home_directory = ?`,
 				[]driver.NamedValue{{Ordinal: 1, Value: ddbHomePath}},
 			},
@@ -267,10 +271,6 @@ func (a *udAction) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath 
 			},
 			{
 				fmt.Sprintf(`ATTACH '%s' AS tmp_db`, tmpDbPath),
-				[]driver.NamedValue{},
-			},
-			{
-				`SET threads TO 1`,
 				[]driver.NamedValue{},
 			},
 			{
