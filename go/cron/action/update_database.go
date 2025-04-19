@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -13,6 +12,7 @@ import (
 	"github.com/explore-flights/monorepo/go/cron/db"
 	"github.com/marcboeker/go-duckdb/v2"
 	"os"
+	"path"
 	"strings"
 	"time"
 )
@@ -47,23 +47,38 @@ func (a *udAction) Handle(ctx context.Context, params UpdateDatabaseParams) (Upd
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	f, err := os.CreateTemp("", "*.db")
-	if err != nil {
-		return UpdateDatabaseOutput{}, fmt.Errorf("failed to create temp file: %w", err)
-	}
-	dstDbFilePath := f.Name()
-	_ = f.Close()
-	_ = os.Remove(dstDbFilePath)   // we just need a temp file name
-	defer os.Remove(dstDbFilePath) // delete the db file created by duckdb
+	if err := a.withTempDir(func(dir string) error {
+		ddbHomePath := path.Join(dir, "duckdb-home")
+		tmpDbPath := path.Join(dir, "tmp.db")
+		dstDbPath := path.Join(dir, "dst.db")
 
-	if err = a.runTimed("update database", func() error {
-		return a.updateDatabase(ctx, params.Time, a.buildDbUri(params.DatabaseBucket, params.DatabaseKey), dstDbFilePath, params.InputBucket, params.InputPrefix, params.DateRanges)
-	}); err != nil {
-		return UpdateDatabaseOutput{}, err
-	}
+		if err := os.Mkdir(ddbHomePath, 0750); err != nil {
+			return err
+		}
 
-	if err = a.runTimed("upload db file", func() error {
-		return a.uploadDbFile(ctx, params.DatabaseBucket, params.DatabaseKey, dstDbFilePath)
+		if err := a.runTimed("update database", func() error {
+			return a.updateDatabase(
+				ctx,
+				params.Time,
+				ddbHomePath,
+				a.buildDbUri(params.DatabaseBucket, params.DatabaseKey),
+				tmpDbPath,
+				dstDbPath,
+				params.InputBucket,
+				params.InputPrefix,
+				params.DateRanges,
+			)
+		}); err != nil {
+			return err
+		}
+
+		if err := a.runTimed("upload db file", func() error {
+			return a.uploadDbFile(ctx, params.DatabaseBucket, params.DatabaseKey, dstDbPath)
+		}); err != nil {
+			return err
+		}
+
+		return nil
 	}); err != nil {
 		return UpdateDatabaseOutput{}, err
 	}
@@ -71,8 +86,8 @@ func (a *udAction) Handle(ctx context.Context, params UpdateDatabaseParams) (Upd
 	return UpdateDatabaseOutput{}, nil
 }
 
-func (a *udAction) updateDatabase(ctx context.Context, t time.Time, srcDbUri, dstDbFilePath, inputBucket, inputPrefix string, ldrs xtime.LocalDateRanges) error {
-	connector, err := duckdb.NewConnector("", a.dbInit(ctx, srcDbUri, dstDbFilePath))
+func (a *udAction) updateDatabase(ctx context.Context, t time.Time, ddbHomePath, srcDbUri, tmpDbPath, dstDbPath, inputBucket, inputPrefix string, ldrs xtime.LocalDateRanges) error {
+	connector, err := duckdb.NewConnector("", a.dbInit(ctx, ddbHomePath, srcDbUri, tmpDbPath))
 	if err != nil {
 		return fmt.Errorf("failed to connect to duckdb: %w", err)
 	}
@@ -88,15 +103,7 @@ func (a *udAction) updateDatabase(ctx context.Context, t time.Time, srcDbUri, ds
 	defer conn.Close()
 
 	if err = a.runTimed("update sequence", func() error {
-		return a.runUpdateSequence(ctx, t, conn, a.buildInputFileUris(inputBucket, inputPrefix, ldrs))
-	}); err != nil {
-		return err
-	}
-
-	if err = a.runTimed("detach dst_db", func() error {
-		_, err1 := conn.ExecContext(ctx, `USE memory`, nil)
-		_, err2 := conn.ExecContext(ctx, `DETACH dst_db`, nil)
-		return errors.Join(err1, err2)
+		return a.runUpdateSequence(ctx, t, conn, a.buildInputFileUris(inputBucket, inputPrefix, ldrs), dstDbPath)
 	}); err != nil {
 		return err
 	}
@@ -104,7 +111,7 @@ func (a *udAction) updateDatabase(ctx context.Context, t time.Time, srcDbUri, ds
 	return nil
 }
 
-func (a *udAction) runUpdateSequence(ctx context.Context, t time.Time, conn *sql.Conn, inputFileUris []string) error {
+func (a *udAction) runUpdateSequence(ctx context.Context, t time.Time, conn *sql.Conn, inputFileUris []string, dstDbPath string) error {
 	placeholders := make([]string, len(inputFileUris))
 	anyTypedInputFileUris := make([]any, len(inputFileUris))
 	for i, v := range inputFileUris {
@@ -177,6 +184,34 @@ func (a *udAction) runUpdateSequence(ctx context.Context, t time.Time, conn *sql
 			[2]string{"drop fresh", `DROP TABLE lh_flights_fresh`},
 			[]any{},
 		},
+		{
+			[2]string{"use memory", `USE memory`},
+			[]any{},
+		},
+		{
+			[2]string{"attach dst db", fmt.Sprintf(`ATTACH '%s' AS dst_db`, dstDbPath)},
+			[]any{},
+		},
+		{
+			[2]string{"set threads=1", `SET threads TO 1`},
+			[]any{},
+		},
+		{
+			[2]string{"copy tmp to dst", `COPY FROM DATABASE tmp_db TO dst_db`},
+			[]any{},
+		},
+		{
+			[2]string{"set threads=16", `SET threads TO 16`},
+			[]any{},
+		},
+		{
+			[2]string{"detach tmp db", `DETACH tmp_db`},
+			[]any{},
+		},
+		{
+			[2]string{"detach dst db", `DETACH dst_db`},
+			[]any{},
+		},
 	}
 
 	for _, update := range sequence {
@@ -207,37 +242,61 @@ func (a *udAction) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, que
 	return nil
 }
 
-func (a *udAction) dbInit(ctx context.Context, srcDbUri, dstDbFilePath string) func(execer driver.ExecerContext) error {
+func (a *udAction) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath string) func(execer driver.ExecerContext) error {
 	return func(execer driver.ExecerContext) error {
-		home, err := os.MkdirTemp("", "")
-		if err != nil {
-			return err
+		bootQueries := []common.Tuple[string, []driver.NamedValue]{
+			{
+				`SET home_directory = ?`,
+				[]driver.NamedValue{{Ordinal: 1, Value: ddbHomePath}},
+			},
+			{
+				`SET allow_persistent_secrets = false`,
+				[]driver.NamedValue{},
+			},
+			{
+				`SET memory_limit = '8GB'`,
+				[]driver.NamedValue{},
+			},
+			{
+				`CREATE OR REPLACE SECRET secret ( TYPE s3, PROVIDER credential_chain, REGION 'eu-central-1' )`,
+				[]driver.NamedValue{},
+			},
+			{
+				fmt.Sprintf(`ATTACH '%s' AS src_db (READ_ONLY)`, srcDbUri),
+				[]driver.NamedValue{},
+			},
+			{
+				fmt.Sprintf(`ATTACH '%s' AS tmp_db`, tmpDbPath),
+				[]driver.NamedValue{},
+			},
+			{
+				`SET threads TO 1`,
+				[]driver.NamedValue{},
+			},
+			{
+				`COPY FROM DATABASE src_db TO tmp_db`,
+				[]driver.NamedValue{},
+			},
+			{
+				`SET threads TO 16`,
+				[]driver.NamedValue{},
+			},
+			{
+				`DETACH src_db`,
+				[]driver.NamedValue{},
+			},
+			{
+				`USE tmp_db`,
+				[]driver.NamedValue{},
+			},
 		}
 
-		bootQueries := []string{
-			fmt.Sprintf(`SET home_directory = '%s'`, home),
-			`SET allow_persistent_secrets = false`,
-			`SET memory_limit = '8GB'`,
-			`
-CREATE OR REPLACE SECRET secret (
-    TYPE s3,
-    PROVIDER credential_chain,
-	REGION 'eu-central-1'
-)
-`,
-			fmt.Sprintf(`ATTACH '%s' AS src_db`, srcDbUri),
-			fmt.Sprintf(`ATTACH '%s' AS dst_db`, dstDbFilePath),
-			`SET threads TO 1`,
-			`COPY FROM DATABASE src_db TO dst_db`,
-			`SET threads TO 6`,
-			`DETACH src_db`,
-			`USE dst_db`,
-		}
-
-		for _, query := range bootQueries {
-			_, err := execer.ExecContext(ctx, query, nil)
-			if err != nil {
-				return fmt.Errorf("failed to run query %q: %w", query, err)
+		for i, query := range bootQueries {
+			if err := a.runTimed(fmt.Sprintf("db init (%d) %q", i, query.V1), func() error {
+				_, err := execer.ExecContext(ctx, query.V1, query.V2)
+				return err
+			}); err != nil {
+				return fmt.Errorf("failed to run query %q: %w", query.V1, err)
 			}
 		}
 
@@ -282,4 +341,15 @@ func (a *udAction) buildInputFileUris(bucket, prefix string, ldrs xtime.LocalDat
 	}
 
 	return paths
+}
+
+func (a *udAction) withTempDir(fn func(dir string) error) error {
+	dir, err := os.MkdirTemp("", "duckdb_update_database_*")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary directory: %w", err)
+	}
+
+	defer os.RemoveAll(dir)
+
+	return fn(dir)
 }
