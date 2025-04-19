@@ -18,6 +18,7 @@ export interface SfnConstructProps {
   dataBucket: IBucket;
   cronLambda_1G: IFunction;
   cronLambda_4G: IFunction;
+  cronLambda_10G: IFunction;
   webhookUrl: cdk.SecretValue;
 }
 
@@ -164,6 +165,23 @@ export class SfnConstruct extends Construct {
                 }),
                 payloadResponseOnly: true,
                 resultPath: '$.updateMetadataResponse',
+                retryOnServiceExceptions: true,
+              }))
+              .next(new LambdaInvoke(this, 'UpdateDatabaseTask', {
+                lambdaFunction: props.cronLambda_10G,
+                payload: TaskInput.fromObject({
+                  'action': 'update_database',
+                  'params': {
+                    'time': JsonPath.stringAt('$.time'),
+                    'inputBucket': props.dataBucket.bucketName,
+                    'inputPrefix': LH_FLIGHT_SCHEDULES_PREFIX,
+                    'databaseBucket': props.dataBucket.bucketName,
+                    'databaseKey': 'processed/flights.db',
+                    'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.completed'),
+                  },
+                }),
+                payloadResponseOnly: true,
+                resultPath: '$.updateDatabaseResponse',
                 retryOnServiceExceptions: true,
               }))
           )

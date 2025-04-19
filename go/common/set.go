@@ -29,6 +29,12 @@ func (s Set[T]) MarshalJSON() ([]byte, error) {
 	return json.Marshal(values)
 }
 
+func (s Set[T]) Add(value T) bool {
+	_, ok := s[value]
+	s[value] = struct{}{}
+	return !ok
+}
+
 func (s Set[T]) Contains(value T) bool {
 	_, ok := s[value]
 	return ok

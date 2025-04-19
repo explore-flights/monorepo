@@ -93,6 +93,7 @@ func newHandler(s3c *s3.Client, lhc *lufthansa.Client) func(ctx context.Context,
 	cronAction := action.NewCronAction(lfsAction, cfsAction)
 	loaAction := action.NewLoadOurAirportsDataAction(s3c, nil)
 	uafAction := action.NewUpdateAllegrisFeedAction(s3c)
+	udAction := action.NewUpdateDatabaseAction(s3c, "s3", "s3")
 	umdAction := action.NewUpdateMetadataAction(s3c)
 	invWHAction := action.NewInvokeWebhookAction(http.DefaultClient)
 
@@ -130,6 +131,9 @@ func newHandler(s3c *s3.Client, lhc *lufthansa.Client) func(ctx context.Context,
 
 		case "update_allegris_feed":
 			return handle(ctx, uafAction, event.Params)
+
+		case "update_database":
+			return handle(ctx, udAction, event.Params)
 
 		case "update_metadata":
 			return handle(ctx, umdAction, event.Params)

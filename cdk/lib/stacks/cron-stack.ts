@@ -24,6 +24,7 @@ export class CronStack extends cdk.Stack {
       dataBucket: props.dataBucket,
       cronLambda_1G: cronLambda.lambda_1G,
       cronLambda_4G: cronLambda.lambda_4G,
+      cronLambda_10G: cronLambda.lambda_10G,
       webhookUrl: cdk.SecretValue.cfnParameter(new cdk.CfnParameter(this, 'webhookUrl', {
         type: 'String',
         noEcho: true,

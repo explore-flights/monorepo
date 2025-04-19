@@ -59,6 +59,10 @@ func (ld LocalDate) Time(loc *time.Location) time.Time {
 	return time.Date(year, month, day, 0, 0, 0, 0, cmp.Or(loc, time.UTC))
 }
 
+func (ld LocalDate) Range(days int) LocalDateRange {
+	return LocalDateRange{ld, ld + LocalDate(days)}
+}
+
 func (ld LocalDate) DaysUntil(other LocalDate) int {
 	return int(other - ld)
 }
