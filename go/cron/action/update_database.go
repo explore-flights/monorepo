@@ -249,9 +249,18 @@ func (a *udAction) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath 
 				`SET threads TO 1`,
 				[]driver.NamedValue{},
 			},
+			// https://github.com/duckdb/duckdb/issues/12837
 			{
 				`SET home_directory = ?`,
-				[]driver.NamedValue{{Ordinal: 1, Value: ddbHomePath}},
+				[]driver.NamedValue{{Ordinal: 1, Value: path.Join(ddbHomePath, "home")}},
+			},
+			{
+				`SET secret_directory = ?`,
+				[]driver.NamedValue{{Ordinal: 1, Value: path.Join(ddbHomePath, "secrets")}},
+			},
+			{
+				`SET extension_directory = ?`,
+				[]driver.NamedValue{{Ordinal: 1, Value: path.Join(ddbHomePath, "extensions")}},
 			},
 			{
 				`SET allow_persistent_secrets = false`,
