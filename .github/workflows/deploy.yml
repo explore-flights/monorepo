@@ -10,6 +10,7 @@ on:
 
 env:
   WORKSPACE_ARTIFACT_API: 'explore_flights_api_artifact'
+  WORKSPACE_ARTIFACT_DUCKDB_EXTENSIONS: 'explore_flights_duckdb_extensions_artifact'
   WORKSPACE_ARTIFACT_CRON: 'explore_flights_cron_artifact'
   WORKSPACE_ARTIFACT_UI: 'explore_flights_ui_artifact'
   WORKSPACE_ARTIFACT_OTEL_COLLECTOR: 'otel_collector_artifact'
@@ -58,6 +59,24 @@ jobs:
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_API }}
           path: 'go/api/bootstrap'
+          retention-days: 1
+
+  load_duckdb_extensions:
+    name: 'Load DuckDB Extensions'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Setup QEMU'
+        uses: docker/setup-qemu-action@v3
+      - name: 'Setup Docker Buildx'
+        uses: docker/setup-buildx-action@v3
+      - name: 'Load DuckDB Extensions'
+        run: |
+          docker buildx --platform linux/arm64 go/cron/clib --output "duckdb_extensions"
+      - name: 'Store DuckDB Extensions artifact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.WORKSPACE_ARTIFACT_DUCKDB_EXTENSIONS }}
+          path: 'duckdb_extensions'
           retention-days: 1
 
   build_and_test_cron:
@@ -155,6 +174,7 @@ jobs:
     needs:
       - test_common
       - build_and_test_api
+      - load_duckdb_extensions
       - build_and_test_cron
       - build_ui
       - build_otel_collector
@@ -168,6 +188,13 @@ jobs:
           path: .
       - name: 'Prepare API lambda bundle'
         run: '(chmod +x bootstrap && zip -q cdk/api_lambda_bundle.zip bootstrap && rm bootstrap)'
+      - name: 'Download DuckDB Extensions artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.WORKSPACE_ARTIFACT_DUCKDB_EXTENSIONS }}
+          path: lib
+      - name: 'Prepare DuckDB Extensions Layer bundle'
+        run: '(zip -r cdk/duckdb_extensions_layer_bundle.zip lib/ && rm -rf lib)'
       - name: 'Download cron artifact'
         uses: actions/download-artifact@v4
         with:

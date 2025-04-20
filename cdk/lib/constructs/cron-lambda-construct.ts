@@ -3,7 +3,7 @@ import {
   Architecture,
   Code,
   Function, FunctionProps,
-  IFunction,
+  IFunction, LayerVersion,
   Runtime,
   Tracing
 } from 'aws-cdk-lib/aws-lambda';
@@ -14,6 +14,7 @@ import { IStringParameter, StringParameter } from 'aws-cdk-lib/aws-ssm';
 
 export interface CronLambdaConstructProps {
   cronLambdaZipPath: string;
+  duckdbExtensionsZipPath: string;
   dataBucket: IBucket;
 }
 
@@ -42,13 +43,20 @@ export class CronLambdaConstruct extends Construct {
       environment: {
         FLIGHTS_SSM_LUFTHANSA_CLIENT_ID: ssmLufthansaClientId.parameterName,
         FLIGHTS_SSM_LUFTHANSA_CLIENT_SECRET: ssmLufthansaClientSecret.parameterName,
-        LD_LIBRARY_PATH: '/tmp/duckdb_extensions',
+        LD_LIBRARY_PATH: '/opt/lib,/opt/lib/duckdb_extensions/v1.2.2/linux_arm64',
       },
       tracing: Tracing.DISABLED,
       role: new Role(this, 'CronLambdaRole', {
         assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
         managedPolicies: [{ managedPolicyArn: 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole' }],
       }),
+      layers: [
+        new LayerVersion(this, 'DuckDBExtensionsLayer', {
+          code: Code.fromAsset(props.duckdbExtensionsZipPath),
+          compatibleRuntimes: [Runtime.PROVIDED_AL2023],
+          compatibleArchitectures: [Architecture.ARM_64],
+        }),
+      ],
     } satisfies FunctionProps;
 
     this.lambda_1G = new Function(this, 'CronLambda_1G', {

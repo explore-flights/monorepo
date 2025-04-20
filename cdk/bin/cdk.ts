@@ -20,6 +20,7 @@ const websiteStack = new WebsiteStack(app, 'Website-Prod', {
 
 new CronStack(app, 'Cron-Prod', {
   cronLambdaZipPath: 'cron_lambda_bundle.zip',
+  duckdbExtensionsZipPath: 'duckdb_extensions_layer_bundle.zip',
   dataBucket: dataStack.bucket,
 });
 
