@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xtime"
+	"github.com/explore-flights/monorepo/go/cron/clib"
 	"github.com/explore-flights/monorepo/go/cron/db"
 	"github.com/marcboeker/go-duckdb/v2"
 	"os"
@@ -260,7 +261,7 @@ func (a *udAction) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath 
 			},
 			{
 				`SET extension_directory = ?`,
-				[]driver.NamedValue{{Ordinal: 1, Value: path.Join(ddbHomePath, "extensions")}},
+				[]driver.NamedValue{{Ordinal: 1, Value: clib.DuckDBExtensionsPath(ddbHomePath)}},
 			},
 			{
 				`SET allow_persistent_secrets = false`,
