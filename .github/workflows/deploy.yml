@@ -194,7 +194,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_DUCKDB_EXTENSIONS }}
-          path: lib
+          path: lib/duckdb_extensions
       - name: 'Prepare DuckDB Extensions Layer bundle'
         run: '(zip -r cdk/duckdb_extensions_layer_bundle.zip lib/ && rm -rf lib)'
       - name: 'Download cron artifact'
