@@ -71,7 +71,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: 'Load DuckDB Extensions'
         run: |
-          docker buildx --platform linux/arm64 go/cron/clib --output "duckdb_extensions"
+          docker buildx build --platform linux/arm64 go/cron/clib --output "duckdb_extensions"
       - name: 'Store DuckDB Extensions artifact'
         uses: actions/upload-artifact@v4
         with:
