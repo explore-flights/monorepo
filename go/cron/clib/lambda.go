@@ -2,6 +2,15 @@
 
 package clib
 
+import (
+	"os"
+)
+
 func DuckDBExtensionsPath(ddbHomePath string) string {
-	return "/opt/lib/duckdb_extensions"
+	const path = "/tmp/duckdb_extensions"
+	if err := os.MkdirAll(path, 0750); err != nil {
+		panic(err)
+	}
+
+	return path
 }

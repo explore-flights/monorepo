@@ -42,6 +42,7 @@ export class CronLambdaConstruct extends Construct {
       environment: {
         FLIGHTS_SSM_LUFTHANSA_CLIENT_ID: ssmLufthansaClientId.parameterName,
         FLIGHTS_SSM_LUFTHANSA_CLIENT_SECRET: ssmLufthansaClientSecret.parameterName,
+        LD_LIBRARY_PATH: '/tmp/duckdb_extensions',
       },
       tracing: Tracing.DISABLED,
       role: new Role(this, 'CronLambdaRole', {
