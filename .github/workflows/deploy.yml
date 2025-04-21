@@ -62,12 +62,11 @@ jobs:
 
   build_and_test_cron:
     name: 'Build and test cron'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-arm
     env:
       GOOS: 'linux'
       GOARCH: 'arm64' # keep this in sync with the arch configured in CDK!
       CGO_ENABLED: '1' # required for go-duckdb
-      CC: 'aarch64-linux-gnu-gcc'
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
@@ -80,10 +79,6 @@ jobs:
         with:
           go-version-file: 'go/cron/go.mod'
           cache-dependency-path: 'go/cron/go.sum'
-      - name: 'Install cross-compilation tools'
-        uses: taiki-e/setup-cross-toolchain-action@v1
-        with:
-          target: 'aarch64-unknown-linux-gnu'
       - name: 'Test'
         working-directory: 'go/cron'
         run: 'go test ./...'
@@ -91,7 +86,7 @@ jobs:
         working-directory: 'go/cron'
         env:
           CPPFLAGS: '-DDUCKDB_STATIC_BUILD'
-          CGO_LDFLAGS: '-lduckdb_bundle -lstdc++ -L${{ github.workspace }}/go/cron/libs'
+          CGO_LDFLAGS: '-lduckdb_bundle -lc++ -L${{ github.workspace }}/go/cron/libs'
         run: |
           go build --ldflags '-extldflags "-static"' -o bootstrap -tags "lambda,lambda.norpc,duckdb_use_static_lib"
       - name: 'Store cron artifact'
