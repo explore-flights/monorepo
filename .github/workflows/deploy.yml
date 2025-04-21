@@ -91,7 +91,7 @@ jobs:
         working-directory: 'go/cron'
         env:
           CPPFLAGS: '-DDUCKDB_STATIC_BUILD'
-          CGO_LDFLAGS: '-lduckdb_bundle -lc++ -L${{ github.workspace }}/go/cron/libs'
+          CGO_LDFLAGS: '-lduckdb_bundle -lstdc++ -L${{ github.workspace }}/go/cron/libs'
         run: |
           go build --ldflags '-extldflags "-static"' -o bootstrap -tags "lambda,lambda.norpc,duckdb_use_static_lib"
       - name: 'Store cron artifact'
