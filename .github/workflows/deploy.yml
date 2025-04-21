@@ -68,14 +68,10 @@ jobs:
       GOARCH: 'arm64' # keep this in sync with the arch configured in CDK!
       CGO_ENABLED: '1' # required for go-duckdb
       CPPFLAGS: '-DDUCKDB_STATIC_BUILD'
-      CGO_LDFLAGS: '-lduckdb_bundle -lc++ -L${{ github.workspace }}/go/cron/libs'
+      CGO_LDFLAGS: '-lduckdb_bundle -lstdc++ -L${{ github.workspace }}/go/cron/libs -static'
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
-      - name: 'Install dependencies'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libc++-dev libc++abi-dev
       - name: 'Download DuckDB Lib'
         env:
           GH_TOKEN: ${{ github.token }}
