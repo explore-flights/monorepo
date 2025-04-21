@@ -8,7 +8,6 @@ import { SfnStateMachine } from 'aws-cdk-lib/aws-events-targets';
 
 export interface CronStackProps extends cdk.StackProps {
   cronLambdaZipPath: string;
-  duckdbExtensionsZipPath: string;
   dataBucket: IBucket;
 }
 
@@ -18,7 +17,6 @@ export class CronStack extends cdk.Stack {
 
     const cronLambda = new CronLambdaConstruct(this, 'CronLambda', {
       cronLambdaZipPath: props.cronLambdaZipPath,
-      duckdbExtensionsZipPath: props.duckdbExtensionsZipPath,
       dataBucket: props.dataBucket,
     });
 

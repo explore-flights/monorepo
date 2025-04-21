@@ -10,7 +10,6 @@ on:
 
 env:
   WORKSPACE_ARTIFACT_API: 'explore_flights_api_artifact'
-  WORKSPACE_ARTIFACT_DUCKDB_EXTENSIONS: 'explore_flights_duckdb_extensions_artifact'
   WORKSPACE_ARTIFACT_CRON: 'explore_flights_cron_artifact'
   WORKSPACE_ARTIFACT_UI: 'explore_flights_ui_artifact'
   WORKSPACE_ARTIFACT_OTEL_COLLECTOR: 'otel_collector_artifact'
@@ -61,26 +60,6 @@ jobs:
           path: 'go/api/bootstrap'
           retention-days: 1
 
-  load_duckdb_extensions:
-    name: 'Load DuckDB Extensions'
-    runs-on: ubuntu-latest
-    steps:
-      - name: 'Checkout'
-        uses: actions/checkout@v4
-      - name: 'Setup QEMU'
-        uses: docker/setup-qemu-action@v3
-      - name: 'Setup Docker Buildx'
-        uses: docker/setup-buildx-action@v3
-      - name: 'Load DuckDB Extensions'
-        run: |
-          docker buildx build --platform linux/arm64 go/cron/clib --output "duckdb_extensions"
-      - name: 'Store DuckDB Extensions artifact'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.WORKSPACE_ARTIFACT_DUCKDB_EXTENSIONS }}
-          path: 'duckdb_extensions'
-          retention-days: 1
-
   build_and_test_cron:
     name: 'Build and test cron'
     runs-on: ubuntu-latest
@@ -92,6 +71,8 @@ jobs:
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
+      - name: 'Download DuckDB Lib'
+        run: gh release download "v1.2.2+parquet.json.icu.httpfs.aws" --repo "explore-flights/libduckdb" --pattern "libduckdb_bundle-v1.2.2-linux_arm64.a" --output "go/cron/libs/libduckdb_bundle.a"
       - name: 'Setup go'
         uses: actions/setup-go@v5
         with:
@@ -106,8 +87,11 @@ jobs:
         run: 'go test ./...'
       - name: 'Build'
         working-directory: 'go/cron'
+        env:
+          CPPFLAGS: '-DDUCKDB_STATIC_BUILD'
+          CGO_LDFLAGS: '-lduckdb_bundle -lc++ -L${{ github.workspace }}/go/cron/libs'
         run: |
-          go build --ldflags '-extldflags "-static"' -o bootstrap -tags "lambda,lambda.norpc"
+          go build --ldflags '-extldflags "-static"' -o bootstrap -tags "lambda,lambda.norpc,duckdb_use_static_lib"
       - name: 'Store cron artifact'
         uses: actions/upload-artifact@v4
         with:
@@ -176,7 +160,6 @@ jobs:
     needs:
       - test_common
       - build_and_test_api
-      - load_duckdb_extensions
       - build_and_test_cron
       - build_ui
       - build_otel_collector
@@ -190,13 +173,6 @@ jobs:
           path: .
       - name: 'Prepare API lambda bundle'
         run: '(chmod +x bootstrap && zip -q cdk/api_lambda_bundle.zip bootstrap && rm bootstrap)'
-      - name: 'Download DuckDB Extensions artifact'
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.WORKSPACE_ARTIFACT_DUCKDB_EXTENSIONS }}
-          path: lib/duckdb_extensions
-      - name: 'Prepare DuckDB Extensions Layer bundle'
-        run: '(zip -r cdk/duckdb_extensions_layer_bundle.zip lib/ && rm -rf lib)'
       - name: 'Download cron artifact'
         uses: actions/download-artifact@v4
         with:
