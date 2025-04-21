@@ -92,7 +92,7 @@ jobs:
       - name: 'Build'
         working-directory: 'go/cron'
         run: |
-          go build --ldflags '-extldflags "-static"' -o bootstrap -tags "lambda,lambda.norpc,duckdb_use_static_lib"
+          go build -o bootstrap -tags "lambda,lambda.norpc,duckdb_use_static_lib"
       - name: 'Store cron artifact'
         uses: actions/upload-artifact@v4
         with:
