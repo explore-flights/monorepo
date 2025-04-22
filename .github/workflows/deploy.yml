@@ -75,7 +75,7 @@ jobs:
       - name: 'Download DuckDB Lib'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release download "v1.2.2-v2+parquet.json.icu.httpfs.aws" --repo "explore-flights/libduckdb" --pattern "libduckdb_bundle-v1.2.2-linux_arm64.a" --output "go/cron/libs/libduckdb_bundle.a"
+        run: gh release download "v1.2.2-v3+parquet.json.icu.httpfs.aw" --repo "explore-flights/libduckdb" --pattern "libduckdb_bundle-v1.2.2-linux_arm64.a" --output "go/cron/libs/libduckdb_bundle.a"
       - name: 'Setup go'
         uses: actions/setup-go@v5
         with:
