@@ -8,6 +8,10 @@ export class EcsRunTaskSync extends EcsRunTask {
     super(scope, `${_id}-Virtual`, props);
   }
 
+  override get id(): string {
+    return this._id;
+  }
+
   public bindToGraph(graph: StateGraph) {
     const stateJson: {[k: string]: any} = this.toStateJson();
     stateJson['Resource'] = stateJson['Resource'] + '.sync';
