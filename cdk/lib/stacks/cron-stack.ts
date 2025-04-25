@@ -6,7 +6,7 @@ import { SfnConstruct } from '../constructs/sfn-construct';
 import { EventField, Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { SfnStateMachine } from 'aws-cdk-lib/aws-events-targets';
 import { UpdateDatabaseConstruct } from '../constructs/update-database-task';
-import { SubnetType, Vpc } from 'aws-cdk-lib/aws-ec2';
+import { IpProtocol, SubnetType, Vpc } from 'aws-cdk-lib/aws-ec2';
 
 export interface CronStackProps extends cdk.StackProps {
   cronLambdaZipPath: string;
@@ -20,8 +20,8 @@ export class CronStack extends cdk.Stack {
     const vpc = new Vpc(this, 'VPC', {
       subnetConfiguration: [
         {
-          name: 'egress-only',
-          subnetType: SubnetType.PRIVATE_WITH_EGRESS,
+          name: 'public',
+          subnetType: SubnetType.PUBLIC,
         },
       ],
       natGateways: 0,
@@ -42,8 +42,9 @@ export class CronStack extends cdk.Stack {
       dataBucket: props.dataBucket,
       cronLambda_1G: cronLambda.lambda_1G,
       cronLambda_4G: cronLambda.lambda_4G,
+      updateDatabaseVpc: vpc,
       updateDatabaseSubnets: {
-        subnets: vpc.privateSubnets,
+        subnets: vpc.publicSubnets,
       },
       updateDatabaseCluster: updateDatabaseTask.cluster,
       updateDatabaseTask: updateDatabaseTask.task,
