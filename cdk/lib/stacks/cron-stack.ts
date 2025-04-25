@@ -5,6 +5,7 @@ import { CronLambdaConstruct } from '../constructs/cron-lambda-construct';
 import { SfnConstruct } from '../constructs/sfn-construct';
 import { EventField, Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { SfnStateMachine } from 'aws-cdk-lib/aws-events-targets';
+import { UpdateDatabaseConstruct } from '../constructs/update-database-task';
 
 export interface CronStackProps extends cdk.StackProps {
   cronLambdaZipPath: string;
@@ -20,11 +21,17 @@ export class CronStack extends cdk.Stack {
       dataBucket: props.dataBucket,
     });
 
+    const updateDatabaseTask = new UpdateDatabaseConstruct(this, 'UpdateDatabase', {
+      dataBucket: props.dataBucket,
+    });
+
     const sfn = new SfnConstruct(this, 'SFN', {
       dataBucket: props.dataBucket,
       cronLambda_1G: cronLambda.lambda_1G,
       cronLambda_4G: cronLambda.lambda_4G,
-      cronLambda_10G: cronLambda.lambda_10G,
+      updateDatabaseCluster: updateDatabaseTask.cluster,
+      updateDatabaseTask: updateDatabaseTask.task,
+      updateDatabaseTaskContainer: updateDatabaseTask.taskContainer,
       webhookUrl: cdk.SecretValue.cfnParameter(new cdk.CfnParameter(this, 'webhookUrl', {
         type: 'String',
         noEcho: true,

@@ -3,7 +3,8 @@ import { Construct } from 'constructs';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { IFunction } from 'aws-cdk-lib/aws-lambda';
 import {
-  Choice, Condition,
+  Choice,
+  Condition,
   DefinitionBody,
   Fail,
   IStateMachine,
@@ -12,13 +13,16 @@ import {
   Succeed,
   TaskInput
 } from 'aws-cdk-lib/aws-stepfunctions';
-import { LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import { EcsFargateLaunchTarget, EcsRunTask, LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import { ContainerDefinition, FargatePlatformVersion, ICluster, TaskDefinition } from 'aws-cdk-lib/aws-ecs';
 
 export interface SfnConstructProps {
   dataBucket: IBucket;
   cronLambda_1G: IFunction;
   cronLambda_4G: IFunction;
-  cronLambda_10G: IFunction;
+  updateDatabaseCluster: ICluster;
+  updateDatabaseTask: TaskDefinition;
+  updateDatabaseTaskContainer: ContainerDefinition;
   webhookUrl: cdk.SecretValue;
 }
 
@@ -167,22 +171,26 @@ export class SfnConstruct extends Construct {
                 resultPath: '$.updateMetadataResponse',
                 retryOnServiceExceptions: true,
               }))
-              .next(new LambdaInvoke(this, 'UpdateDatabaseTask', {
-                lambdaFunction: props.cronLambda_10G,
-                payload: TaskInput.fromObject({
-                  'action': 'update_database',
-                  'params': {
-                    'time': JsonPath.stringAt('$.time'),
-                    'inputBucket': props.dataBucket.bucketName,
-                    'inputPrefix': LH_FLIGHT_SCHEDULES_PREFIX,
-                    'databaseBucket': props.dataBucket.bucketName,
-                    'databaseKey': 'processed/flights.db',
-                    'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.completed'),
-                  },
+              .next(new EcsRunTask(this, 'UpdateDatabaseTask', {
+                cluster: props.updateDatabaseCluster,
+                taskDefinition: props.updateDatabaseTask,
+                launchTarget: new EcsFargateLaunchTarget({
+                  platformVersion: FargatePlatformVersion.LATEST,
                 }),
-                payloadResponseOnly: true,
+                containerOverrides: [
+                  {
+                    containerDefinition: props.updateDatabaseTaskContainer,
+                    command: [
+                      JsonPath.format('--time={}', JsonPath.stringAt('$.time')),
+                      `--database-bucket=${props.dataBucket.bucketName}`,
+                      '--database-key=processed/flights.db',
+                      `--input-bucket=${props.dataBucket.bucketName}`,
+                      `--input-prefix=${LH_FLIGHT_SCHEDULES_PREFIX}`,
+                      JsonPath.format('--date-ranges-json={}', JsonPath.jsonToString(JsonPath.objectAt('$.loadScheduleRanges.completed'))),
+                    ],
+                  }
+                ],
                 resultPath: '$.updateDatabaseResponse',
-                retryOnServiceExceptions: true,
               }))
           )
           // endregion

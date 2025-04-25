@@ -62,21 +62,10 @@ jobs:
 
   build_and_test_cron:
     name: 'Build and test cron'
-    runs-on: ubuntu-22.04-arm
-    env:
-      GOOS: 'linux'
-      GOARCH: 'arm64' # keep this in sync with the arch configured in CDK!
-      CGO_ENABLED: '1' # required for go-duckdb
-      # https://github.com/duckdb/duckdb-go-bindings?tab=readme-ov-file#static-linking
-      CPPFLAGS: '-DDUCKDB_STATIC_BUILD'
-      CGO_LDFLAGS: '-lduckdb_bundle -lstdc++ -lm -ldl -L${{ github.workspace }}/go/cron/libs'
+    runs-on: ubuntu-22.04
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
-      - name: 'Download DuckDB Lib'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release download "v1.2.2-v3+parquet.json.icu.httpfs.aw" --repo "explore-flights/libduckdb" --pattern "libduckdb_bundle-v1.2.2-linux_arm64.a" --output "go/cron/libs/libduckdb_bundle.a"
       - name: 'Setup go'
         uses: actions/setup-go@v5
         with:
@@ -85,11 +74,15 @@ jobs:
       - name: 'Test'
         working-directory: 'go/cron'
         run: |
-          go test ./... -tags "lambda,lambda.norpc,duckdb_use_static_lib"
+          go test ./... -tags "lambda,lambda.norpc"
       - name: 'Build'
         working-directory: 'go/cron'
+        env:
+          GOOS: 'linux'
+          GOARCH: 'arm64' # keep this in sync with the arch configured in CDK!
+          CGO_ENABLED: '0'
         run: |
-          go build -o bootstrap -tags "lambda,lambda.norpc,duckdb_use_static_lib"
+          go build -o bootstrap -tags "lambda,lambda.norpc"
       - name: 'Store cron artifact'
         uses: actions/upload-artifact@v4
         with:

@@ -1,4 +1,4 @@
-package action
+package main
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/xtime"
-	"github.com/explore-flights/monorepo/go/cron/clib"
-	"github.com/explore-flights/monorepo/go/cron/db"
+	"github.com/explore-flights/monorepo/go/database/db"
 	"github.com/marcboeker/go-duckdb/v2"
 	"os"
 	"path"
@@ -18,37 +18,17 @@ import (
 	"time"
 )
 
-type UpdateDatabaseParams struct {
-	Time           time.Time             `json:"time"`
-	InputBucket    string                `json:"inputBucket"`
-	InputPrefix    string                `json:"inputPrefix"`
-	DatabaseBucket string                `json:"databaseBucket"`
-	DatabaseKey    string                `json:"databaseKey"`
-	DateRanges     xtime.LocalDateRanges `json:"dateRanges"`
-}
-
-type UpdateDatabaseOutput struct {
-}
-
-type udAction struct {
-	s3c                MinimalS3Client
+type updater struct {
+	s3c                adapt.S3Putter
 	dbUriSchema        string
 	inputFileUriSchema string
 }
 
-func NewUpdateDatabaseAction(s3c MinimalS3Client, dbUriSchema, inputFileUriSchema string) Action[UpdateDatabaseParams, UpdateDatabaseOutput] {
-	return &udAction{
-		s3c:                s3c,
-		dbUriSchema:        dbUriSchema,
-		inputFileUriSchema: inputFileUriSchema,
-	}
-}
-
-func (a *udAction) Handle(ctx context.Context, params UpdateDatabaseParams) (UpdateDatabaseOutput, error) {
+func (u *updater) Handle(ctx context.Context, t time.Time, databaseBucket, databaseKey, inputBucket, inputPrefix string, dateRanges xtime.LocalDateRanges) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if err := a.withTempDir(func(dir string) error {
+	if err := u.withTempDir(func(dir string) error {
 		ddbHomePath := path.Join(dir, "duckdb-home")
 		tmpDbPath := path.Join(dir, "tmp.db")
 		dstDbPath := path.Join(dir, "dst.db")
@@ -57,38 +37,38 @@ func (a *udAction) Handle(ctx context.Context, params UpdateDatabaseParams) (Upd
 			return err
 		}
 
-		if err := a.runTimed("update database", func() error {
-			return a.updateDatabase(
+		if err := u.runTimed("update database", func() error {
+			return u.updateDatabase(
 				ctx,
-				params.Time,
+				t,
 				ddbHomePath,
-				a.buildDbUri(params.DatabaseBucket, params.DatabaseKey),
+				u.buildDbUri(databaseBucket, databaseKey),
 				tmpDbPath,
 				dstDbPath,
-				params.InputBucket,
-				params.InputPrefix,
-				params.DateRanges,
+				inputBucket,
+				inputPrefix,
+				dateRanges,
 			)
 		}); err != nil {
 			return err
 		}
 
-		if err := a.runTimed("upload db file", func() error {
-			return a.uploadDbFile(ctx, params.DatabaseBucket, params.DatabaseKey, dstDbPath)
+		if err := u.runTimed("upload db file", func() error {
+			return u.uploadDbFile(ctx, databaseBucket, databaseKey, dstDbPath)
 		}); err != nil {
 			return err
 		}
 
 		return nil
 	}); err != nil {
-		return UpdateDatabaseOutput{}, err
+		return err
 	}
 
-	return UpdateDatabaseOutput{}, nil
+	return nil
 }
 
-func (a *udAction) updateDatabase(ctx context.Context, t time.Time, ddbHomePath, srcDbUri, tmpDbPath, dstDbPath, inputBucket, inputPrefix string, ldrs xtime.LocalDateRanges) error {
-	connector, err := duckdb.NewConnector("", a.dbInit(ctx, ddbHomePath, srcDbUri, tmpDbPath))
+func (u *updater) updateDatabase(ctx context.Context, t time.Time, ddbHomePath, srcDbUri, tmpDbPath, dstDbPath, inputBucket, inputPrefix string, ldrs xtime.LocalDateRanges) error {
+	connector, err := duckdb.NewConnector("", u.dbInit(ctx, ddbHomePath, srcDbUri, tmpDbPath))
 	if err != nil {
 		return fmt.Errorf("failed to connect to duckdb: %w", err)
 	}
@@ -103,8 +83,8 @@ func (a *udAction) updateDatabase(ctx context.Context, t time.Time, ddbHomePath,
 	}
 	defer conn.Close()
 
-	if err = a.runTimed("update sequence", func() error {
-		return a.runUpdateSequence(ctx, t, conn, a.buildInputFileUris(inputBucket, inputPrefix, ldrs), dstDbPath)
+	if err = u.runTimed("update sequence", func() error {
+		return u.runUpdateSequence(ctx, t, conn, u.buildInputFileUris(inputBucket, inputPrefix, ldrs), dstDbPath)
 	}); err != nil {
 		return err
 	}
@@ -112,7 +92,7 @@ func (a *udAction) updateDatabase(ctx context.Context, t time.Time, ddbHomePath,
 	return nil
 }
 
-func (a *udAction) runUpdateSequence(ctx context.Context, t time.Time, conn *sql.Conn, inputFileUris []string, dstDbPath string) error {
+func (u *updater) runUpdateSequence(ctx context.Context, t time.Time, conn *sql.Conn, inputFileUris []string, dstDbPath string) error {
 	placeholders := make([]string, len(inputFileUris))
 	anyTypedInputFileUris := make([]any, len(inputFileUris))
 	for i, v := range inputFileUris {
@@ -216,7 +196,7 @@ func (a *udAction) runUpdateSequence(ctx context.Context, t time.Time, conn *sql
 	}
 
 	for _, update := range sequence {
-		if err := a.runUpdateQuery(ctx, conn, update.V1[0], update.V1[1], update.V2...); err != nil {
+		if err := u.runUpdateQuery(ctx, conn, update.V1[0], update.V1[1], update.V2...); err != nil {
 			return err
 		}
 	}
@@ -224,7 +204,7 @@ func (a *udAction) runUpdateSequence(ctx context.Context, t time.Time, conn *sql
 	return nil
 }
 
-func (a *udAction) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, query string, params ...any) error {
+func (u *updater) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, query string, params ...any) error {
 	var rowsAffected int64
 	start := time.Now()
 	printDone := func() {
@@ -243,7 +223,7 @@ func (a *udAction) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, que
 	return nil
 }
 
-func (a *udAction) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath string) func(execer driver.ExecerContext) error {
+func (u *updater) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath string) func(execer driver.ExecerContext) error {
 	return func(execer driver.ExecerContext) error {
 		bootQueries := []common.Tuple[string, []driver.NamedValue]{
 			{
@@ -261,7 +241,7 @@ func (a *udAction) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath 
 			},
 			{
 				`SET extension_directory = ?`,
-				[]driver.NamedValue{{Ordinal: 1, Value: clib.DuckDBExtensionsPath(ddbHomePath)}},
+				[]driver.NamedValue{{Ordinal: 1, Value: path.Join(ddbHomePath, "extensions")}},
 			},
 			{
 				`SET allow_persistent_secrets = false`,
@@ -302,7 +282,7 @@ func (a *udAction) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath 
 		}
 
 		for i, query := range bootQueries {
-			if err := a.runTimed(fmt.Sprintf("db init (%d) %q", i, query.V1), func() error {
+			if err := u.runTimed(fmt.Sprintf("db init (%d) %q", i, query.V1), func() error {
 				_, err := execer.ExecContext(ctx, query.V1, query.V2)
 				return err
 			}); err != nil {
@@ -314,14 +294,14 @@ func (a *udAction) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath 
 	}
 }
 
-func (a *udAction) uploadDbFile(ctx context.Context, bucket, key, dbFilePath string) error {
+func (u *updater) uploadDbFile(ctx context.Context, bucket, key, dbFilePath string) error {
 	f, err := os.Open(dbFilePath)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	_, err = a.s3c.PutObject(ctx, &s3.PutObjectInput{
+	_, err = u.s3c.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 		Body:   f,
@@ -329,7 +309,7 @@ func (a *udAction) uploadDbFile(ctx context.Context, bucket, key, dbFilePath str
 	return err
 }
 
-func (a *udAction) runTimed(name string, fn func() error) error {
+func (u *updater) runTimed(name string, fn func() error) error {
 	start := time.Now()
 	fmt.Printf("running %s\n", name)
 	if err := fn(); err != nil {
@@ -340,20 +320,20 @@ func (a *udAction) runTimed(name string, fn func() error) error {
 	return nil
 }
 
-func (a *udAction) buildDbUri(bucket, key string) string {
-	return fmt.Sprintf("%s://%s/%s", a.dbUriSchema, bucket, key)
+func (u *updater) buildDbUri(bucket, key string) string {
+	return fmt.Sprintf("%s://%s/%s", u.dbUriSchema, bucket, key)
 }
 
-func (a *udAction) buildInputFileUris(bucket, prefix string, ldrs xtime.LocalDateRanges) []string {
+func (u *updater) buildInputFileUris(bucket, prefix string, ldrs xtime.LocalDateRanges) []string {
 	paths := make([]string, 0)
 	for d := range ldrs.Iter {
-		paths = append(paths, fmt.Sprintf("%s://%s/%s%s.json", a.inputFileUriSchema, bucket, prefix, d.Time(nil).Format("2006/01/02")))
+		paths = append(paths, fmt.Sprintf("%s://%s/%s%s.json", u.inputFileUriSchema, bucket, prefix, d.Time(nil).Format("2006/01/02")))
 	}
 
 	return paths
 }
 
-func (a *udAction) withTempDir(fn func(dir string) error) error {
+func (u *updater) withTempDir(fn func(dir string) error) error {
 	dir, err := os.MkdirTemp("", "duckdb_update_database_*")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
