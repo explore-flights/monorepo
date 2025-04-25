@@ -1,16 +1,15 @@
 import { Construct } from 'constructs';
 import {
   Cluster,
-  Compatibility,
   ContainerInsights,
   ICluster,
-  NetworkMode,
   TaskDefinition,
   OperatingSystemFamily,
   CpuArchitecture,
   ContainerImage,
   LogDriver,
   ContainerDefinition,
+  FargateTaskDefinition
 } from 'aws-cdk-lib/aws-ecs';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { RemovalPolicy } from 'aws-cdk-lib';
@@ -44,7 +43,7 @@ export class UpdateDatabaseConstruct extends Construct {
     const taskExecutionRole = new Role(this, 'TaskExecutionRole', {
       assumedBy: new ServicePrincipal('ecs-tasks.amazonaws.com'),
       managedPolicies: [
-        ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy"'),
+        ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy'),
         ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ContainerRegistryReadOnly')
       ]
     });
@@ -56,18 +55,16 @@ export class UpdateDatabaseConstruct extends Construct {
     props.dataBucket.grantRead(taskRole, 'raw/LH_Public_Data/flightschedules/*');
     props.dataBucket.grantReadWrite(taskRole, 'processed/flights.db');
 
-    this.task = new TaskDefinition(this, 'TaskDefinition', {
-      compatibility: Compatibility.FARGATE,
-      cpu: '4096',
-      memoryMiB: (1024 * 10).toString(),
-      networkMode: NetworkMode.AWS_VPC,
+    this.task = new FargateTaskDefinition(this, 'TaskDefinition', {
+      cpu: 4096,
+      memoryLimitMiB: 1024 * 10,
       taskRole: taskRole,
       executionRole: taskExecutionRole,
       runtimePlatform: {
         operatingSystemFamily: OperatingSystemFamily.LINUX,
         cpuArchitecture: CpuArchitecture.ARM64
       },
-      ephemeralStorageGiB: 10
+      ephemeralStorageGiB: 10,
     });
 
     this.taskContainer = this.task.addContainer('DatabaseContainer', {
