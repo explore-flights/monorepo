@@ -175,14 +175,16 @@ export class SfnConstruct extends Construct {
                 retryOnServiceExceptions: true,
               }))
               .next(new Pass(this, 'PrepareUpdateDatabaseCommand', {
-                result: Result.fromArray([
-                  JsonPath.format('--time={}', JsonPath.stringAt('$.time')),
-                  `--database-bucket=${props.dataBucket.bucketName}`,
-                  '--database-key=processed/flights.db',
-                  `--input-bucket=${props.dataBucket.bucketName}`,
-                  `--input-prefix=${LH_FLIGHT_SCHEDULES_PREFIX}`,
-                  JsonPath.format('--date-ranges-json={}', JsonPath.jsonToString(JsonPath.objectAt('$.loadScheduleRanges.completed'))),
-                ]),
+                parameters: {
+                  'args': [
+                    JsonPath.format('--time={}', JsonPath.stringAt('$.time')),
+                    `--database-bucket=${props.dataBucket.bucketName}`,
+                    '--database-key=processed/flights.db',
+                    `--input-bucket=${props.dataBucket.bucketName}`,
+                    `--input-prefix=${LH_FLIGHT_SCHEDULES_PREFIX}`,
+                    JsonPath.format('--date-ranges-json={}', JsonPath.jsonToString(JsonPath.objectAt('$.loadScheduleRanges.completed'))),
+                  ],
+                },
                 resultPath: '$.updateDatabaseCommand',
               }))
               .next(new EcsRunTask(this, 'UpdateDatabaseTask', {
@@ -194,7 +196,7 @@ export class SfnConstruct extends Construct {
                 containerOverrides: [
                   {
                     containerDefinition: props.updateDatabaseTaskContainer,
-                    command: JsonPath.listAt('$.updateDatabaseCommand'),
+                    command: JsonPath.listAt('$.updateDatabaseCommand.args'),
                   }
                 ],
                 assignPublicIp: true, // required to access internet resources without NAT
