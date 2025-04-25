@@ -6,7 +6,7 @@ import { SfnConstruct } from '../constructs/sfn-construct';
 import { EventField, Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { SfnStateMachine } from 'aws-cdk-lib/aws-events-targets';
 import { UpdateDatabaseConstruct } from '../constructs/update-database-task';
-import { IpProtocol, SubnetType, Vpc } from 'aws-cdk-lib/aws-ec2';
+import { CfnVPCBlockPublicAccessExclusion, IpProtocol, SubnetType, Vpc } from 'aws-cdk-lib/aws-ec2';
 
 export interface CronStackProps extends cdk.StackProps {
   cronLambdaZipPath: string;
@@ -26,6 +26,11 @@ export class CronStack extends cdk.Stack {
       ],
       natGateways: 0,
       createInternetGateway: true,
+    });
+
+    new CfnVPCBlockPublicAccessExclusion(this, 'BPAExclusion', {
+      internetGatewayExclusionMode: 'allow-bidirectional',
+      vpcId: vpc.vpcId,
     });
 
     const cronLambda = new CronLambdaConstruct(this, 'CronLambda', {

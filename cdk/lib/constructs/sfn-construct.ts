@@ -14,9 +14,10 @@ import {
   Succeed,
   TaskInput
 } from 'aws-cdk-lib/aws-stepfunctions';
-import { EcsFargateLaunchTarget, EcsRunTask, LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import { EcsFargateLaunchTarget, LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { ContainerDefinition, FargatePlatformVersion, ICluster, TaskDefinition } from 'aws-cdk-lib/aws-ecs';
 import { IVpc, SecurityGroup, SubnetSelection } from 'aws-cdk-lib/aws-ec2';
+import { EcsRunTaskSync } from './ecs-run-task-sync';
 
 export interface SfnConstructProps {
   dataBucket: IBucket;
@@ -188,7 +189,7 @@ export class SfnConstruct extends Construct {
                 },
                 resultPath: '$.updateDatabaseCommand',
               }))
-              .next(new EcsRunTask(this, 'UpdateDatabaseTask', {
+              .next(new EcsRunTaskSync(this, 'UpdateDatabaseTask', {
                 cluster: props.updateDatabaseCluster,
                 taskDefinition: props.updateDatabaseTask,
                 launchTarget: new EcsFargateLaunchTarget({
