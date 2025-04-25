@@ -72,7 +72,7 @@ export class UpdateDatabaseConstruct extends Construct {
 
     this.taskContainer = this.task.addContainer('DatabaseContainer', {
       image: ContainerImage.fromDockerImageAsset(new DockerImageAsset(this, 'DatabaseImage', {
-        directory: 'go',
+        directory: '../go',
         file: 'database/Dockerfile',
         platform: Platform.LINUX_ARM64,
       })),
