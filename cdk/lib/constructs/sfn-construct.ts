@@ -15,7 +15,6 @@ import {
 } from 'aws-cdk-lib/aws-stepfunctions';
 import { EcsFargateLaunchTarget, EcsRunTask, LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { ContainerDefinition, FargatePlatformVersion, ICluster, TaskDefinition } from 'aws-cdk-lib/aws-ecs';
-import { SecurityGroup, Vpc } from 'aws-cdk-lib/aws-ec2';
 
 export interface SfnConstructProps {
   dataBucket: IBucket;
@@ -196,12 +195,6 @@ export class SfnConstruct extends Construct {
                   }
                 ],
                 assignPublicIp: true, // required to access internet resources without NAT
-                securityGroups: [
-                  new SecurityGroup(this, 'UpdateDatabaseTaskSecurityGroup', {
-                    vpc: Vpc.fromLookup(this, 'UpdateDatabaseTaskVpc', { isDefault: true }),
-                    allowAllOutbound: true,
-                  }),
-                ],
                 resultPath: '$.updateDatabaseResponse',
               }))
           )
