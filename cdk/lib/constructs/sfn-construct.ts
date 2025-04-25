@@ -15,11 +15,13 @@ import {
 } from 'aws-cdk-lib/aws-stepfunctions';
 import { EcsFargateLaunchTarget, EcsRunTask, LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { ContainerDefinition, FargatePlatformVersion, ICluster, TaskDefinition } from 'aws-cdk-lib/aws-ecs';
+import { SubnetSelection } from 'aws-cdk-lib/aws-ec2';
 
 export interface SfnConstructProps {
   dataBucket: IBucket;
   cronLambda_1G: IFunction;
   cronLambda_4G: IFunction;
+  updateDatabaseSubnets: SubnetSelection;
   updateDatabaseCluster: ICluster;
   updateDatabaseTask: TaskDefinition;
   updateDatabaseTaskContainer: ContainerDefinition;
@@ -195,6 +197,7 @@ export class SfnConstruct extends Construct {
                   }
                 ],
                 assignPublicIp: true, // required to access internet resources without NAT
+                subnets: props.updateDatabaseSubnets,
                 resultPath: '$.updateDatabaseResponse',
               }))
           )
