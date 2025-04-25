@@ -203,10 +203,6 @@ jobs:
       - name: 'Install cdk'
         working-directory: 'cdk'
         run: 'npm install -g aws-cdk'
-      - name: 'Setup QEMU'
-        uses: docker/setup-qemu-action@v3
-      - name: 'Setup Docker Buildx'
-        uses: docker/setup-buildx-action@v3
       - name: 'Synth cdk'
         working-directory: 'cdk'
         run: 'cdk synth --app bin/cdk.js'
@@ -241,6 +237,10 @@ jobs:
           node-version: '22'
       - name: 'Install cdk'
         run: 'npm install -g aws-cdk'
+      - name: 'Setup QEMU'
+        uses: docker/setup-qemu-action@v3
+      - name: 'Setup Docker Buildx'
+        uses: docker/setup-buildx-action@v3
       - name: 'AWS Credentials'
         uses: aws-actions/configure-aws-credentials@v4
         with:
