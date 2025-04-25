@@ -8,7 +8,8 @@ import {
   DefinitionBody,
   Fail,
   IStateMachine,
-  JsonPath, Pass, Result,
+  JsonPath,
+  Pass,
   StateMachine,
   Succeed,
   TaskInput
@@ -176,14 +177,14 @@ export class SfnConstruct extends Construct {
               }))
               .next(new Pass(this, 'PrepareUpdateDatabaseCommand', {
                 parameters: {
-                  'args': [
+                  'args': JsonPath.array(
                     JsonPath.format('--time={}', JsonPath.stringAt('$.time')),
                     `--database-bucket=${props.dataBucket.bucketName}`,
                     '--database-key=processed/flights.db',
                     `--input-bucket=${props.dataBucket.bucketName}`,
                     `--input-prefix=${LH_FLIGHT_SCHEDULES_PREFIX}`,
                     JsonPath.format('--date-ranges-json={}', JsonPath.jsonToString(JsonPath.objectAt('$.loadScheduleRanges.completed'))),
-                  ],
+                  ),
                 },
                 resultPath: '$.updateDatabaseCommand',
               }))
