@@ -64,7 +64,7 @@ export class UpdateDatabaseConstruct extends Construct {
         operatingSystemFamily: OperatingSystemFamily.LINUX,
         cpuArchitecture: CpuArchitecture.ARM64
       },
-      ephemeralStorageGiB: 10,
+      ephemeralStorageGiB: 30,
     });
 
     this.taskContainer = this.task.addContainer('DatabaseContainer', {
