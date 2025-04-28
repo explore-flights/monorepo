@@ -49,7 +49,7 @@ SELECT
     departure_date_local,
     new_replaced_at,
     NULL,
-    fvh.query_dates,
+    query_dates,
     NULL -- removed marker
 FROM temp_replaced_history ;
 
@@ -73,7 +73,7 @@ SELECT
     departure_date_local,
     created_at,
     new_replaced_at,
-    fvh.query_dates,
+    query_dates,
     flight_variant_id
 FROM temp_replaced_history ;
 
