@@ -1,24 +1,16 @@
 -- region airlines
 CREATE TABLE airlines (
-    code TEXT NOT NULL,
-    PRIMARY KEY (code)
-) ;
-
-CREATE TABLE airline_data (
     id UUID NOT NULL,
-    iata TEXT NOT NULL,
-    icao TEXT,
-    name TEXT NOT NULL,
+    name TEXT,
     PRIMARY KEY (id)
 ) ;
 
-CREATE TABLE airline_lookup (
-    airline_code TEXT NOT NULL,
-    airline_data_id UUID NOT NULL,
-    priority USMALLINT NOT NULL,
-    PRIMARY KEY (airline_code, airline_data_id),
-    FOREIGN KEY (airline_code) REFERENCES airlines (code),
-    FOREIGN KEY (airline_data_id) REFERENCES airline_data (id)
+CREATE TABLE airline_identifiers (
+    issuer TEXT NOT NULL,
+    identifier TEXT NOT NULL,
+    airline_id UUID NOT NULL,
+    PRIMARY KEY (issuer, identifier),
+    FOREIGN KEY (airline_id) REFERENCES airlines (id)
 ) ;
 -- endregion
 -- region airports
@@ -29,107 +21,109 @@ CREATE TABLE iata_area_codes (
 ) ;
 
 CREATE TABLE airports (
-    iata TEXT NOT NULL,
-    icao TEXT,
+    id UUID NOT NULL,
     iata_area_code TEXT,
-    country_code TEXT NOT NULL,
-    city_code TEXT NOT NULL,
-    type TEXT NOT NULL,
-    lng DOUBLE NOT NULL,
-    lat DOUBLE NOT NULL,
-    timezone TEXT NOT NULL,
-    name TEXT NOT NULL,
-    PRIMARY KEY (iata),
+    country_code TEXT,
+    city_code TEXT,
+    type TEXT,
+    lng DOUBLE,
+    lat DOUBLE,
+    timezone TEXT,
+    name TEXT,
+    PRIMARY KEY (id),
     FOREIGN KEY (iata_area_code) REFERENCES iata_area_codes (code)
+) ;
+
+CREATE TABLE airport_identifiers (
+    issuer TEXT NOT NULL,
+    identifier TEXT NOT NULL,
+    airport_id UUID NOT NULL,
+    PRIMARY KEY (issuer, identifier),
+    FOREIGN KEY (airport_id) REFERENCES airports (id)
 ) ;
 -- endregion
 -- region aircraft
 CREATE TABLE aircraft (
-    code TEXT NOT NULL,
-    PRIMARY KEY (code)
-) ;
-
-CREATE TABLE aircraft_data (
     id UUID NOT NULL,
-    iata TEXT NOT NULL,
-    icao TEXT,
-    equip_code TEXT NOT NULL,
-    name TEXT NOT NULL,
+    equip_code TEXT,
+    name TEXT,
     PRIMARY KEY (id)
 ) ;
 
-CREATE TABLE aircraft_lookup (
-    aircraft_code TEXT NOT NULL,
-    aircraft_data_id UUID NOT NULL,
-    priority USMALLINT NOT NULL,
-    PRIMARY KEY (aircraft_code, aircraft_data_id),
-    FOREIGN KEY (aircraft_code) REFERENCES aircraft (code),
-    FOREIGN KEY (aircraft_data_id) REFERENCES aircraft_data (id)
+CREATE TABLE aircraft_identifiers (
+    issuer TEXT NOT NULL,
+    identifier TEXT NOT NULL,
+    aircraft_id UUID NOT NULL,
+    PRIMARY KEY (issuer, identifier),
+    FOREIGN KEY (aircraft_id) REFERENCES aircraft (id)
 ) ;
 -- endregion
 -- region data
 CREATE TABLE flight_numbers (
-    airline TEXT NOT NULL,
+    airline_id UUID NOT NULL,
     number USMALLINT NOT NULL,
     suffix TEXT NOT NULL,
-    PRIMARY KEY (airline, number, suffix),
-    FOREIGN KEY (airline) REFERENCES airlines (code)
+    PRIMARY KEY (airline_id, number, suffix),
+    FOREIGN KEY (airline_id) REFERENCES airlines (id)
 ) ;
 
 CREATE TABLE flight_variants (
     id UUID NOT NULL,
-    operating_airline TEXT NOT NULL,
+    operating_airline_id UUID NOT NULL,
     operating_number USMALLINT NOT NULL,
     operating_suffix TEXT NOT NULL,
-    departure_airport TEXT NOT NULL,
+    departure_airport_id UUID NOT NULL,
     departure_time_local TIME NOT NULL,
     departure_utc_offset_seconds INT NOT NULL,
     duration_seconds UINTEGER NOT NULL,
-    arrival_airport TEXT NOT NULL,
+    arrival_airport_id UUID NOT NULL,
     arrival_utc_offset_seconds INT NOT NULL,
     service_type TEXT NOT NULL,
     aircraft_owner TEXT NOT NULL,
-    aircraft_type TEXT NOT NULL,
+    aircraft_id UUID NOT NULL,
     aircraft_configuration_version TEXT NOT NULL,
     aircraft_registration TEXT NOT NULL,
     PRIMARY KEY (id),
     UNIQUE (
-        operating_airline,
+        operating_airline_id,
         operating_number,
         operating_suffix,
-        departure_airport,
+        departure_airport_id,
         departure_time_local,
         departure_utc_offset_seconds,
         duration_seconds,
-        arrival_airport,
+        arrival_airport_id,
         arrival_utc_offset_seconds,
         service_type,
         aircraft_owner,
-        aircraft_type,
+        aircraft_id,
         aircraft_configuration_version,
         aircraft_registration
     ),
-    FOREIGN KEY (operating_airline, operating_number, operating_suffix) REFERENCES flight_numbers (airline, number, suffix),
-    FOREIGN KEY (operating_airline) REFERENCES airlines (code),
-    FOREIGN KEY (departure_airport) REFERENCES airports (iata),
-    FOREIGN KEY (arrival_airport) REFERENCES airports (iata),
-    FOREIGN KEY (aircraft_type) REFERENCES aircraft (code)
+    FOREIGN KEY (operating_airline_id, operating_number, operating_suffix) REFERENCES flight_numbers (airline_id, number, suffix),
+    FOREIGN KEY (operating_airline_id) REFERENCES airlines (id),
+    FOREIGN KEY (departure_airport_id) REFERENCES airports (id),
+    FOREIGN KEY (arrival_airport_id) REFERENCES airports (id),
+    FOREIGN KEY (aircraft_id) REFERENCES aircraft (id)
 ) ;
 
 CREATE TABLE flight_variant_history (
-    airline TEXT NOT NULL,
+    airline_id UUID NOT NULL,
     number USMALLINT NOT NULL,
     suffix TEXT NOT NULL,
-    departure_airport TEXT NOT NULL,
+    departure_airport_id UUID NOT NULL,
     departure_date_local DATE NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL,
+    replaced_at TIMESTAMPTZ,
     query_dates DATE[] NOT NULL,
     flight_variant_id UUID,
-    PRIMARY KEY (airline, number, suffix, departure_airport, departure_date_local, created_at),
-    FOREIGN KEY (airline, number, suffix) REFERENCES flight_numbers (airline, number, suffix),
+    PRIMARY KEY (airline_id, number, suffix, departure_airport_id, departure_date_local, created_at),
+    UNIQUE (airline_id, number, suffix, departure_airport_id, departure_date_local, replaced_at),
+    FOREIGN KEY (airline_id) REFERENCES airlines (id),
+    FOREIGN KEY (airline_id, number, suffix) REFERENCES flight_numbers (airline_id, number, suffix),
     FOREIGN KEY (flight_variant_id) REFERENCES flight_variants (id),
-    FOREIGN KEY (airline) REFERENCES airlines (code),
-    FOREIGN KEY (departure_airport) REFERENCES airports (iata)
+    FOREIGN KEY (departure_airport_id) REFERENCES airports (id)
+    -- not yet supported (COPY fails): https://github.com/duckdb/duckdb/issues/16785
+    -- FOREIGN KEY (airline_id, number, suffix, departure_airport_id, departure_date_local, replaced_at) REFERENCES flight_variant_history (airline_id, number, suffix, departure_airport_id, departure_date_local, created_at)
 ) ;
 -- endregion

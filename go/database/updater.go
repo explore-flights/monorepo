@@ -14,6 +14,7 @@ import (
 	"github.com/marcboeker/go-duckdb/v2"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"time"
 )
@@ -100,103 +101,99 @@ func (u *updater) runUpdateSequence(ctx context.Context, t time.Time, conn *sql.
 		anyTypedInputFileUris[i] = v
 	}
 
-	sequence := []common.Tuple[[2]string, []any]{
+	sequence := []common.Tuple[[2]string, [][]any]{
 		{
-			[2]string{"x11", strings.Replace(db.X11LoadRawData, "?", "["+strings.Join(placeholders, ",")+"]", 1)},
-			anyTypedInputFileUris,
+			[2]string{"X11LoadRawData", strings.Replace(db.X11LoadRawData, "?", "["+strings.Join(placeholders, ",")+"]", 1)},
+			[][]any{anyTypedInputFileUris},
 		},
 		{
-			[2]string{"x12", db.X12FlattenRawData},
-			[]any{},
+			[2]string{"X12FlattenRawData", db.X12FlattenRawData},
+			nil,
 		},
 		{
 			[2]string{"drop raw", `DROP TABLE lh_flight_schedules_raw`},
-			[]any{},
+			nil,
 		},
 		{
-			[2]string{"x13", db.X13OperatingFlights},
-			[]any{},
+			[2]string{"X13OperatingFlights", db.X13OperatingFlights},
+			nil,
 		},
 		{
 			[2]string{"drop flattened", `DROP TABLE lh_flight_schedules_flattened`},
-			[]any{},
+			nil,
 		},
 		{
-			[2]string{"x14", db.X14InsertAirlines},
-			[]any{},
+			[2]string{"X14InsertAirlines", db.X14InsertAirlines},
+			nil,
 		},
 		{
-			[2]string{"x15", db.X15InsertAircraft},
-			[]any{},
+			[2]string{"X15InsertAirports", db.X15InsertAirports},
+			nil,
 		},
 		{
-			[2]string{"x16", db.X16InsertFlightNumbers},
-			[]any{},
+			[2]string{"X16InsertAircraft", db.X16InsertAircraft},
+			nil,
 		},
 		{
-			[2]string{"x17", db.X17InsertFlightVariants},
-			[]any{},
+			[2]string{"X17InsertFlightNumbers", db.X17InsertFlightNumbers},
+			nil,
 		},
 		{
-			[2]string{"x18", db.X18LhFlightsFresh},
-			[]any{t},
+			[2]string{"X18InsertFlightVariants", db.X18InsertFlightVariants},
+			nil,
+		},
+		{
+			[2]string{"X19LhFlightsFresh", db.X19LhFlightsFresh},
+			[][]any{{t}},
 		},
 		{
 			[2]string{"drop operating", `DROP TABLE lh_flight_schedules_operating`},
-			[]any{},
+			nil,
 		},
 		{
-			[2]string{"x19", db.X19InsertNewHistory},
-			[]any{},
+			[2]string{"X20UpdateHistory", db.X20UpdateHistory},
+			nil,
 		},
 		{
-			[2]string{"x20", db.X20UpdateExistingHistory},
-			[]any{},
-		},
-		{
-			[2]string{"x21", db.X21CreateRemovedMarkers},
-			[]any{t, t, t},
-		},
-		{
-			[2]string{"x22", db.X22UpdateRemovedMarkers},
-			[]any{t, t},
+			[2]string{"X21CreateRemovedMarkers", db.X21CreateRemovedMarkers},
+			[][]any{{t}},
 		},
 		{
 			[2]string{"drop fresh", `DROP TABLE lh_flights_fresh`},
-			[]any{},
+			nil,
 		},
 		{
 			[2]string{"use memory", `USE memory`},
-			[]any{},
+			nil,
 		},
 		{
 			[2]string{"attach dst db", fmt.Sprintf(`ATTACH '%s' AS dst_db`, dstDbPath)},
-			[]any{},
+			nil,
 		},
 		{
 			[2]string{"set threads=1", `SET threads TO 1`},
-			[]any{},
+			nil,
 		},
 		{
 			[2]string{"copy tmp to dst", `COPY FROM DATABASE tmp_db TO dst_db`},
-			[]any{},
+			nil,
 		},
 		{
 			[2]string{"set threads=16", `SET threads TO 16`},
-			[]any{},
+			nil,
 		},
 		{
 			[2]string{"detach tmp db", `DETACH tmp_db`},
-			[]any{},
+			nil,
 		},
 		{
 			[2]string{"detach dst db", `DETACH dst_db`},
-			[]any{},
+			nil,
 		},
 	}
 
 	for _, update := range sequence {
-		if err := u.runUpdateQuery(ctx, conn, update.V1[0], update.V1[1], update.V2...); err != nil {
+		if err := u.runUpdateScript(ctx, conn, update.V1[0], update.V1[1], update.V2); err != nil {
 			return err
 		}
 	}
@@ -204,7 +201,33 @@ func (u *updater) runUpdateSequence(ctx context.Context, t time.Time, conn *sql.
 	return nil
 }
 
-func (u *updater) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, query string, params ...any) error {
+func (u *updater) runUpdateScript(ctx context.Context, conn *sql.Conn, name, script string, params [][]any) error {
+	script = strings.TrimSpace(script)
+	queries := strings.Split(script, ";")
+	queries = slices.DeleteFunc(queries, func(s string) bool {
+		return strings.TrimSpace(s) == ""
+	})
+
+	for i, query := range queries {
+		var queryParams []any
+		if len(params) > i {
+			queryParams = params[i]
+		}
+
+		suffix := ""
+		if len(queries) > 1 {
+			suffix = fmt.Sprintf(" (%d/%d)", i+1, len(queries))
+		}
+
+		if err := u.runUpdateQuery(ctx, conn, name+suffix, query, queryParams); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (u *updater) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, query string, params []any) error {
 	var rowsAffected int64
 	start := time.Now()
 	printDone := func() {
