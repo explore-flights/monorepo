@@ -66,7 +66,6 @@ func main() {
 
 	u := updater{
 		s3c:                s3.NewFromConfig(cfg),
-		dbUriSchema:        "s3",
 		inputFileUriSchema: "s3",
 	}
 

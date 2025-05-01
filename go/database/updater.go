@@ -12,6 +12,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/explore-flights/monorepo/go/database/db"
 	"github.com/marcboeker/go-duckdb/v2"
+	"io"
 	"os"
 	"path"
 	"slices"
@@ -20,8 +21,10 @@ import (
 )
 
 type updater struct {
-	s3c                adapt.S3Putter
-	dbUriSchema        string
+	s3c interface {
+		adapt.S3Getter
+		adapt.S3Putter
+	}
 	inputFileUriSchema string
 }
 
@@ -38,12 +41,17 @@ func (u *updater) Handle(ctx context.Context, t time.Time, databaseBucket, datab
 			return err
 		}
 
+		if err := u.runTimed("download db file", func() error {
+			return u.downloadDbFile(ctx, databaseBucket, databaseKey, tmpDbPath)
+		}); err != nil {
+			return err
+		}
+
 		if err := u.runTimed("update database", func() error {
 			return u.updateDatabase(
 				ctx,
 				t,
 				ddbHomePath,
-				u.buildDbUri(databaseBucket, databaseKey),
 				tmpDbPath,
 				dstDbPath,
 				inputBucket,
@@ -68,8 +76,31 @@ func (u *updater) Handle(ctx context.Context, t time.Time, databaseBucket, datab
 	return nil
 }
 
-func (u *updater) updateDatabase(ctx context.Context, t time.Time, ddbHomePath, srcDbUri, tmpDbPath, dstDbPath, inputBucket, inputPrefix string, ldrs xtime.LocalDateRanges) error {
-	connector, err := duckdb.NewConnector("", u.dbInit(ctx, ddbHomePath, srcDbUri, tmpDbPath))
+func (u *updater) downloadDbFile(ctx context.Context, databaseBucket, databaseKey, tmpDbPath string) error {
+	resp, err := u.s3c.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(databaseBucket),
+		Key:    aws.String(databaseKey),
+	})
+	if err != nil {
+		return fmt.Errorf("failed GetObject for db file: %w", err)
+	}
+	defer resp.Body.Close()
+
+	f, err := os.Create(tmpDbPath)
+	if err != nil {
+		return fmt.Errorf("failed to create tmp db file: %w", err)
+	}
+	defer f.Close()
+
+	if _, err = io.Copy(f, resp.Body); err != nil {
+		return fmt.Errorf("failed to download db file: %w", err)
+	}
+
+	return nil
+}
+
+func (u *updater) updateDatabase(ctx context.Context, t time.Time, ddbHomePath, tmpDbPath, dstDbPath, inputBucket, inputPrefix string, ldrs xtime.LocalDateRanges) error {
+	connector, err := duckdb.NewConnector("", u.dbInit(ctx, ddbHomePath, tmpDbPath))
 	if err != nil {
 		return fmt.Errorf("failed to connect to duckdb: %w", err)
 	}
@@ -246,11 +277,11 @@ func (u *updater) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, quer
 	return nil
 }
 
-func (u *updater) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath string) func(execer driver.ExecerContext) error {
+func (u *updater) dbInit(ctx context.Context, ddbHomePath, tmpDbPath string) func(execer driver.ExecerContext) error {
 	return func(execer driver.ExecerContext) error {
 		bootQueries := []common.Tuple[string, []driver.NamedValue]{
 			{
-				`SET threads TO 1`,
+				`SET threads TO 16`,
 				[]driver.NamedValue{},
 			},
 			// https://github.com/duckdb/duckdb/issues/12837
@@ -279,23 +310,7 @@ func (u *updater) dbInit(ctx context.Context, ddbHomePath, srcDbUri, tmpDbPath s
 				[]driver.NamedValue{},
 			},
 			{
-				fmt.Sprintf(`ATTACH '%s' AS src_db (READ_ONLY)`, srcDbUri),
-				[]driver.NamedValue{},
-			},
-			{
 				fmt.Sprintf(`ATTACH '%s' AS tmp_db`, tmpDbPath),
-				[]driver.NamedValue{},
-			},
-			{
-				`COPY FROM DATABASE src_db TO tmp_db`,
-				[]driver.NamedValue{},
-			},
-			{
-				`SET threads TO 16`,
-				[]driver.NamedValue{},
-			},
-			{
-				`DETACH src_db`,
 				[]driver.NamedValue{},
 			},
 			{
@@ -341,10 +356,6 @@ func (u *updater) runTimed(name string, fn func() error) error {
 
 	fmt.Printf("finished %s, took %v\n", name, time.Since(start))
 	return nil
-}
-
-func (u *updater) buildDbUri(bucket, key string) string {
-	return fmt.Sprintf("%s://%s/%s", u.dbUriSchema, bucket, key)
 }
 
 func (u *updater) buildInputFileUris(bucket, prefix string, ldrs xtime.LocalDateRanges) []string {
