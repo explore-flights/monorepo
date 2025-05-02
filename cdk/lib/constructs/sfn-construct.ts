@@ -114,22 +114,39 @@ export class SfnConstruct extends Construct {
           // endregion
           // region conversion
           .otherwise(
-            new LambdaInvoke(this, 'ConvertSchedulesTask', {
+            new LambdaInvoke(this, 'CreateFlightSchedulesHistoryTask', {
               lambdaFunction: props.cronLambda_4G,
               payload: TaskInput.fromObject({
-                'action': 'convert_flight_schedules',
+                'action': 'create_flight_schedules_history',
                 'params': {
+                  'time': JsonPath.stringAt('$.time'),
                   'inputBucket': props.dataBucket.bucketName,
                   'inputPrefix': LH_FLIGHT_SCHEDULES_PREFIX,
                   'outputBucket': props.dataBucket.bucketName,
-                  'outputPrefix': PROCESSED_FLIGHTS_PREFIX,
+                  'outputPrefix': 'raw/LH_Public_Data/flightschedules_history/',
                   'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.completed'),
                 },
               }),
               payloadResponseOnly: true,
-              resultPath: '$.convertSchedulesResponse',
+              resultPath: '$.createFlightSchedulesHistoryResponse',
               retryOnServiceExceptions: true,
             })
+              .next(new LambdaInvoke(this, 'ConvertSchedulesTask', {
+                lambdaFunction: props.cronLambda_4G,
+                payload: TaskInput.fromObject({
+                  'action': 'convert_flight_schedules',
+                  'params': {
+                    'inputBucket': props.dataBucket.bucketName,
+                    'inputPrefix': LH_FLIGHT_SCHEDULES_PREFIX,
+                    'outputBucket': props.dataBucket.bucketName,
+                    'outputPrefix': PROCESSED_FLIGHTS_PREFIX,
+                    'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.completed'),
+                  },
+                }),
+                payloadResponseOnly: true,
+                resultPath: '$.convertSchedulesResponse',
+                retryOnServiceExceptions: true,
+              }))
               .next(new LambdaInvoke(this, 'ConvertFlightsTask', {
                 lambdaFunction: props.cronLambda_4G,
                 payload: TaskInput.fromObject({

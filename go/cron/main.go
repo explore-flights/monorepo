@@ -90,6 +90,7 @@ func newHandler(s3c *s3.Client, lhc *lufthansa.Client) func(ctx context.Context,
 	lfsAction := action.NewLoadFlightSchedulesAction(s3c, lhc)
 	cfsAction := action.NewConvertFlightSchedulesAction(s3c)
 	cfAction := action.NewConvertFlightsAction(s3c)
+	cfshAction := action.CreateFlightSchedulesHistoryAction(s3c)
 	cronAction := action.NewCronAction(lfsAction, cfsAction)
 	loaAction := action.NewLoadOurAirportsDataAction(s3c, nil)
 	uafAction := action.NewUpdateAllegrisFeedAction(s3c)
@@ -121,6 +122,9 @@ func newHandler(s3c *s3.Client, lhc *lufthansa.Client) func(ctx context.Context,
 
 		case "convert_flights":
 			return handle(ctx, cfAction, event.Params)
+
+		case "create_flight_schedules_history":
+			return handle(ctx, cfshAction, event.Params)
 
 		case "cron":
 			return handle(ctx, cronAction, event.Params)

@@ -61,6 +61,7 @@ export class CronLambdaConstruct extends Construct {
 
     for (const fn of [this.lambda_1G, this.lambda_4G]) {
       props.dataBucket.grantRead(fn, 'raw/LH_Public_Data/flightschedules/*');
+      props.dataBucket.grantWrite(fn, 'raw/LH_Public_Data/flightschedules_history/*')
       props.dataBucket.grantWrite(fn, 'raw/LH_Public_Data/*');
       props.dataBucket.grantWrite(fn, 'raw/ourairports_data/*');
       props.dataBucket.grantReadWrite(fn, 'processed/flights/*');
