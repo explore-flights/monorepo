@@ -15,12 +15,13 @@ const websiteStack = new WebsiteStack(app, 'Website-Prod', {
   certificateId: 'a96a703e-5454-4fc5-98eb-43b2f881be37',
   apiLambdaZipPath: 'api_lambda_bundle.zip',
   uiResourcesZipPath: 'explore_flights_ui_artifact.zip',
-  dataBucket: dataStack.bucket,
+  dataBucket: dataStack.dataBucket,
 });
 
 new CronStack(app, 'Cron-Prod', {
   cronLambdaZipPath: 'cron_lambda_bundle.zip',
-  dataBucket: dataStack.bucket,
+  dataBucket: dataStack.dataBucket,
+  parquetBucket: dataStack.parquetBucket,
 });
 
 new Route53Stack(app, 'Route53-Prod', {

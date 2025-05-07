@@ -6,11 +6,12 @@ import { SfnConstruct } from '../constructs/sfn-construct';
 import { EventField, Rule, RuleTargetInput, Schedule } from 'aws-cdk-lib/aws-events';
 import { SfnStateMachine } from 'aws-cdk-lib/aws-events-targets';
 import { UpdateDatabaseConstruct } from '../constructs/update-database-task';
-import { CfnVPCBlockPublicAccessExclusion, IpProtocol, SubnetType, Vpc } from 'aws-cdk-lib/aws-ec2';
+import { CfnVPCBlockPublicAccessExclusion, SubnetType, Vpc } from 'aws-cdk-lib/aws-ec2';
 
 export interface CronStackProps extends cdk.StackProps {
   cronLambdaZipPath: string;
   dataBucket: IBucket;
+  parquetBucket: IBucket;
 }
 
 export class CronStack extends cdk.Stack {
@@ -41,10 +42,12 @@ export class CronStack extends cdk.Stack {
     const updateDatabaseTask = new UpdateDatabaseConstruct(this, 'UpdateDatabase', {
       vpc: vpc,
       dataBucket: props.dataBucket,
+      parquetBucket: props.parquetBucket,
     });
 
     const sfn = new SfnConstruct(this, 'SFN', {
       dataBucket: props.dataBucket,
+      parquetBucket: props.parquetBucket,
       cronLambda_1G: cronLambda.lambda_1G,
       cronLambda_4G: cronLambda.lambda_4G,
       updateDatabaseVpc: vpc,

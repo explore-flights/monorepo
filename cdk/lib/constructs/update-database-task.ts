@@ -21,6 +21,7 @@ import { IVpc } from 'aws-cdk-lib/aws-ec2';
 export interface UpdateDatabaseConstructProps {
   vpc: IVpc;
   dataBucket: IBucket;
+  parquetBucket: IBucket;
 }
 
 export class UpdateDatabaseConstruct extends Construct {
@@ -40,7 +41,7 @@ export class UpdateDatabaseConstruct extends Construct {
     const ecsLogGroup = new LogGroup(this, 'EcsLogGroup', {
       logGroupName: `ecs/${this.cluster.clusterName}`,
       retention: RetentionDays.ONE_MONTH,
-      removalPolicy: RemovalPolicy.DESTROY
+      removalPolicy: RemovalPolicy.DESTROY,
     });
 
     const taskExecutionRole = new Role(this, 'TaskExecutionRole', {
@@ -57,10 +58,12 @@ export class UpdateDatabaseConstruct extends Construct {
 
     props.dataBucket.grantRead(taskRole, 'raw/LH_Public_Data/flightschedules/*');
     props.dataBucket.grantReadWrite(taskRole, 'processed/flights.db');
+    props.dataBucket.grantWrite(taskRole, 'processed/basedata.db');
+    props.parquetBucket.grantReadWrite(taskRole);
 
     this.task = new FargateTaskDefinition(this, 'TaskDefinition', {
       cpu: 4096,
-      memoryLimitMiB: 1024 * 10,
+      memoryLimitMiB: 1024 * 18,
       taskRole: taskRole,
       executionRole: taskExecutionRole,
       runtimePlatform: {

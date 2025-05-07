@@ -21,6 +21,7 @@ import { IVpc, SecurityGroup, SubnetSelection } from 'aws-cdk-lib/aws-ec2';
 
 export interface SfnConstructProps {
   dataBucket: IBucket;
+  parquetBucket: IBucket;
   cronLambda_1G: IFunction;
   cronLambda_4G: IFunction;
   updateDatabaseVpc: IVpc;
@@ -198,7 +199,12 @@ export class SfnConstruct extends Construct {
                   'args': JsonPath.array(
                     JsonPath.format('--time={}', JsonPath.stringAt('$.time')),
                     `--database-bucket=${props.dataBucket.bucketName}`,
-                    '--database-key=processed/flights.db',
+                    '--full-database-key=processed/flights.db',
+                    '--basedata-database-key=processed/basedata.db',
+                    `--parquet-bucket=${props.parquetBucket.bucketName}`,
+                    '--variants-key=variants.parquet',
+                    '--history-prefix=history/',
+                    '--latest-prefix=latest/',
                     `--input-bucket=${props.dataBucket.bucketName}`,
                     `--input-prefix=${LH_FLIGHT_SCHEDULES_PREFIX}`,
                     JsonPath.format('--date-ranges-json={}', JsonPath.jsonToString(JsonPath.objectAt('$.loadScheduleRanges.completed'))),

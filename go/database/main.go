@@ -17,19 +17,29 @@ import (
 
 func main() {
 	var (
-		t              time.Time
-		databaseBucket string
-		databaseKey    string
-		inputBucket    string
-		inputPrefix    string
-		dateRangesJSON string
-		dateRanges     xtime.LocalDateRanges
+		t                   time.Time
+		databaseBucket      string
+		fullDatabaseKey     string
+		baseDataDatabaseKey string
+		parquetBucket       string
+		variantsKey         string
+		historyPrefix       string
+		latestPrefix        string
+		inputBucket         string
+		inputPrefix         string
+		dateRangesJSON      string
+		dateRanges          xtime.LocalDateRanges
 	)
 
 	fs := flag.NewFlagSet("", flag.PanicOnError)
 	fs.TextVar(&t, "time", time.Now(), "")
 	fs.StringVar(&databaseBucket, "database-bucket", "", "")
-	fs.StringVar(&databaseKey, "database-key", "", "")
+	fs.StringVar(&fullDatabaseKey, "full-database-key", "", "")
+	fs.StringVar(&baseDataDatabaseKey, "basedata-database-key", "", "")
+	fs.StringVar(&parquetBucket, "parquet-bucket", "", "")
+	fs.StringVar(&variantsKey, "variants-key", "", "")
+	fs.StringVar(&historyPrefix, "history-prefix", "", "")
+	fs.StringVar(&latestPrefix, "latest-prefix", "", "")
 	fs.StringVar(&inputBucket, "input-bucket", "", "")
 	fs.StringVar(&inputPrefix, "input-prefix", "", "")
 	fs.StringVar(&dateRangesJSON, "date-ranges-json", "", "")
@@ -50,7 +60,18 @@ func main() {
 		return
 	}
 
-	if t.IsZero() || databaseBucket == "" || databaseKey == "" || inputBucket == "" || inputPrefix == "" || dateRanges.Empty() {
+	if t.IsZero() ||
+		databaseBucket == "" ||
+		fullDatabaseKey == "" ||
+		baseDataDatabaseKey == "" ||
+		parquetBucket == "" ||
+		variantsKey == "" ||
+		historyPrefix == "" ||
+		latestPrefix == "" ||
+		inputBucket == "" ||
+		inputPrefix == "" ||
+		dateRanges.Empty() {
+
 		log.Fatal("missing input argument")
 		return
 	}
@@ -65,11 +86,12 @@ func main() {
 	}
 
 	u := updater{
-		s3c:                s3.NewFromConfig(cfg),
-		inputFileUriSchema: "s3",
+		s3c:                  s3.NewFromConfig(cfg),
+		parquetFileUriSchema: "s3",
+		inputFileUriSchema:   "s3",
 	}
 
-	if err = u.Handle(ctx, t, databaseBucket, databaseKey, inputBucket, inputPrefix, dateRanges); err != nil {
+	if err = u.Handle(ctx, t, databaseBucket, fullDatabaseKey, baseDataDatabaseKey, parquetBucket, variantsKey, historyPrefix, latestPrefix, inputBucket, inputPrefix, dateRanges); err != nil {
 		log.Fatal(err)
 		return
 	}
