@@ -59,7 +59,7 @@ export class UpdateDatabaseConstruct extends Construct {
 
     props.dataBucket.grantRead(taskRole, 'raw/LH_Public_Data/flightschedules/*');
     props.dataBucket.grantReadWrite(taskRole, 'processed/flights.db');
-    props.dataBucket.grantWrite(taskRole, 'processed/basedata.db');
+    props.dataBucket.grantReadWrite(taskRole, 'processed/basedata.db');
     props.parquetBucket.grantReadWrite(taskRole);
 
     taskRole.attachInlinePolicy(new Policy(this, 'AllowUpdateBaseDataLayer', {
