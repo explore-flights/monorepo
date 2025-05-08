@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
@@ -21,7 +22,6 @@ import (
 	"maps"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -174,29 +174,62 @@ type MinimalS3Client interface {
 type Handler struct {
 	s3c    MinimalS3Client
 	lhc    *lufthansa.Client
+	db     *db.Database
 	bucket string
 }
 
-func NewHandler(s3c MinimalS3Client, lhc *lufthansa.Client, bucket string) *Handler {
+func NewHandler(s3c MinimalS3Client, lhc *lufthansa.Client, db *db.Database, bucket string) *Handler {
 	return &Handler{
 		s3c:    s3c,
 		lhc:    lhc,
+		db:     db,
 		bucket: bucket,
 	}
 }
 
 func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
-	relevantAirportCodes := make(map[string]struct{})
-	{
-		var airports []string
-		if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/airports.json", &airports); err != nil {
-			return AirportsResponse{}, err
-		}
-
-		for _, airport := range airports {
-			relevantAirportCodes[airport] = struct{}{}
-		}
+	conn, err := h.db.Conn(ctx)
+	if err != nil {
+		return AirportsResponse{}, err
 	}
+	defer conn.Close()
+
+	rows, err := conn.QueryContext(
+		ctx,
+		`
+SELECT
+    COALESCE(country_code, ''),
+    COALESCE(city_code, ''),
+    COALESCE(type, ''),
+    COALESCE(lng, 0.0),
+    COALESCE(lat, 0.0),
+    COALESCE(timezone, ''),
+    COALESCE(name, ''),
+    COALESCE(
+        (
+            SELECT identifier
+            FROM airport_identifiers
+            WHERE airport_id = id
+            AND issuer = 'iata'
+        ),
+    	''
+    ),
+    COALESCE(
+        (
+            SELECT identifier
+            FROM airport_identifiers
+            WHERE airport_id = id
+            AND issuer = 'icao'
+        ),
+    	''
+    )
+FROM airports
+`,
+	)
+	if err != nil {
+		return AirportsResponse{}, err
+	}
+	defer rows.Close()
 
 	metroAreas := make(map[string]MetropolitanArea)
 	resp := AirportsResponse{
@@ -204,85 +237,57 @@ func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
 		MetropolitanAreas: make([]MetropolitanArea, 0),
 	}
 
-	addAirport := func(airport Airport) {
-		if metroAreaValues, ok := metroAreaMapping[airport.Code]; ok {
-			metroArea := metroAreas[metroAreaValues[0]]
-			metroArea.Code = metroAreaValues[0]
-			metroArea.Name = metroAreaValues[1]
-			metroArea.Airports = append(metroArea.Airports, airport)
+	for rows.Next() {
+		var countryCode string
+		var cityCode string
+		var apType string
+		var lng float64
+		var lat float64
+		var timezone string
+		var name string
+		var iataCode string
+		var icaoCode string
 
-			metroAreas[metroArea.Code] = metroArea
-		} else {
-			resp.Airports = append(resp.Airports, airport)
-		}
-	}
-
-	var err error
-	for row := range h.readCSV(ctx, "airports", &err) {
-		code := strings.TrimSpace(row["iata_code"])
-		if _, ok := relevantAirportCodes[code]; !ok {
-			continue
-		}
-
-		delete(relevantAirportCodes, code)
-
-		var airport Airport
-		airport.Code = code
-		airport.Name = cmp.Or(strings.TrimSpace(row["name"]), airport.Code)
-		airport.Lat, err = strconv.ParseFloat(row["latitude_deg"], 64)
+		err = rows.Scan(
+			&countryCode,
+			&cityCode,
+			&apType,
+			&lng,
+			&lat,
+			&timezone,
+			&name,
+			&iataCode,
+			&icaoCode,
+		)
 		if err != nil {
-			return AirportsResponse{}, fmt.Errorf("failed to parse latitude for %q: %w", airport.Name, err)
-		}
-
-		airport.Lng, err = strconv.ParseFloat(row["longitude_deg"], 64)
-		if err != nil {
-			return AirportsResponse{}, fmt.Errorf("failed to parse longitude for %q: %w", airport.Name, err)
-		}
-
-		addAirport(airport)
-	}
-
-	if err != nil {
-		return AirportsResponse{}, err
-	}
-
-	if len(relevantAirportCodes) > 0 {
-		var airports []lufthansa.Airport
-		if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "raw/LH_Public_Data/airports.json", &airports); err != nil {
 			return AirportsResponse{}, err
 		}
 
-		for code := range relevantAirportCodes {
-			idx := slices.IndexFunc(airports, func(airport lufthansa.Airport) bool {
-				return airport.Code == code
-			})
+		fmt.Printf("%q %q %v %v\n", name, iataCode, lat, lng)
 
-			if idx == -1 {
-				slog.WarnContext(ctx, "no data found for airport", slog.String("code", code))
+		name = cmp.Or(name, iataCode)
+		if iataCode != "" {
+			airport := Airport{
+				Code: iataCode,
+				Name: name,
+				Lat:  lat,
+				Lng:  lng,
+			}
 
-				addAirport(Airport{
-					Code: code,
-					Name: code,
-					Lat:  0.0,
-					Lng:  0.0,
-				})
+			if metroAreaValues, ok := metroAreaMapping[airport.Code]; ok {
+				metroArea := metroAreas[metroAreaValues[0]]
+				metroArea.Code = metroAreaValues[0]
+				metroArea.Name = metroAreaValues[1]
+				metroArea.Airports = append(metroArea.Airports, airport)
+
+				metroAreas[metroArea.Code] = metroArea
 			} else {
-				slog.WarnContext(ctx, "only secondary data found for airport", slog.String("code", code))
-
-				airport := airports[idx]
-				addAirport(Airport{
-					Code: code,
-					Name: findName(airport.Names, "EN"),
-					Lat:  airport.Position.Coordinate.Latitude,
-					Lng:  airport.Position.Coordinate.Longitude,
-				})
+				resp.Airports = append(resp.Airports, airport)
 			}
 		}
 	}
 
-	for _, v := range metroAreas {
-		resp.MetropolitanAreas = append(resp.MetropolitanAreas, v)
-	}
+	resp.MetropolitanAreas = slices.Collect(maps.Values(metroAreas))
 
 	return resp, nil
 }

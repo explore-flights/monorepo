@@ -46,13 +46,17 @@ jobs:
         working-directory: 'go/api'
         run: 'go test ./...'
       - name: 'Build'
-        working-directory: 'go/api'
-        env:
-          GOOS: 'linux'
-          GOARCH: 'arm64' # keep this in sync with the arch configured in CDK!
-          CGO_ENABLED: '0'
-        run: |
-          go build -o bootstrap -tags "lambda"
+        uses: explore-flights/libduckdb/.github/actions/build_go_provided@main
+        with:
+          file: 'libduckdb_bundle-arm64-linux.a'
+          platform: 'linux/arm64'
+          image_arch: 'aarch64'
+          go_os: 'linux'
+          go_arch: 'arm64'
+          go_version: '1.24.2'
+          go_build_tags: 'lambda'
+          go_build_relative_dir: 'go/api'
+          go_build_output_file: 'go/api/bootstrap'
       - name: 'Store API artifact'
         uses: actions/upload-artifact@v4
         with:

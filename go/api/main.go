@@ -46,8 +46,14 @@ func main() {
 		panic(err)
 	}
 
+	db, err := database()
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
 	connHandler := search.NewConnectionsHandler(fr)
-	dataHandler := data.NewHandler(s3c, lhc, bucket)
+	dataHandler := data.NewHandler(s3c, lhc, db, bucket)
 
 	e := echo.New()
 	e.Use(

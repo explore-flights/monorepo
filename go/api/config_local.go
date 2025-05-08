@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"github.com/explore-flights/monorepo/go/api/auth"
+	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/explore-flights/monorepo/go/api/web"
 	"github.com/explore-flights/monorepo/go/common/local"
@@ -65,4 +66,13 @@ func lufthansaClient() (*lufthansa.Client, error) {
 		os.Getenv("FLIGHTS_LUFTHANSA_CLIENT_SECRET"),
 		lufthansa.WithRateLimiter(rate.NewLimiter(rate.Every(time.Hour)*490, 1)),
 	), nil
+}
+
+func database() (*db.Database, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+
+	return db.NewDatabase(filepath.Join(home, "Downloads", "local_s3", "basedata", "basedata.db")), nil
 }

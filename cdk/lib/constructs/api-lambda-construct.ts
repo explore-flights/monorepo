@@ -58,6 +58,7 @@ export class ApiLambdaConstruct extends Construct {
         AWS_LWA_ASYNC_INIT: 'true',
         AWS_LWA_INVOKE_MODE: 'response_stream',
         FLIGHTS_DATA_BUCKET: props.dataBucket.bucketName,
+        FLIGHTS_PARQUET_BUCKET: props.parquetBucket.bucketName,
         FLIGHTS_AUTH_BUCKET: props.authBucket.bucketName,
         FLIGHTS_SSM_GOOGLE_CLIENT_ID: ssmGoogleClientId.parameterName,
         FLIGHTS_SSM_GOOGLE_CLIENT_SECRET: ssmGoogleClientSecret.parameterName,
@@ -114,6 +115,8 @@ export class ApiLambdaConstruct extends Construct {
     props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/airports.json');
     props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/aircraft.json');
     props.dataBucket.grantReadWrite(this.lambda, 'tmp/seatmap/*');
+
+    props.parquetBucket.grantRead(this.lambda);
 
     props.authBucket.grantReadWrite(this.lambda, 'authreq/*');
     props.authBucket.grantReadWrite(this.lambda, 'federation/*');

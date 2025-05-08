@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/explore-flights/monorepo/go/api/auth"
+	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/explore-flights/monorepo/go/api/web"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
@@ -153,4 +154,8 @@ func loadSsmParams(ctx context.Context, envNames ...string) (map[string]string, 
 	}
 
 	return result, nil
+}
+
+func database() (*db.Database, error) {
+	return db.NewDatabase("/opt/data/basedata.db"), nil
 }
