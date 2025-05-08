@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -8,7 +10,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	ssmTypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/xtime"
@@ -33,11 +39,20 @@ type updater struct {
 		adapt.S3Getter
 		adapt.S3Putter
 	}
+	lambdaC interface {
+		PublishLayerVersion(ctx context.Context, params *lambda.PublishLayerVersionInput, optFns ...func(*lambda.Options)) (*lambda.PublishLayerVersionOutput, error)
+		ListFunctions(ctx context.Context, params *lambda.ListFunctionsInput, optFns ...func(*lambda.Options)) (*lambda.ListFunctionsOutput, error)
+		GetFunctionConfiguration(ctx context.Context, params *lambda.GetFunctionConfigurationInput, optFns ...func(*lambda.Options)) (*lambda.GetFunctionConfigurationOutput, error)
+		UpdateFunctionConfiguration(ctx context.Context, params *lambda.UpdateFunctionConfigurationInput, optFns ...func(*lambda.Options)) (*lambda.UpdateFunctionConfigurationOutput, error)
+	}
+	ssmc interface {
+		PutParameter(ctx context.Context, params *ssm.PutParameterInput, optFns ...func(*ssm.Options)) (*ssm.PutParameterOutput, error)
+	}
 	parquetFileUriSchema string
 	inputFileUriSchema   string
 }
 
-func (u *updater) Handle(
+func (u *updater) UpdateDatabase(
 	ctx context.Context,
 	t time.Time,
 	databaseBucket,
@@ -64,16 +79,18 @@ func (u *updater) Handle(
 		}
 
 		if err := u.runTimed("download db file", func() error {
-			return u.downloadDbFile(ctx, databaseBucket, fullDatabaseKey, tmpDbPath)
+			return u.downloadS3File(ctx, databaseBucket, fullDatabaseKey, tmpDbPath)
 		}); err != nil {
 			return err
 		}
 
 		if err := u.withDatabase(ctx, ddbHomePath, tmpDbPath, func(conn *sql.Conn) error {
-			if err := u.runTimed("update database", func() error {
-				return u.runMainUpdateSequence(ctx, t, conn, u.buildInputFileUris(inputBucket, inputPrefix, dateRanges))
-			}); err != nil {
-				return err
+			if !dateRanges.Empty() {
+				if err := u.runTimed("update database", func() error {
+					return u.runMainUpdateSequence(ctx, t, conn, u.buildInputFileUris(inputBucket, inputPrefix, dateRanges))
+				}); err != nil {
+					return err
+				}
 			}
 
 			if err := u.runTimed("create and upload basedata db", func() error {
@@ -123,24 +140,132 @@ func (u *updater) Handle(
 	return nil
 }
 
-func (u *updater) downloadDbFile(ctx context.Context, databaseBucket, databaseKey, tmpDbPath string) error {
-	resp, err := u.s3c.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(databaseBucket),
-		Key:    aws.String(databaseKey),
-	})
-	if err != nil {
-		return fmt.Errorf("failed GetObject for db file: %w", err)
+func (u *updater) UpdateLambdaLayer(ctx context.Context, databaseBucket, baseDataDatabaseKey, parquetBucket, variantsKey, layerName, ssmParameterName string) error {
+	files := [][3]string{
+		{"data/basedata.db", databaseBucket, baseDataDatabaseKey},
+		{"data/variants.parquet", parquetBucket, variantsKey},
 	}
-	defer resp.Body.Close()
 
-	f, err := os.Create(tmpDbPath)
+	return u.runTimed("update lambda layer", func() error {
+		var layerZipBuffer bytes.Buffer
+		err := func() error {
+			zipW := zip.NewWriter(&layerZipBuffer)
+
+			for _, file := range files {
+				zipFileName, bucket, key := file[0], file[1], file[2]
+
+				w, err := zipW.Create(zipFileName)
+				if err != nil {
+					return fmt.Errorf("failed to create file %q in zip", zipFileName)
+				}
+
+				if err = u.copyS3FileTo(ctx, bucket, key, w); err != nil {
+					return fmt.Errorf("failed to write s3 file %q to zip: %w", zipFileName, err)
+				}
+			}
+
+			return zipW.Close()
+		}()
+		if err != nil {
+			return fmt.Errorf("failed to create layer zip file: %w", err)
+		}
+
+		var updatedLayerArn, updatedLayerVersionArn string
+		{
+			resp, err := u.lambdaC.PublishLayerVersion(ctx, &lambda.PublishLayerVersionInput{
+				LayerName: aws.String(layerName),
+				Content: &lambdaTypes.LayerVersionContentInput{
+					ZipFile: layerZipBuffer.Bytes(),
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("failed to publish layer version: %w", err)
+			}
+
+			updatedLayerArn, updatedLayerVersionArn = *resp.LayerArn, *resp.LayerVersionArn
+		}
+
+		_, err = u.ssmc.PutParameter(ctx, &ssm.PutParameterInput{
+			Name:      aws.String(ssmParameterName),
+			Value:     aws.String(updatedLayerVersionArn),
+			Type:      ssmTypes.ParameterTypeString,
+			Overwrite: aws.Bool(true),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to update SSM parameter for layer version: %w", err)
+		}
+
+		functionsToUpdate := make([]lambdaTypes.FunctionConfiguration, 0)
+		{
+			var marker *string
+			for {
+				resp, err := u.lambdaC.ListFunctions(ctx, &lambda.ListFunctionsInput{Marker: marker})
+				if err != nil {
+					return fmt.Errorf("failed to list functions: %w", err)
+				}
+
+				for _, function := range resp.Functions {
+					for _, layer := range function.Layers {
+						if strings.HasPrefix(*layer.Arn, updatedLayerArn) {
+							functionsToUpdate = append(functionsToUpdate, function)
+						}
+					}
+				}
+
+				marker = resp.NextMarker
+				if marker == nil {
+					break
+				}
+			}
+		}
+
+		for _, function := range functionsToUpdate {
+			fmt.Printf("updating layers for function %q\n", *function.FunctionName)
+
+			layerArns := make([]string, 0, len(function.Layers))
+			for _, layer := range function.Layers {
+				if strings.HasPrefix(*layer.Arn, updatedLayerArn) {
+					layerArns = append(layerArns, updatedLayerVersionArn)
+				} else {
+					layerArns = append(layerArns, *layer.Arn)
+				}
+			}
+
+			_, err = u.lambdaC.UpdateFunctionConfiguration(ctx, &lambda.UpdateFunctionConfigurationInput{
+				FunctionName: function.FunctionArn,
+				Layers:       layerArns,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to update function configuration for lambda %q: %w", *function.FunctionArn, err)
+			}
+		}
+
+		return nil
+	})
+}
+
+func (u *updater) downloadS3File(ctx context.Context, bucket, key, dstFilePath string) error {
+	f, err := os.Create(dstFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to create tmp db file: %w", err)
+		return fmt.Errorf("failed to create dst file %q: %w", dstFilePath, err)
 	}
 	defer f.Close()
 
-	if _, err = io.Copy(f, resp.Body); err != nil {
-		return fmt.Errorf("failed to download db file: %w", err)
+	return u.copyS3FileTo(ctx, bucket, key, f)
+}
+
+func (u *updater) copyS3FileTo(ctx context.Context, bucket, key string, w io.Writer) error {
+	resp, err := u.s3c.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("failed GetObject for key %q: %w", key, err)
+	}
+	defer resp.Body.Close()
+
+	if _, err = io.Copy(w, resp.Body); err != nil {
+		return fmt.Errorf("failed to download file from s3: %w", err)
 	}
 
 	return nil
@@ -261,15 +386,36 @@ func (u *updater) createAndUploadBaseDataDb(ctx context.Context, conn *sql.Conn,
 			nil,
 		},
 		{
+			[2]string{
+				"delete unused basedata",
+				`
+DELETE FROM airline_identifiers aid
+WHERE NOT EXISTS ( FROM flight_numbers fn WHERE fn.airline_id = aid.airline_id ) ;
+
+DELETE FROM airlines al
+WHERE NOT EXISTS ( FROM flight_numbers fn WHERE fn.airline_id = al.id ) ;
+
+DELETE FROM airport_identifiers aid
+WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.departure_airport_id = aid.airport_id OR fv.arrival_airport_id = aid.airport_id ) ;
+
+DELETE FROM airports ap
+WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.departure_airport_id = ap.id OR fv.arrival_airport_id = ap.id ) ;
+
+DELETE FROM aircraft_identifiers aid
+WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = aid.aircraft_id ) ;
+
+DELETE FROM aircraft ac
+WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = ac.id ) ;
+`,
+			},
+			nil,
+		},
+		{
 			[2]string{"drop history", `DROP TABLE flight_variant_history`},
 			nil,
 		},
 		{
 			[2]string{"drop variants", `DROP TABLE flight_variants`},
-			nil,
-		},
-		{
-			[2]string{"drop numbers", `DROP TABLE flight_numbers`},
 			nil,
 		},
 	}

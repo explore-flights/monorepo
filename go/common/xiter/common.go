@@ -58,3 +58,9 @@ func Combine[T any](seqs ...iter.Seq[T]) iter.Seq[T] {
 func Chunk[Slice ~[]E, E any](seq iter.Seq[E], n int) iter.Seq[Slice] {
 	return slices.Chunk(slices.AppendSeq(make(Slice, 0), seq), n)
 }
+
+func Empty[T any]() iter.Seq[T] {
+	return func(yield func(T) bool) {
+
+	}
+}

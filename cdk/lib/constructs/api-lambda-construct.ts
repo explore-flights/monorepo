@@ -14,10 +14,12 @@ import { ArnFormat, Duration, Stack } from 'aws-cdk-lib';
 import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { IStringParameter, StringParameter } from 'aws-cdk-lib/aws-ssm';
+import { BASE_DATA_LAYER_SSM_PARAMETER_NAME } from '../util/consts';
 
 export interface ApiLambdaConstructProps {
   apiLambdaZipPath: string;
   dataBucket: IBucket;
+  parquetBucket: IBucket;
   authBucket: IBucket;
 }
 
@@ -72,9 +74,14 @@ export class ApiLambdaConstruct extends Construct {
             service: 'lambda',
             account: '753240598075', // https://github.com/awslabs/aws-lambda-web-adapter?tab=readme-ov-file#lambda-functions-packaged-as-zip-package-for-aws-managed-runtimes
             resource: 'layer',
-            resourceName: 'LambdaAdapterLayerArm64:22',
+            resourceName: 'LambdaAdapterLayerArm64:25',
             arnFormat: ArnFormat.COLON_RESOURCE_NAME,
           }),
+        ),
+        LayerVersion.fromLayerVersionArn(
+          scope,
+          'BaseDataLayer',
+          StringParameter.valueForStringParameter(this, BASE_DATA_LAYER_SSM_PARAMETER_NAME),
         ),
       ],
       tracing: Tracing.DISABLED,

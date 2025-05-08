@@ -13,6 +13,7 @@ export interface WebsiteStackProps extends cdk.StackProps {
   apiLambdaZipPath: string;
   uiResourcesZipPath: string;
   dataBucket: IBucket;
+  parquetBucket: IBucket;
 }
 
 export class WebsiteStack extends cdk.Stack {
@@ -43,6 +44,7 @@ export class WebsiteStack extends cdk.Stack {
     const api = new ApiLambdaConstruct(this, 'ApiLambda', {
       apiLambdaZipPath: props.apiLambdaZipPath,
       dataBucket: props.dataBucket,
+      parquetBucket: props.parquetBucket,
       authBucket: authBucket,
     });
 

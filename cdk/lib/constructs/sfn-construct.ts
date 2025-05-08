@@ -18,6 +18,7 @@ import {
 import { EcsFargateLaunchTarget, EcsRunTask, LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { ContainerDefinition, FargatePlatformVersion, ICluster, TaskDefinition } from 'aws-cdk-lib/aws-ecs';
 import { IVpc, SecurityGroup, SubnetSelection } from 'aws-cdk-lib/aws-ec2';
+import { BASE_DATA_LAYER_NAME, BASE_DATA_LAYER_SSM_PARAMETER_NAME } from '../util/consts';
 
 export interface SfnConstructProps {
   dataBucket: IBucket;
@@ -208,6 +209,8 @@ export class SfnConstruct extends Construct {
                     `--input-bucket=${props.dataBucket.bucketName}`,
                     `--input-prefix=${LH_FLIGHT_SCHEDULES_PREFIX}`,
                     JsonPath.format('--date-ranges-json={}', JsonPath.jsonToString(JsonPath.objectAt('$.loadScheduleRanges.completed'))),
+                    `--layer-name=${BASE_DATA_LAYER_NAME}`,
+                    `--ssm-parameter-name=${BASE_DATA_LAYER_SSM_PARAMETER_NAME}`,
                   ),
                 },
                 resultPath: '$.updateDatabaseCommand',

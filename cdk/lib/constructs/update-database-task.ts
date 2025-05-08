@@ -1,22 +1,23 @@
 import { Construct } from 'constructs';
 import {
   Cluster,
-  ContainerInsights,
-  ICluster,
-  TaskDefinition,
-  OperatingSystemFamily,
-  CpuArchitecture,
-  ContainerImage,
-  LogDriver,
   ContainerDefinition,
-  FargateTaskDefinition
+  ContainerImage,
+  ContainerInsights,
+  CpuArchitecture,
+  FargateTaskDefinition,
+  ICluster,
+  LogDriver,
+  OperatingSystemFamily,
+  TaskDefinition
 } from 'aws-cdk-lib/aws-ecs';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
-import { RemovalPolicy } from 'aws-cdk-lib';
-import { ManagedPolicy, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { ArnFormat, RemovalPolicy, Stack } from 'aws-cdk-lib';
+import { Effect, ManagedPolicy, Policy, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { DockerImageAsset, Platform } from 'aws-cdk-lib/aws-ecr-assets';
 import { IVpc } from 'aws-cdk-lib/aws-ec2';
+import { BASE_DATA_LAYER_NAME, BASE_DATA_LAYER_SSM_PARAMETER_NAME } from '../util/consts';
 
 export interface UpdateDatabaseConstructProps {
   vpc: IVpc;
@@ -60,6 +61,63 @@ export class UpdateDatabaseConstruct extends Construct {
     props.dataBucket.grantReadWrite(taskRole, 'processed/flights.db');
     props.dataBucket.grantWrite(taskRole, 'processed/basedata.db');
     props.parquetBucket.grantReadWrite(taskRole);
+
+    taskRole.attachInlinePolicy(new Policy(this, 'AllowUpdateBaseDataLayer', {
+      statements: [
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ['lambda:PublishLayerVersion'],
+          resources: [
+            Stack.of(this).formatArn({
+              service: 'lambda',
+              resource: 'layer',
+              resourceName: BASE_DATA_LAYER_NAME,
+              arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+            }),
+          ],
+        }),
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ['ssm:PutParameter'],
+          resources: [
+            Stack.of(this).formatArn({
+              service: 'ssm',
+              resource: 'parameter',
+              resourceName: BASE_DATA_LAYER_SSM_PARAMETER_NAME.substring(1),
+              arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+            }),
+          ],
+        }),
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ['lambda:ListFunctions'],
+        }),
+        new PolicyStatement({
+          effect: Effect.ALLOW,
+          actions: ['lambda:UpdateFunctionConfiguration'],
+          resources: [
+            Stack.of(this).formatArn({
+              service: 'lambda',
+              resource: 'function',
+              resourceName: '*',
+              arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+            }),
+          ],
+          conditions: {
+            'ForAnyValue:StringLike': {
+              'lambda:Layer': [
+                Stack.of(this).formatArn({
+                  service: 'lambda',
+                  resource: 'layer',
+                  resourceName: `${BASE_DATA_LAYER_NAME}:*`,
+                  arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+                }),
+              ],
+            },
+          },
+        }),
+      ],
+    }));
 
     this.task = new FargateTaskDefinition(this, 'TaskDefinition', {
       cpu: 4096,

@@ -16,6 +16,7 @@ const websiteStack = new WebsiteStack(app, 'Website-Prod', {
   apiLambdaZipPath: 'api_lambda_bundle.zip',
   uiResourcesZipPath: 'explore_flights_ui_artifact.zip',
   dataBucket: dataStack.dataBucket,
+  parquetBucket: dataStack.parquetBucket,
 });
 
 new CronStack(app, 'Cron-Prod', {
