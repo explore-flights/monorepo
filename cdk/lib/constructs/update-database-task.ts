@@ -91,6 +91,7 @@ export class UpdateDatabaseConstruct extends Construct {
         new PolicyStatement({
           effect: Effect.ALLOW,
           actions: ['lambda:ListFunctions'],
+          resources: ['*'],
         }),
         new PolicyStatement({
           effect: Effect.ALLOW,
