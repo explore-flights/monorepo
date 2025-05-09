@@ -13,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/explore-flights/monorepo/go/api/auth"
 	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/explore-flights/monorepo/go/api/web"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/golang-jwt/jwt/v5"
@@ -72,8 +71,13 @@ func dataBucket() (string, error) {
 	return bucket, nil
 }
 
-func flightRepo(ctx context.Context, s3c search.MinimalS3Client, bucket string) (*search.FlightRepo, error) {
-	return search.NewFlightRepo(s3c, bucket), nil
+func parquetBucket() (string, error) {
+	bucket := os.Getenv("FLIGHTS_PARQUET_BUCKET")
+	if bucket == "" {
+		return "", errors.New("env variable FLIGHTS_PARQUET_BUCKET required")
+	}
+
+	return bucket, nil
 }
 
 func authorizationHandler(ctx context.Context, s3c auth.MinimalS3Client) (*web.AuthorizationHandler, error) {
@@ -157,5 +161,15 @@ func loadSsmParams(ctx context.Context, envNames ...string) (map[string]string, 
 }
 
 func database() (*db.Database, error) {
-	return db.NewDatabase("/opt/data/basedata.db"), nil
+	parquetBucketName, err := parquetBucket()
+	if err != nil {
+		return nil, err
+	}
+
+	return db.NewDatabase(
+		"/opt/data/basedata.db",
+		"/opt/data/variants.parquet",
+		fmt.Sprintf("s3://%s/history", parquetBucketName),
+		fmt.Sprintf("s3://%s/latest", parquetBucketName),
+	), nil
 }

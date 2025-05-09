@@ -9,7 +9,6 @@ import (
 	"crypto/rsa"
 	"github.com/explore-flights/monorepo/go/api/auth"
 	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/explore-flights/monorepo/go/api/web"
 	"github.com/explore-flights/monorepo/go/common/local"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
@@ -37,8 +36,8 @@ func dataBucket() (string, error) {
 	return cmp.Or(os.Getenv("FLIGHTS_DATA_BUCKET"), "flights_data_bucket"), nil
 }
 
-func flightRepo(ctx context.Context, s3c search.MinimalS3Client, bucket string) (*search.FlightRepo, error) {
-	return search.NewFlightRepo(s3c, bucket), nil
+func parquetBucket() (string, error) {
+	return cmp.Or(os.Getenv("FLIGHTS_PARQUET_BUCKET"), "flights_parquet_bucket"), nil
 }
 
 func authorizationHandler(ctx context.Context, s3c auth.MinimalS3Client) (*web.AuthorizationHandler, error) {
@@ -74,5 +73,21 @@ func database() (*db.Database, error) {
 		return nil, err
 	}
 
-	return db.NewDatabase(filepath.Join(home, "Downloads", "local_s3", "basedata", "basedata.db")), nil
+	dataBucketFolder, err := dataBucket()
+	if err != nil {
+		return nil, err
+	}
+
+	parquetBucketFolder, err := parquetBucket()
+	if err != nil {
+		return nil, err
+	}
+
+	localS3BasePath := filepath.Join(home, "Downloads", "local_s3")
+	return db.NewDatabase(
+		filepath.Join(localS3BasePath, dataBucketFolder, "processed", "basedata.db"),
+		filepath.Join(localS3BasePath, parquetBucketFolder, "variants.parquet"),
+		filepath.Join(localS3BasePath, parquetBucketFolder, "history"),
+		filepath.Join(localS3BasePath, parquetBucketFolder, "latest"),
+	), nil
 }

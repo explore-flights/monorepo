@@ -263,8 +263,6 @@ FROM airports
 			return AirportsResponse{}, err
 		}
 
-		fmt.Printf("%q %q %v %v\n", name, iataCode, lat, lng)
-
 		name = cmp.Or(name, iataCode)
 		if iataCode != "" {
 			airport := Airport{

@@ -31,11 +31,6 @@ func main() {
 		panic(err)
 	}
 
-	fr, err := flightRepo(ctx, s3c, bucket)
-	if err != nil {
-		panic(err)
-	}
-
 	authHandler, err := authorizationHandler(ctx, s3c)
 	if err != nil {
 		panic(err)
@@ -51,6 +46,8 @@ func main() {
 		panic(err)
 	}
 	defer db.Close()
+
+	fr := search.NewFlightRepo(db)
 
 	connHandler := search.NewConnectionsHandler(fr)
 	dataHandler := data.NewHandler(s3c, lhc, db, bucket)

@@ -115,12 +115,12 @@ func findConnections(
 					sameFlightNumber := false
 
 					if incomingFn != nil {
+						// subtract (actual) layover duration
 						maxDuration = maxDuration - f.DepartureTime.Sub(minDeparture)
 
 						// ignore minLayover for flights continuing on the same number (multi-leg)
 						if *incomingFn != f.Number() {
 							minDeparture = minDeparture.Add(minLayover)
-							maxDuration = maxDuration - minLayover
 						} else {
 							sameFlightNumber = true
 						}
