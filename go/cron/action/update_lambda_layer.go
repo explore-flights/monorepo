@@ -14,6 +14,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"io"
 	"strings"
+	"time"
 )
 
 type UpdateLambdaLayerParams struct {
@@ -78,6 +79,7 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, databaseBucket, baseD
 
 	var layerZipBuffer bytes.Buffer
 	err := func() error {
+		var minLastModified time.Time
 		zipW := zip.NewWriter(&layerZipBuffer)
 
 		for _, file := range files {
@@ -88,9 +90,23 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, databaseBucket, baseD
 				return fmt.Errorf("failed to create file %q in zip", zipFileName)
 			}
 
-			if err = a.copyS3FileTo(ctx, bucket, key, w); err != nil {
+			var lastModified time.Time
+			if lastModified, err = a.copyS3FileTo(ctx, bucket, key, w); err != nil {
 				return fmt.Errorf("failed to write s3 file %q to zip: %w", zipFileName, err)
 			}
+
+			if minLastModified.IsZero() || lastModified.Before(minLastModified) {
+				minLastModified = lastModified
+			}
+		}
+
+		w, err := zipW.Create("data/version.txt")
+		if err != nil {
+			return fmt.Errorf(`failed to create file "data/version.txt": %w`, err)
+		}
+
+		if _, err = w.Write([]byte(minLastModified.Format(time.RFC3339))); err != nil {
+			return fmt.Errorf(`failed to write file "data/version.txt": %w`, err)
 		}
 
 		return zipW.Close()
@@ -175,19 +191,19 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, databaseBucket, baseD
 	return updatedFunctionArns, nil
 }
 
-func (a *ullAction) copyS3FileTo(ctx context.Context, bucket, key string, w io.Writer) error {
+func (a *ullAction) copyS3FileTo(ctx context.Context, bucket, key string, w io.Writer) (time.Time, error) {
 	resp, err := a.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return fmt.Errorf("failed GetObject for key %q: %w", key, err)
+		return time.Time{}, fmt.Errorf("failed GetObject for key %q: %w", key, err)
 	}
 	defer resp.Body.Close()
 
 	if _, err = io.Copy(w, resp.Body); err != nil {
-		return fmt.Errorf("failed to download file from s3: %w", err)
+		return time.Time{}, fmt.Errorf("failed to download file from s3: %w", err)
 	}
 
-	return nil
+	return *resp.LastModified, nil
 }
