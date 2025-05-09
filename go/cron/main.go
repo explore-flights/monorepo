@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	lambdasdk "github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
@@ -34,12 +35,15 @@ func main() {
 	}
 
 	s3c := s3.NewFromConfig(cfg)
+	lambdaC := lambdasdk.NewFromConfig(cfg)
+	ssmc := ssm.NewFromConfig(cfg)
+
 	lhc, err := lufthansaClient(ctx, cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	lambda.StartWithOptions(newHandler(s3c, lhc), lambda.WithContext(ctx))
+	lambda.StartWithOptions(newHandler(s3c, lambdaC, ssmc, lhc), lambda.WithContext(ctx))
 }
 
 func lufthansaClient(ctx context.Context, cfg aws.Config) (*lufthansa.Client, error) {
@@ -81,7 +85,7 @@ func lufthansaClient(ctx context.Context, cfg aws.Config) (*lufthansa.Client, er
 	), nil
 }
 
-func newHandler(s3c *s3.Client, lhc *lufthansa.Client) func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
+func newHandler(s3c *s3.Client, lambdaC *lambdasdk.Client, ssmc *ssm.Client, lhc *lufthansa.Client) func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
 	lCountriesAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).CountriesRaw, "countries")
 	lCitiesAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).CitiesRaw, "cities")
 	lAirportsAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).AirportsRaw, "airports")
@@ -94,6 +98,7 @@ func newHandler(s3c *s3.Client, lhc *lufthansa.Client) func(ctx context.Context,
 	cronAction := action.NewCronAction(lfsAction, cfsAction)
 	loaAction := action.NewLoadOurAirportsDataAction(s3c, nil)
 	uafAction := action.NewUpdateAllegrisFeedAction(s3c)
+	ullAction := action.NewUpdateLambdaLayerAction(s3c, lambdaC, ssmc)
 	umdAction := action.NewUpdateMetadataAction(s3c)
 	invWHAction := action.NewInvokeWebhookAction(http.DefaultClient)
 
@@ -134,6 +139,9 @@ func newHandler(s3c *s3.Client, lhc *lufthansa.Client) func(ctx context.Context,
 
 		case "update_allegris_feed":
 			return handle(ctx, uafAction, event.Params)
+
+		case "update_lambda_layer":
+			return handle(ctx, ullAction, event.Params)
 
 		case "update_metadata":
 			return handle(ctx, umdAction, event.Params)

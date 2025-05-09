@@ -6,9 +6,7 @@ import (
 	"errors"
 	"flag"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"log"
 	"os"
@@ -31,8 +29,6 @@ func main() {
 		inputPrefix         string
 		dateRangesJSON      string
 		dateRanges          xtime.LocalDateRanges
-		layerName           string
-		ssmParameterName    string
 	)
 
 	fs := flag.NewFlagSet("", flag.PanicOnError)
@@ -47,8 +43,6 @@ func main() {
 	fs.StringVar(&inputBucket, "input-bucket", "", "")
 	fs.StringVar(&inputPrefix, "input-prefix", "", "")
 	fs.StringVar(&dateRangesJSON, "date-ranges-json", "", "")
-	fs.StringVar(&layerName, "layer-name", "", "")
-	fs.StringVar(&ssmParameterName, "ssm-parameter-name", "", "")
 	fs.SetOutput(os.Stdout)
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
@@ -76,9 +70,7 @@ func main() {
 		latestPrefix == "" ||
 		inputBucket == "" ||
 		inputPrefix == "" ||
-		dateRanges.Empty() ||
-		layerName == "" ||
-		ssmParameterName == "" {
+		dateRanges.Empty() {
 
 		log.Fatal("missing input argument")
 		return
@@ -95,18 +87,11 @@ func main() {
 
 	u := updater{
 		s3c:                  s3.NewFromConfig(cfg),
-		lambdaC:              lambda.NewFromConfig(cfg),
-		ssmc:                 ssm.NewFromConfig(cfg),
 		parquetFileUriSchema: "s3",
 		inputFileUriSchema:   "s3",
 	}
 
 	if err = u.UpdateDatabase(ctx, t, databaseBucket, fullDatabaseKey, baseDataDatabaseKey, parquetBucket, variantsKey, historyPrefix, latestPrefix, inputBucket, inputPrefix, dateRanges); err != nil {
-		log.Fatal(err)
-		return
-	}
-
-	if err = u.UpdateLambdaLayer(ctx, databaseBucket, baseDataDatabaseKey, parquetBucket, variantsKey, layerName, ssmParameterName); err != nil {
 		log.Fatal(err)
 		return
 	}

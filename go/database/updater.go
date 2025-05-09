@@ -1,8 +1,6 @@
 package main
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -10,11 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/lambda"
-	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
-	ssmTypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/xtime"
@@ -38,15 +32,6 @@ type updater struct {
 	s3c interface {
 		adapt.S3Getter
 		adapt.S3Putter
-	}
-	lambdaC interface {
-		PublishLayerVersion(ctx context.Context, params *lambda.PublishLayerVersionInput, optFns ...func(*lambda.Options)) (*lambda.PublishLayerVersionOutput, error)
-		ListFunctions(ctx context.Context, params *lambda.ListFunctionsInput, optFns ...func(*lambda.Options)) (*lambda.ListFunctionsOutput, error)
-		GetFunctionConfiguration(ctx context.Context, params *lambda.GetFunctionConfigurationInput, optFns ...func(*lambda.Options)) (*lambda.GetFunctionConfigurationOutput, error)
-		UpdateFunctionConfiguration(ctx context.Context, params *lambda.UpdateFunctionConfigurationInput, optFns ...func(*lambda.Options)) (*lambda.UpdateFunctionConfigurationOutput, error)
-	}
-	ssmc interface {
-		PutParameter(ctx context.Context, params *ssm.PutParameterInput, optFns ...func(*ssm.Options)) (*ssm.PutParameterOutput, error)
 	}
 	parquetFileUriSchema string
 	inputFileUriSchema   string
@@ -138,110 +123,6 @@ func (u *updater) UpdateDatabase(
 	}
 
 	return nil
-}
-
-func (u *updater) UpdateLambdaLayer(ctx context.Context, databaseBucket, baseDataDatabaseKey, parquetBucket, variantsKey, layerName, ssmParameterName string) error {
-	files := [][3]string{
-		{"data/basedata.db", databaseBucket, baseDataDatabaseKey},
-		{"data/variants.parquet", parquetBucket, variantsKey},
-	}
-
-	return u.runTimed("update lambda layer", func() error {
-		var layerZipBuffer bytes.Buffer
-		err := func() error {
-			zipW := zip.NewWriter(&layerZipBuffer)
-
-			for _, file := range files {
-				zipFileName, bucket, key := file[0], file[1], file[2]
-
-				w, err := zipW.Create(zipFileName)
-				if err != nil {
-					return fmt.Errorf("failed to create file %q in zip", zipFileName)
-				}
-
-				if err = u.copyS3FileTo(ctx, bucket, key, w); err != nil {
-					return fmt.Errorf("failed to write s3 file %q to zip: %w", zipFileName, err)
-				}
-			}
-
-			return zipW.Close()
-		}()
-		if err != nil {
-			return fmt.Errorf("failed to create layer zip file: %w", err)
-		}
-
-		var updatedLayerArn, updatedLayerVersionArn string
-		{
-			resp, err := u.lambdaC.PublishLayerVersion(ctx, &lambda.PublishLayerVersionInput{
-				LayerName: aws.String(layerName),
-				Content: &lambdaTypes.LayerVersionContentInput{
-					ZipFile: layerZipBuffer.Bytes(),
-				},
-			})
-			if err != nil {
-				return fmt.Errorf("failed to publish layer version: %w", err)
-			}
-
-			updatedLayerArn, updatedLayerVersionArn = *resp.LayerArn, *resp.LayerVersionArn
-		}
-
-		_, err = u.ssmc.PutParameter(ctx, &ssm.PutParameterInput{
-			Name:      aws.String(ssmParameterName),
-			Value:     aws.String(updatedLayerVersionArn),
-			Type:      ssmTypes.ParameterTypeString,
-			Overwrite: aws.Bool(true),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update SSM parameter for layer version: %w", err)
-		}
-
-		functionsToUpdate := make([]lambdaTypes.FunctionConfiguration, 0)
-		{
-			var marker *string
-			for {
-				resp, err := u.lambdaC.ListFunctions(ctx, &lambda.ListFunctionsInput{Marker: marker})
-				if err != nil {
-					return fmt.Errorf("failed to list functions: %w", err)
-				}
-
-				for _, function := range resp.Functions {
-					for _, layer := range function.Layers {
-						if strings.HasPrefix(*layer.Arn, updatedLayerArn) {
-							functionsToUpdate = append(functionsToUpdate, function)
-						}
-					}
-				}
-
-				marker = resp.NextMarker
-				if marker == nil {
-					break
-				}
-			}
-		}
-
-		for _, function := range functionsToUpdate {
-			fmt.Printf("updating layers for function %q\n", *function.FunctionName)
-
-			layerArns := make([]string, 0, len(function.Layers))
-			for _, layer := range function.Layers {
-				if strings.HasPrefix(*layer.Arn, updatedLayerArn) {
-					layerArns = append(layerArns, updatedLayerVersionArn)
-				} else {
-					layerArns = append(layerArns, *layer.Arn)
-				}
-			}
-
-			_, err = u.lambdaC.UpdateFunctionConfiguration(ctx, &lambda.UpdateFunctionConfigurationInput{
-				FunctionName: function.FunctionArn,
-				Layers:       layerArns,
-			})
-			if err != nil {
-				return fmt.Errorf("failed to update function configuration for lambda %q: %w", *function.FunctionArn, err)
-			}
-		}
-
-		return nil
-	})
 }
 
 func (u *updater) downloadS3File(ctx context.Context, bucket, key, dstFilePath string) error {

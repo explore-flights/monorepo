@@ -209,8 +209,6 @@ export class SfnConstruct extends Construct {
                     `--input-bucket=${props.dataBucket.bucketName}`,
                     `--input-prefix=${LH_FLIGHT_SCHEDULES_PREFIX}`,
                     JsonPath.format('--date-ranges-json={}', JsonPath.jsonToString(JsonPath.objectAt('$.loadScheduleRanges.completed'))),
-                    `--layer-name=${BASE_DATA_LAYER_NAME}`,
-                    `--ssm-parameter-name=${BASE_DATA_LAYER_SSM_PARAMETER_NAME}`,
                   ),
                 },
                 resultPath: '$.updateDatabaseCommand',
@@ -238,6 +236,23 @@ export class SfnConstruct extends Construct {
                   }),
                 ],
                 resultPath: '$.updateDatabaseResponse',
+              }))
+              .next(new LambdaInvoke(this, 'UpdateLambdaLayerTask', {
+                lambdaFunction: props.cronLambda_4G,
+                payload: TaskInput.fromObject({
+                  'action': 'update_lambda_layer',
+                  'params': {
+                    'databaseBucket': props.dataBucket.bucketName,
+                    'baseDataDatabaseKey': 'processed/basedata.db',
+                    'parquetBucket': props.parquetBucket.bucketName,
+                    'variantsKey': 'variants.parquet',
+                    'layerName': BASE_DATA_LAYER_NAME,
+                    'ssmParameterName': BASE_DATA_LAYER_SSM_PARAMETER_NAME,
+                  },
+                }),
+                payloadResponseOnly: true,
+                resultPath: '$.updateLambdaLayerResponse',
+                retryOnServiceExceptions: true,
               }))
           )
           // endregion

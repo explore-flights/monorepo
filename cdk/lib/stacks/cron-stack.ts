@@ -37,6 +37,7 @@ export class CronStack extends cdk.Stack {
     const cronLambda = new CronLambdaConstruct(this, 'CronLambda', {
       cronLambdaZipPath: props.cronLambdaZipPath,
       dataBucket: props.dataBucket,
+      parquetBucket: props.parquetBucket,
     });
 
     const updateDatabaseTask = new UpdateDatabaseConstruct(this, 'UpdateDatabase', {

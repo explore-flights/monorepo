@@ -7,14 +7,16 @@ import {
   Runtime,
   Tracing
 } from 'aws-cdk-lib/aws-lambda';
-import { Duration } from 'aws-cdk-lib';
+import { ArnFormat, Duration, Stack } from 'aws-cdk-lib';
 import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { IStringParameter, StringParameter } from 'aws-cdk-lib/aws-ssm';
+import { BASE_DATA_LAYER_NAME, BASE_DATA_LAYER_SSM_PARAMETER_NAME } from '../util/consts';
 
 export interface CronLambdaConstructProps {
   cronLambdaZipPath: string;
   dataBucket: IBucket;
+  parquetBucket: IBucket;
 }
 
 export class CronLambdaConstruct extends Construct {
@@ -77,6 +79,74 @@ export class CronLambdaConstruct extends Construct {
           ssmLufthansaClientSecret,
         ].map((v) => v.parameterArn),
       }));
+
+      // region update lambda layer
+      props.dataBucket.grantRead(fn, 'processed/basedata.db');
+      props.parquetBucket.grantRead(fn, 'variants.parquet');
+
+      fn.addToRolePolicy(new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['lambda:PublishLayerVersion'],
+        resources: [
+          Stack.of(this).formatArn({
+            service: 'lambda',
+            resource: 'layer',
+            resourceName: BASE_DATA_LAYER_NAME,
+            arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+          }),
+        ],
+      }));
+
+      fn.addToRolePolicy(new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['ssm:PutParameter'],
+        resources: [
+          Stack.of(this).formatArn({
+            service: 'ssm',
+            resource: 'parameter',
+            resourceName: BASE_DATA_LAYER_SSM_PARAMETER_NAME.substring(1),
+            arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+          }),
+        ],
+      }));
+
+      fn.addToRolePolicy(new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['lambda:ListFunctions'],
+        resources: ['*'],
+      }));
+
+      fn.addToRolePolicy(new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['lambda:GetLayerVersion'],
+        resources: ['*'],
+      }));
+
+      fn.addToRolePolicy(new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['lambda:UpdateFunctionConfiguration'],
+        resources: [
+          Stack.of(this).formatArn({
+            service: 'lambda',
+            resource: 'function',
+            resourceName: '*',
+            arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+          }),
+        ],
+        conditions: {
+          'ForAnyValue:StringLike': {
+            'lambda:Layer': [
+              Stack.of(this).formatArn({
+                service: 'lambda',
+                resource: 'layer',
+                resourceName: `${BASE_DATA_LAYER_NAME}:*`,
+                arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+              }),
+            ],
+          },
+        },
+      }));
+      // endregion
     }
   }
 
