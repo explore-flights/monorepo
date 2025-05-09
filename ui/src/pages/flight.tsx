@@ -11,9 +11,9 @@ import {
 } from '@cloudscape-design/components';
 import { CodeView } from '@cloudscape-design/code-view';
 import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
-import { useAircraft, useAirports, useFlightSchedule, useSeatMap } from '../components/util/state/data';
+import { useAircraft, useAirlines, useAirports, useFlightSchedule, useSeatMap } from '../components/util/state/data';
 import { ErrorNotificationContent } from '../components/util/context/app-controls';
-import { Aircraft, Airport, FlightSchedule } from '../lib/api/api.model';
+import { Aircraft, Airline, Airport, FlightSchedule } from '../lib/api/api.model';
 import { DateTime, Duration, FixedOffsetZone, WeekdayNumbers } from 'luxon';
 import {
   PropertyFilterOperator,
@@ -33,6 +33,7 @@ export function FlightView() {
     throw new Error();
   }
 
+  const airlinesResult = useAirlines();
   const flightScheduleResult = useFlightSchedule(id);
 
   if (!flightScheduleResult.data) {
@@ -68,7 +69,7 @@ export function FlightView() {
   }
 
   return (
-    <FlightScheduleContent flightSchedule={flightScheduleResult.data} />
+    <FlightScheduleContent flightSchedule={flightScheduleResult.data} airlines={airlinesResult.data} />
   );
 }
 
@@ -111,7 +112,7 @@ interface ProcessedFlightSchedule {
   flights: ReadonlyArray<ScheduledFlight>;
 }
 
-function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSchedule }) {
+function FlightScheduleContent({ flightSchedule, airlines }: { flightSchedule: FlightSchedule, airlines?: ReadonlyArray<Airline> }) {
   const [searchParams] = useSearchParams();
   const [filterQuery, setFilterQuery] = useState<PropertyFilterProps.Query>(parseSearchParams(searchParams) ?? {
     operation: 'and',
@@ -128,6 +129,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
   const aircraftLookup = useAircraftLookup();
   const flightNumber = useMemo(() => `${flightSchedule.airline}${flightSchedule.flightNumber}${flightSchedule.suffix}`, [flightSchedule]);
   const { summary, flights, } = useMemo(() => processFlightSchedule(flightSchedule, airportLookup, aircraftLookup), [flightSchedule, airportLookup, aircraftLookup]);
+  const airline = useMemo(() => airlines?.find((v) => v.iataCode === flightSchedule.airline), [flightSchedule.airline, airlines]);
 
   const filteredFlights = useFilteredFlights(flights, filterQuery);
   const { items, collectionProps, paginationProps } = useCollection(filteredFlights, {
@@ -160,7 +162,7 @@ function FlightScheduleContent({ flightSchedule }: { flightSchedule: FlightSched
             items={[
               {
                 label: 'Airline',
-                value: flightSchedule.airline,
+                value: airline ? `${airline.name} (${flightSchedule.airline})` : flightSchedule.airline,
               },
               {
                 label: 'Number',

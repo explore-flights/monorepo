@@ -38,6 +38,12 @@ export interface Airport {
   lng: number;
 }
 
+export interface Airline {
+  name: string;
+  iataCode?: string;
+  icaoCode?: string;
+}
+
 export interface ConnectionsSearchRequest {
   origins: ReadonlyArray<string>;
   destinations: ReadonlyArray<string>;

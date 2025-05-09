@@ -1,17 +1,15 @@
-package search
+package db
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xsql"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/gofrs/uuid/v5"
 	"golang.org/x/sync/errgroup"
 	"iter"
-	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -56,13 +54,18 @@ type FlightRepo struct {
 	}
 }
 
-func NewFlightRepo(db *db.Database) *FlightRepo {
+func NewFlightRepo(db *Database) *FlightRepo {
 	return &FlightRepo{
 		db: db,
 	}
 }
 
 func (fr *FlightRepo) Flights(ctx context.Context, start, end xtime.LocalDate) (map[xtime.LocalDate][]*common.Flight, error) {
+	airlines, err := fr.Airlines(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var mtx sync.Mutex
 	result := make(map[xtime.LocalDate][]*common.Flight)
 
@@ -72,7 +75,7 @@ func (fr *FlightRepo) Flights(ctx context.Context, start, end xtime.LocalDate) (
 	for curr <= end {
 		d := curr
 		g.Go(func() error {
-			flights, err := fr.flightsInternal(ctx, d)
+			flights, err := fr.flightsInternal(ctx, d, airlines)
 			if err != nil {
 				return err
 			}
@@ -91,7 +94,50 @@ func (fr *FlightRepo) Flights(ctx context.Context, start, end xtime.LocalDate) (
 	return result, g.Wait()
 }
 
-func (fr *FlightRepo) flightsInternal(ctx context.Context, d xtime.LocalDate) ([]*common.Flight, error) {
+func (fr *FlightRepo) Airlines(ctx context.Context) (map[uuid.UUID]Airline, error) {
+	conn, err := fr.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	rows, err := conn.QueryContext(
+		ctx,
+		`
+SELECT
+    id,
+    name,
+    ( SELECT identifier FROM airline_identifiers WHERE issuer = 'iata' AND airline_id = id ),
+    ( SELECT identifier FROM airline_identifiers WHERE issuer = 'icao' AND airline_id = id )
+FROM airlines
+`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	airlines := make(map[uuid.UUID]Airline)
+	for rows.Next() {
+		var id uuid.UUID
+		var name sql.NullString
+		var iataCode sql.NullString
+		var icaoCode sql.NullString
+		if err = rows.Scan(&id, &name, &iataCode, &icaoCode); err != nil {
+			return nil, err
+		}
+
+		airlines[id] = Airline{
+			Name:     name.String,
+			IataCode: iataCode.String,
+			IcaoCode: icaoCode.String,
+		}
+	}
+
+	return airlines, rows.Err()
+}
+
+func (fr *FlightRepo) flightsInternal(ctx context.Context, d xtime.LocalDate, airlines map[uuid.UUID]Airline) ([]*common.Flight, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -145,7 +191,6 @@ AND airc_id.issuer = 'iata'
 	defer rows.Close()
 
 	flights := make([]*common.Flight, 0)
-	postProcessAirlineIds := make(map[uuid.UUID][]common.Tuple[*common.Flight, codeShareFlightNumber])
 	for rows.Next() {
 		f := &common.Flight{}
 		var departureUtcOffsetSeconds, arrivalUtcOffsetSeconds, durationSeconds int
@@ -174,63 +219,26 @@ AND airc_id.issuer = 'iata'
 		f.DepartureTime = f.DepartureTime.In(time.FixedZone("", departureUtcOffsetSeconds))
 		f.ArrivalTime = f.DepartureTime.Add(time.Duration(durationSeconds) * time.Second)
 		f.ArrivalTime = f.ArrivalTime.In(time.FixedZone("", arrivalUtcOffsetSeconds))
+		f.CodeShares = make(map[common.FlightNumber]common.CodeShare)
 
 		for _, codeShareFn := range codeShares {
-			postProcess := common.Tuple[*common.Flight, codeShareFlightNumber]{
-				V1: f,
-				V2: codeShareFn,
+			if airline, ok := airlines[codeShareFn.AirlineId]; ok && airline.IataCode != "" {
+				f.CodeShares[common.FlightNumber{
+					Airline: common.AirlineIdentifier(airline.IataCode),
+					Number:  codeShareFn.Number,
+					Suffix:  codeShareFn.Suffix,
+				}] = common.CodeShare{}
 			}
-
-			postProcessAirlineIds[codeShareFn.AirlineId] = append(postProcessAirlineIds[codeShareFn.AirlineId], postProcess)
 		}
 
 		flights = append(flights, f)
 	}
 
-	_ = rows.Close()
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
 
-	if len(postProcessAirlineIds) > 0 {
-		rows, err = queryWithIter(
-			ctx,
-			conn,
-			`SELECT airline_id, identifier FROM airline_identifiers WHERE issuer = 'iata' AND airline_id IN (:airline_id)`,
-			":airline_id",
-			maps.Keys(postProcessAirlineIds),
-		)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var airlineId uuid.UUID
-			var airlineCodeIata string
-			if err = rows.Scan(&airlineId, &airlineCodeIata); err != nil {
-				return nil, err
-			}
-
-			for _, tp := range postProcessAirlineIds[airlineId] {
-				if tp.V1.CodeShares == nil {
-					tp.V1.CodeShares = make(map[common.FlightNumber]common.CodeShare)
-				}
-
-				tp.V1.CodeShares[common.FlightNumber{
-					Airline: common.AirlineIdentifier(airlineCodeIata),
-					Number:  tp.V2.Number,
-					Suffix:  tp.V2.Suffix,
-				}] = common.CodeShare{}
-			}
-		}
-
-		if err = rows.Err(); err != nil {
-			return nil, err
-		}
-	}
-
-	return flights, nil
+	return flights, rows.Err()
 }
 
 func queryWithIter[T any](ctx context.Context, conn *sql.Conn, query, placeholder string, seq iter.Seq[T]) (*sql.Rows, error) {

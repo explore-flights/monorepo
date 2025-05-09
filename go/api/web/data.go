@@ -4,19 +4,44 @@ import (
 	"context"
 	"errors"
 	"github.com/explore-flights/monorepo/go/api/data"
+	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/common/xtime"
+	"github.com/gofrs/uuid/v5"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"strings"
 	"time"
 )
 
-func NewAirlinesEndpoint(dh *data.Handler) echo.HandlerFunc {
+type FlightRepo interface {
+	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
+}
+
+type AirlineResponse struct {
+	Name     string `json:"name"`
+	IataCode string `json:"iataCode,omitempty"`
+	IcaoCode string `json:"icaoCode,omitempty"`
+}
+
+func NewAirlinesEndpoint(fr FlightRepo) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		airlines, err := dh.Airlines(c.Request().Context(), "")
-		return jsonResponse(c, airlines, err, func(v []common.AirlineIdentifier) bool { return false })
+		airlines, err := fr.Airlines(c.Request().Context())
+		if err != nil {
+			return errorResponse(c, err)
+		}
+
+		resp := make([]AirlineResponse, 0, len(airlines))
+		for _, airline := range airlines {
+			resp = append(resp, AirlineResponse{
+				Name:     airline.Name,
+				IataCode: airline.IataCode,
+				IcaoCode: airline.IcaoCode,
+			})
+		}
+
+		return jsonResponse(c, resp, nil, func(v []AirlineResponse) bool { return false })
 	}
 }
 
@@ -161,13 +186,7 @@ func NewFlightSchedulesByConfigurationEndpoint(dh *data.Handler) echo.HandlerFun
 
 func jsonResponse[T any](c echo.Context, v T, err error, isEmpty func(T) bool) error {
 	if err != nil {
-		noCache(c)
-
-		if errors.Is(err, context.DeadlineExceeded) {
-			return echo.NewHTTPError(http.StatusRequestTimeout, err)
-		}
-
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return errorResponse(c, err)
 	}
 
 	if isEmpty(v) {
@@ -175,4 +194,14 @@ func jsonResponse[T any](c echo.Context, v T, err error, isEmpty func(T) bool) e
 	}
 
 	return c.JSON(http.StatusOK, v)
+}
+
+func errorResponse(c echo.Context, err error) error {
+	noCache(c)
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return echo.NewHTTPError(http.StatusRequestTimeout, err)
+	}
+
+	return echo.NewHTTPError(http.StatusInternalServerError)
 }

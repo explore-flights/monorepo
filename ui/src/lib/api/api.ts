@@ -14,7 +14,7 @@ import {
   SeatMap,
   QueryScheduleResponse,
   QuerySchedulesRequest,
-  Notification,
+  Notification, Airline
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -70,7 +70,7 @@ export class ApiClient {
     );
   }
 
-  getAirlines(): Promise<ApiResponse<ReadonlyArray<string>>> {
+  getAirlines(): Promise<ApiResponse<ReadonlyArray<Airline>>> {
     return transform(this.httpClient.fetch('/data/airlines.json'));
   }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/api/data"
+	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/explore-flights/monorepo/go/api/web"
 	"github.com/gorilla/feeds"
@@ -41,16 +42,16 @@ func main() {
 		panic(err)
 	}
 
-	db, err := database()
+	database, err := database()
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer database.Close()
 
-	fr := search.NewFlightRepo(db)
+	fr := db.NewFlightRepo(database)
 
 	connHandler := search.NewConnectionsHandler(fr)
-	dataHandler := data.NewHandler(s3c, lhc, db, bucket)
+	dataHandler := data.NewHandler(s3c, lhc, database, bucket)
 
 	e := echo.New()
 	e.Use(
@@ -82,7 +83,7 @@ func main() {
 	e.GET("/auth/oauth2/code/:issuer", authHandler.Code)
 
 	e.GET("/data/sitemap.xml", web.NewSitemapHandler(dataHandler))
-	e.GET("/data/airlines.json", web.NewAirlinesEndpoint(dataHandler))
+	e.GET("/data/airlines.json", web.NewAirlinesEndpoint(fr))
 	e.GET("/data/airports.json", web.NewAirportsEndpoint(dataHandler))
 	e.GET("/data/aircraft.json", web.NewAircraftEndpoint(dataHandler))
 	e.GET("/data/flight/:fn", web.NewFlightNumberEndpoint(dataHandler))

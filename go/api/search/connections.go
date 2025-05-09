@@ -10,6 +10,10 @@ import (
 
 type flightPredicate func(f *common.Flight) bool
 
+type FlightRepo interface {
+	Flights(ctx context.Context, start, end xtime.LocalDate) (map[xtime.LocalDate][]*common.Flight, error)
+}
+
 type Options struct {
 	countMultiLeg bool
 	all           []flightPredicate
@@ -22,10 +26,10 @@ type Connection struct {
 }
 
 type ConnectionsHandler struct {
-	fr *FlightRepo
+	fr FlightRepo
 }
 
-func NewConnectionsHandler(fr *FlightRepo) *ConnectionsHandler {
+func NewConnectionsHandler(fr FlightRepo) *ConnectionsHandler {
 	return &ConnectionsHandler{fr}
 }
 

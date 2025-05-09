@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { Multiselect, MultiselectProps } from '@cloudscape-design/components';
+import { Airline } from '../../lib/api/api.model';
 
 export interface AirlineMultiselectProps {
-  airlines: ReadonlyArray<string>;
+  airlines: ReadonlyArray<Airline>;
   selectedAirlines: ReadonlyArray<string>;
   loading: boolean;
   disabled: boolean;
@@ -16,14 +17,18 @@ export function AirlineMultiselect({ airlines, selectedAirlines, loading, disabl
     const optionByAirline: Record<string, MultiselectProps.Option> = {};
 
     for (const airline of airlines) {
-      const option = {
-        label: airline,
-        value: airline,
-      } satisfies MultiselectProps.Option;
+      if (airline.iataCode) {
+        const option = {
+          label: airline.name,
+          labelTag: airline.iataCode,
+          tags: airline.icaoCode ? [airline.icaoCode] : undefined,
+          value: airline.iataCode,
+        } satisfies MultiselectProps.Option;
 
 
-      options.push(option);
-      optionByAirline[airline] = option;
+        options.push(option);
+        optionByAirline[airline.iataCode] = option;
+      }
     }
 
     return [options, optionByAirline];
