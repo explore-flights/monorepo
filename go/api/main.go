@@ -79,7 +79,8 @@ func main() {
 
 		group.GET("/schedule/search", web.NewQueryFlightSchedulesEndpoint(dataHandler))
 
-		group.GET("/notifications", web.NewNotificationsEndpoint(s3c, bucket))
+		notificationHandler := web.NewNotificationHandler(versionTxtPath())
+		group.GET("/notifications", notificationHandler.Notifications)
 	}
 
 	{

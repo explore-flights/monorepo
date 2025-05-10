@@ -2,11 +2,10 @@ package web
 
 import (
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/labstack/echo/v4"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -27,32 +26,44 @@ type notification struct {
 	Content string           `json:"content,omitempty"`
 }
 
-func NewNotificationsEndpoint(s3c adapt.S3Header, dataBucket string) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		resp, err := s3c.HeadObject(c.Request().Context(), &s3.HeadObjectInput{
-			Bucket: aws.String(dataBucket),
-			Key:    aws.String("processed/metadata/flightNumbers.json"),
-		})
-		if err != nil {
-			return c.NoContent(http.StatusBadGateway)
-		}
-
-		notifications := make([]notification, 0)
-
-		timeSinceLastUpdate := time.Now().Sub(*resp.LastModified)
-		if timeSinceLastUpdate >= time.Hour*36 {
-			notifications = append(notifications, notification{
-				Type:    notificationTypeInfo,
-				Header:  "Issues with the Lufthansa API",
-				Content: fmt.Sprintf("The official Lufthansa API experiences issues right now. The schedules have last been updated at %s (%s ago).", (*resp.LastModified).Format(time.RFC3339), humanReadableDuration(timeSinceLastUpdate)),
-			})
-		}
-
-		return c.JSON(http.StatusOK, notifications)
-	}
+type NotificationHandler struct {
+	versionTxtPath string
 }
 
-func humanReadableDuration(d time.Duration) string {
+func NewNotificationHandler(versionTxtPath string) *NotificationHandler {
+	return &NotificationHandler{versionTxtPath: versionTxtPath}
+}
+
+func (nh *NotificationHandler) Notifications(c echo.Context) error {
+	f, err := os.Open(nh.versionTxtPath)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+	defer f.Close()
+
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	t, err := time.Parse(time.RFC3339, string(b))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	notifications := make([]notification, 0)
+	if timeSinceLastUpdate := time.Since(t); timeSinceLastUpdate >= time.Hour*36 {
+		notifications = append(notifications, notification{
+			Type:    notificationTypeInfo,
+			Header:  "Issues with the Lufthansa API",
+			Content: fmt.Sprintf("The official Lufthansa API experiences issues right now. The schedules have last been updated at %s (%s ago).", t.Format(time.RFC3339), nh.humanReadableDuration(timeSinceLastUpdate)),
+		})
+	}
+
+	return c.JSON(http.StatusOK, notifications)
+}
+
+func (nh *NotificationHandler) humanReadableDuration(d time.Duration) string {
 	var parts []string
 	if d >= time.Hour*24 {
 		days := d / (time.Hour * 24)

@@ -173,3 +173,7 @@ func database() (*db.Database, error) {
 		fmt.Sprintf("s3://%s/latest", parquetBucketName),
 	), nil
 }
+
+func versionTxtPath() string {
+	return "/opt/data/version.txt"
+}

@@ -91,3 +91,12 @@ func database() (*db.Database, error) {
 		filepath.Join(localS3BasePath, parquetBucketFolder, "latest"),
 	), nil
 }
+
+func versionTxtPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+
+	return filepath.Join(home, "Downloads", "data", "version.txt")
+}
