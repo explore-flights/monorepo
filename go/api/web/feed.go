@@ -5,6 +5,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/api/data"
+	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/xiter"
@@ -151,5 +152,96 @@ func NewAllegrisUpdateFeedEndpoint(s3c adapt.S3Getter, bucket, suffix string) ec
 		addExpirationHeaders(c, time.Now(), time.Minute*15)
 
 		return c.Stream(http.StatusOK, contentType, resp.Body)
+	}
+}
+
+func NewAllegrisUpdateFeedEndpointV2(db *db.Database, suffix string) echo.HandlerFunc {
+	const (
+		feedId                                 = "https://explore.flights/allegris"
+		lhAirlineId                            = "2b4939f8-710c-40de-88b5-3990b8d27d37"
+		allegrisAircraftType                   = "359"
+		allegrisAircraftConfigurationNoFirst   = "C38E24M201"
+		allegrisAircraftConfigurationWithFirst = "F4C38E24M201"
+	)
+
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+		conn, err := db.Conn(ctx)
+		if err != nil {
+			noCache(c)
+			return echo.NewHTTPError(http.StatusInternalServerError, err)
+		}
+		defer conn.Close()
+
+		rows, err := conn.QueryContext(
+			ctx,
+			`
+WITH lh_history AS (
+    SELECT *
+    FROM flight_variant_history
+    WHERE airline_id = ?
+), lh_allegris_fns AS (
+    SELECT
+        fvh.airline_id,
+        fvh.number,
+        fvh.suffix,
+        fvh.departure_airport_id,
+        fvh.departure_date_local,
+        MIN(fvh.created_at) AS allegris_since
+    FROM lh_history fvh
+    INNER JOIN flight_variants fv
+    ON fvh.flight_variant_id = fv.id
+    INNER JOIN aircraft_identifiers aid
+    ON fv.aircraft_id = aid.aircraft_id
+    WHERE aid.issuer = 'iata'
+    AND aid.identifier = ?
+    AND fv.aircraft_configuration_version IN (?, ?)
+    GROUP BY
+        fvh.airline_id,
+        fvh.number,
+        fvh.suffix,
+        fvh.departure_airport_id,
+        fvh.departure_date_local
+)
+SELECT
+    fvh.number,
+    fvh.suffix,
+    fv.aircraft_configuration_version
+FROM lh_history fvh
+INNER JOIN lh_allegris_fns fns
+ON fvh.airline_id = fns.airline_id
+AND fvh.number = fns.number
+AND fvh.suffix = fns.suffix
+AND fvh.departure_airport_id = fns.departure_airport_id
+AND fvh.departure_date_local = fns.departure_date_local
+AND fvh.created_at >= fns.allegris_since
+LEFT JOIN flight_variants fv
+ON fvh.flight_variant_id = fv.id
+GROUP BY
+    fvh.number,
+    fvh.suffix,
+    fvh.aircraft_configuration_version
+`,
+			lhAirlineId,
+			allegrisAircraftType,
+			allegrisAircraftConfigurationNoFirst,
+			allegrisAircraftConfigurationWithFirst,
+		)
+		if err != nil {
+			noCache(c)
+			return echo.NewHTTPError(http.StatusInternalServerError, err)
+		}
+		defer rows.Close()
+
+		count := 0
+		for rows.Next() {
+			count++
+		}
+
+		println(count)
+
+		addExpirationHeaders(c, time.Now(), time.Minute*15)
+
+		return nil
 	}
 }

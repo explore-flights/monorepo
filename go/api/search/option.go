@@ -1,7 +1,6 @@
 package search
 
 import (
-	"github.com/explore-flights/monorepo/go/common"
 	"path"
 	"slices"
 )
@@ -19,33 +18,37 @@ func (a WithCountMultiLeg) Apply(f *Options) {
 type WithIncludeAircraft string
 
 func (a WithIncludeAircraft) Apply(f *Options) {
-	f.any = append(f.any, func(f *common.Flight) bool {
-		return f.AircraftType == string(a)
+	f.any = append(f.any, func(f *Flight) bool {
+		code, ok := f.IataAircraftType()
+		return ok && code == string(a)
 	})
 }
 
 type WithExcludeAircraft []string
 
 func (a WithExcludeAircraft) Apply(f *Options) {
-	f.all = append(f.all, func(f *common.Flight) bool {
-		return !slices.Contains(a, f.AircraftType)
+	f.all = append(f.all, func(f *Flight) bool {
+		code, ok := f.IataAircraftType()
+		return ok && !slices.Contains(a, code)
 	})
 }
 
 type WithIncludeAircraftGlob string
 
 func (a WithIncludeAircraftGlob) Apply(f *Options) {
-	f.any = append(f.any, func(f *common.Flight) bool {
-		return globMatch(f.AircraftType, string(a))
+	f.any = append(f.any, func(f *Flight) bool {
+		code, ok := f.IataAircraftType()
+		return ok && globMatch(code, string(a))
 	})
 }
 
 type WithExcludeAircraftGlob []string
 
 func (a WithExcludeAircraftGlob) Apply(f *Options) {
-	f.all = append(f.all, func(f *common.Flight) bool {
-		return !slices.ContainsFunc(a, func(s string) bool {
-			return globMatch(f.AircraftType, s)
+	f.all = append(f.all, func(f *Flight) bool {
+		code, ok := f.IataAircraftType()
+		return ok && !slices.ContainsFunc(a, func(s string) bool {
+			return globMatch(code, s)
 		})
 	})
 }
@@ -53,33 +56,42 @@ func (a WithExcludeAircraftGlob) Apply(f *Options) {
 type WithIncludeAirport string
 
 func (a WithIncludeAirport) Apply(f *Options) {
-	f.any = append(f.any, func(f *common.Flight) bool {
-		return f.DepartureAirport == string(a) || f.ArrivalAirport == string(a)
+	f.any = append(f.any, func(f *Flight) bool {
+		depCode, depOk := f.IataDepartureAirport()
+		arrCode, arrOk := f.IataArrivalAirport()
+		return (depOk && depCode == string(a)) || (arrOk && arrCode == string(a))
 	})
 }
 
 type WithExcludeAirport []string
 
 func (a WithExcludeAirport) Apply(f *Options) {
-	f.all = append(f.all, func(f *common.Flight) bool {
-		return !slices.Contains(a, f.DepartureAirport) && !slices.Contains(a, f.ArrivalAirport)
+	f.all = append(f.all, func(f *Flight) bool {
+		depCode, depOk := f.IataDepartureAirport()
+		arrCode, arrOk := f.IataArrivalAirport()
+		return depOk && !slices.Contains(a, depCode) && arrOk && !slices.Contains(a, arrCode)
 	})
 }
 
 type WithIncludeAirportGlob string
 
 func (a WithIncludeAirportGlob) Apply(f *Options) {
-	f.any = append(f.any, func(f *common.Flight) bool {
-		return globMatch(f.DepartureAirport, string(a)) || globMatch(f.ArrivalAirport, string(a))
+	f.any = append(f.any, func(f *Flight) bool {
+		depCode, depOk := f.IataDepartureAirport()
+		arrCode, arrOk := f.IataArrivalAirport()
+		return (depOk && globMatch(depCode, string(a))) || (arrOk && globMatch(arrCode, string(a)))
 	})
 }
 
 type WithExcludeAirportGlob []string
 
 func (a WithExcludeAirportGlob) Apply(f *Options) {
-	f.all = append(f.all, func(f *common.Flight) bool {
-		return !slices.ContainsFunc(a, func(s string) bool {
-			return globMatch(f.DepartureAirport, s) && globMatch(f.ArrivalAirport, s)
+	f.all = append(f.all, func(f *Flight) bool {
+		depCode, depOk := f.IataDepartureAirport()
+		arrCode, arrOk := f.IataArrivalAirport()
+
+		return depOk && arrOk && !slices.ContainsFunc(a, func(s string) bool {
+			return globMatch(depCode, s) && globMatch(arrCode, s)
 		})
 	})
 }
@@ -87,33 +99,36 @@ func (a WithExcludeAirportGlob) Apply(f *Options) {
 type WithIncludeFlightNumber string
 
 func (a WithIncludeFlightNumber) Apply(f *Options) {
-	f.any = append(f.any, func(f *common.Flight) bool {
-		return f.Number().String() == string(a)
+	f.any = append(f.any, func(f *Flight) bool {
+		v, ok := f.IataNumber()
+		return ok && v == string(a)
 	})
 }
 
 type WithExcludeFlightNumber []string
 
 func (a WithExcludeFlightNumber) Apply(f *Options) {
-	f.all = append(f.all, func(f *common.Flight) bool {
-		return !slices.Contains(a, f.Number().String())
+	f.all = append(f.all, func(f *Flight) bool {
+		v, ok := f.IataNumber()
+		return ok && !slices.Contains(a, v)
 	})
 }
 
 type WithIncludeFlightNumberGlob string
 
 func (a WithIncludeFlightNumberGlob) Apply(f *Options) {
-	f.any = append(f.any, func(f *common.Flight) bool {
-		return globMatch(f.Number().String(), string(a))
+	f.any = append(f.any, func(f *Flight) bool {
+		v, ok := f.IataNumber()
+		return ok && globMatch(v, string(a))
 	})
 }
 
 type WithExcludeFlightNumberGlob []string
 
 func (a WithExcludeFlightNumberGlob) Apply(f *Options) {
-	f.all = append(f.all, func(f *common.Flight) bool {
-		v := f.Number().String()
-		return !slices.ContainsFunc(a, func(s string) bool {
+	f.all = append(f.all, func(f *Flight) bool {
+		v, ok := f.IataNumber()
+		return ok && !slices.ContainsFunc(a, func(s string) bool {
 			return globMatch(v, s)
 		})
 	})

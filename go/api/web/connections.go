@@ -9,10 +9,9 @@ import (
 	"fmt"
 	"github.com/explore-flights/monorepo/go/api/pb"
 	"github.com/explore-flights/monorepo/go/api/search"
+	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/labstack/echo/v4"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -24,222 +23,188 @@ import (
 //go:embed share.gohtml
 var shareTemplateHtml string
 
-type connectionsSearchRequest struct {
-	Origins             []string  `json:"origins"`
-	Destinations        []string  `json:"destinations"`
-	MinDeparture        time.Time `json:"minDeparture"`
-	MaxDeparture        time.Time `json:"maxDeparture"`
-	MaxFlights          uint32    `json:"maxFlights"`
-	MinLayoverMS        uint64    `json:"minLayoverMS"`
-	MaxLayoverMS        uint64    `json:"maxLayoverMS"`
-	MaxDurationMS       uint64    `json:"maxDurationMS"`
-	CountMultiLeg       bool      `json:"countMultiLeg"`
-	IncludeAirport      []string  `json:"includeAirport,omitempty"`
-	ExcludeAirport      []string  `json:"excludeAirport,omitempty"`
-	IncludeFlightNumber []string  `json:"includeFlightNumber,omitempty"`
-	ExcludeFlightNumber []string  `json:"excludeFlightNumber,omitempty"`
-	IncludeAircraft     []string  `json:"includeAircraft,omitempty"`
-	ExcludeAircraft     []string  `json:"excludeAircraft,omitempty"`
+type ConnectionsHandler struct {
+	ch *search.ConnectionsHandler
 }
 
-type connectionsSearchResponse struct {
-	Data   search.ConnectionsResponse `json:"data"`
-	Search *connectionsSearchRequest  `json:"search,omitempty"`
+func NewConnectionsHandler(ch *search.ConnectionsHandler) *ConnectionsHandler {
+	return &ConnectionsHandler{ch: ch}
 }
 
-func (req connectionsSearchRequest) toPb() proto.Message {
-	countMultiLeg := req.CountMultiLeg
-	return &pb.ConnectionsSearchRequest{
-		Origins:             req.Origins,
-		Destinations:        req.Destinations,
-		MinDeparture:        timestamppb.New(req.MinDeparture),
-		MaxDeparture:        timestamppb.New(req.MaxDeparture),
-		MaxFlights:          req.MaxFlights,
-		MinLayover:          durationpb.New(time.Duration(req.MinLayoverMS) * time.Millisecond),
-		MaxLayover:          durationpb.New(time.Duration(req.MaxLayoverMS) * time.Millisecond),
-		MaxDuration:         durationpb.New(time.Duration(req.MaxDurationMS) * time.Millisecond),
-		CountMultiLeg:       &countMultiLeg,
-		IncludeAirport:      req.IncludeAirport,
-		ExcludeAirport:      req.ExcludeAirport,
-		IncludeFlightNumber: req.IncludeFlightNumber,
-		ExcludeFlightNumber: req.ExcludeFlightNumber,
-		IncludeAircraft:     req.IncludeAircraft,
-		ExcludeAircraft:     req.ExcludeAircraft,
+func (ch *ConnectionsHandler) ConnectionsJSON(c echo.Context) error {
+	return ch.connections(c, "json")
+}
+
+func (ch *ConnectionsHandler) ConnectionsPNG(c echo.Context) error {
+	return ch.connections(c, "png")
+}
+
+func (ch *ConnectionsHandler) connections(c echo.Context, export string) error {
+	ctx := c.Request().Context()
+
+	req, err := ch.parseAndValidateRequest(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+
+	minLayover := time.Duration(req.MinLayoverMS) * time.Millisecond
+	maxLayover := time.Duration(req.MaxLayoverMS) * time.Millisecond
+	maxDuration := time.Duration(req.MaxDurationMS) * time.Millisecond
+
+	options := make([]search.ConnectionSearchOption, 0)
+	options = append(options, search.WithCountMultiLeg(req.CountMultiLeg))
+	options = appendStringOptions[search.WithIncludeAirport, search.WithIncludeAirportGlob](options, req.IncludeAirport)
+	options = appendSliceOptions[search.WithExcludeAirport, search.WithExcludeAirportGlob](options, req.ExcludeAirport)
+	options = appendStringOptions[search.WithIncludeFlightNumber, search.WithIncludeFlightNumberGlob](options, req.IncludeFlightNumber)
+	options = appendSliceOptions[search.WithExcludeFlightNumber, search.WithExcludeFlightNumberGlob](options, req.ExcludeFlightNumber)
+	options = appendStringOptions[search.WithIncludeAircraft, search.WithIncludeAircraftGlob](options, req.IncludeAircraft)
+	options = appendSliceOptions[search.WithExcludeAircraft, search.WithExcludeAircraftGlob](options, req.ExcludeAircraft)
+
+	conns, err := ch.ch.FindConnections(
+		ctx,
+		req.Origins,
+		req.Destinations,
+		req.MinDeparture,
+		req.MaxDeparture,
+		req.MaxFlights,
+		minLayover,
+		maxLayover,
+		maxDuration,
+		options...,
+	)
+
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return echo.NewHTTPError(http.StatusRequestTimeout, err)
+		}
+
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	switch export {
+	case "json":
+		res := model.ConnectionsSearchResponse{
+			Data: search.ExportConnectionsJson(conns),
+		}
+
+		if c.QueryParams().Has("includeSearch") {
+			res.Search = &req
+		}
+
+		return c.JSON(http.StatusOK, res)
+
+	case "png":
+		c.Response().Header().Set(echo.HeaderContentType, "image/png")
+		c.Response().WriteHeader(http.StatusOK)
+		return search.ExportConnectionsImage(ctx, c.Response(), conns)
+
+	default:
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid export type")
 	}
 }
 
-func NewConnectionsEndpoint(ch *search.ConnectionsHandler, export string) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		ctx := c.Request().Context()
-
-		req, err := parseAndValidateRequest(c)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
-		}
-
-		minLayover := time.Duration(req.MinLayoverMS) * time.Millisecond
-		maxLayover := time.Duration(req.MaxLayoverMS) * time.Millisecond
-		maxDuration := time.Duration(req.MaxDurationMS) * time.Millisecond
-
-		options := make([]search.ConnectionSearchOption, 0)
-		options = append(options, search.WithCountMultiLeg(req.CountMultiLeg))
-		options = appendStringOptions[search.WithIncludeAirport, search.WithIncludeAirportGlob](options, req.IncludeAirport)
-		options = appendSliceOptions[search.WithExcludeAirport, search.WithExcludeAirportGlob](options, req.ExcludeAirport)
-		options = appendStringOptions[search.WithIncludeFlightNumber, search.WithIncludeFlightNumberGlob](options, req.IncludeFlightNumber)
-		options = appendSliceOptions[search.WithExcludeFlightNumber, search.WithExcludeFlightNumberGlob](options, req.ExcludeFlightNumber)
-		options = appendStringOptions[search.WithIncludeAircraft, search.WithIncludeAircraftGlob](options, req.IncludeAircraft)
-		options = appendSliceOptions[search.WithExcludeAircraft, search.WithExcludeAircraftGlob](options, req.ExcludeAircraft)
-
-		conns, err := ch.FindConnections(
-			ctx,
-			req.Origins,
-			req.Destinations,
-			req.MinDeparture,
-			req.MaxDeparture,
-			req.MaxFlights,
-			minLayover,
-			maxLayover,
-			maxDuration,
-			options...,
-		)
-
-		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				return echo.NewHTTPError(http.StatusRequestTimeout, err)
-			}
-
-			return echo.NewHTTPError(http.StatusInternalServerError)
-		}
-
-		switch export {
-		case "json":
-			res := connectionsSearchResponse{
-				Data: search.ExportConnectionsJson(conns),
-			}
-
-			if c.QueryParams().Has("includeSearch") {
-				res.Search = &req
-			}
-
-			return c.JSON(http.StatusOK, res)
-
-		case "png":
-			c.Response().Header().Set(echo.HeaderContentType, "image/png")
-			c.Response().WriteHeader(http.StatusOK)
-			return search.ExportConnectionsImage(ctx, c.Response(), conns)
-
-		default:
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid export type")
-		}
+func (ch *ConnectionsHandler) ConnectionsShareCreate(c echo.Context) error {
+	req, err := ch.parseAndValidateRequest(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
+
+	b, err := proto.Marshal(req.ToPb())
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err)
+	}
+
+	scheme, host := contextSchemeAndHost(c)
+	payload := base64.RawURLEncoding.EncodeToString(b)
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"htmlUrl":  ch.shareHtmlUrl(scheme, host, payload),
+		"imageUrl": ch.shareImageUrl(scheme, host, payload),
+	})
 }
 
-func NewConnectionsShareCreateEndpoint() echo.HandlerFunc {
-	return func(c echo.Context) error {
-		req, err := parseAndValidateRequest(c)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
-		}
-
-		b, err := proto.Marshal(req.toPb())
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err)
-		}
-
-		scheme, host := contextSchemeAndHost(c)
-		payload := base64.RawURLEncoding.EncodeToString(b)
-
-		return c.JSON(http.StatusOK, map[string]string{
-			"htmlUrl":  shareHtmlUrl(scheme, host, payload),
-			"imageUrl": shareImageUrl(scheme, host, payload),
-		})
+func (ch *ConnectionsHandler) ConnectionsShareHTML(c echo.Context) error {
+	req, err := ch.parseAndValidateRequest(c)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
+
+	scheme, host := contextSchemeAndHost(c)
+	payload := c.Param("payload")
+
+	tmpl, err := template.New("share").Parse(shareTemplateHtml)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err)
+	}
+
+	origins := strings.Join(req.Origins, " | ")
+	destinations := strings.Join(req.Destinations, " | ")
+
+	data := map[string]string{
+		"scheme":     scheme,
+		"host":       host,
+		"contentUrl": ch.shareContentUrl(scheme, host, payload),
+		"imageUrl":   ch.shareImageUrl(scheme, host, payload),
+		"title":      fmt.Sprintf("Connections from %v to %v • explore.flights", origins, destinations),
+		"description": fmt.Sprintf(
+			"Explore connections from from %v to %v between %v and %v",
+			origins,
+			destinations,
+			req.MinDeparture.Format(time.RFC3339),
+			req.MaxDeparture.Format(time.RFC3339),
+		),
+	}
+
+	var buf bytes.Buffer
+	if err = tmpl.Execute(&buf, data); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err)
+	}
+
+	return c.HTMLBlob(http.StatusOK, buf.Bytes())
 }
 
-func NewConnectionsShareHTMLEndpoint() echo.HandlerFunc {
-	return func(c echo.Context) error {
-		req, err := parseAndValidateRequest(c)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
-		}
-
-		scheme, host := contextSchemeAndHost(c)
-		payload := c.Param("payload")
-
-		tmpl, err := template.New("share").Parse(shareTemplateHtml)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err)
-		}
-
-		origins := strings.Join(req.Origins, " | ")
-		destinations := strings.Join(req.Destinations, " | ")
-
-		data := map[string]string{
-			"scheme":     scheme,
-			"host":       host,
-			"contentUrl": shareContentUrl(scheme, host, payload),
-			"imageUrl":   shareImageUrl(scheme, host, payload),
-			"title":      fmt.Sprintf("Connections from %v to %v • explore.flights", origins, destinations),
-			"description": fmt.Sprintf(
-				"Explore connections from from %v to %v between %v and %v",
-				origins,
-				destinations,
-				req.MinDeparture.Format(time.RFC3339),
-				req.MaxDeparture.Format(time.RFC3339),
-			),
-		}
-
-		var buf bytes.Buffer
-		if err = tmpl.Execute(&buf, data); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, err)
-		}
-
-		return c.HTMLBlob(http.StatusOK, buf.Bytes())
-	}
-}
-
-func shareHtmlUrl(scheme, host, payload string) string {
+func (ch *ConnectionsHandler) shareHtmlUrl(scheme, host, payload string) string {
 	return scheme + "://" + host + "/api/connections/share/" + url.PathEscape(payload)
 }
 
-func shareContentUrl(scheme, host, payload string) string {
+func (ch *ConnectionsHandler) shareContentUrl(scheme, host, payload string) string {
 	return scheme + "://" + host + "/?search=" + url.QueryEscape(payload)
 }
 
-func shareImageUrl(scheme, host, payload string) string {
+func (ch *ConnectionsHandler) shareImageUrl(scheme, host, payload string) string {
 	return scheme + "://" + host + "/api/connections/png/" + url.PathEscape(payload) + "/c.png"
 }
 
-func parseAndValidateRequest(c echo.Context) (connectionsSearchRequest, error) {
-	req, err := parseRequest(c)
+func (ch *ConnectionsHandler) parseAndValidateRequest(c echo.Context) (model.ConnectionsSearchRequest, error) {
+	req, err := ch.parseRequest(c)
 	if err != nil {
-		return connectionsSearchRequest{}, err
+		return model.ConnectionsSearchRequest{}, err
 	}
 
-	if err = validateRequest(req); err != nil {
-		return connectionsSearchRequest{}, err
+	if err = ch.validateRequest(req); err != nil {
+		return model.ConnectionsSearchRequest{}, err
 	}
 
 	return req, nil
 }
 
-func parseRequest(c echo.Context) (connectionsSearchRequest, error) {
+func (ch *ConnectionsHandler) parseRequest(c echo.Context) (model.ConnectionsSearchRequest, error) {
 	payloadB64 := c.Param("payload")
 
-	var req connectionsSearchRequest
+	var req model.ConnectionsSearchRequest
 	if payloadB64 == "" {
 		if err := c.Bind(&req); err != nil {
-			return connectionsSearchRequest{}, err
+			return model.ConnectionsSearchRequest{}, err
 		}
 	} else {
 		b, err := base64.RawURLEncoding.DecodeString(payloadB64)
 		if err != nil {
-			return connectionsSearchRequest{}, err
+			return model.ConnectionsSearchRequest{}, err
 		}
 
 		var pbReq pb.ConnectionsSearchRequest
 		if err = proto.Unmarshal(b, &pbReq); err != nil {
-			return connectionsSearchRequest{}, err
+			return model.ConnectionsSearchRequest{}, err
 		}
 
 		countMultiLeg := true // multi-leg flights were counted before this option was added
@@ -247,7 +212,7 @@ func parseRequest(c echo.Context) (connectionsSearchRequest, error) {
 			countMultiLeg = *pbReq.CountMultiLeg
 		}
 
-		req = connectionsSearchRequest{
+		req = model.ConnectionsSearchRequest{
 			Origins:             pbReq.Origins,
 			Destinations:        pbReq.Destinations,
 			MinDeparture:        pbReq.MinDeparture.AsTime(),
@@ -269,7 +234,7 @@ func parseRequest(c echo.Context) (connectionsSearchRequest, error) {
 	return req, nil
 }
 
-func validateRequest(req connectionsSearchRequest) error {
+func (ch *ConnectionsHandler) validateRequest(req model.ConnectionsSearchRequest) error {
 	maxDuration := time.Duration(req.MaxDurationMS) * time.Millisecond
 
 	if len(req.Origins) < 1 || len(req.Origins) > 10 {

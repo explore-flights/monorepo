@@ -38,10 +38,24 @@ export interface Airport {
   lng: number;
 }
 
+export type AirlineId = string;
+
 export interface Airline {
+  id: AirlineId;
   name: string;
   iataCode?: string;
   icaoCode?: string;
+}
+
+export interface FlightNumber {
+  airlineId: AirlineId;
+  number: number;
+  suffix?: string;
+}
+
+export interface SearchResponse {
+  airlines: ReadonlyArray<Airline>;
+  flightNumbers: ReadonlyArray<FlightNumber>;
 }
 
 export interface ConnectionsSearchRequest {

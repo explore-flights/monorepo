@@ -2,7 +2,7 @@ import { useHttpClient } from '../context/http-client';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, expectSuccess } from '../../../lib/api/api';
 import { DateTime } from 'luxon';
-import { QuerySchedulesRequest } from '../../../lib/api/api.model';
+import { QuerySchedulesRequest, SearchResponse } from '../../../lib/api/api.model';
 
 export function useAirlines() {
   const { apiClient } = useHttpClient();
@@ -143,7 +143,10 @@ export function useSearch(query: string, enabled: boolean) {
     queryKey: ['search', query, enabled],
     queryFn: async () => {
       if (!enabled) {
-        return [];
+        return {
+          airlines: [],
+          flightNumbers: [],
+        } satisfies SearchResponse;
       }
 
       const { body } = expectSuccess(await apiClient.search(query));

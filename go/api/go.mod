@@ -14,8 +14,10 @@ require (
 	github.com/gorilla/feeds v1.2.0
 	github.com/its-felix/aws-lwa-go-middleware v0.1.1
 	github.com/json-iterator/go v1.1.12
+	github.com/jxskiss/base62 v1.1.0
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/marcboeker/go-duckdb/v2 v2.2.0
+	github.com/stretchr/testify v1.10.0
 	golang.org/x/sync v0.12.0
 	golang.org/x/time v0.11.0
 	google.golang.org/protobuf v1.36.5
@@ -39,6 +41,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.29.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.17 // indirect
 	github.com/aws/smithy-go v1.22.3 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/duckdb/duckdb-go-bindings v0.1.14 // indirect
 	github.com/duckdb/duckdb-go-bindings/darwin-amd64 v0.1.9 // indirect
@@ -64,6 +67,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
@@ -77,6 +81,7 @@ require (
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/tools v0.29.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/explore-flights/monorepo/go/common v0.0.0 => ../common

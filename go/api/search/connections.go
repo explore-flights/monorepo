@@ -2,16 +2,22 @@ package search
 
 import (
 	"context"
-	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common/xtime"
+	"github.com/gofrs/uuid/v5"
+	"golang.org/x/sync/errgroup"
 	"slices"
+	"strings"
 	"time"
 )
 
-type flightPredicate func(f *common.Flight) bool
+type flightPredicate func(f *Flight) bool
 
-type FlightRepo interface {
-	Flights(ctx context.Context, start, end xtime.LocalDate) (map[xtime.LocalDate][]*common.Flight, error)
+type connectionsFlightRepo interface {
+	Flights(ctx context.Context, start, end xtime.LocalDate) (map[xtime.LocalDate][]db.Flight, error)
+	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
+	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
+	Aircraft(ctx context.Context) (map[uuid.UUID]db.Aircraft, error)
 }
 
 type Options struct {
@@ -21,19 +27,19 @@ type Options struct {
 }
 
 type Connection struct {
-	Flight   *common.Flight
+	Flight   *Flight
 	Outgoing []Connection
 }
 
 type ConnectionsHandler struct {
-	fr FlightRepo
+	fr connectionsFlightRepo
 }
 
-func NewConnectionsHandler(fr FlightRepo) *ConnectionsHandler {
+func NewConnectionsHandler(fr connectionsFlightRepo) *ConnectionsHandler {
 	return &ConnectionsHandler{fr}
 }
 
-func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, options ...ConnectionSearchOption) ([]Connection, error) {
+func (ch *ConnectionsHandler) FindConnections(ctx context.Context, originsRaw, destinationsRaw []string, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, options ...ConnectionSearchOption) ([]Connection, error) {
 	var f Options
 	for _, opt := range options {
 		opt.Apply(&f)
@@ -42,14 +48,47 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 	minDate := xtime.NewLocalDate(minDeparture.UTC())
 	maxDate := xtime.NewLocalDate(maxDeparture.Add(maxDuration).UTC())
 
-	var flightsByDeparture map[common.Departure][]*common.Flight
+	var flightsByDeparture map[Departure][]*Flight
+	var origins []uuid.UUID
+	var destinations []uuid.UUID
 	{
-		flightsByDate, err := ch.fr.Flights(ctx, minDate, maxDate)
-		if err != nil {
+		var flightsByDate map[xtime.LocalDate][]db.Flight
+		var airlines map[uuid.UUID]db.Airline
+		var airports map[uuid.UUID]db.Airport
+		var aircraft map[uuid.UUID]db.Aircraft
+
+		g, ctx := errgroup.WithContext(ctx)
+		g.Go(func() error {
+			var err error
+			flightsByDate, err = ch.fr.Flights(ctx, minDate, maxDate)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			airlines, err = ch.fr.Airlines(ctx)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			airports, err = ch.fr.Airports(ctx)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			aircraft, err = ch.fr.Aircraft(ctx)
+			return err
+		})
+
+		if err := g.Wait(); err != nil {
 			return nil, err
 		}
 
-		flightsByDeparture = groupByDepartureUTC(flightsByDate, f.all)
+		flightsByDeparture = mapAndGroupByDepartureUTC(flightsByDate, airlines, airports, aircraft, f.all)
+		origins = mapAirports(airports, originsRaw)
+		destinations = mapAirports(airports, destinationsRaw)
 	}
 
 	return collectCtx(ctx, findConnections(
@@ -71,9 +110,9 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 
 func findConnections(
 	ctx context.Context,
-	flightsByDeparture map[common.Departure][]*common.Flight,
+	flightsByDeparture map[Departure][]*Flight,
 	origins,
-	destinations []string,
+	destinations []uuid.UUID,
 	minDeparture,
 	maxDeparture time.Time,
 	maxFlights uint32,
@@ -82,7 +121,7 @@ func findConnections(
 	maxDuration time.Duration,
 	predicates []flightPredicate,
 	countMultiLeg bool,
-	incomingFn *common.FlightNumber,
+	incomingFn *db.FlightNumber,
 ) <-chan Connection {
 
 	if (countMultiLeg && maxFlights < 1) || maxDuration < 1 {
@@ -99,7 +138,7 @@ func findConnections(
 		defer cancel()
 
 		working := make([]struct {
-			f  *common.Flight
+			f  *Flight
 			ch <-chan Connection
 		}, 0)
 
@@ -108,9 +147,9 @@ func findConnections(
 
 		for currDate <= maxDate {
 			for _, origin := range origins {
-				d := common.Departure{
-					Airport: origin,
-					Date:    currDate,
+				d := Departure{
+					AirportId: origin,
+					Date:      currDate,
 				}
 
 				for _, f := range flightsByDeparture[d] {
@@ -123,7 +162,7 @@ func findConnections(
 						maxDuration = maxDuration - f.DepartureTime.Sub(minDeparture)
 
 						// ignore minLayover for flights continuing on the same number (multi-leg)
-						if *incomingFn != f.Number() {
+						if *incomingFn != f.FlightNumber {
 							minDeparture = minDeparture.Add(minLayover)
 						} else {
 							sameFlightNumber = true
@@ -143,7 +182,7 @@ func findConnections(
 						}
 					}
 
-					if slices.Contains(destinations, f.ArrivalAirport) {
+					if slices.Contains(destinations, f.ArrivalAirportId) {
 						if len(remPredicates) < 1 {
 							conn := Connection{
 								Flight:   f,
@@ -159,7 +198,6 @@ func findConnections(
 							}
 						}
 					} else {
-						fn := f.Number()
 						consumeFlights := uint32(1)
 
 						if !countMultiLeg && sameFlightNumber {
@@ -169,7 +207,7 @@ func findConnections(
 						subConns := findConnections(
 							ctx,
 							flightsByDeparture,
-							[]string{f.ArrivalAirport},
+							[]uuid.UUID{f.ArrivalAirportId},
 							destinations,
 							f.ArrivalTime,
 							f.ArrivalTime.Add(maxLayover),
@@ -179,11 +217,11 @@ func findConnections(
 							maxDuration-f.Duration(),
 							remPredicates,
 							countMultiLeg,
-							&fn,
+							&f.FlightNumber,
 						)
 
 						working = append(working, struct {
-							f  *common.Flight
+							f  *Flight
 							ch <-chan Connection
 						}{f: f, ch: subConns})
 					}
@@ -219,7 +257,7 @@ func findConnections(
 	return ch
 }
 
-func allMatch(predicates []flightPredicate, f *common.Flight) bool {
+func allMatch(predicates []flightPredicate, f *Flight) bool {
 	for _, p := range predicates {
 		if !p(f) {
 			return false
@@ -229,13 +267,49 @@ func allMatch(predicates []flightPredicate, f *common.Flight) bool {
 	return true
 }
 
-func groupByDepartureUTC(flightsByDate map[xtime.LocalDate][]*common.Flight, predicates []flightPredicate) map[common.Departure][]*common.Flight {
-	result := make(map[common.Departure][]*common.Flight)
+func mapAndGroupByDepartureUTC(flightsByDate map[xtime.LocalDate][]db.Flight, airlines map[uuid.UUID]db.Airline, airports map[uuid.UUID]db.Airport, aircraft map[uuid.UUID]db.Aircraft, predicates []flightPredicate) map[Departure][]*Flight {
+	result := make(map[Departure][]*Flight)
 	for _, flights := range flightsByDate {
 		for _, f := range flights {
+			f := &Flight{
+				Flight:   f,
+				airlines: airlines,
+				airports: airports,
+				aircraft: aircraft,
+			}
+
 			if allMatch(predicates, f) {
 				d := f.DepartureUTC()
 				result[d] = append(result[d], f)
+			}
+		}
+	}
+
+	return result
+}
+
+func mapAirports(airports map[uuid.UUID]db.Airport, raw []string) []uuid.UUID {
+	result := make([]uuid.UUID, 0, len(raw))
+
+	for _, search := range raw {
+		if icaoCode, ok := strings.CutPrefix(search, "icao:"); ok {
+			for _, airport := range airports {
+				if airport.IcaoCode.Valid && airport.IcaoCode.String == icaoCode {
+					result = append(result, airport.Id)
+					break
+				}
+			}
+		} else {
+			iataCode, ok := strings.CutPrefix(search, "iata:")
+			if !ok {
+				iataCode = search
+			}
+
+			for _, airport := range airports {
+				if airport.IataCode.Valid && airport.IataCode.String == iataCode {
+					result = append(result, airport.Id)
+					break
+				}
 			}
 		}
 	}

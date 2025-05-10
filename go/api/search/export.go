@@ -3,9 +3,12 @@ package search
 import (
 	"context"
 	"fmt"
+	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/goccy/go-graphviz"
 	"github.com/goccy/go-graphviz/cgraph"
+	"github.com/gofrs/uuid/v5"
 	"io"
 	"time"
 )
@@ -52,22 +55,53 @@ func buildConnectionsResponse(conns []Connection, flights map[common.FlightId]Fl
 	r := make([]ConnectionResponse, 0, len(conns))
 
 	for _, conn := range conns {
-		fid := conn.Flight.Id()
+		iataAirline, ok := conn.Flight.IataAirline()
+		if !ok {
+			continue
+		}
+
+		iataDepartureAirport, ok := conn.Flight.IataDepartureAirport()
+		if !ok {
+			continue
+		}
+
+		iataArrivalAirport, ok := conn.Flight.IataArrivalAirport()
+		if !ok {
+			continue
+		}
+
+		iataAircraftType, ok := conn.Flight.IataAircraftType()
+		if !ok {
+			continue
+		}
+
+		fid := common.FlightId{
+			Number: common.FlightNumber{
+				Airline: common.AirlineIdentifier(iataAirline),
+				Number:  conn.Flight.Number,
+				Suffix:  conn.Flight.Suffix,
+			},
+			Departure: common.Departure{
+				Airport: iataDepartureAirport,
+				Date:    xtime.NewLocalDate(conn.Flight.DepartureTime),
+			},
+		}
+
 		if _, ok := flights[fid]; !ok {
 			flights[fid] = FlightResponse{
 				FlightNumber: FlightNumberResponse{
-					Airline: string(conn.Flight.Airline),
-					Number:  conn.Flight.FlightNumber,
+					Airline: iataAirline,
+					Number:  conn.Flight.Number,
 					Suffix:  conn.Flight.Suffix,
 				},
 				DepartureTime:    conn.Flight.DepartureTime,
-				DepartureAirport: conn.Flight.DepartureAirport,
+				DepartureAirport: iataDepartureAirport,
 				ArrivalTime:      conn.Flight.ArrivalTime,
-				ArrivalAirport:   conn.Flight.ArrivalAirport,
-				AircraftOwner:    string(conn.Flight.AircraftOwner),
-				AircraftType:     conn.Flight.AircraftType,
-				Registration:     conn.Flight.Registration,
-				CodeShares:       convertCodeShares(conn.Flight.CodeShares),
+				ArrivalAirport:   iataArrivalAirport,
+				AircraftOwner:    conn.Flight.AircraftOwner,
+				AircraftType:     iataAircraftType,
+				Registration:     conn.Flight.AircraftRegistration,
+				CodeShares:       convertCodeShares(conn.Flight.airlines, conn.Flight.CodeShares),
 			}
 		}
 
@@ -80,11 +114,16 @@ func buildConnectionsResponse(conns []Connection, flights map[common.FlightId]Fl
 	return r
 }
 
-func convertCodeShares(inp map[common.FlightNumber]common.CodeShare) []FlightNumberResponse {
+func convertCodeShares(airlines map[uuid.UUID]db.Airline, inp common.Set[db.FlightNumber]) []FlightNumberResponse {
 	r := make([]FlightNumberResponse, 0, len(inp))
 	for fn := range inp {
+		airline, ok := airlines[fn.AirlineId]
+		if !ok || !airline.IataCode.Valid {
+			continue
+		}
+
 		r = append(r, FlightNumberResponse{
-			Airline: string(fn.Airline),
+			Airline: airline.IataCode.String,
 			Number:  fn.Number,
 			Suffix:  fn.Suffix,
 		})
@@ -106,27 +145,45 @@ func ExportConnectionsImage(ctx context.Context, w io.Writer, conns []Connection
 		return err
 	}
 
-	if err = buildGraph(nil, conns, graph, make(map[*common.Flight]*cgraph.Node)); err != nil {
+	if err = buildGraph(nil, conns, graph, make(map[*Flight]*cgraph.Node)); err != nil {
 		return err
 	}
 
 	return g.Render(ctx, graph, graphviz.PNG, w)
 }
 
-func buildGraph(parent *common.Flight, conns []Connection, graph *cgraph.Graph, lookup map[*common.Flight]*cgraph.Node) error {
+func buildGraph(parent *Flight, conns []Connection, graph *cgraph.Graph, lookup map[*Flight]*cgraph.Node) error {
 	var err error
 
 	for _, conn := range conns {
-		var node *cgraph.Node
-		var ok bool
+		iataNumber, ok := conn.Flight.IataNumber()
+		if !ok {
+			continue
+		}
 
+		iataDepartureAirport, ok := conn.Flight.IataDepartureAirport()
+		if !ok {
+			continue
+		}
+
+		iataArrivalAirport, ok := conn.Flight.IataArrivalAirport()
+		if !ok {
+			continue
+		}
+
+		iataAircraftType, ok := conn.Flight.IataAircraftType()
+		if !ok {
+			continue
+		}
+
+		var node *cgraph.Node
 		if node, ok = lookup[conn.Flight]; !ok {
-			node, err = graph.CreateNodeByName(conn.Flight.Id().String())
+			node, err = graph.CreateNodeByName(fmt.Sprintf("%s@%s@%s", iataNumber, iataDepartureAirport, xtime.NewLocalDate(conn.Flight.DepartureTime)))
 			if err != nil {
 				return err
 			}
 
-			node.SetLabel(fmt.Sprintf("%s\n%s-%s\n%s", conn.Flight.Number().String(), conn.Flight.DepartureAirport, conn.Flight.ArrivalAirport, conn.Flight.AircraftType))
+			node.SetLabel(fmt.Sprintf("%s\n%s-%s\n%s", iataNumber, iataDepartureAirport, iataArrivalAirport, iataAircraftType))
 			lookup[conn.Flight] = node
 		}
 

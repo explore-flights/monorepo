@@ -14,7 +14,7 @@ import {
   SeatMap,
   QueryScheduleResponse,
   QuerySchedulesRequest,
-  Notification, Airline
+  Notification, Airline, SearchResponse
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -176,7 +176,7 @@ export class ApiClient {
     return transform(this.httpClient.fetch(`/api/schedule/search?${params.toString()}`));
   }
 
-  search(query: string): Promise<ApiResponse<ReadonlyArray<string>>> {
+  search(query: string): Promise<ApiResponse<SearchResponse>> {
     const params = new URLSearchParams();
     params.set('q', query);
 

@@ -59,40 +59,56 @@ func main() {
 			lwamw.WithMaskError(),
 			lwamw.WithRemoveHeaders(),
 		),
+		web.NoCacheOnErrorMiddleware(),
 		authHandler.Middleware,
 	)
 
-	jsonConnEdp := web.NewConnectionsEndpoint(connHandler, "json")
-	pngConnEdp := web.NewConnectionsEndpoint(connHandler, "png")
+	{
+		group := e.Group("/api")
 
-	e.POST("/api/connections/json", jsonConnEdp)
-	e.GET("/api/connections/json/:payload", jsonConnEdp)
-	e.POST("/api/connections/png", pngConnEdp)
-	e.GET("/api/connections/png/:payload/c.png", pngConnEdp)
-	e.POST("/api/connections/share", web.NewConnectionsShareCreateEndpoint())
-	e.GET("/api/connections/share/:payload", web.NewConnectionsShareHTMLEndpoint())
-	e.GET("/api/search", web.NewSearchEndpoint(dataHandler))
-	e.GET("/api/schedule/search", web.NewQueryFlightSchedulesEndpoint(dataHandler))
+		connWebHandler := web.NewConnectionsHandler(connHandler)
+		group.POST("/connections/json", connWebHandler.ConnectionsJSON)
+		group.GET("/connections/json/:payload", connWebHandler.ConnectionsJSON)
+		group.POST("/connections/png", connWebHandler.ConnectionsPNG)
+		group.GET("/connections/png/:payload/c.png", connWebHandler.ConnectionsPNG)
+		group.POST("/connections/share", connWebHandler.ConnectionsShareCreate)
+		group.GET("/connections/share/:payload", connWebHandler.ConnectionsShareHTML)
 
-	e.GET("/api/notifications", web.NewNotificationsEndpoint(s3c, bucket))
+		searchHandler := web.NewSearchHandler(fr)
+		group.GET("/search", searchHandler.Search)
 
-	e.HEAD("/auth/info", authHandler.AuthInfo)
-	e.POST("/auth/logout", authHandler.Logout)
-	e.GET("/auth/oauth2/register/:issuer", authHandler.Register)
-	e.GET("/auth/oauth2/login/:issuer", authHandler.Login)
-	e.GET("/auth/oauth2/code/:issuer", authHandler.Code)
+		group.GET("/schedule/search", web.NewQueryFlightSchedulesEndpoint(dataHandler))
 
-	e.GET("/data/sitemap.xml", web.NewSitemapHandler(dataHandler))
-	e.GET("/data/airlines.json", web.NewAirlinesEndpoint(fr))
-	e.GET("/data/airports.json", web.NewAirportsEndpoint(dataHandler))
-	e.GET("/data/aircraft.json", web.NewAircraftEndpoint(dataHandler))
-	e.GET("/data/flight/:fn", web.NewFlightNumberEndpoint(dataHandler))
-	e.GET("/data/flight/:fn/seatmap/:departure/:arrival/:date/:aircraft", web.NewSeatMapEndpoint(dataHandler))
-	e.GET("/data/:airline/schedule/:aircraftType/:aircraftConfigurationVersion/v3", web.NewFlightSchedulesByConfigurationEndpoint(dataHandler))
-	e.GET("/data/:fn/:departureDate/:departureAirport/feed.rss", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/rss+xml", (*feeds.Feed).WriteRss))
-	e.GET("/data/:fn/:departureDate/:departureAirport/feed.atom", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/atom+xml", (*feeds.Feed).WriteAtom))
-	e.GET("/data/allegris/feed.rss", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".rss"))
-	e.GET("/data/allegris/feed.atom", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".atom"))
+		group.GET("/notifications", web.NewNotificationsEndpoint(s3c, bucket))
+	}
+
+	{
+		group := e.Group("/auth", web.NeverCacheMiddleware())
+		group.HEAD("/info", authHandler.AuthInfo)
+		group.POST("/logout", authHandler.Logout)
+		group.GET("/oauth2/register/:issuer", authHandler.Register)
+		group.GET("/oauth2/login/:issuer", authHandler.Login)
+		group.GET("/oauth2/code/:issuer", authHandler.Code)
+	}
+
+	{
+		group := e.Group("/data")
+
+		dh := web.NewDataHandler(fr, dataHandler)
+		group.GET("/sitemap.xml", web.NewSitemapHandler(dataHandler))
+		group.GET("/airlines.json", dh.Airlines)
+		group.GET("/airports.json", web.NewAirportsEndpoint(dataHandler))
+		group.GET("/aircraft.json", web.NewAircraftEndpoint(dataHandler))
+		group.GET("/flight/:fn", dh.FlightSchedule)
+		group.GET("/flight/:fn/seatmap/:departure/:arrival/:date/:aircraft", web.NewSeatMapEndpoint(dataHandler))
+		group.GET("/:airline/schedule/:aircraftType/:aircraftConfigurationVersion/v3", web.NewFlightSchedulesByConfigurationEndpoint(dataHandler))
+		group.GET("/:fn/:departureDate/:departureAirport/feed.rss", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/rss+xml", (*feeds.Feed).WriteRss))
+		group.GET("/:fn/:departureDate/:departureAirport/feed.atom", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/atom+xml", (*feeds.Feed).WriteAtom))
+		group.GET("/allegris/feed.rss", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".rss"))
+		group.GET("/allegris/feed.atom", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".atom"))
+		group.GET("/allegris/v2/feed.rss", web.NewAllegrisUpdateFeedEndpointV2(database, ".rss"))
+		group.GET("/allegris/v2/feed.atom", web.NewAllegrisUpdateFeedEndpointV2(database, ".atom"))
+	}
 
 	if err := run(ctx, e); err != nil {
 		panic(err)

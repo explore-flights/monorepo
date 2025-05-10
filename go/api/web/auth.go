@@ -123,7 +123,7 @@ func (ah *AuthorizationHandler) loginOrRegister(c echo.Context, register bool) e
 
 	ctx := c.Request().Context()
 
-	authUrl, state, challenge := ah.authorizationUrl(redirectUrl(c, issuer))
+	authUrl, state, challenge := ah.authorizationUrl(ah.redirectUrl(c, issuer))
 
 	err := ah.repo.StoreRequest(ctx, auth.Request{
 		Issuer:        issuer,
@@ -165,9 +165,9 @@ func (ah *AuthorizationHandler) Code(c echo.Context) error {
 
 	var tkRes oauth2.TokenResponseWithIdToken
 	if authReq.CodeChallenge == "" {
-		tkRes, err = ah.oauth2Client.AuthorizationCode(ctx, code, redirectUrl(c, issuer))
+		tkRes, err = ah.oauth2Client.AuthorizationCode(ctx, code, ah.redirectUrl(c, issuer))
 	} else {
-		tkRes, err = ah.oauth2Client.AuthorizationCode(ctx, code, redirectUrl(c, issuer), oauth2.WithCodeVerifier(authReq.CodeChallenge))
+		tkRes, err = ah.oauth2Client.AuthorizationCode(ctx, code, ah.redirectUrl(c, issuer), oauth2.WithCodeVerifier(authReq.CodeChallenge))
 	}
 
 	if err != nil {
@@ -214,7 +214,7 @@ func (ah *AuthorizationHandler) Code(c echo.Context) error {
 		Value:    jwtStr,
 		Path:     "/",
 		Expires:  exp,
-		Secure:   isSecure(c),
+		Secure:   ah.isSecure(c),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 	})
@@ -223,23 +223,23 @@ func (ah *AuthorizationHandler) Code(c echo.Context) error {
 }
 
 func (ah *AuthorizationHandler) authorizationUrl(redirectUri string) (string, string, string) {
-	state := generateState()
+	state := ah.generateState()
 	authUrl, codeChallenge := ah.md.AuthorizationUrl(ah.clientId, state, redirectUri, []string{"openid"}, nil)
 	return authUrl, state, codeChallenge
 }
 
-func generateState() string {
+func (ah *AuthorizationHandler) generateState() string {
 	stateBytes := make([]byte, 64)
 	_, _ = rand.Read(stateBytes)
 
 	return base64.RawURLEncoding.EncodeToString(stateBytes)
 }
 
-func redirectUrl(c echo.Context, issuer string) string {
+func (ah *AuthorizationHandler) redirectUrl(c echo.Context, issuer string) string {
 	return baseUrl(c) + "/auth/oauth2/code/" + url.PathEscape(issuer)
 }
 
-func isSecure(c echo.Context) bool {
+func (ah *AuthorizationHandler) isSecure(c echo.Context) bool {
 	if c.IsTLS() || c.Scheme() == "https" {
 		return true
 	}

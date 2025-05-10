@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/db"
+	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/common/xtime"
@@ -15,34 +16,73 @@ import (
 	"time"
 )
 
-type FlightRepo interface {
+type dataRepo interface {
 	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
 }
 
-type AirlineResponse struct {
-	Name     string `json:"name"`
-	IataCode string `json:"iataCode,omitempty"`
-	IcaoCode string `json:"icaoCode,omitempty"`
+type DataHandler struct {
+	repo dataRepo
+	dh   *data.Handler
 }
 
-func NewAirlinesEndpoint(fr FlightRepo) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		airlines, err := fr.Airlines(c.Request().Context())
-		if err != nil {
-			return errorResponse(c, err)
-		}
-
-		resp := make([]AirlineResponse, 0, len(airlines))
-		for _, airline := range airlines {
-			resp = append(resp, AirlineResponse{
-				Name:     airline.Name,
-				IataCode: airline.IataCode,
-				IcaoCode: airline.IcaoCode,
-			})
-		}
-
-		return jsonResponse(c, resp, nil, func(v []AirlineResponse) bool { return false })
+func NewDataHandler(repo dataRepo, dh *data.Handler) *DataHandler {
+	return &DataHandler{
+		repo: repo,
+		dh:   dh,
 	}
+}
+
+func (dh *DataHandler) Airlines(c echo.Context) error {
+	airlines, err := dh.repo.Airlines(c.Request().Context())
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	resp := make([]model.Airline, 0, len(airlines))
+	for _, airline := range airlines {
+		resp = append(resp, model.Airline{
+			Id:       model.UUID(airline.Id),
+			Name:     airline.Name.String,
+			IataCode: airline.IataCode.String,
+			IcaoCode: airline.IcaoCode.String,
+		})
+	}
+
+	return c.JSON(http.StatusOK, resp)
+}
+
+func (dh *DataHandler) FlightSchedule(c echo.Context) error {
+	ctx := c.Request().Context()
+	fnRaw := c.Param("fn")
+
+	if airlineIdRaw, numberAndSuffix, found := strings.Cut(fnRaw, "-"); found {
+		var airlineId model.UUID
+		if err := airlineId.FromString(airlineIdRaw); err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		}
+
+		airlines, err := dh.repo.Airlines(ctx)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError)
+		}
+
+		airline, ok := airlines[uuid.UUID(airlineId)]
+		if !ok || !airline.IataCode.Valid {
+			return echo.NewHTTPError(http.StatusNotFound)
+		}
+
+		fnRaw = airline.IataCode.String + numberAndSuffix
+	}
+
+	fn, err := common.ParseFlightNumber(fnRaw)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+
+	addExpirationHeaders(c, time.Now(), time.Hour)
+
+	fs, err := dh.dh.FlightSchedule(c.Request().Context(), fn)
+	return jsonResponse(c, fs, err, func(v *common.FlightSchedule) bool { return v == nil })
 }
 
 func NewAirportsEndpoint(dh *data.Handler) echo.HandlerFunc {
@@ -56,22 +96,6 @@ func NewAircraftEndpoint(dh *data.Handler) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		aircraft, err := dh.Aircraft(c.Request().Context())
 		return jsonResponse(c, aircraft, err, func(v []data.Aircraft) bool { return false })
-	}
-}
-
-func NewFlightNumberEndpoint(dh *data.Handler) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		addExpirationHeaders(c, time.Now(), time.Hour)
-
-		fnRaw := c.Param("fn")
-
-		fn, err := common.ParseFlightNumber(fnRaw)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
-		}
-
-		fs, err := dh.FlightSchedule(c.Request().Context(), fn)
-		return jsonResponse(c, fs, err, func(v *common.FlightSchedule) bool { return v == nil })
 	}
 }
 

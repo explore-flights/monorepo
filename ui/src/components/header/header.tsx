@@ -11,6 +11,7 @@ import classes from './header.module.scss';
 import { useSearch } from '../util/state/data';
 import { useDebounce } from '../util/state/use-debounce';
 import { useNavigate } from 'react-router-dom';
+import { Airline, AirlineId } from '../../lib/api/api.model';
 
 export default function FlightsHeader() {
   const [showPreferences, setShowPreferences] = useState(false);
@@ -115,10 +116,39 @@ function TopNavigationSearch() {
   const options = useMemo<ReadonlyArray<AutosuggestProps.Option>>(() => {
     const opts: Array<SelectProps.Option> = [];
     if (results.data) {
-      for (const flightNumber of results.data) {
+      const airlineById = new Map<AirlineId, Airline>();
+      for (const airline of results.data.airlines) {
+        airlineById.set(airline.id, airline);
+      }
+
+      for (const flightNumber of results.data.flightNumbers) {
+        const airline = airlineById.get(flightNumber.airlineId);
+        let valuePrefix = `${flightNumber.airlineId}-`;
+        let labelPrefix = valuePrefix;
+        const tags: Array<string> = [];
+
+        if (airline) {
+          if (airline.iataCode) {
+            valuePrefix = airline.iataCode;
+            labelPrefix = airline.iataCode;
+          } else if (airline.icaoCode) {
+            valuePrefix = airline.icaoCode;
+            labelPrefix = airline.icaoCode;
+          } else {
+            labelPrefix = airline.name;
+          }
+
+          tags.push(`${airline.name} ${flightNumber.number}${flightNumber.suffix ?? ''}`);
+
+          if (airline.iataCode && airline.icaoCode) {
+            tags.push(`${airline.icaoCode}${flightNumber.number}${flightNumber.suffix ?? ''}`);
+          }
+        }
+
         opts.push({
-          label: flightNumber,
-          value: flightNumber,
+          label: `${labelPrefix}${flightNumber.number}${flightNumber.suffix ?? ''}`,
+          value: `${valuePrefix}${flightNumber.number}${flightNumber.suffix ?? ''}`,
+          tags: tags,
         });
       }
     }
