@@ -69,8 +69,7 @@ func main() {
 		historyPrefix == "" ||
 		latestPrefix == "" ||
 		inputBucket == "" ||
-		inputPrefix == "" ||
-		dateRanges.Empty() {
+		inputPrefix == "" {
 
 		log.Fatal("missing input argument")
 		return
