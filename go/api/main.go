@@ -107,8 +107,8 @@ func main() {
 		group.GET("/:fn/:departureDate/:departureAirport/feed.atom", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/atom+xml", (*feeds.Feed).WriteAtom))
 		group.GET("/allegris/feed.rss", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".rss"))
 		group.GET("/allegris/feed.atom", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".atom"))
-		group.GET("/allegris/v2/feed.rss", web.NewAllegrisUpdateFeedEndpointV2(database, ".rss"))
-		group.GET("/allegris/v2/feed.atom", web.NewAllegrisUpdateFeedEndpointV2(database, ".atom"))
+		// group.GET("/allegris/v2/feed.rss", web.NewAllegrisUpdateFeedEndpointV2(database, ".rss"))
+		// group.GET("/allegris/v2/feed.atom", web.NewAllegrisUpdateFeedEndpointV2(database, ".atom"))
 	}
 
 	if err := run(ctx, e); err != nil {
