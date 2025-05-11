@@ -14,12 +14,6 @@ CREATE TABLE airline_identifiers (
 ) ;
 -- endregion
 -- region airports
-CREATE TABLE iata_area_codes (
-    code TEXT NOT NULL,
-    name TEXT NOT NULL,
-    PRIMARY KEY (code)
-) ;
-
 CREATE TABLE airports (
     id UUID NOT NULL,
     iata_area_code TEXT,
@@ -30,8 +24,7 @@ CREATE TABLE airports (
     lat DOUBLE,
     timezone TEXT,
     name TEXT,
-    PRIMARY KEY (id),
-    FOREIGN KEY (iata_area_code) REFERENCES iata_area_codes (code)
+    PRIMARY KEY (id)
 ) ;
 
 CREATE TABLE airport_identifiers (
