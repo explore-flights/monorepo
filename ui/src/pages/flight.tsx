@@ -738,7 +738,7 @@ function dateTimeMax(first: DateTime<true>, ...values: ReadonlyArray<DateTime<tr
   let max = first;
   for (const value of values) {
     if (value.isValid) {
-      max = DateTime.max<true>(max, value);
+      max = DateTime.max<[DateTime<true>, DateTime<true>]>(max, value);
     }
   }
 
