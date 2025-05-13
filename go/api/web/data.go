@@ -16,16 +16,18 @@ import (
 	"time"
 )
 
-type dataRepo interface {
+type dataHandlerRepo interface {
 	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
+	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
+	Aircraft(ctx context.Context) (map[uuid.UUID]db.Aircraft, error)
 }
 
 type DataHandler struct {
-	repo dataRepo
+	repo dataHandlerRepo
 	dh   *data.Handler
 }
 
-func NewDataHandler(repo dataRepo, dh *data.Handler) *DataHandler {
+func NewDataHandler(repo dataHandlerRepo, dh *data.Handler) *DataHandler {
 	return &DataHandler{
 		repo: repo,
 		dh:   dh,
@@ -40,12 +42,35 @@ func (dh *DataHandler) Airlines(c echo.Context) error {
 
 	resp := make([]model.Airline, 0, len(airlines))
 	for _, airline := range airlines {
-		resp = append(resp, model.Airline{
-			Id:       model.UUID(airline.Id),
-			Name:     airline.Name.String,
-			IataCode: airline.IataCode.String,
-			IcaoCode: airline.IcaoCode.String,
-		})
+		resp = append(resp, model.AirlineFromDb(airline))
+	}
+
+	return c.JSON(http.StatusOK, resp)
+}
+
+func (dh *DataHandler) Airports(c echo.Context) error {
+	airports, err := dh.repo.Airports(c.Request().Context())
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	resp := make([]model.Airport, 0, len(airports))
+	for _, airport := range airports {
+		resp = append(resp, model.AirportFromDb(airport))
+	}
+
+	return c.JSON(http.StatusOK, resp)
+}
+
+func (dh *DataHandler) Aircraft(c echo.Context) error {
+	aircraft, err := dh.repo.Aircraft(c.Request().Context())
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	resp := make([]model.Aircraft, 0, len(aircraft))
+	for _, ac := range aircraft {
+		resp = append(resp, model.AircraftFromDb(ac))
 	}
 
 	return c.JSON(http.StatusOK, resp)
@@ -83,20 +108,6 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 
 	fs, err := dh.dh.FlightSchedule(c.Request().Context(), fn)
 	return jsonResponse(c, fs, err, func(v *common.FlightSchedule) bool { return v == nil })
-}
-
-func NewAirportsEndpoint(dh *data.Handler) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		airports, err := dh.Airports(c.Request().Context())
-		return jsonResponse(c, airports, err, func(v data.AirportsResponse) bool { return false })
-	}
-}
-
-func NewAircraftEndpoint(dh *data.Handler) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		aircraft, err := dh.Aircraft(c.Request().Context())
-		return jsonResponse(c, aircraft, err, func(v []data.Aircraft) bool { return false })
-	}
 }
 
 func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {

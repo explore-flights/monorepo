@@ -21,6 +21,14 @@ func (u *UUID) UnmarshalJSON(b []byte) error {
 	return u.FromString(s)
 }
 
+func (u UUID) MarshalText() ([]byte, error) {
+	return []byte(u.String()), nil
+}
+
+func (u *UUID) UnmarshalText(text []byte) error {
+	return u.FromString(string(text))
+}
+
 func (u UUID) String() string {
 	return base62.EncodeToString(u[:])
 }

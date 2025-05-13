@@ -9,8 +9,17 @@ import {
   FormField, Grid,
   Header, Select, SelectProps
 } from '@cloudscape-design/components';
-import { Aircraft, QueryScheduleResponse, QuerySchedulesRequest } from '../../lib/api/api.model';
-import { useAircraft, useAirlines, useAirports, useQueryFlightSchedules } from '../../components/util/state/data';
+import {
+  AircraftId,
+  AirlineId,
+  AirportId,
+  QueryScheduleResponse,
+  QuerySchedulesRequest
+} from '../../lib/api/api.model';
+import {
+  useAircrafts,
+  useQueryFlightSchedules
+} from '../../components/util/state/data';
 import { AirlineMultiselect } from '../../components/select/airline-multiselect';
 import { AirportSelect } from '../../components/select/airport-select';
 import { AircraftSelect } from '../../components/select/aircraft-select';
@@ -54,8 +63,6 @@ export function FlightSearch() {
 type Empty = [null, null];
 
 function SearchForm({ actions, disabled, request, onUpdate }: { actions: React.ReactNode, disabled: boolean, request: QuerySchedulesRequest, onUpdate: React.Dispatch<React.SetStateAction<QuerySchedulesRequest>> }) {
-  const airlines = useAirlines();
-
   const departureRangeValue = useMemo<DateRangePickerProps.AbsoluteValue | null>(() => {
     if (!request.minDepartureTime || !request.maxDepartureTime) {
       return null;
@@ -71,11 +78,9 @@ function SearchForm({ actions, disabled, request, onUpdate }: { actions: React.R
           <ColumnLayout columns={1}>
             <FormField label={'Airlines'}>
               <AirlineMultiselect
-                airlines={airlines.data}
-                selectedAirlines={request.airline ?? []}
-                loading={airlines.isLoading}
+                selectedAirlineIds={request.airlineId ?? []}
                 disabled={disabled}
-                onChange={(v) => onUpdate((prev) => ({ ...prev, airline: v }))}
+                onChange={(v) => onUpdate((prev) => ({ ...prev, airlineId: v }))}
                 placeholder={'Leave empty to search all airlines'}
               />
             </FormField>
@@ -134,10 +139,11 @@ function SearchForm({ actions, disabled, request, onUpdate }: { actions: React.R
 
             <FormField label={'Aircraft'}>
               <AircraftSelection
-                aircraftTypes={request.aircraftType ?? []}
+                selectedAirlineIds={request.airlineId ?? []}
+                aircraftIds={request.aircraftId ?? []}
                 aircraftConfigurationVersions={request.aircraftConfigurationVersion ?? []}
                 aircraft={request.aircraft ?? []}
-                onAircraftTypesChange={(v) => onUpdate((prev) => ({ ...prev, aircraftType: v }))}
+                onAircraftIdsChange={(v) => onUpdate((prev) => ({ ...prev, aircraftType: v }))}
                 onAircraftConfigurationVersionChange={(v) => onUpdate((prev) => ({ ...prev, aircraftConfigurationVersion: v }))}
                 onAircraftChange={(v) => onUpdate((prev) => ({ ...prev, aircraft: v }))}
                 disabled={disabled}
@@ -146,11 +152,11 @@ function SearchForm({ actions, disabled, request, onUpdate }: { actions: React.R
 
             <FormField label={'Route'}>
               <RouteSelection
-                departureAirports={request.departureAirport ?? []}
-                arrivalAirports={request.arrivalAirport ?? []}
+                departureAirports={request.departureAirportId ?? []}
+                arrivalAirports={request.arrivalAirportId ?? []}
                 routes={request.route ?? []}
-                onDepartureAirportsChange={(v) => onUpdate((prev) => ({ ...prev, departureAirport: v }))}
-                onArrivalAirportsChange={(v) => onUpdate((prev) => ({ ...prev, arrivalAirport: v }))}
+                onDepartureAirportsChange={(v) => onUpdate((prev) => ({ ...prev, departureAirportId: v }))}
+                onArrivalAirportsChange={(v) => onUpdate((prev) => ({ ...prev, arrivalAirportId: v }))}
                 onRoutesChange={(v) => onUpdate((prev) => ({ ...prev, route: v }))}
                 disabled={disabled}
               />
@@ -163,27 +169,26 @@ function SearchForm({ actions, disabled, request, onUpdate }: { actions: React.R
 }
 
 interface AircraftSelectionProps {
-  aircraftTypes: ReadonlyArray<string>;
+  selectedAirlineIds: ReadonlyArray<AirlineId>;
+  aircraftIds: ReadonlyArray<AircraftId>;
   aircraftConfigurationVersions: ReadonlyArray<string>;
-  aircraft: ReadonlyArray<[string, string]>;
-  onAircraftTypesChange: (v: ReadonlyArray<string>) => void;
+  aircraft: ReadonlyArray<[AircraftId, string]>;
+  onAircraftIdsChange: (v: ReadonlyArray<AircraftId>) => void;
   onAircraftConfigurationVersionChange: (v: ReadonlyArray<string>) => void;
-  onAircraftChange: (v: ReadonlyArray<[string, string]>) => void;
+  onAircraftChange: (v: ReadonlyArray<[AircraftId, string]>) => void;
   disabled: boolean;
 }
 
-type AircraftType = [string, null];
+type AircraftType = [AircraftId, null];
 type XAircraftConfigurationVersion = [null, string];
-type AircraftAndConfiguration = [string, string];
+type AircraftAndConfiguration = [AircraftId, string];
 type AircraftItem = Empty | AircraftType | XAircraftConfigurationVersion | AircraftAndConfiguration;
 
-function AircraftSelection({ aircraftTypes, aircraftConfigurationVersions, aircraft, onAircraftTypesChange, onAircraftConfigurationVersionChange, onAircraftChange, disabled }: AircraftSelectionProps) {
-  const aircraftQuery = useAircraft();
-
+function AircraftSelection({ selectedAirlineIds, aircraftIds, aircraftConfigurationVersions, aircraft, onAircraftIdsChange, onAircraftConfigurationVersionChange, onAircraftChange, disabled }: AircraftSelectionProps) {
   const [aircraftItems, setAircraftItems] = useState<ReadonlyArray<AircraftItem>>((() => {
     const result: Array<AircraftItem> = [];
 
-    for (const aircraftType of aircraftTypes) {
+    for (const aircraftType of aircraftIds) {
       result.push([aircraftType, null]);
     }
 
@@ -203,21 +208,21 @@ function AircraftSelection({ aircraftTypes, aircraftConfigurationVersions, aircr
   })());
 
   useEffect(() => {
-    const aircraftTypes: Array<string> = [];
+    const aircraftIds: Array<AircraftId> = [];
     const aircraftConfigurationVersions: Array<string> = [];
-    const aircraft: Array<[string, string]> = [];
+    const aircraft: Array<[AircraftId, string]> = [];
 
     for (const item of aircraftItems) {
       if (item[0] && item[1]) {
         aircraft.push(item);
       } else if (item[0]) {
-        aircraftTypes.push(item[0]);
+        aircraftIds.push(item[0]);
       } else if (item[1]) {
         aircraftConfigurationVersions.push(item[1]);
       }
     }
 
-    onAircraftTypesChange(aircraftTypes);
+    onAircraftIdsChange(aircraftIds);
     onAircraftConfigurationVersionChange(aircraftConfigurationVersions);
     onAircraftChange(aircraft);
   }, [aircraftItems]);
@@ -242,9 +247,7 @@ function AircraftSelection({ aircraftTypes, aircraftConfigurationVersions, aircr
           control: (item, index) => (
             <Grid gridDefinition={[{ colspan: 10 }, { colspan: 2 }]}>
               <AircraftSelect
-                aircraft={aircraftQuery.data}
-                selectedAircraftCode={item[0]}
-                loading={aircraftQuery.isLoading}
+                selectedAircraftId={item[0]}
                 disabled={disabled}
                 onChange={(v) => updateAircraftItem(index, 0, v)}
                 placeholder={'Any'}
@@ -258,11 +261,10 @@ function AircraftSelection({ aircraftTypes, aircraftConfigurationVersions, aircr
           control: (item, index) => (
             <Grid gridDefinition={[{ colspan: 10 }, { colspan: 2 }]}>
               <AircraftConfigurationSelect
-                aircraft={aircraftQuery.data}
-                selectedAircraftCode={item[0]}
+                selectedAirlineIds={selectedAirlineIds}
+                selectedAircraftId={item[0]}
                 selectedAircraftConfiguration={item[1]}
                 onChange={(v) => updateAircraftItem(index, 1, v)}
-                loading={aircraftQuery.isLoading}
                 disabled={disabled}
               />
               <Button variant={'icon'} iconName={'remove'} disabled={item[1] === null} onClick={() => updateAircraftItem(index, 1, null)} />
@@ -277,23 +279,21 @@ function AircraftSelection({ aircraftTypes, aircraftConfigurationVersions, aircr
 }
 
 interface RouteSelectionProps {
-  departureAirports: ReadonlyArray<string>;
-  arrivalAirports: ReadonlyArray<string>;
-  routes: ReadonlyArray<[string, string]>;
-  onDepartureAirportsChange: (v: ReadonlyArray<string>) => void;
-  onArrivalAirportsChange: (v: ReadonlyArray<string>) => void;
-  onRoutesChange: (v: ReadonlyArray<[string, string]>) => void;
+  departureAirports: ReadonlyArray<AirportId>;
+  arrivalAirports: ReadonlyArray<AirportId>;
+  routes: ReadonlyArray<[AirportId, AirportId]>;
+  onDepartureAirportsChange: (v: ReadonlyArray<AirportId>) => void;
+  onArrivalAirportsChange: (v: ReadonlyArray<AirportId>) => void;
+  onRoutesChange: (v: ReadonlyArray<[AirportId, AirportId]>) => void;
   disabled: boolean;
 }
 
-type DepartureAirport = [string, null];
-type ArrivalAirport = [null, string];
-type Route = [string, string];
+type DepartureAirport = [AirportId, null];
+type ArrivalAirport = [null, AirportId];
+type Route = [AirportId, AirportId];
 type RouteItem = Empty | DepartureAirport | ArrivalAirport | Route;
 
 function RouteSelection({ departureAirports, arrivalAirports, routes, onDepartureAirportsChange, onArrivalAirportsChange, onRoutesChange, disabled }: RouteSelectionProps) {
-  const airports = useAirports();
-
   const [routeItems, setRouteItems] = useState<ReadonlyArray<RouteItem>>((() => {
     const result: Array<RouteItem> = [];
 
@@ -317,9 +317,9 @@ function RouteSelection({ departureAirports, arrivalAirports, routes, onDepartur
   })());
 
   useEffect(() => {
-    const departureAirports: Array<string> = [];
-    const arrivalAirports: Array<string> = [];
-    const routes: Array<[string, string]> = [];
+    const departureAirports: Array<AirportId> = [];
+    const arrivalAirports: Array<AirportId> = [];
+    const routes: Array<[AirportId, AirportId]> = [];
 
     for (const item of routeItems) {
       if (item[0] && item[1]) {
@@ -336,7 +336,7 @@ function RouteSelection({ departureAirports, arrivalAirports, routes, onDepartur
     onRoutesChange(routes);
   }, [routeItems]);
 
-  const updateRouteItem = useCallback((itemIndex: number, updateIndex: number, value: string | null) => {
+  const updateRouteItem = useCallback((itemIndex: number, updateIndex: number, value: AirportId | null) => {
     setRouteItems((prev) => {
       const updated = [...prev];
       updated[itemIndex][updateIndex] = value;
@@ -356,9 +356,7 @@ function RouteSelection({ departureAirports, arrivalAirports, routes, onDepartur
           control: (item, index) => (
             <Grid gridDefinition={[{ colspan: 10 }, { colspan: 2 }]}>
               <AirportSelect
-                airports={airports.data}
-                selectedAirportCode={item[0]}
-                loading={airports.isLoading}
+                selectedAirportId={item[0]}
                 disabled={disabled}
                 onChange={(v) => updateRouteItem(index, 0, v)}
                 placeholder={'Any'}
@@ -372,9 +370,7 @@ function RouteSelection({ departureAirports, arrivalAirports, routes, onDepartur
           control: (item, index) => (
             <Grid gridDefinition={[{ colspan: 10 }, { colspan: 2 }]}>
               <AirportSelect
-                airports={airports.data}
-                selectedAirportCode={item[1]}
-                loading={airports.isLoading}
+                selectedAirportId={item[1]}
                 disabled={disabled}
                 onChange={(v) => updateRouteItem(index, 1, v)}
                 placeholder={'Any'}
@@ -391,48 +387,52 @@ function RouteSelection({ departureAirports, arrivalAirports, routes, onDepartur
 }
 
 interface AircraftConfigurationSelectProps {
-  aircraft: ReadonlyArray<Aircraft>;
-  selectedAircraftCode: string | null;
+  selectedAirlineIds: ReadonlyArray<AirlineId>;
+  selectedAircraftId: AircraftId | null;
   selectedAircraftConfiguration: string | null;
   onChange: (v: string | null) => void;
-  loading: boolean;
   disabled: boolean;
 }
 
-function AircraftConfigurationSelect({ aircraft, selectedAircraftCode, selectedAircraftConfiguration, onChange, loading, disabled }: AircraftConfigurationSelectProps) {
-  const [options, optionByConfiguration, validAircraftByConfiguration] = useMemo(() => {
+function AircraftConfigurationSelect({ selectedAirlineIds, selectedAircraftId, selectedAircraftConfiguration, onChange, disabled }: AircraftConfigurationSelectProps) {
+  const { data, isLoading: loading } = useAircrafts();
+  const [options, optionByConfiguration, validAircraftIdsByConfiguration] = useMemo(() => {
     const options: Array<SelectProps.Option> = [];
     const optionByConfiguration: Record<string, SelectProps.Option> = {};
-    const validAircraftByConfiguration: Record<string, Array<string>> = {};
+    const validAircraftIdsByConfiguration: Record<string, Array<AircraftId>> = {};
 
-    for (const a of aircraft) {
-      for (const configuration of a.configurations) {
-        if ((!selectedAircraftCode || selectedAircraftCode === a.code) && !optionByConfiguration[configuration]) {
-          const configName = aircraftConfigurationVersionToName(configuration) ?? configuration;
+    for (const ac of data.aircraft) {
+      for (const [airlineId, configurations] of Object.entries(ac.configurations)) {
+        if (selectedAirlineIds.length < 1 || selectedAirlineIds.includes(airlineId as AirlineId)) {
+          for (const configuration of configurations) {
+            if ((!selectedAircraftId || selectedAircraftId === ac.id) && !optionByConfiguration[configuration]) {
+              const configName = aircraftConfigurationVersionToName(configuration) ?? configuration;
 
-          const option = {
-            label: configName,
-            value: configuration,
-          } satisfies SelectProps.Option;
+              const option = {
+                label: configName,
+                value: configuration,
+              } satisfies SelectProps.Option;
 
-          options.push(option);
-          optionByConfiguration[configuration] = option;
-        }
+              options.push(option);
+              optionByConfiguration[configuration] = option;
+            }
 
-        let validAircraft = validAircraftByConfiguration[configuration];
-        if (!validAircraft) {
-          validAircraft = [];
-          validAircraftByConfiguration[configuration] = validAircraft;
-        }
+            let validAircraft = validAircraftIdsByConfiguration[configuration];
+            if (!validAircraft) {
+              validAircraft = [];
+              validAircraftIdsByConfiguration[configuration] = validAircraft;
+            }
 
-        if (!validAircraft.includes(a.code)) {
-          validAircraft.push(a.code);
+            if (!validAircraft.includes(ac.id)) {
+              validAircraft.push(ac.id);
+            }
+          }
         }
       }
     }
 
-    return [options, optionByConfiguration, validAircraftByConfiguration];
-  }, [aircraft, selectedAircraftCode]);
+    return [options, optionByConfiguration, validAircraftIdsByConfiguration];
+  }, [data.aircraft, selectedAirlineIds, selectedAircraftId]);
 
   const selectedOption = useMemo(() => {
     if (!selectedAircraftConfiguration) {
@@ -443,15 +443,15 @@ function AircraftConfigurationSelect({ aircraft, selectedAircraftCode, selectedA
   }, [optionByConfiguration, selectedAircraftConfiguration]);
 
   useEffect(() => {
-    if (!selectedAircraftCode || !selectedAircraftConfiguration) {
+    if (!selectedAircraftId || !selectedAircraftConfiguration) {
       return;
     }
 
-    const validAircraft = validAircraftByConfiguration[selectedAircraftConfiguration];
-    if (!(validAircraft ?? []).includes(selectedAircraftCode)) {
+    const validAircraft = validAircraftIdsByConfiguration[selectedAircraftConfiguration];
+    if (!(validAircraft ?? []).includes(selectedAircraftId)) {
       onChange(null);
     }
-  }, [selectedAircraftCode, selectedAircraftConfiguration, validAircraftByConfiguration]);
+  }, [selectedAircraftId, selectedAircraftConfiguration, validAircraftIdsByConfiguration]);
 
   return (
     <Select

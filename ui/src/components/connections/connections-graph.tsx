@@ -1,4 +1,10 @@
-import { Aircraft, Connection, Connections, Flight } from '../../lib/api/api.model';
+import {
+  Aircraft,
+  ConnectionResponse,
+  ConnectionsResponse,
+  ConnectionFlightResponse,
+  Airport, Airline, AirlineId, AirportId, AircraftId
+} from '../../lib/api/api.model';
 import {
   Background,
   Controls,
@@ -21,7 +27,7 @@ import Dagre from '@dagrejs/dagre';
 import { DateTime } from 'luxon';
 import { Box, Popover, SpaceBetween } from '@cloudscape-design/components';
 import { KeyValuePairs, ValueWithLabel } from '../common/key-value-pairs';
-import { flightNumberToString } from '../../lib/util/flight';
+import { airportToString, flightNumberToString } from '../../lib/util/flight';
 import { BulletSeperator, Join } from '../common/join';
 import { FlightLink } from '../common/flight-link';
 import { usePreferences } from '../util/state/use-preferences';
@@ -29,32 +35,35 @@ import { ColorScheme } from '../../lib/preferences.model';
 
 type FlightNodeData = {
   readonly type: 'flight';
-  readonly flight: Flight;
-  readonly aircraft?: Aircraft;
+  readonly flight: ConnectionFlightResponse;
+  readonly airline: Airline;
+  readonly departureAirport: Airport;
+  readonly arrivalAirport: Airport;
+  readonly aircraft: Aircraft;
+  readonly airlineById: Record<AirlineId, Airline>;
 }
 
 type DepartureNodeData = {
   readonly type: 'departure';
-  readonly airport: string;
+  readonly airport: Airport;
   readonly label: string;
 }
 
 type ArrivalNodeData = {
   readonly type: 'arrival';
-  readonly airport: string;
+  readonly airport: Airport;
   readonly label: string;
 }
 
 type NodeData = FlightNodeData | DepartureNodeData | ArrivalNodeData;
 
 type EdgeData = {
-  readonly source?: Flight;
-  readonly target?: Flight;
+  readonly source?: ConnectionFlightResponse;
+  readonly target?: ConnectionFlightResponse;
 }
 
 export interface ConnectionsGraphProps {
-  connections: Connections;
-  aircraftLookup?: Record<string, Aircraft>;
+  connections: ConnectionsResponse;
 }
 
 export function ConnectionsGraph(props: ConnectionsGraphProps) {
@@ -65,7 +74,7 @@ export function ConnectionsGraph(props: ConnectionsGraphProps) {
   );
 }
 
-function ConnectionsGraphInternal({ connections, aircraftLookup }: ConnectionsGraphProps) {
+function ConnectionsGraphInternal({ connections }: ConnectionsGraphProps) {
   const [preferences] = usePreferences();
 
   const { fitView } = useReactFlow();
@@ -95,7 +104,7 @@ function ConnectionsGraphInternal({ connections, aircraftLookup }: ConnectionsGr
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<EdgeData>>([]);
 
   useEffect(() => {
-    const [nodes, edges] = convertToGraph(connections, aircraftLookup);
+    const [nodes, edges] = convertToGraph(connections);
     const layouted = getLayoutedElements(nodes, edges);
 
     setNodes([...layouted.nodes]);
@@ -104,7 +113,7 @@ function ConnectionsGraphInternal({ connections, aircraftLookup }: ConnectionsGr
     window.requestAnimationFrame(() => {
       fitView().then(() => {});
     });
-  }, [getLayoutedElements, connections, aircraftLookup]);
+  }, [getLayoutedElements, connections]);
 
   return (
     <div style={{ width: '100%', height: '80vh' }}>
@@ -131,20 +140,20 @@ function ConnectionsGraphInternal({ connections, aircraftLookup }: ConnectionsGr
 }
 
 function FlightNode({ data }: NodeProps<Node<FlightNodeData>>) {
-  const { flight, aircraft } = data;
+  const { flight, airline, departureAirport, arrivalAirport, aircraft, airlineById } = data;
   const departure = DateTime.fromISO(flight.departureTime, { setZone: true });
   const arrival = DateTime.fromISO(flight.arrivalTime, { setZone: true });
   const duration = arrival.diff(departure).rescale();
-  const flightNumberFull = flightNumberToString(flight.flightNumber);
+  const flightNumberFull = flightNumberToString(flight.flightNumber, airline);
 
   return (
     <>
       <SpaceBetween size={'xxl'} direction={'vertical'}>
         <Handle type="target" position={Position.Left} />
-        <Popover header={flightNumberFull} size={'large'} content={<FlightPopoverContent flight={flight} aircraft={aircraft} />} fixedWidth={true} renderWithPortal={true}>
+        <Popover header={flightNumberFull} size={'large'} content={<FlightPopoverContent flight={flight} airline={airline} departureAirport={departureAirport} arrivalAirport={arrivalAirport} aircraft={aircraft} airlineById={airlineById} />} fixedWidth={true} renderWithPortal={true}>
           <Box textAlign={'center'}>
             <Box>{flightNumberFull}</Box>
-            <Box>{`${flight.departureAirport} - ${flight.arrivalAirport}`}</Box>
+            <Box>{`${airportToString(departureAirport)} \u2014 ${airportToString(arrivalAirport)}`}</Box>
             <Box>{duration.toHuman({ unitDisplay: 'short' })}</Box>
           </Box>
         </Popover>
@@ -154,32 +163,32 @@ function FlightNode({ data }: NodeProps<Node<FlightNodeData>>) {
   )
 }
 
-function FlightPopoverContent({ flight, aircraft }: { flight: Flight, aircraft?: Aircraft }) {
-  let aircraftStr = flight.aircraftType;
-  if (aircraft) {
+function FlightPopoverContent({ flight, airline, departureAirport, arrivalAirport, aircraft, airlineById }: { flight: ConnectionFlightResponse, airline: Airline, departureAirport: Airport, arrivalAirport: Airport, aircraft: Aircraft, airlineById: Record<AirlineId, Airline> }) {
+  let aircraftStr = aircraft.equipCode ?? aircraft.iataCode ?? aircraft.icaoCode ?? aircraft.id;
+  if (aircraft.name) {
     aircraftStr += ` (${aircraft.name})`;
   }
 
   return (
     <KeyValuePairs columns={2}>
-      <ValueWithLabel label={'Departure Airport'}>{flight.departureAirport}</ValueWithLabel>
+      <ValueWithLabel label={'Flight Number'}><FlightLink flightNumber={flightNumberToString(flight.flightNumber, airline)} target={'_blank'} /></ValueWithLabel>
+      <ValueWithLabel label={'Departure Airport'}>{airportToString(departureAirport)}</ValueWithLabel>
       <ValueWithLabel label={'Departure Time'}>{DateTime.fromISO(flight.departureTime, { setZone: true }).toLocaleString(DateTime.DATETIME_FULL)}</ValueWithLabel>
-      <ValueWithLabel label={'Arrival Airport'}>{flight.arrivalAirport}</ValueWithLabel>
+      <ValueWithLabel label={'Arrival Airport'}>{airportToString(arrivalAirport)}</ValueWithLabel>
       <ValueWithLabel label={'Arrival Time'}>{DateTime.fromISO(flight.arrivalTime, { setZone: true }).toLocaleString(DateTime.DATETIME_FULL)}</ValueWithLabel>
-      <ValueWithLabel label={'Aircraft Type'}>{aircraftStr}</ValueWithLabel>
+      <ValueWithLabel label={'Aircraft'}>{aircraftStr}</ValueWithLabel>
       <ValueWithLabel label={'Aircraft Owner'}>{flight.aircraftOwner}</ValueWithLabel>
-      <ValueWithLabel label={'Registration'}>{flight.registration ?? 'UNKNOWN'}</ValueWithLabel>
       <ValueWithLabel label={'Codeshares'}>
         <Join
           seperator={BulletSeperator}
-          items={flight.codeShares.map((v) => <FlightLink flightNumber={flightNumberToString(v)} target={'_blank'} />)}
+          items={flight.codeShares.map((v) => <FlightLink flightNumber={flightNumberToString(v, airlineById[v.airlineId])} target={'_blank'} />)}
         />
       </ValueWithLabel>
     </KeyValuePairs>
   );
 }
 
-function convertToGraph(conns: Connections, aircraftLookup?: Record<string, Aircraft>): [Array<Node<NodeData>>, Array<Edge<EdgeData>>] {
+function convertToGraph(conns: ConnectionsResponse): [Array<Node<NodeData>>, Array<Edge<EdgeData>>] {
   const nodes: Array<Node<NodeData>> = [];
   const edges: Array<Edge<EdgeData>> = [];
 
@@ -190,20 +199,24 @@ function convertToGraph(conns: Connections, aircraftLookup?: Record<string, Airc
     edges,
     new Map(),
     new Map(),
-    aircraftLookup,
+    conns.airlines,
+    conns.airports,
+    conns.aircraft,
   );
 
   return [nodes, edges];
 }
 
 function buildGraph(
-  connections: ReadonlyArray<Connection>,
-  flights: Record<string, Flight>,
+  connections: ReadonlyArray<ConnectionResponse>,
+  flights: Record<string, ConnectionFlightResponse>,
   nodes: Array<Node<NodeData>>,
   edges: Array<Edge<EdgeData>>,
   nodeLookup: Map<string, Node<NodeData>>,
   edgeLookup: Map<string, Edge<EdgeData>>,
-  aircraftLookup?: Record<string, Aircraft>,
+  airlines: Record<AirlineId, Airline>,
+  airports: Record<AirportId, Airport>,
+  aircraft: Record<AircraftId, Aircraft>,
   parent?: string
 ) {
   for (const connection of connections) {
@@ -219,7 +232,11 @@ function buildGraph(
         data: {
           type: 'flight',
           flight: flight,
-          aircraft: (aircraftLookup ? aircraftLookup[flight.aircraftType] : undefined) ?? undefined,
+          airline: airlines[flight.flightNumber.airlineId],
+          departureAirport: airports[flight.departureAirportId],
+          arrivalAirport: airports[flight.arrivalAirportId],
+          aircraft: aircraft[flight.aircraftId],
+          airlineById: airlines,
         },
         connectable: false,
         draggable: false,
@@ -232,9 +249,10 @@ function buildGraph(
     const departure = DateTime.fromISO(flight.departureTime, { setZone: true });
 
     if (parent === undefined) {
-      const departureNodeId = `DEP-${flight.departureAirport}`;
+      const departureNodeId = `DEP-${flight.departureAirportId}`;
 
       if (!nodeLookup.has(departureNodeId)) {
+        const departureAirport = airports[flight.departureAirportId];
         const node = {
           id: departureNodeId,
           type: 'input',
@@ -244,8 +262,8 @@ function buildGraph(
           height: 50,
           data: {
             type: 'departure',
-            airport: flight.departureAirport,
-            label: flight.departureAirport,
+            airport: departureAirport,
+            label: airportToString(departureAirport),
           },
           connectable: false,
           draggable: false,
@@ -305,13 +323,16 @@ function buildGraph(
         edges,
         nodeLookup,
         edgeLookup,
-        aircraftLookup,
+        airlines,
+        airports,
+        aircraft,
         connection.flightId,
       );
     } else {
-      const arrivalNodeId = `ARR-${flight.arrivalAirport}`;
+      const arrivalNodeId = `ARR-${flight.arrivalAirportId}`;
 
       if (!nodeLookup.has(arrivalNodeId)) {
+        const arrivalAirport = airports[flight.arrivalAirportId];
         const node = {
           id: arrivalNodeId,
           type: 'output',
@@ -321,8 +342,8 @@ function buildGraph(
           height: 50,
           data: {
             type: 'arrival',
-            airport: flight.arrivalAirport,
-            label: flight.arrivalAirport,
+            airport: arrivalAirport,
+            label: airportToString(arrivalAirport),
           },
           connectable: false,
           draggable: false,

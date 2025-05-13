@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/xsql"
 	"github.com/gofrs/uuid/v5"
 	"time"
 )
@@ -30,11 +31,12 @@ type Airport struct {
 }
 
 type Aircraft struct {
-	Id        uuid.UUID
-	EquipCode sql.NullString
-	Name      sql.NullString
-	IataCode  sql.NullString
-	IcaoCode  sql.NullString
+	Id             uuid.UUID
+	EquipCode      sql.NullString
+	Name           sql.NullString
+	IataCode       sql.NullString
+	IcaoCode       sql.NullString
+	Configurations map[uuid.UUID][]string
 }
 
 type FlightNumber struct {
@@ -49,8 +51,8 @@ func (csfn *FlightNumber) Scan(src any) error {
 		return fmt.Errorf("FlightNumber.Scan: expected map[string]any, got %T", src)
 	}
 
-	var sqlNumber sql.NullInt64
-	var sqlString sql.NullString
+	var sqlNumber xsql.Int64
+	var sqlString xsql.String
 
 	if err := csfn.AirlineId.Scan(codeShareRaw["airline_id"]); err != nil {
 		return err
@@ -64,8 +66,8 @@ func (csfn *FlightNumber) Scan(src any) error {
 		return err
 	}
 
-	csfn.Number = int(sqlNumber.Int64)
-	csfn.Suffix = sqlString.String
+	csfn.Number = int(sqlNumber)
+	csfn.Suffix = string(sqlString)
 
 	return nil
 }

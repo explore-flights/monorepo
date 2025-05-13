@@ -2,7 +2,6 @@ package model
 
 import (
 	"github.com/explore-flights/monorepo/go/api/pb"
-	"github.com/explore-flights/monorepo/go/api/search"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -10,8 +9,8 @@ import (
 )
 
 type ConnectionsSearchRequest struct {
-	Origins             []string  `json:"origins"`
-	Destinations        []string  `json:"destinations"`
+	Origins             []UUID    `json:"origins"`
+	Destinations        []UUID    `json:"destinations"`
 	MinDeparture        time.Time `json:"minDeparture"`
 	MaxDeparture        time.Time `json:"maxDeparture"`
 	MaxFlights          uint32    `json:"maxFlights"`
@@ -29,9 +28,20 @@ type ConnectionsSearchRequest struct {
 
 func (req ConnectionsSearchRequest) ToPb() proto.Message {
 	countMultiLeg := req.CountMultiLeg
+	origins := make([]string, len(req.Origins))
+	destinations := make([]string, len(req.Destinations))
+
+	for i, origin := range req.Origins {
+		origins[i] = "idv1:" + origin.String()
+	}
+
+	for i, destination := range req.Destinations {
+		destinations[i] = "idv1:" + destination.String()
+	}
+
 	return &pb.ConnectionsSearchRequest{
-		Origins:             req.Origins,
-		Destinations:        req.Destinations,
+		Origins:             origins,
+		Destinations:        destinations,
 		MinDeparture:        timestamppb.New(req.MinDeparture),
 		MaxDeparture:        timestamppb.New(req.MaxDeparture),
 		MaxFlights:          req.MaxFlights,
@@ -48,7 +58,33 @@ func (req ConnectionsSearchRequest) ToPb() proto.Message {
 	}
 }
 
+type ConnectionsResponse struct {
+	Connections []ConnectionResponse              `json:"connections"`
+	Flights     map[UUID]ConnectionFlightResponse `json:"flights"`
+	Airlines    map[UUID]Airline                  `json:"airlines"`
+	Airports    map[UUID]Airport                  `json:"airports"`
+	Aircraft    map[UUID]Aircraft                 `json:"aircraft"`
+}
+
+type ConnectionResponse struct {
+	FlightId UUID                 `json:"flightId"`
+	Outgoing []ConnectionResponse `json:"outgoing"`
+}
+
+type ConnectionFlightResponse struct {
+	FlightNumber          FlightNumber   `json:"flightNumber"`
+	DepartureTime         time.Time      `json:"departureTime"`
+	DepartureAirportId    UUID           `json:"departureAirportId"`
+	ArrivalTime           time.Time      `json:"arrivalTime"`
+	ArrivalAirportId      UUID           `json:"arrivalAirportId"`
+	AircraftOwner         string         `json:"aircraftOwner"`
+	AircraftId            UUID           `json:"aircraftId"`
+	AircraftConfiguration string         `json:"aircraftConfiguration"`
+	AircraftRegistration  string         `json:"aircraftRegistration,omitempty"`
+	CodeShares            []FlightNumber `json:"codeShares"`
+}
+
 type ConnectionsSearchResponse struct {
-	Data   search.ConnectionsResponse `json:"data"`
-	Search *ConnectionsSearchRequest  `json:"search,omitempty"`
+	Data   ConnectionsResponse       `json:"data"`
+	Search *ConnectionsSearchRequest `json:"search,omitempty"`
 }

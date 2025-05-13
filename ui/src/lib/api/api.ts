@@ -3,7 +3,6 @@ import {
   isJsonObject,
   JsonType,
   ApiErrorBody,
-  Airports,
   Aircraft,
   AuthInfo,
   ConnectionSearchShare,
@@ -14,7 +13,7 @@ import {
   SeatMap,
   QueryScheduleResponse,
   QuerySchedulesRequest,
-  Notification, Airline, SearchResponse
+  Notification, Airline, SearchResponse, Airport
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -71,15 +70,15 @@ export class ApiClient {
   }
 
   getAirlines(): Promise<ApiResponse<ReadonlyArray<Airline>>> {
-    return transform(this.httpClient.fetch('/data/airlines.json'));
+    return transform(this.httpClient.fetch('/data/airlines.json?v=1'));
   }
 
-  getAirports(): Promise<ApiResponse<Airports>> {
-    return transform(this.httpClient.fetch('/data/airports.json'));
+  getAirports(): Promise<ApiResponse<ReadonlyArray<Airport>>> {
+    return transform(this.httpClient.fetch('/data/airports.json?v=1'));
   }
 
   getAircraft(): Promise<ApiResponse<ReadonlyArray<Aircraft>>> {
-    return transform(this.httpClient.fetch('/data/aircraft.json'));
+    return transform(this.httpClient.fetch('/data/aircraft.json?v=1'));
   }
 
   getFlightSchedule(flightNumber: string): Promise<ApiResponse<FlightSchedule>> {
@@ -137,32 +136,32 @@ export class ApiClient {
   queryFlightSchedules(req: QuerySchedulesRequest): Promise<ApiResponse<QueryScheduleResponse>> {
     const params = new URLSearchParams();
 
-    for (const airline of req.airline ?? []) {
-      params.append('airline', airline);
+    for (const airlineId of req.airlineId ?? []) {
+      params.append('airlineId', airlineId);
     }
 
-    for (const aircraftType of req.aircraftType ?? []) {
-      params.append('aircraftType', aircraftType);
+    for (const aircraftId of req.aircraftId ?? []) {
+      params.append('aircraftId', aircraftId);
     }
 
     for (const aircraftConfigurationVersion of req.aircraftConfigurationVersion ?? []) {
       params.append('aircraftConfigurationVersion', aircraftConfigurationVersion);
     }
 
-    for (const [aircraftType, aircraftConfigurationVersion] of req.aircraft ?? []) {
-      params.append('aircraft', `${aircraftType}-${aircraftConfigurationVersion}`);
+    for (const [aircraftId, aircraftConfigurationVersion] of req.aircraft ?? []) {
+      params.append('aircraft', `${aircraftId}-${aircraftConfigurationVersion}`);
     }
 
-    for (const departureAirport of req.departureAirport ?? []) {
-      params.append('departureAirport', departureAirport);
+    for (const departureAirportId of req.departureAirportId ?? []) {
+      params.append('departureAirportId', departureAirportId);
     }
 
-    for (const arrivalAirport of req.arrivalAirport ?? []) {
-      params.append('arrivalAirport', arrivalAirport);
+    for (const arrivalAirportId of req.arrivalAirportId ?? []) {
+      params.append('arrivalAirportId', arrivalAirportId);
     }
 
-    for (const [departureAirport, arrivalAirport] of req.route ?? []) {
-      params.append('route', `${departureAirport}-${arrivalAirport}`);
+    for (const [departureAirportId, arrivalAirportId] of req.route ?? []) {
+      params.append('route', `${departureAirportId}-${arrivalAirportId}`);
     }
 
     if (req.minDepartureTime) {

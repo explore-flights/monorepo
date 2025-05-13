@@ -9,22 +9,18 @@ import {
 import { useHttpClient } from '../components/util/context/http-client';
 import { catchNotify, useAppControls } from '../components/util/context/app-controls';
 import { expectSuccess } from '../lib/api/api';
-import { Connections, ConnectionSearchShare, ConnectionsSearchRequest } from '../lib/api/api.model';
+import { ConnectionsResponse, ConnectionSearchShare, ConnectionsSearchRequest } from '../lib/api/api.model';
 import { ConnectionsResults } from '../components/connections/connections-results';
 import { ConnectionSearchForm, ConnectionSearchParams } from '../components/connections/connections-search-form';
 import { KeyValuePairs, ValueWithLabel } from '../components/common/key-value-pairs';
 import { Copy } from '../components/common/copy';
 import { useSearchParams } from 'react-router-dom';
 import { DateTime, Duration } from 'luxon';
-import { useAircraft, useAirports } from '../components/util/state/data';
 
 export function Home() {
   const { apiClient } = useHttpClient();
   const { notification } = useAppControls();
   const [search] = useSearchParams();
-
-  const airportsQuery = useAirports();
-  const aircraftQuery = useAircraft();
 
   const [isLoading, setLoading] = useState(false);
   const [params, setParams] = useState<ConnectionSearchParams>({
@@ -38,7 +34,7 @@ export function Home() {
     maxDuration: Duration.fromMillis(1000*60*60*26),
     countMultiLeg: true,
   });
-  const [connections, setConnections] = useState<Connections>();
+  const [connections, setConnections] = useState<ConnectionsResponse>();
   const [share, setShare] = useState<ConnectionSearchShare>();
 
   useEffect(() => {
@@ -84,10 +80,6 @@ export function Home() {
         <ColumnLayout columns={1}>
           <Container>
             <ConnectionSearchForm
-              airports={airportsQuery.data}
-              airportsLoading={airportsQuery.isLoading}
-              aircraft={aircraftQuery.data}
-              aircraftLoading={aircraftQuery.isLoading}
               isLoading={isLoading}
               params={params}
               onChange={setParams}
@@ -95,7 +87,7 @@ export function Home() {
               onShare={onShare}
             />
           </Container>
-          <ConnectionsResults connections={connections} airports={airportsQuery.data} aircraft={aircraftQuery.data} />
+          <ConnectionsResults connections={connections} />
         </ColumnLayout>
       </ContentLayout>
     </>

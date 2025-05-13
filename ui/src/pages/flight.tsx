@@ -11,7 +11,15 @@ import {
 } from '@cloudscape-design/components';
 import { CodeView } from '@cloudscape-design/code-view';
 import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
-import { useAircraft, useAirlines, useAirports, useFlightSchedule, useSeatMap } from '../components/util/state/data';
+import {
+  Aircrafts,
+  Airlines, Airports,
+  useAircrafts,
+  useAirlines,
+  useAirports,
+  useFlightSchedule,
+  useSeatMap
+} from '../components/util/state/data';
 import { ErrorNotificationContent } from '../components/util/context/app-controls';
 import { Aircraft, Airline, Airport, FlightSchedule } from '../lib/api/api.model';
 import { DateTime, Duration, FixedOffsetZone, WeekdayNumbers } from 'luxon';
@@ -112,7 +120,7 @@ interface ProcessedFlightSchedule {
   flights: ReadonlyArray<ScheduledFlight>;
 }
 
-function FlightScheduleContent({ flightSchedule, airlines }: { flightSchedule: FlightSchedule, airlines?: ReadonlyArray<Airline> }) {
+function FlightScheduleContent({ flightSchedule, airlines }: { flightSchedule: FlightSchedule, airlines: Airlines }) {
   const [searchParams] = useSearchParams();
   const [filterQuery, setFilterQuery] = useState<PropertyFilterProps.Query>(parseSearchParams(searchParams) ?? {
     operation: 'and',
@@ -125,11 +133,11 @@ function FlightScheduleContent({ flightSchedule, airlines }: { flightSchedule: F
     ],
   });
 
-  const airportLookup = useAirportLookup();
-  const aircraftLookup = useAircraftLookup();
+  const airports = useAirports().data;
+  const aircraft = useAircrafts().data;
   const flightNumber = useMemo(() => `${flightSchedule.airline}${flightSchedule.flightNumber}${flightSchedule.suffix}`, [flightSchedule]);
-  const { summary, flights, } = useMemo(() => processFlightSchedule(flightSchedule, airportLookup, aircraftLookup), [flightSchedule, airportLookup, aircraftLookup]);
-  const airline = useMemo(() => airlines?.find((v) => v.iataCode === flightSchedule.airline), [flightSchedule.airline, airlines]);
+  const { summary, flights, } = useMemo(() => processFlightSchedule(flightSchedule, airports, aircraft), [flightSchedule, airports, aircraft]);
+  const airline = useMemo(() => airlines.lookupByIata.get(flightSchedule.airline), [flightSchedule.airline, airlines.lookupByIata]);
 
   const filteredFlights = useFilteredFlights(flights, filterQuery);
   const { items, collectionProps, paginationProps } = useCollection(filteredFlights, {
@@ -162,7 +170,7 @@ function FlightScheduleContent({ flightSchedule, airlines }: { flightSchedule: F
             items={[
               {
                 label: 'Airline',
-                value: airline ? `${airline.name} (${flightSchedule.airline})` : flightSchedule.airline,
+                value: airline && airline.name ? `${airline.name} (${flightSchedule.airline})` : flightSchedule.airline,
               },
               {
                 label: 'Number',
@@ -591,7 +599,7 @@ function buildDateOperator(op: PropertyFilterOperator): PropertyFilterOperatorEx
   } satisfies PropertyFilterOperatorExtended<string>;
 }
 
-function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Map<string, Airport>, aircraftLookup: Map<string, Aircraft>): ProcessedFlightSchedule {
+function processFlightSchedule(flightSchedule: FlightSchedule, airports: Airports, aircrafts: Aircrafts): ProcessedFlightSchedule {
   let lastModified = DateTime.fromSeconds(0);
 
   const departureAirports: Array<string> = [];
@@ -681,16 +689,16 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
               departureTime: curr,
               departureAirport: {
                 raw: variant.data.departureAirport,
-                value: airportLookup.get(variant.data.departureAirport)
+                value: airports.lookupByIata.get(variant.data.departureAirport)
               },
               arrivalTime: arrivalTime,
               arrivalAirport: {
                 raw: variant.data.arrivalAirport,
-                value: airportLookup.get(variant.data.arrivalAirport)
+                value: airports.lookupByIata.get(variant.data.arrivalAirport)
               },
               aircraft: {
                 raw: variant.data.aircraftType,
-                value: aircraftLookup.get(variant.data.aircraftType),
+                value: aircrafts.lookupByIata.get(variant.data.aircraftType),
               }
             });
           }
@@ -706,13 +714,13 @@ function processFlightSchedule(flightSchedule: FlightSchedule, airportLookup: Ma
   return {
     summary: {
       lastModified: lastModified,
-      departureAirports: departureAirports.map((v) => ({ raw: v, value: airportLookup.get(v) })),
-      arrivalAirports: arrivalAirports.map((v) => ({ raw: v, value: airportLookup.get(v) })),
+      departureAirports: departureAirports.map((v) => ({ raw: v, value: airports.lookupByIata.get(v) })),
+      arrivalAirports: arrivalAirports.map((v) => ({ raw: v, value: airports.lookupByIata.get(v) })),
       routes: routes.map(([a, b]) => [
-        { raw: a, value: airportLookup.get(a) },
-        { raw: b, value: airportLookup.get(b) },
+        { raw: a, value: airports.lookupByIata.get(a) },
+        { raw: b, value: airports.lookupByIata.get(b) },
       ]),
-      aircraft: aircraft.map(([id, count]) => [{ raw: id, value: aircraftLookup.get(id) }, count]),
+      aircraft: aircraft.map(([id, count]) => [{ raw: id, value: aircrafts.lookupByIata.get(id) }, count]),
       aircraftConfigurationVersions: aircraftConfigurationVersions,
       operatingDays: operatingDays,
       duration: {
@@ -735,36 +743,6 @@ function dateTimeMax(first: DateTime<true>, ...values: ReadonlyArray<DateTime<tr
   }
 
   return max;
-}
-
-function useAirportLookup() {
-  const airports = useAirports().data;
-  return useMemo(() => {
-    const map = new Map<string, Airport>();
-    for (const airport of airports.airports) {
-      map.set(airport.code, airport);
-    }
-
-    for (const metroArea of airports.metropolitanAreas) {
-      for (const airport of metroArea.airports) {
-        map.set(airport.code, airport);
-      }
-    }
-
-    return map;
-  }, [airports]);
-}
-
-function useAircraftLookup() {
-  const aircraft = useAircraft().data;
-  return useMemo(() => {
-    const map = new Map<string, Aircraft>();
-    for (const v of aircraft) {
-      map.set(v.code, v);
-    }
-
-    return map;
-  }, [aircraft]);
 }
 
 function useFilteredFlights(flights: ReadonlyArray<ScheduledFlight>, query: PropertyFilterProps.Query) {

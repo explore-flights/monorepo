@@ -1,5 +1,4 @@
 import { DateTime, Duration } from 'luxon';
-import { Aircraft, Airports } from '../../lib/api/api.model';
 import React, { useMemo, useState } from 'react';
 import {
   Box,
@@ -12,13 +11,14 @@ import {
   Grid, Header,
   Slider, SpaceBetween, Toggle
 } from '@cloudscape-design/components';
-import { AirportMultiselect } from '../select/airport-multiselect';
-import { AircraftMultiselect } from '../select/aircraft-multiselect';
+import { AirportMultiselect } from '../select/airport-select';
+import { AircraftMultiselect } from '../select/aircraft-select';
 import { ValueMultilineEditor } from './value-multiline-editor';
+import { AirportId } from '../../lib/api/api.model';
 
 export interface ConnectionSearchParams {
-  readonly origins: ReadonlyArray<string>;
-  readonly destinations: ReadonlyArray<string>;
+  readonly origins: ReadonlyArray<AirportId>;
+  readonly destinations: ReadonlyArray<AirportId>;
   readonly minDeparture: DateTime<true>;
   readonly maxDeparture: DateTime<true>;
   readonly maxFlights: number;
@@ -45,10 +45,6 @@ interface ConnectionSearchFormErrors {
 }
 
 export interface ConnectionSearchFormProps {
-  airports: Airports;
-  airportsLoading: boolean;
-  aircraft: ReadonlyArray<Aircraft>;
-  aircraftLoading: boolean;
   isLoading: boolean;
   params: ConnectionSearchParams;
   onChange: React.Dispatch<React.SetStateAction<ConnectionSearchParams>>;
@@ -56,7 +52,7 @@ export interface ConnectionSearchFormProps {
   onShare: () => void;
 }
 
-export function ConnectionSearchForm({ airports, airportsLoading, aircraft, aircraftLoading, isLoading, params, onChange, onSearch, onShare }: ConnectionSearchFormProps) {
+export function ConnectionSearchForm({ isLoading, params, onChange, onSearch, onShare }: ConnectionSearchFormProps) {
   const {
     origins,
     destinations,
@@ -134,9 +130,7 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
         >
           <FormField label={'Origin'} errorText={errors?.origins}>
             <AirportMultiselect
-              airports={airports}
-              selectedAirportCodes={origins}
-              loading={airportsLoading}
+              selectedAirportIds={origins}
               disabled={isLoading}
               onChange={(v) => onChange((prev) => ({ ...prev, origins: v }))}
             />
@@ -144,9 +138,7 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
 
           <FormField label={'Destination'} errorText={errors?.destinations}>
             <AirportMultiselect
-              airports={airports}
-              selectedAirportCodes={destinations}
-              loading={airportsLoading}
+              selectedAirportIds={destinations}
               disabled={isLoading}
               onChange={(v) => onChange((prev) => ({ ...prev, destinations: v }))}
             />
@@ -267,10 +259,8 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
 
               <FormField label={<Toggle checked={includeAirport !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, includeAirport: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Include Airport</Box></Toggle>}>
                 <AirportMultiselectOrEditor
-                  airports={airports}
-                  selectedAirportCodes={includeAirport ?? []}
-                  setSelectedAirportCodes={(v) => onChange((prev) => ({ ...prev, includeAirport: v }))}
-                  loading={airportsLoading}
+                  values={includeAirport ?? []}
+                  onChange={(v) => onChange((prev) => ({ ...prev, includeAirport: v }))}
                   disabled={isLoading || includeAirport === undefined}
                 />
               </FormField>
@@ -286,10 +276,8 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
 
               <FormField label={<Toggle checked={includeAircraft !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, includeAircraft: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Include Aircraft</Box></Toggle>}>
                 <AircraftMultiselectOrEditor
-                  aircraft={aircraft}
-                  selectedAircraftCodes={includeAircraft ?? []}
-                  setSelectedAircraftCodes={(v) => onChange((prev) => ({ ...prev, includeAircraft: v }))}
-                  loading={aircraftLoading}
+                  values={includeAircraft ?? []}
+                  onChange={(v) => onChange((prev) => ({ ...prev, includeAircraft: v }))}
                   disabled={isLoading || includeAircraft === undefined}
                 />
               </FormField>
@@ -300,10 +288,8 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
 
               <FormField label={<Toggle checked={excludeAirport !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, excludeAirport: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Exclude Airport</Box></Toggle>}>
                 <AirportMultiselectOrEditor
-                  airports={airports}
-                  selectedAirportCodes={excludeAirport ?? []}
-                  setSelectedAirportCodes={(v) => onChange((prev) => ({ ...prev, excludeAirport: v }))}
-                  loading={airportsLoading}
+                  values={excludeAirport ?? []}
+                  onChange={(v) => onChange((prev) => ({ ...prev, excludeAirport: v }))}
                   disabled={isLoading || excludeAirport === undefined}
                 />
               </FormField>
@@ -319,10 +305,8 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
 
               <FormField label={<Toggle checked={excludeAircraft !== undefined} onChange={(e) => onChange((prev) => ({ ...prev, excludeAircraft: e.detail.checked ? [] : undefined}))}><Box variant={'awsui-key-label'}>Exclude Aircraft</Box></Toggle>}>
                 <AircraftMultiselectOrEditor
-                  aircraft={aircraft}
-                  selectedAircraftCodes={excludeAircraft ?? []}
-                  setSelectedAircraftCodes={(v) => onChange((prev) => ({ ...prev, excludeAircraft: v }))}
-                  loading={aircraftLoading}
+                  values={excludeAircraft ?? []}
+                  onChange={(v) => onChange((prev) => ({ ...prev, excludeAircraft: v }))}
                   disabled={isLoading || excludeAircraft === undefined}
                 />
               </FormField>
@@ -335,44 +319,38 @@ export function ConnectionSearchForm({ airports, airportsLoading, aircraft, airc
 }
 
 interface AirportMultiselectOrEditorProps {
-  airports: Airports;
-  selectedAirportCodes: ReadonlyArray<string>;
-  setSelectedAirportCodes: (v: ReadonlyArray<string>) => void;
-  loading: boolean;
+  values: ReadonlyArray<string>;
+  onChange: (v: ReadonlyArray<string>) => void;
   disabled: boolean;
 }
 
-function AirportMultiselectOrEditor({ airports, selectedAirportCodes, setSelectedAirportCodes, loading, disabled }: AirportMultiselectOrEditorProps) {
+function AirportMultiselectOrEditor({ values, onChange, disabled }: AirportMultiselectOrEditorProps) {
   return (
-    <StandardOrMultilineEditor values={selectedAirportCodes} setValues={setSelectedAirportCodes} disabled={disabled}>
+    <StandardOrMultilineEditor values={values} setValues={onChange} disabled={disabled}>
       <AirportMultiselect
-        airports={airports}
-        selectedAirportCodes={selectedAirportCodes}
-        loading={loading}
+        selectedAirportIds={[]}
+        rawSelectedAirports={values}
         disabled={disabled}
-        onChange={setSelectedAirportCodes}
+        onChange={onChange}
       />
     </StandardOrMultilineEditor>
   );
 }
 
 interface AircraftMultiselectOrEditorProps {
-  aircraft: ReadonlyArray<Aircraft>;
-  selectedAircraftCodes: ReadonlyArray<string>;
-  setSelectedAircraftCodes: (v: ReadonlyArray<string>) => void;
-  loading: boolean;
+  values: ReadonlyArray<string>;
+  onChange: (v: ReadonlyArray<string>) => void;
   disabled: boolean;
 }
 
-function AircraftMultiselectOrEditor({ aircraft, selectedAircraftCodes, setSelectedAircraftCodes, loading, disabled }: AircraftMultiselectOrEditorProps) {
+function AircraftMultiselectOrEditor({ values, onChange, disabled }: AircraftMultiselectOrEditorProps) {
   return (
-    <StandardOrMultilineEditor values={selectedAircraftCodes} setValues={setSelectedAircraftCodes} disabled={disabled}>
+    <StandardOrMultilineEditor values={values} setValues={onChange} disabled={disabled}>
       <AircraftMultiselect
-        aircraft={aircraft}
-        selectedAircraftCodes={selectedAircraftCodes}
-        loading={loading}
+        selectedAircraftIds={[]}
+        rawSelectedAircraft={values}
         disabled={disabled}
-        onChange={setSelectedAircraftCodes}
+        onChange={onChange}
       />
     </StandardOrMultilineEditor>
   );

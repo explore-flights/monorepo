@@ -2,19 +2,68 @@ import { useHttpClient } from '../context/http-client';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, expectSuccess } from '../../../lib/api/api';
 import { DateTime } from 'luxon';
-import { QuerySchedulesRequest, SearchResponse } from '../../../lib/api/api.model';
+import {
+  Aircraft,
+  AircraftId,
+  Airline,
+  AirlineId,
+  Airport,
+  AirportId,
+  QuerySchedulesRequest,
+  SearchResponse
+} from '../../../lib/api/api.model';
+
+export interface Airlines {
+  readonly airlines: ReadonlyArray<Airline>;
+  readonly lookupById: ReadonlyMap<AirlineId, Airline>;
+  readonly lookupByIata: ReadonlyMap<string, Airline>;
+  readonly lookupByIcao: ReadonlyMap<string, Airline>;
+}
 
 export function useAirlines() {
   const { apiClient } = useHttpClient();
   return useQuery({
     queryKey: ['airlines'],
     queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getAirlines());
-      return body;
+      const { body: airlines } = expectSuccess(await apiClient.getAirlines());
+      const lookupById = new Map<AirlineId, Airline>();
+      const lookupByIata = new Map<string, Airline>();
+      const lookupByIcao = new Map<string, Airline>();
+
+      for (const airline of airlines) {
+        lookupById.set(airline.id, airline);
+
+        if (airline.iataCode) {
+          lookupByIata.set(airline.iataCode, airline);
+        }
+
+        if (airline.icaoCode) {
+          lookupByIcao.set(airline.icaoCode, airline);
+        }
+      }
+
+      return {
+        airlines: airlines,
+        lookupById: lookupById,
+        lookupByIata: lookupByIata,
+        lookupByIcao: lookupByIcao,
+      } satisfies Airlines;
     },
     retry: 5,
-    initialData: [],
+    initialData: {
+      airlines: [],
+      lookupById: new Map(),
+      lookupByIata: new Map(),
+      lookupByIcao: new Map(),
+    } satisfies Airlines,
   });
+}
+
+export interface Airports {
+  readonly airports: ReadonlyArray<Airport>;
+  readonly lookupById: ReadonlyMap<AirportId, Airport>;
+  readonly lookupByIata: ReadonlyMap<string, Airport>;
+  readonly lookupByIcao: ReadonlyMap<string, Airport>;
 }
 
 export function useAirports() {
@@ -22,27 +71,83 @@ export function useAirports() {
   return useQuery({
     queryKey: ['airports'],
     queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getAirports());
-      return body;
+      const { body: airports } = expectSuccess(await apiClient.getAirports());
+      const lookupById = new Map<AirportId, Airport>();
+      const lookupByIata = new Map<string, Airport>();
+      const lookupByIcao = new Map<string, Airport>();
+
+      for (const airport of airports) {
+        lookupById.set(airport.id, airport);
+
+        if (airport.iataCode) {
+          lookupByIata.set(airport.iataCode, airport);
+        }
+
+        if (airport.icaoCode) {
+          lookupByIcao.set(airport.icaoCode, airport);
+        }
+      }
+
+      return {
+        airports: airports,
+        lookupById: lookupById,
+        lookupByIata: lookupByIata,
+        lookupByIcao: lookupByIcao,
+      } satisfies Airports;
     },
     retry: 5,
     initialData: {
       airports: [],
-      metropolitanAreas: [],
-    },
+      lookupById: new Map(),
+      lookupByIata: new Map(),
+      lookupByIcao: new Map(),
+    } satisfies Airports,
   });
 }
 
-export function useAircraft() {
+export interface Aircrafts {
+  readonly aircraft: ReadonlyArray<Aircraft>;
+  readonly lookupById: ReadonlyMap<AircraftId, Aircraft>;
+  readonly lookupByIata: ReadonlyMap<string, Aircraft>;
+  readonly lookupByIcao: ReadonlyMap<string, Aircraft>;
+}
+
+export function useAircrafts() {
   const { apiClient } = useHttpClient();
   return useQuery({
     queryKey: ['aircraft'],
     queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getAircraft());
-      return body;
+      const { body: aircraft } = expectSuccess(await apiClient.getAircraft());
+      const lookupById = new Map<AircraftId, Aircraft>();
+      const lookupByIata = new Map<string, Aircraft>();
+      const lookupByIcao = new Map<string, Aircraft>();
+
+      for (const ac of aircraft) {
+        lookupById.set(ac.id, ac);
+
+        if (ac.iataCode) {
+          lookupByIata.set(ac.iataCode, ac);
+        }
+
+        if (ac.icaoCode) {
+          lookupByIcao.set(ac.icaoCode, ac);
+        }
+      }
+
+      return {
+        aircraft: aircraft,
+        lookupById: lookupById,
+        lookupByIata: lookupByIata,
+        lookupByIcao: lookupByIcao,
+      } satisfies Aircrafts;
     },
     retry: 5,
-    initialData: [],
+    initialData: {
+      aircraft: [],
+      lookupById: new Map(),
+      lookupByIata: new Map(),
+      lookupByIcao: new Map(),
+    } satisfies Aircrafts,
   });
 }
 

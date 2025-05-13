@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon';
+import { Branded } from '../util';
 
 export type JsonObject = { [k: string]: JsonType };
 export type JsonArray = ReadonlyArray<JsonType>;
@@ -20,31 +21,39 @@ export type Issuer = string;
 
 export interface AuthInfo {}
 
-export interface Airports {
-  airports: ReadonlyArray<Airport>;
-  metropolitanAreas: ReadonlyArray<MetropolitanArea>;
-}
-
-export interface MetropolitanArea {
-  code: string;
-  name: string;
-  airports: ReadonlyArray<Airport>;
-}
-
+export type AirportId = Branded<string, 'AirportId'>;
 export interface Airport {
-  code: string;
-  name: string;
-  lat: number;
-  lng: number;
+  id: AirportId;
+  iataAreaCode?: string;
+  countryCode?: string;
+  cityCode?: string;
+  type?: string;
+  location?: {
+    lng: number;
+    lat: number;
+  }
+  timezone?: string;
+  name?: string;
+  iataCode?: string;
+  icaoCode?: string;
 }
 
-export type AirlineId = string;
-
+export type AirlineId = Branded<string, 'AirlineId'>;
 export interface Airline {
   id: AirlineId;
   name: string;
   iataCode?: string;
   icaoCode?: string;
+}
+
+export type AircraftId = Branded<string, 'AircraftId'>;
+export interface Aircraft {
+  id: AircraftId;
+  equipCode?: string;
+  name?: string;
+  iataCode?: string;
+  icaoCode?: string;
+  configurations: Record<AirlineId, ReadonlyArray<string>>;
 }
 
 export interface FlightNumber {
@@ -59,8 +68,8 @@ export interface SearchResponse {
 }
 
 export interface ConnectionsSearchRequest {
-  origins: ReadonlyArray<string>;
-  destinations: ReadonlyArray<string>;
+  origins: ReadonlyArray<AirportId>;
+  destinations: ReadonlyArray<AirportId>;
   minDeparture: string;
   maxDeparture: string;
   maxFlights: number;
@@ -77,46 +86,37 @@ export interface ConnectionsSearchRequest {
 }
 
 export interface ConnectionsSearchResponse {
-  data: Connections;
+  data: ConnectionsResponse;
 }
 
 export interface ConnectionsSearchResponseWithSearch extends ConnectionsSearchResponse {
   search: ConnectionsSearchRequest;
 }
 
-export interface Connections {
-  connections: ReadonlyArray<Connection>;
-  flights: Record<string, Flight>;
+export interface ConnectionsResponse {
+  connections: ReadonlyArray<ConnectionResponse>;
+  flights: Record<string, ConnectionFlightResponse>;
+  airlines: Record<AirlineId, Airline>;
+  airports: Record<AirportId, Airport>;
+  aircraft: Record<AircraftId, Aircraft>;
 }
 
-export interface Connection {
+export interface ConnectionResponse {
   flightId: string;
-  outgoing: ReadonlyArray<Connection>;
+  outgoing: ReadonlyArray<ConnectionResponse>;
 }
 
-export interface Flight {
+export interface ConnectionFlightResponse {
   flightNumber: FlightNumber;
   departureTime: string;
-  departureAirport: string;
+  departureAirportId: AirportId;
   arrivalTime: string;
-  arrivalAirport: string;
+  arrivalAirportId: AirportId;
   aircraftOwner: string;
-  aircraftType: string;
-  registration?: string;
+  aircraftId: AircraftId;
+  aircraftConfiguration: string;
+  aircraftRegistration?: string;
   codeShares: ReadonlyArray<FlightNumber>;
-}
-
-export interface FlightNumber {
-  airline: string;
-  number: number;
-  suffix?: string;
-}
-
-export interface Aircraft {
-  code: string;
-  equipCode: string;
-  name: string;
-  configurations: ReadonlyArray<string>;
 }
 
 export interface ConnectionSearchShare {
@@ -266,13 +266,13 @@ export enum ComponentFeature {
 }
 
 export interface QuerySchedulesRequest {
-  airline?: ReadonlyArray<string>;
-  aircraftType?: ReadonlyArray<string>;
+  airlineId?: ReadonlyArray<AirlineId>;
+  aircraftId?: ReadonlyArray<AircraftId>;
   aircraftConfigurationVersion?: ReadonlyArray<string>;
-  aircraft?: ReadonlyArray<[string, string]>;
-  departureAirport?: ReadonlyArray<string>;
-  arrivalAirport?: ReadonlyArray<string>;
-  route?: ReadonlyArray<[string, string]>;
+  aircraft?: ReadonlyArray<[AircraftId, string]>;
+  departureAirportId?: ReadonlyArray<AirportId>;
+  arrivalAirportId?: ReadonlyArray<AirportId>;
+  route?: ReadonlyArray<[AirportId, AirportId]>;
   minDepartureTime?: DateTime<true>;
   maxDepartureTime?: DateTime<true>;
 }

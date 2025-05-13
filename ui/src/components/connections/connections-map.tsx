@@ -1,21 +1,23 @@
 import React, { useMemo } from 'react';
-import { Aircraft, Airport, Airports, Connection, Connections, Flight } from '../../lib/api/api.model';
+import {
+  Airport,
+  ConnectionResponse,
+  ConnectionsResponse,
+  ConnectionFlightResponse,
+  AirlineId, Airline, AircraftId, Aircraft, AirportId,
+} from '../../lib/api/api.model';
 import { MaplibreMap, PopupMarker, SmartLine } from '../maplibre/maplibre-map';
 import { DateTime } from 'luxon';
 import { ColumnLayout, KeyValuePairs, KeyValuePairsProps } from '@cloudscape-design/components';
 import { FlightLink } from '../common/flight-link';
+import { airportToString, flightNumberToString } from '../../lib/util/flight';
 
 export interface ConnectionsMapProps {
-  connections: Connections;
-  airports: Airports;
-  aircraftLookup?: Record<string, Aircraft>;
+  connections: ConnectionsResponse;
 }
 
-export function ConnectionsMap({ connections, airports, aircraftLookup }: ConnectionsMapProps) {
-  const [markers, lines] = useMemo(
-    () => buildMarkersAndLines(connections, airports, aircraftLookup ?? {}),
-    [connections, airports, aircraftLookup]
-  );
+export function ConnectionsMap({ connections }: ConnectionsMapProps) {
+  const [markers, lines] = useMemo(() => buildMarkersAndLines(connections), [connections]);
 
   return (
     <MaplibreMap height={'80vh'}>
@@ -38,9 +40,9 @@ interface AirportNode {
   outgoingFlights: Array<ParsedFlight>;
 }
 
-function buildMarkersAndLines(connections: Connections, airports: Airports, aircraftLookup: Record<string, Aircraft>): [ReadonlyArray<React.ReactNode>, ReadonlyArray<React.ReactNode>] {
-  const airportNodes = new Map<string, AirportNode>();
-  processConnections(connections.connections, connections.flights, buildAirportLookup(airports), aircraftLookup, airportNodes);
+function buildMarkersAndLines(connections: ConnectionsResponse): [ReadonlyArray<React.ReactNode>, ReadonlyArray<React.ReactNode>] {
+  const airportNodes = new Map<AirportId, AirportNode>();
+  processConnections(connections.connections, connections.flights, connections.airlines, connections.airports, connections.aircraft, airportNodes);
 
   const markers = new Map<string, React.ReactNode>();
   const lines = new Map<string, React.ReactNode>();
@@ -61,13 +63,13 @@ function toMarkersAndLines(
   lines: Map<string, React.ReactNode>,
 ) {
 
-  if (!markers.has(node.airport.code)) {
+  if (!markers.has(node.airport.id)) {
     markers.set(
-      node.airport.code,
+      node.airport.id,
       (
         <PopupMarker
-          longitude={node.airport.lng}
-          latitude={node.airport.lat}
+          longitude={node.airport.location?.lng ?? 0.0}
+          latitude={node.airport.location?.lat ?? 0.0}
           button={{}}
           popover={{
             size: 'medium',
@@ -75,47 +77,35 @@ function toMarkersAndLines(
             renderWithPortal: true,
             content: <AirportPopoverContent node={node} />,
           }}
-        >{node.airport.code}</PopupMarker>
+        >{node.airport.iataCode ?? node.airport.icaoCode ?? node.airport.id}</PopupMarker>
       ),
     );
   }
 
   for (const connectedNode of node.connections) {
-    const srcId = `${node.airport.code}-${connectedNode.airport.code}`;
+    const srcId = `${node.airport.id}-${connectedNode.airport.id}`;
 
     if (!lines.has(srcId)) {
       lines.set(
         srcId,
         (
-          <SmartLine src={[node.airport.lng, node.airport.lat]} dst={[connectedNode.airport.lng, connectedNode.airport.lat]} />
+          <SmartLine
+            src={[node.airport.location?.lng ?? 0.0, node.airport.location?.lat ?? 0.0]}
+            dst={[connectedNode.airport.location?.lng ?? 0.0, connectedNode.airport.location?.lat ?? 0.0]}
+          />
         ),
       );
     }
   }
 }
 
-function buildAirportLookup(airports: Airports): Record<string, Airport> {
-  const result: Record<string, Airport> = {};
-
-  for (const airport of airports.airports) {
-    result[airport.code] = airport;
-  }
-
-  for (const metroArea of airports.metropolitanAreas) {
-    for (const airport of metroArea.airports) {
-      result[airport.code] = airport;
-    }
-  }
-
-  return result;
-}
-
 function processConnections(
-  conns: ReadonlyArray<Connection>,
-  flights: Record<string, Flight>,
-  airportLookup: Record<string, Airport>,
-  aircraftLookup: Record<string, Aircraft>,
-  airportNodes: Map<string, AirportNode>,
+  conns: ReadonlyArray<ConnectionResponse>,
+  flights: Record<string, ConnectionFlightResponse>,
+  airlines: Record<AirlineId, Airline>,
+  airports: Record<AirportId, Airport>,
+  aircraft: Record<AircraftId, Aircraft>,
+  airportNodes: Map<AirportId, AirportNode>,
 ) {
 
   for (const conn of conns) {
@@ -126,55 +116,54 @@ function processConnections(
       throw new Error(`invalid departureTime/arrivalTime: ${flight.departureTime} / ${flight.arrivalTime}`);
     }
 
-    const departureAirport = airportLookup[flight.departureAirport];
-    const arrivalAirport = airportLookup[flight.arrivalAirport];
+    const airline = airlines[flight.flightNumber.airlineId];
+    const departureAirport = airports[flight.departureAirportId];
+    const arrivalAirport = airports[flight.arrivalAirportId];
 
-    if (departureAirport && arrivalAirport) {
-      let departureNode = airportNodes.get(flight.departureAirport);
-      if (!departureNode) {
-        departureNode = {
-          airport: departureAirport,
-          connections: [],
-          incomingFlights: [],
-          outgoingFlights: [],
-        } satisfies AirportNode;
+    let departureNode = airportNodes.get(flight.departureAirportId);
+    if (!departureNode) {
+      departureNode = {
+        airport: departureAirport,
+        connections: [],
+        incomingFlights: [],
+        outgoingFlights: [],
+      } satisfies AirportNode;
 
-        airportNodes.set(flight.departureAirport, departureNode);
-      }
-
-      let arrivalNode = airportNodes.get(flight.arrivalAirport);
-      if (!arrivalNode) {
-        arrivalNode = {
-          airport: arrivalAirport,
-          connections: [],
-          incomingFlights: [],
-          outgoingFlights: [],
-        } satisfies AirportNode;
-
-        airportNodes.set(flight.arrivalAirport, arrivalNode);
-      }
-
-      if (!departureNode.connections.includes(arrivalNode)) {
-        departureNode.connections.push(arrivalNode);
-      }
-
-      const flightNumber = `${flight.flightNumber.airline}${flight.flightNumber.number}${flight.flightNumber.suffix ?? ''}`;
-      const parsedFlight = {
-        flightNumber: flightNumber,
-        departureAirport: departureNode,
-        arrivalAirport: arrivalNode,
-      } satisfies ParsedFlight;
-
-      if (departureNode.outgoingFlights.findIndex((v) => v.flightNumber === flightNumber) === -1) {
-        departureNode.outgoingFlights.push(parsedFlight);
-      }
-
-      if (arrivalNode.incomingFlights.findIndex((v) => v.flightNumber === flightNumber) === -1) {
-        arrivalNode.incomingFlights.push(parsedFlight);
-      }
+      airportNodes.set(flight.departureAirportId, departureNode);
     }
 
-    processConnections(conn.outgoing, flights, airportLookup, aircraftLookup, airportNodes);
+    let arrivalNode = airportNodes.get(flight.arrivalAirportId);
+    if (!arrivalNode) {
+      arrivalNode = {
+        airport: arrivalAirport,
+        connections: [],
+        incomingFlights: [],
+        outgoingFlights: [],
+      } satisfies AirportNode;
+
+      airportNodes.set(flight.arrivalAirportId, arrivalNode);
+    }
+
+    if (!departureNode.connections.includes(arrivalNode)) {
+      departureNode.connections.push(arrivalNode);
+    }
+
+    const flightNumber = flightNumberToString(flight.flightNumber, airline);
+    const parsedFlight = {
+      flightNumber: flightNumber,
+      departureAirport: departureNode,
+      arrivalAirport: arrivalNode,
+    } satisfies ParsedFlight;
+
+    if (departureNode.outgoingFlights.findIndex((v) => v.flightNumber === flightNumber) === -1) {
+      departureNode.outgoingFlights.push(parsedFlight);
+    }
+
+    if (arrivalNode.incomingFlights.findIndex((v) => v.flightNumber === flightNumber) === -1) {
+      arrivalNode.incomingFlights.push(parsedFlight);
+    }
+
+    processConnections(conn.outgoing, flights, airlines, airports, aircraft, airportNodes);
   }
 }
 
@@ -188,7 +177,7 @@ function AirportPopoverContent({ node }: { node: AirportNode }) {
           <ColumnLayout columns={Math.min(Math.max(node.incomingFlights.length, 1), 4)} variant={'text-grid'}>
             {...node.incomingFlights.map((v) => (
               <FlightLink flightNumber={v.flightNumber} target={'_blank'}>
-                {v.flightNumber}&nbsp;({v.departureAirport.airport.code})
+                {v.flightNumber}&nbsp;({airportToString(v.departureAirport.airport)})
               </FlightLink>
             ))}
           </ColumnLayout>
@@ -203,7 +192,7 @@ function AirportPopoverContent({ node }: { node: AirportNode }) {
           <ColumnLayout columns={Math.min(Math.max(node.outgoingFlights.length, 1), 4)} variant={'text-grid'}>
             {...node.outgoingFlights.map((v) => (
               <FlightLink flightNumber={v.flightNumber} target={'_blank'}>
-                {v.flightNumber}&nbsp;({v.arrivalAirport.airport.code})
+                {v.flightNumber}&nbsp;({airportToString(v.arrivalAirport.airport)})
               </FlightLink>
             ))}
           </ColumnLayout>

@@ -3,26 +3,66 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xsql"
+	"github.com/explore-flights/monorepo/go/common/xsync"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/gofrs/uuid/v5"
 	"golang.org/x/sync/errgroup"
+	"iter"
 	"strings"
 	"sync"
 	"time"
 )
 
-type FlightRepo struct {
-	db interface {
-		Conn(ctx context.Context) (*sql.Conn, error)
-	}
+type aircraftConfigurationsAdapter struct {
+	AirlineId      uuid.UUID
+	Configurations xsql.SQLArray[xsql.String, *xsql.String]
 }
 
-func NewFlightRepo(db *Database) *FlightRepo {
-	return &FlightRepo{
-		db: db,
+func (a *aircraftConfigurationsAdapter) Scan(src any) error {
+	configurationsRaw, ok := src.(map[string]any)
+	if !ok {
+		return fmt.Errorf("AircraftConfigurationsAdapter.Scan: expected map[string]any, got %T", src)
 	}
+
+	var airlineId uuid.UUID
+	var configurations xsql.SQLArray[xsql.String, *xsql.String]
+
+	if err := airlineId.Scan(configurationsRaw["airline_id"]); err != nil {
+		return err
+	}
+
+	if err := configurations.Scan(configurationsRaw["configurations"]); err != nil {
+		return err
+	}
+
+	*a = aircraftConfigurationsAdapter{
+		AirlineId:      airlineId,
+		Configurations: configurations,
+	}
+	return nil
+}
+
+type flightRepoDatabase interface {
+	Conn(ctx context.Context) (*sql.Conn, error)
+}
+
+type FlightRepo struct {
+	db       flightRepoDatabase
+	airlines *xsync.Preload[map[uuid.UUID]Airline]
+	airports *xsync.Preload[map[uuid.UUID]Airport]
+	aircraft *xsync.Preload[map[uuid.UUID]Aircraft]
+}
+
+func NewFlightRepo(db flightRepoDatabase) *FlightRepo {
+	fr := FlightRepo{db: db}
+	fr.airlines = xsync.NewPreload(fr.airlinesInternal)
+	fr.airports = xsync.NewPreload(fr.airportsInternal)
+	fr.aircraft = xsync.NewPreload(fr.aircraftInternal)
+
+	return &fr
 }
 
 func (fr *FlightRepo) Flights(ctx context.Context, start, end xtime.LocalDate) (map[xtime.LocalDate][]Flight, error) {
@@ -55,6 +95,11 @@ func (fr *FlightRepo) Flights(ctx context.Context, start, end xtime.LocalDate) (
 }
 
 func (fr *FlightRepo) Airlines(ctx context.Context) (map[uuid.UUID]Airline, error) {
+	return fr.airlines.Value(ctx)
+}
+
+func (fr *FlightRepo) airlinesInternal() (map[uuid.UUID]Airline, error) {
+	ctx := context.Background()
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -91,6 +136,11 @@ FROM airlines
 }
 
 func (fr *FlightRepo) Airports(ctx context.Context) (map[uuid.UUID]Airport, error) {
+	return fr.airports.Value(ctx)
+}
+
+func (fr *FlightRepo) airportsInternal() (map[uuid.UUID]Airport, error) {
+	ctx := context.Background()
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -147,6 +197,11 @@ FROM airports
 }
 
 func (fr *FlightRepo) Aircraft(ctx context.Context) (map[uuid.UUID]Aircraft, error) {
+	return fr.aircraft.Value(ctx)
+}
+
+func (fr *FlightRepo) aircraftInternal() (map[uuid.UUID]Aircraft, error) {
+	ctx := context.Background()
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -161,7 +216,21 @@ SELECT
     equip_code,
     name,
     ( SELECT identifier FROM aircraft_identifiers WHERE issuer = 'iata' AND aircraft_id = id ),
-    ( SELECT identifier FROM aircraft_identifiers WHERE issuer = 'icao' AND aircraft_id = id )
+    ( SELECT identifier FROM aircraft_identifiers WHERE issuer = 'icao' AND aircraft_id = id ),
+    COALESCE(
+    	(
+			SELECT ARRAY_AGG({'airline_id': sub.operating_airline_id, 'configurations': sub.aircraft_configuration_versions})
+			FROM (
+				SELECT
+					fv.operating_airline_id,
+					COALESCE(ARRAY_AGG(DISTINCT fv.aircraft_configuration_version), []) AS aircraft_configuration_versions
+				FROM flight_variants fv
+				WHERE fv.aircraft_id = aircraft.id
+				GROUP BY fv.operating_airline_id
+			) sub
+		),
+    	[]
+    )
 FROM aircraft
 `,
 	)
@@ -173,8 +242,16 @@ FROM aircraft
 	aircraft := make(map[uuid.UUID]Aircraft)
 	for rows.Next() {
 		var ac Aircraft
-		if err = rows.Scan(&ac.Id, &ac.EquipCode, &ac.Name, &ac.IataCode, &ac.IcaoCode); err != nil {
+		var configurationsRaw xsql.SQLArray[aircraftConfigurationsAdapter, *aircraftConfigurationsAdapter]
+		if err = rows.Scan(&ac.Id, &ac.EquipCode, &ac.Name, &ac.IataCode, &ac.IcaoCode, &configurationsRaw); err != nil {
 			return nil, err
+		}
+
+		ac.Configurations = make(map[uuid.UUID][]string)
+		for _, configurationRaw := range configurationsRaw {
+			for _, v := range configurationRaw.Configurations {
+				ac.Configurations[configurationRaw.AirlineId] = append(ac.Configurations[configurationRaw.AirlineId], string(v))
+			}
 		}
 
 		aircraft[ac.Id] = ac
@@ -250,6 +327,62 @@ LIMIT ?
 	}
 
 	return results, rows.Err()
+}
+
+func (fr *FlightRepo) IterFlightNumbers(ctx context.Context, airlineId uuid.UUID, outErr *error) iter.Seq2[FlightNumber, time.Time] {
+	return func(yield func(FlightNumber, time.Time) bool) {
+		conn, err := fr.db.Conn(ctx)
+		if err != nil {
+			*outErr = err
+			return
+		}
+		defer conn.Close()
+
+		rows, err := conn.QueryContext(
+			ctx,
+			`
+SELECT
+    fn.airline_id,
+    fn.number,
+    fn.suffix,
+    MAX(fvh.created_at)
+FROM flight_numbers fn
+INNER JOIN flight_variant_history fvh
+ON fn.airline_id = fvh.airline_id
+AND fn.number = fvh.number
+AND fn.suffix = fvh.suffix
+WHERE fn.airline_id = ?
+AND fvh.airline_id = ?
+GROUP BY fn.airline_id, fn.number, fn.suffix
+ORDER BY fn.airline_id ASC, fn.number ASC, fn.suffix ASC
+`,
+			airlineId,
+			airlineId,
+		)
+		if err != nil {
+			*outErr = err
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var flightNumber FlightNumber
+			var maxCreatedAt time.Time
+			if err = rows.Scan(&flightNumber.AirlineId, &flightNumber.Number, &flightNumber.Suffix, &maxCreatedAt); err != nil {
+				*outErr = err
+				return
+			}
+
+			if !yield(flightNumber, maxCreatedAt) {
+				break
+			}
+		}
+
+		if err = rows.Err(); err != nil {
+			*outErr = err
+			return
+		}
+	}
 }
 
 func (fr *FlightRepo) flightsInternal(ctx context.Context, d xtime.LocalDate) ([]Flight, error) {

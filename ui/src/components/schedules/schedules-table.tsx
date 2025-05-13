@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Header, Pagination, Table, TableProps } from '@cloudscape-design/components';
-import { Aircraft, Airport, Airports, FlightSchedule, FlightScheduleVariant } from '../../lib/api/api.model';
+import { Aircraft, Airport, FlightSchedule, FlightScheduleVariant } from '../../lib/api/api.model';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { FlightLink } from '../common/flight-link';
 import { DateTime } from 'luxon';
-import { useAircraft, useAirports } from '../util/state/data';
+import { Aircrafts, Airports, useAircrafts, useAirports } from '../util/state/data';
 import { AircraftConfigurationVersionText, AircraftText, AirportText } from '../common/text';
 
 interface Maybe<T> {
@@ -45,7 +45,7 @@ export interface SchedulesTableProps extends Omit<TableProps<ScheduleTableItem>,
 
 export function SchedulesTable({ title, items: rawItems, flightLinkQuery, columnDefinitions: providedColumnDefinitions, ...tableProps }: SchedulesTableProps) {
   const airportsQuery = useAirports();
-  const aircraftQuery = useAircraft();
+  const aircraftQuery = useAircrafts();
 
   const transformedItems = useMemo(
     () => transformSchedules(rawItems, airportsQuery.data, aircraftQuery.data),
@@ -201,10 +201,7 @@ function buildColumnDefinitions(flightLinkQuery?: (item: ScheduleTableItem) => U
   ];
 }
 
-function transformSchedules(schedules: ReadonlyArray<FlightSchedule>, airports: Airports, aircraft: ReadonlyArray<Aircraft>): ReadonlyArray<ScheduleTableItem> {
-  const airportLookup = buildAirportLookup(airports);
-  const aircraftLookup = buildAircraftLookup(aircraft);
-
+function transformSchedules(schedules: ReadonlyArray<FlightSchedule>, airports: Airports, aircraft: Aircrafts): ReadonlyArray<ScheduleTableItem> {
   const items: Array<ScheduleTableParentItem> = [];
 
   for (const schedule of schedules) {
@@ -216,8 +213,8 @@ function transformSchedules(schedules: ReadonlyArray<FlightSchedule>, airports: 
 
     for (const variant of schedule.variants) {
       const parentIdentifier = `${variant.data.departureAirport}-${variant.data.arrivalAirport}`;
-      const departureAirport = { raw: variant.data.departureAirport, value: airportLookup.get(variant.data.departureAirport) };
-      const arrivalAirport = { raw: variant.data.arrivalAirport, value: airportLookup.get(variant.data.arrivalAirport) };
+      const departureAirport = { raw: variant.data.departureAirport, value: airports.lookupByIata.get(variant.data.departureAirport) };
+      const arrivalAirport = { raw: variant.data.arrivalAirport, value: airports.lookupByIata.get(variant.data.arrivalAirport) };
 
       let parent = parents.get(parentIdentifier);
       if (!parent) {
@@ -243,7 +240,7 @@ function transformSchedules(schedules: ReadonlyArray<FlightSchedule>, airports: 
           departureAirport: departureAirport,
           arrivalAirport: arrivalAirport,
           operatingRange: operatingRange,
-          aircraft: { raw: variant.data.aircraftType, value: aircraftLookup.get(variant.data.aircraftType) },
+          aircraft: { raw: variant.data.aircraftType, value: aircraft.lookupByIata.get(variant.data.aircraftType) },
           aircraftConfigurationVersion: variant.data.aircraftConfigurationVersion,
           schedule: schedule,
           variant: variant,
@@ -273,32 +270,6 @@ function expandOperatingRange(acc: OperatingRange, other: OperatingRange) {
   }
 
   acc[2] += other[2];
-}
-
-function buildAirportLookup(airports: Airports): Map<string, Airport> {
-  const lookup = new Map<string, Airport>();
-
-  for (const airport of airports.airports) {
-    lookup.set(airport.code, airport);
-  }
-
-  for (const metroArea of airports.metropolitanAreas) {
-    for (const airport of metroArea.airports) {
-      lookup.set(airport.code, airport);
-    }
-  }
-
-  return lookup;
-}
-
-function buildAircraftLookup(aircraft: ReadonlyArray<Aircraft>): Map<string, Aircraft> {
-  const lookup = new Map<string, Aircraft>();
-
-  for (const a of aircraft) {
-    lookup.set(a.code, a);
-  }
-
-  return lookup;
 }
 
 function compareAll(...values: Array<number>): number {

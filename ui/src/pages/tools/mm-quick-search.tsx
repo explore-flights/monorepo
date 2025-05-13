@@ -20,7 +20,7 @@ import {
   Grid,
   Header, Input, Link, Select, SelectProps, Table
 } from '@cloudscape-design/components';
-import { AirportMultiselect } from '../../components/select/airport-multiselect';
+import { AirportMultiselect } from '../../components/select/airport-select';
 import { DateTime } from 'luxon';
 import { catchNotify, useAppControls } from '../../components/util/context/app-controls';
 import { useCollection } from '@cloudscape-design/collection-hooks';
@@ -29,6 +29,7 @@ import { useAirports } from '../../components/util/state/data';
 import { FlightLink } from '../../components/common/flight-link';
 import { withDepartureAirportFilter, withDepartureDateFilter } from '../flight';
 import { BulletSeperator, Join } from '../../components/common/join';
+import { AirportId } from '../../lib/api/api.model';
 
 const CABIN_OPTIONS = [
   {
@@ -72,14 +73,14 @@ export function MmQuickSearch() {
   const { notification } = useAppControls();
   const mmClient = useMemo(() => new MilesAndMoreClient(httpClient), [httpClient]);
 
-  const airportsQuery = useAirports();
+  const airportById = useAirports().data.lookupById;
 
   const [isLoading, setLoading] = useState(false);
   const [countryOfCommencement, setCountryOfCommencement] = useState('DE');
   const [currencyCode, setCurrencyCode] = useState('EUR');
   const [cabin, setCabin] = useState<SelectProps.Option>(CABIN_OPTIONS[2]);
-  const [origins, setOrigins] = useState<ReadonlyArray<string>>([]);
-  const [destinations, setDestinations] = useState<ReadonlyArray<string>>([]);
+  const [origins, setOrigins] = useState<ReadonlyArray<AirportId>>([]);
+  const [destinations, setDestinations] = useState<ReadonlyArray<AirportId>>([]);
   const [minDeparture, setMinDeparture] = useState<DateTime<true>>(DateTime.now().startOf('day'));
   const [maxDeparture, setMaxDeparture] = useState<DateTime<true>>(minDeparture.endOf('month'));
 
@@ -92,15 +93,25 @@ export function MmQuickSearch() {
       const fareFamily = cabin.value as FareFamily;
 
       for (const origin of origins) {
+        const originAirport = airportById.get(origin);
+        if (!originAirport || !originAirport.iataCode) {
+          continue
+        }
+
         for (const destination of destinations) {
+          const destinationAirport = airportById.get(destination);
+          if (!destinationAirport || !destinationAirport.iataCode) {
+            continue
+          }
+
           const promise = mmClient.getBestBy({
             mode: Mode.BEST_BY_DAY,
             fareFamily: fareFamily,
             travelers: [PassengerCode.ADULT],
             minDepartureDateTime: minDeparture,
             maxDepartureDateTime: maxDeparture,
-            origin: origin,
-            destination: destination,
+            origin: originAirport.iataCode,
+            destination: destinationAirport.iataCode,
             countryOfCommencement: countryOfCommencement,
             currencyCode: currencyCode,
           });
@@ -197,9 +208,7 @@ export function MmQuickSearch() {
 
               <FormField label={'Origin'}>
                 <AirportMultiselect
-                  airports={airportsQuery.data}
-                  selectedAirportCodes={origins}
-                  loading={airportsQuery.isLoading}
+                  selectedAirportIds={origins}
                   disabled={isLoading}
                   onChange={setOrigins}
                 />
@@ -207,9 +216,7 @@ export function MmQuickSearch() {
 
               <FormField label={'Destination'}>
                 <AirportMultiselect
-                  airports={airportsQuery.data}
-                  selectedAirportCodes={destinations}
-                  loading={airportsQuery.isLoading}
+                  selectedAirportIds={destinations}
                   disabled={isLoading}
                   onChange={setDestinations}
                 />

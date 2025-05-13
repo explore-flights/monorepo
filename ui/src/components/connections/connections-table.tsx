@@ -1,23 +1,29 @@
-import { Aircraft, Connection, Connections, Flight, FlightNumber } from '../../lib/api/api.model';
+import {
+  Aircraft, AircraftId,
+  Airline, AirlineId,
+  Airport, AirportId, ConnectionFlightResponse,
+  ConnectionResponse,
+  ConnectionsResponse,
+  FlightNumber
+} from '../../lib/api/api.model';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { Header, Pagination, Popover, Table } from '@cloudscape-design/components';
 import { DateTime } from 'luxon';
-import { flightNumberToString } from '../../lib/util/flight';
+import { airportToString, flightNumberToString } from '../../lib/util/flight';
 import { withDepartureAirportFilter, withDepartureDateFilter } from '../../pages/flight';
 import { FlightLink } from '../common/flight-link';
 import { BulletSeperator, Join } from '../common/join';
 
 interface ConnectionsTableBaseItem {
-  readonly flightNumber?: FlightNumber;
+  readonly flightNumber?: [Airline, FlightNumber];
   readonly departureTime: DateTime<true>;
-  readonly departureAirport: string;
+  readonly departureAirport: Airport;
   readonly arrivalTime: DateTime<true>;
-  readonly arrivalAirport: string;
+  readonly arrivalAirport: Airport;
   readonly aircraftOwner?: string;
-  readonly aircraftType?: string;
-  readonly registration?: string;
-  readonly codeShares?: ReadonlyArray<FlightNumber>;
+  readonly aircraft?: Aircraft;
+  readonly codeShares?: ReadonlyArray<[Airline, FlightNumber]>;
   readonly children?: ReadonlyArray<ConnectionsTableChildItem>;
 }
 
@@ -31,23 +37,25 @@ interface ConnectionsTableParentItem extends ConnectionsTableBaseItem {
 }
 
 interface ConnectionsTableChildItem extends ConnectionsTableBaseItem {
-  readonly flightNumber: FlightNumber;
+  readonly flightNumber: [Airline, FlightNumber];
   readonly aircraftOwner: string;
-  readonly aircraftType: string;
+  readonly aircraft: Aircraft;
   readonly registration?: string;
-  readonly codeShares: ReadonlyArray<FlightNumber>;
+  readonly codeShares: ReadonlyArray<[Airline, FlightNumber]>;
   readonly children: undefined;
 }
 
 type ConnectionsTableItem = ConnectionsTableParentItem | ConnectionsTableChildItem;
 
 export interface ConnectionsTableProps {
-  connections: Connections;
-  aircraftLookup?: Record<string, Aircraft>;
+  connections: ConnectionsResponse;
 }
 
-export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTableProps) {
-  const rawItems = useMemo(() => connectionsToTableItems(connections.connections, connections.flights), [connections]);
+export function ConnectionsTable({ connections }: ConnectionsTableProps) {
+  const rawItems = useMemo(
+    () => connectionsToTableItems(connections.connections, connections.flights, connections.airlines, connections.airports, connections.aircraft),
+    [connections]
+  );
   const { items, collectionProps, paginationProps } = useCollection(rawItems, {
     sorting: {
       defaultState: {
@@ -80,9 +88,11 @@ export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTab
 
             let query = new URLSearchParams();
             query = withDepartureDateFilter(query, v.departureTime);
-            query = withDepartureAirportFilter(query, v.departureAirport);
+            if (v.departureAirport.iataCode) {
+              query = withDepartureAirportFilter(query, v.departureAirport.iataCode);
+            }
 
-            return <FlightLink flightNumber={flightNumberToString(v.flightNumber)} query={query} target={'_blank'} />;
+            return <FlightLink flightNumber={flightNumberToString(v.flightNumber[1], v.flightNumber[0])} query={query} target={'_blank'} />;
           },
         },
         {
@@ -94,7 +104,7 @@ export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTab
         {
           id: 'departure_airport',
           header: 'Departure Airport',
-          cell: (v) => v.departureAirport,
+          cell: (v) => airportToString(v.departureAirport),
           sortingField: 'departureAirport',
         },
         {
@@ -106,7 +116,7 @@ export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTab
         {
           id: 'arrival_airport',
           header: 'Arrival Airport',
-          cell: (v) => v.arrivalAirport,
+          cell: (v) => airportToString(v.arrivalAirport),
           sortingField: 'arrivalAirport',
         },
         {
@@ -129,8 +139,8 @@ export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTab
           id: 'aircraft_type',
           header: 'Aircraft Type',
           cell: (v) => (
-            v.aircraftType
-              ? <AircraftType aircraftType={v.aircraftType} aircraft={aircraftLookup ? aircraftLookup[v.aircraftType] : undefined} />
+            v.aircraft
+              ? <AircraftType aircraftType={v.aircraft.iataCode ?? v.aircraft.id} aircraft={v.aircraft} />
               : undefined
           ),
         },
@@ -149,12 +159,14 @@ export function ConnectionsTable({ connections, aircraftLookup }: ConnectionsTab
 
             let query = new URLSearchParams();
             query = withDepartureDateFilter(query, v.departureTime);
-            query = withDepartureAirportFilter(query, v.departureAirport);
+            if (v.departureAirport.iataCode) {
+              query = withDepartureAirportFilter(query, v.departureAirport.iataCode);
+            }
 
             return (
               <Join
                 seperator={BulletSeperator}
-                items={v.codeShares.map((v) => <FlightLink flightNumber={flightNumberToString(v)} query={query} target={'_blank'} />)}
+                items={v.codeShares.map(([csAirline, csFn]) => <FlightLink flightNumber={flightNumberToString(csFn, csAirline)} query={query} target={'_blank'} />)}
               />
             );
           },
@@ -196,10 +208,17 @@ function AircraftType({ aircraftType, aircraft }: { aircraftType: string, aircra
   );
 }
 
-function connectionsToTableItems(connections: ReadonlyArray<Connection>, flights: Record<string, Flight>): ReadonlyArray<ConnectionsTableItem> {
+function connectionsToTableItems(
+  connections: ReadonlyArray<ConnectionResponse>,
+  flights: Record<string, ConnectionFlightResponse>,
+  airlines: Record<AirlineId, Airline>,
+  airports: Record<AirportId, Airport>,
+  aircraft: Record<AircraftId, Aircraft>,
+): ReadonlyArray<ConnectionsTableItem> {
+
   const result: Array<ConnectionsTableItem> = [];
 
-  for (const expanded of expandConnections(connections, flights)) {
+  for (const expanded of expandConnections(connections, flights, airlines, airports, aircraft)) {
     if (expanded.length === 1) {
       result.push(expanded[0]);
     } else if (expanded.length > 1) {
@@ -224,7 +243,14 @@ function connectionsToTableItems(connections: ReadonlyArray<Connection>, flights
   return result;
 }
 
-function expandConnections(conns: ReadonlyArray<Connection>, flights: Record<string, Flight>): ReadonlyArray<ReadonlyArray<ConnectionsTableChildItem>> {
+function expandConnections(
+  conns: ReadonlyArray<ConnectionResponse>,
+  flights: Record<string, ConnectionFlightResponse>,
+  airlines: Record<AirlineId, Airline>,
+  airports: Record<AirportId, Airport>,
+  aircraft: Record<AircraftId, Aircraft>,
+): ReadonlyArray<ReadonlyArray<ConnectionsTableChildItem>> {
+
   const result: Array<ReadonlyArray<ConnectionsTableChildItem>> = [];
   for (const conn of conns) {
     const flight = flights[conn.flightId];
@@ -234,28 +260,40 @@ function expandConnections(conns: ReadonlyArray<Connection>, flights: Record<str
       throw new Error(`invalid departureTime/arrivalTime: ${flight.departureTime} / ${flight.arrivalTime}`);
     }
 
-    const item = {
-      flightNumber: flight.flightNumber,
-      departureTime: departureTime,
-      departureAirport: flight.departureAirport,
-      arrivalTime: arrivalTime,
-      arrivalAirport: flight.arrivalAirport,
-      aircraftOwner: flight.aircraftOwner,
-      aircraftType: flight.aircraftType,
-      registration: flight.registration,
-      codeShares: flight.codeShares,
-      children: undefined,
-    } satisfies ConnectionsTableChildItem;
+    const airline = airlines[flight.flightNumber.airlineId];
+    const departureAirport = airports[flight.departureAirportId];
+    const arrivalAirport = airports[flight.arrivalAirportId];
+    const ac = aircraft[flight.aircraftId];
+    const codeShares: Array<[Airline, FlightNumber]> = [];
 
-    if (conn.outgoing.length > 0) {
-      for (const expanded of expandConnections(conn.outgoing, flights)) {
-        result.push([
-          { ...item } satisfies ConnectionsTableChildItem,
-          ...expanded,
-        ]);
+    for (const fn of flight.codeShares) {
+      codeShares.push([airlines[fn.airlineId], fn]);
+    }
+
+    if (airline && departureAirport && arrivalAirport && aircraft) {
+      const item = {
+        flightNumber: [airline, flight.flightNumber],
+        departureTime: departureTime,
+        departureAirport: departureAirport,
+        arrivalTime: arrivalTime,
+        arrivalAirport: arrivalAirport,
+        aircraftOwner: flight.aircraftOwner,
+        aircraft: ac,
+        registration: flight.aircraftRegistration,
+        codeShares: codeShares,
+        children: undefined,
+      } satisfies ConnectionsTableChildItem;
+
+      if (conn.outgoing.length > 0) {
+        for (const expanded of expandConnections(conn.outgoing, flights, airlines, airports, aircraft)) {
+          result.push([
+            item,
+            ...expanded,
+          ]);
+        }
+      } else {
+        result.push([item]);
       }
-    } else {
-      result.push([item]);
     }
   }
 

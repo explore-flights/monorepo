@@ -14,16 +14,16 @@ import (
 	"strings"
 )
 
-type flightNumberSearchRepo interface {
+type searchHandlerRepo interface {
 	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
 	FindFlightNumbers(ctx context.Context, query string, limit int) ([]db.FlightNumber, error)
 }
 
 type SearchHandler struct {
-	repo flightNumberSearchRepo
+	repo searchHandlerRepo
 }
 
-func NewSearchHandler(repo flightNumberSearchRepo) *SearchHandler {
+func NewSearchHandler(repo searchHandlerRepo) *SearchHandler {
 	return &SearchHandler{repo: repo}
 }
 
@@ -95,12 +95,7 @@ func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, map[uuid.
 
 		if added.Add(fn.AirlineId) {
 			if airline, ok := airlines[fn.AirlineId]; ok {
-				resp.Airlines = append(resp.Airlines, model.Airline{
-					Id:       model.UUID(airline.Id),
-					Name:     airline.Name.String,
-					IataCode: airline.IataCode.String,
-					IcaoCode: airline.IcaoCode.String,
-				})
+				resp.Airlines = append(resp.Airlines, model.AirlineFromDb(airline))
 			}
 		}
 	}

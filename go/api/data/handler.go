@@ -1,7 +1,6 @@
 package data
 
 import (
-	"cmp"
 	"compress/gzip"
 	"context"
 	"encoding/csv"
@@ -19,7 +18,6 @@ import (
 	"io"
 	"iter"
 	"log/slog"
-	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -28,117 +26,6 @@ import (
 )
 
 var ErrSeatMapFreshFetchRequired = errors.New("fresh fetch required but not allowed")
-
-var metroAreaMapping = map[string][2]string{
-	// region Asia
-	"PEK": {"BJS", "Beijing, China"},
-	"PKX": {"BJS", "Beijing, China"},
-
-	"CGK": {"JKT", "Jakarta, Indonesia"},
-	"HLP": {"JKT", "Jakarta, Indonesia"},
-
-	"KIX": {"OSA", "Osaka, Japan"},
-	"ITM": {"OSA", "Osaka, Japan"},
-
-	"CTS": {"SPK", "Sapporo, Japan"},
-	"OKD": {"SPK", "Sapporo, Japan"},
-
-	"ICN": {"SEL", "Seoul, South Korea"},
-	"GMP": {"SEL", "Seoul, South Korea"},
-
-	"NRT": {"TYO", "Tokyo, Japan"},
-	"HND": {"TYO", "Tokyo, Japan"},
-	// endregion
-	// region Europe
-	"BER": {"BER", "Berlin, Germany"},
-
-	"OTP": {"BUH", "Bucharest, Romania"},
-	"BBU": {"BUH", "Bucharest, Romania"},
-
-	"BSL": {"EAP", "Basel, Switzerland & Mulhouse, France"},
-	"MLH": {"EAP", "Basel, Switzerland & Mulhouse, France"},
-
-	"BQH": {"LON", "London, United Kingdom"},
-	"LCY": {"LON", "London, United Kingdom"},
-	"LGW": {"LON", "London, United Kingdom"},
-	"LTN": {"LON", "London, United Kingdom"},
-	"LHR": {"LON", "London, United Kingdom"},
-	"ZLS": {"LON", "London, United Kingdom"},
-	"QQP": {"LON", "London, United Kingdom"},
-	"QQS": {"LON", "London, United Kingdom"},
-	"SEN": {"LON", "London, United Kingdom"},
-	"STN": {"LON", "London, United Kingdom"},
-	"ZEP": {"LON", "London, United Kingdom"},
-	"QQW": {"LON", "London, United Kingdom"},
-
-	"MXP": {"MIL", "Milan, Italy"},
-	"LIN": {"MIL", "Milan, Italy"},
-
-	"SVO": {"MOW", "Moscow, Russia"},
-	"DME": {"MOW", "Moscow, Russia"},
-	"VKO": {"MOW", "Moscow, Russia"},
-
-	"CDG": {"PAR", "Paris, France"},
-	"ORY": {"PAR", "Paris, France"},
-	"LBG": {"PAR", "Paris, France"},
-
-	"FCO": {"ROM", "Rome, Italy"},
-	"CIA": {"ROM", "Rome, Italy"},
-
-	"ARN": {"STO", "Stockholm, Sweden"},
-	"NYO": {"STO", "Stockholm, Sweden"},
-	"BMA": {"STO", "Stockholm, Sweden"},
-	// endregion
-	// region NA
-	"ORD": {"CHI", "Chicago, USA"},
-	"MDW": {"CHI", "Chicago, USA"},
-
-	"DTW": {"DTT", "Detroit, USA"},
-	"YIP": {"DTT", "Detroit, USA"},
-
-	"IAH": {"QHO", "Houston, USA"},
-	"HOU": {"QHO", "Houston, USA"},
-
-	"LAX": {"QLA", "Los Angeles, USA"},
-	"ONT": {"QLA", "Los Angeles, USA"},
-	"SNA": {"QLA", "Los Angeles, USA"},
-	"BUR": {"QLA", "Los Angeles, USA"},
-
-	"MIA": {"QMI", "Miami, USA"},
-	"FLL": {"QMI", "Miami, USA"},
-	"PBI": {"QMI", "Miami, USA"},
-
-	"YUL": {"YMQ", "Montreal, Canada"},
-	"YMY": {"YMQ", "Montreal, Canada"},
-
-	"JFK": {"NYC", "New York City, USA"},
-	"EWR": {"NYC", "New York City, USA"},
-	"LGA": {"NYC", "New York City, USA"},
-	"HPN": {"NYC", "New York City, USA"},
-
-	"SFO": {"QSF", "San Francisco Bay Area, USA"},
-	"OAK": {"QSF", "San Francisco Bay Area, USA"},
-	"SJC": {"QSF", "San Francisco Bay Area, USA"},
-
-	"YYZ": {"YTO", "Toronto, Canada"},
-	"YTZ": {"YTO", "Toronto, Canada"},
-
-	"IAD": {"WAS", "Washington DC, USA"},
-	"DCA": {"WAS", "Washington DC, USA"},
-	"BWI": {"WAS", "Washington DC, USA"},
-	// endregion
-	// region SA
-	"EZE": {"BUE", "Buenos Aires, Argentina"},
-	"AEP": {"BUE", "Buenos Aires, Argentina"},
-
-	"GIG": {"RIO", "Rio de Janeiro, Brazil"},
-	"SDU": {"RIO", "Rio de Janeiro, Brazil"},
-
-	"GRU": {"SAO", "São Paulo, Brazil"},
-	"CGH": {"SAO", "São Paulo, Brazil"},
-	"VCP": {"SAO", "São Paulo, Brazil"},
-	// endregion
-}
 
 type AirportsResponse struct {
 	Airports          []Airport          `json:"airports"`
@@ -187,151 +74,6 @@ func NewHandler(s3c MinimalS3Client, lhc *lufthansa.Client, db *db.Database, buc
 	}
 }
 
-func (h *Handler) Airports(ctx context.Context) (AirportsResponse, error) {
-	conn, err := h.db.Conn(ctx)
-	if err != nil {
-		return AirportsResponse{}, err
-	}
-	defer conn.Close()
-
-	rows, err := conn.QueryContext(
-		ctx,
-		`
-SELECT
-    COALESCE(country_code, ''),
-    COALESCE(city_code, ''),
-    COALESCE(type, ''),
-    COALESCE(lng, 0.0),
-    COALESCE(lat, 0.0),
-    COALESCE(timezone, ''),
-    COALESCE(name, ''),
-    COALESCE(
-        (
-            SELECT identifier
-            FROM airport_identifiers
-            WHERE airport_id = id
-            AND issuer = 'iata'
-        ),
-    	''
-    ),
-    COALESCE(
-        (
-            SELECT identifier
-            FROM airport_identifiers
-            WHERE airport_id = id
-            AND issuer = 'icao'
-        ),
-    	''
-    )
-FROM airports
-`,
-	)
-	if err != nil {
-		return AirportsResponse{}, err
-	}
-	defer rows.Close()
-
-	metroAreas := make(map[string]MetropolitanArea)
-	resp := AirportsResponse{
-		Airports:          make([]Airport, 0),
-		MetropolitanAreas: make([]MetropolitanArea, 0),
-	}
-
-	for rows.Next() {
-		var countryCode string
-		var cityCode string
-		var apType string
-		var lng float64
-		var lat float64
-		var timezone string
-		var name string
-		var iataCode string
-		var icaoCode string
-
-		err = rows.Scan(
-			&countryCode,
-			&cityCode,
-			&apType,
-			&lng,
-			&lat,
-			&timezone,
-			&name,
-			&iataCode,
-			&icaoCode,
-		)
-		if err != nil {
-			return AirportsResponse{}, err
-		}
-
-		name = cmp.Or(name, iataCode)
-		if iataCode != "" {
-			airport := Airport{
-				Code: iataCode,
-				Name: name,
-				Lat:  lat,
-				Lng:  lng,
-			}
-
-			if metroAreaValues, ok := metroAreaMapping[airport.Code]; ok {
-				metroArea := metroAreas[metroAreaValues[0]]
-				metroArea.Code = metroAreaValues[0]
-				metroArea.Name = metroAreaValues[1]
-				metroArea.Airports = append(metroArea.Airports, airport)
-
-				metroAreas[metroArea.Code] = metroArea
-			} else {
-				resp.Airports = append(resp.Airports, airport)
-			}
-		}
-	}
-
-	resp.MetropolitanAreas = slices.Collect(maps.Values(metroAreas))
-
-	return resp, nil
-}
-
-func (h *Handler) Aircraft(ctx context.Context) ([]Aircraft, error) {
-	var relevantAircraft map[string]common.Set[string]
-	if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/aircraft.json", &relevantAircraft); err != nil {
-		return nil, err
-	}
-
-	var aircraft []lufthansa.Aircraft
-	if err := adapt.S3GetJson(ctx, h.s3c, h.bucket, "raw/LH_Public_Data/aircraft.json", &aircraft); err != nil {
-		return nil, err
-	}
-
-	result := make([]Aircraft, 0, len(aircraft))
-	for _, a := range aircraft {
-		configurations, ok := relevantAircraft[a.AircraftCode]
-		if !ok {
-			continue
-		}
-
-		delete(relevantAircraft, a.AircraftCode)
-
-		result = append(result, Aircraft{
-			Code:           a.AircraftCode,
-			EquipCode:      a.AirlineEquipCode,
-			Name:           findName(a.Names, "EN"),
-			Configurations: configurations,
-		})
-	}
-
-	for code, configurations := range relevantAircraft {
-		slog.WarnContext(ctx, "no data found for aircraft", slog.String("code", code))
-
-		result = append(result, Aircraft{
-			Code:           code,
-			EquipCode:      "",
-			Name:           code,
-			Configurations: configurations,
-		})
-	}
-
-	return result, nil
-}
-
 func (h *Handler) FlightSchedule(ctx context.Context, fn common.FlightNumber) (*common.FlightSchedule, error) {
 	var fs *common.FlightSchedule
 	err := h.flightSchedulesStream(ctx, fn.Airline, func(seq iter.Seq2[string, *onceIter[*common.FlightSchedule]]) error {
@@ -371,41 +113,6 @@ func (h *Handler) Flight(ctx context.Context, fn common.FlightNumber, departureD
 	}
 
 	return nil, lastModified, nil
-}
-
-func (h *Handler) FlightNumbers(ctx context.Context, prefix string, limit int) ([]common.FlightNumber, error) {
-	var fns []common.FlightNumber
-	{
-		fnsRaw, err := h.FlightNumbersRaw(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		if prefix != "" {
-			maps.DeleteFunc(fnsRaw, func(fn common.FlightNumber, _ time.Time) bool {
-				return !strings.HasPrefix(fn.String(), prefix)
-			})
-		}
-
-		fns = slices.SortedFunc(maps.Keys(fnsRaw), func(a, b common.FlightNumber) int {
-			return cmp.Or(
-				cmp.Compare(a.Airline, b.Airline),
-				cmp.Compare(a.Number, b.Number),
-				cmp.Compare(a.Suffix, b.Suffix),
-			)
-		})
-	}
-
-	if limit < 1 {
-		limit = len(fns)
-	}
-
-	return fns[:min(limit, len(fns))], nil
-}
-
-func (h *Handler) FlightNumbersRaw(ctx context.Context) (map[common.FlightNumber]time.Time, error) {
-	var fns map[common.FlightNumber]time.Time
-	return fns, adapt.S3GetJson(ctx, h.s3c, h.bucket, "processed/metadata/flightNumbers.json", &fns)
 }
 
 func (h *Handler) Airlines(ctx context.Context, prefix string) ([]common.AirlineIdentifier, error) {

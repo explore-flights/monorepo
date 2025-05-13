@@ -66,7 +66,7 @@ func main() {
 	{
 		group := e.Group("/api")
 
-		connWebHandler := web.NewConnectionsHandler(connHandler)
+		connWebHandler := web.NewConnectionsHandler(fr, connHandler)
 		group.POST("/connections/json", connWebHandler.ConnectionsJSON)
 		group.GET("/connections/json/:payload", connWebHandler.ConnectionsJSON)
 		group.POST("/connections/png", connWebHandler.ConnectionsPNG)
@@ -77,7 +77,7 @@ func main() {
 		searchHandler := web.NewSearchHandler(fr)
 		group.GET("/search", searchHandler.Search)
 
-		group.GET("/schedule/search", web.NewQueryFlightSchedulesEndpoint(dataHandler))
+		group.GET("/schedule/search", web.NewQueryFlightSchedulesEndpoint(fr, dataHandler))
 
 		notificationHandler := web.NewNotificationHandler(versionTxtPath())
 		group.GET("/notifications", notificationHandler.Notifications)
@@ -96,10 +96,9 @@ func main() {
 		group := e.Group("/data")
 
 		dh := web.NewDataHandler(fr, dataHandler)
-		group.GET("/sitemap.xml", web.NewSitemapHandler(dataHandler))
 		group.GET("/airlines.json", dh.Airlines)
-		group.GET("/airports.json", web.NewAirportsEndpoint(dataHandler))
-		group.GET("/aircraft.json", web.NewAircraftEndpoint(dataHandler))
+		group.GET("/airports.json", dh.Airports)
+		group.GET("/aircraft.json", dh.Aircraft)
 		group.GET("/flight/:fn", dh.FlightSchedule)
 		group.GET("/flight/:fn/seatmap/:departure/:arrival/:date/:aircraft", web.NewSeatMapEndpoint(dataHandler))
 		group.GET("/:airline/schedule/:aircraftType/:aircraftConfigurationVersion/v3", web.NewFlightSchedulesByConfigurationEndpoint(dataHandler))
@@ -109,6 +108,10 @@ func main() {
 		group.GET("/allegris/feed.atom", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".atom"))
 		// group.GET("/allegris/v2/feed.rss", web.NewAllegrisUpdateFeedEndpointV2(database, ".rss"))
 		// group.GET("/allegris/v2/feed.atom", web.NewAllegrisUpdateFeedEndpointV2(database, ".atom"))
+
+		sitemapHandler := web.NewSitemapHandler(fr)
+		group.GET("/sitemap.xml", sitemapHandler.SitemapIndex)
+		group.GET("/sitemap/:airlineId/sitemap.xml", sitemapHandler.SitemapAirline)
 	}
 
 	if err := run(ctx, e); err != nil {

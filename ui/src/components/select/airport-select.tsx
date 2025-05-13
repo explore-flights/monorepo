@@ -1,79 +1,35 @@
-import { Airports } from '../../lib/api/api.model';
 import React, { useMemo, useState } from 'react';
-import { Select, SelectProps } from '@cloudscape-design/components';
+import { Multiselect, MultiselectProps, Select, SelectProps } from '@cloudscape-design/components';
+import { Airport, AirportId } from '../../lib/api/api.model';
+import { useAirports } from '../util/state/data';
 
 export interface AirportSelectProps {
-  airports: Airports;
-  selectedAirportCode: string | null;
-  loading: boolean;
+  selectedAirportId: AirportId | null;
   disabled: boolean;
-  onChange: (value: string | null) => void;
+  onChange: (value: AirportId | null) => void;
   placeholder?: string;
 }
 
-export function AirportSelect({ airports, selectedAirportCode, loading, disabled, onChange, placeholder }: AirportSelectProps) {
+export function AirportSelect({ selectedAirportId, disabled, onChange, placeholder }: AirportSelectProps) {
+  const { data, isLoading: loading } = useAirports();
+  const [options, optionByAirportId] = useAirportOptions(data.airports);
+
   const [filterText, setFilterText] = useState('');
-  const [options, optionByAirportCode] = useMemo(() => {
-    const options: Array<SelectProps.Option | SelectProps.OptionGroup> = [];
-    const optionByAirportCode: Record<string, SelectProps.Option> = {};
-
-    for (const airport of airports.airports) {
-      const option = {
-        label: airport.code,
-        value: airport.code,
-        description: airport.name,
-      } satisfies SelectProps.Option;
-
-      options.push(option);
-      optionByAirportCode[airport.code] = option;
-    }
-
-    for (const metroArea of airports.metropolitanAreas) {
-      const airportOptions: Array<SelectProps.Option> = [];
-
-      for (const airport of metroArea.airports) {
-        const option = {
-          label: airport.code,
-          value: airport.code,
-          description: airport.name,
-        } satisfies SelectProps.Option;
-
-        airportOptions.push(option);
-        optionByAirportCode[airport.code] = option;
-      }
-
-      options.push({
-        label: metroArea.code,
-        description: metroArea.name,
-        options: airportOptions,
-      });
-    }
-
-    return [options, optionByAirportCode];
-  }, [airports]);
-
-  const displayOptions = useMemo(() => {
-    const filter = filterText.trim();
-    if (filter === '') {
-      return options;
-    }
-
-    return filterOptions(filter.toUpperCase(), options)[0];
-  }, [filterText, options]);
+  const displayOptions = useFilteredOptions(filterText, options);
 
   const selectedOption = useMemo(() => {
-    if (!selectedAirportCode) {
+    if (!selectedAirportId) {
       return null;
     }
 
-    return optionByAirportCode[selectedAirportCode];
-  }, [optionByAirportCode, selectedAirportCode]);
+    return optionByAirportId[selectedAirportId];
+  }, [optionByAirportId, selectedAirportId]);
 
   return (
     <Select
       options={displayOptions}
       selectedOption={selectedOption}
-      onChange={(e) => onChange(e.detail.selectedOption?.value ?? null)}
+      onChange={(e) => onChange((e.detail.selectedOption?.value as AirportId) ?? null)}
       virtualScroll={true}
       disabled={disabled}
       statusType={loading ? 'loading' : 'finished'}
@@ -84,7 +40,122 @@ export function AirportSelect({ airports, selectedAirportCode, loading, disabled
   );
 }
 
-function filterOptions(filter: string, options: ReadonlyArray<SelectProps.Option | SelectProps.OptionGroup>): [ReadonlyArray<SelectProps.Option | SelectProps.OptionGroup>, boolean] {
+export interface AirportMultiselectProps {
+  selectedAirportIds: ReadonlyArray<AirportId>;
+  rawSelectedAirports?: ReadonlyArray<string>;
+  disabled: boolean;
+  onChange: (options: ReadonlyArray<AirportId>) => void;
+}
+
+export function AirportMultiselect({ selectedAirportIds, rawSelectedAirports, disabled, onChange }: AirportMultiselectProps) {
+  const { data, isLoading: loading } = useAirports();
+  const [options, optionByAirportId] = useAirportOptions(data.airports);
+
+  const [filterText, setFilterText] = useState('');
+  const displayOptions = useFilteredOptions(filterText, options);
+
+  const selectedOptions = useMemo(() => {
+    const result: Array<MultiselectProps.Option> = [];
+    for (const airportId of selectedAirportIds) {
+      const option = optionByAirportId[airportId];
+      if (option) {
+        result.push(option);
+      }
+    }
+
+    if (rawSelectedAirports) {
+      for (const maybeAirportId of rawSelectedAirports) {
+        const option = optionByAirportId[maybeAirportId as AirportId];
+        if (option) {
+          result.push(option);
+        }
+      }
+    }
+
+    return result;
+  }, [optionByAirportId, selectedAirportIds, rawSelectedAirports]);
+
+  return (
+    <Multiselect
+      options={displayOptions}
+      selectedOptions={selectedOptions}
+      onChange={(e) => onChange(e.detail.selectedOptions.flatMap((v) => v.value ? [v.value as AirportId] : []))}
+      keepOpen={true}
+      virtualScroll={true}
+      tokenLimit={2}
+      disabled={disabled}
+      statusType={loading ? 'loading' : 'finished'}
+      filteringType={'manual'}
+      onLoadItems={(e) => setFilterText(e.detail.filteringText)}
+    />
+  );
+}
+
+type CommonOption = SelectProps.Option & MultiselectProps.Option;
+type CommonOptionGroup = SelectProps.OptionGroup & MultiselectProps.OptionGroup;
+function useAirportOptions(airports: ReadonlyArray<Airport>): [ReadonlyArray<CommonOption | CommonOptionGroup>, Record<AirportId, CommonOption>] {
+  return useMemo(() => {
+    const options: Array<CommonOption | CommonOptionGroup> = [];
+    const optionByAirportId: Record<AirportId, CommonOption> = {};
+    const areaCodeOptions: Record<string, Array<CommonOption>> = {};
+
+    for (const airport of airports) {
+      const tags: Array<string> = [];
+      if (airport.countryCode) {
+        tags.push(airport.countryCode);
+      }
+
+      if (airport.cityCode) {
+        tags.push(airport.cityCode);
+      }
+
+      if (airport.icaoCode) {
+        tags.push(airport.icaoCode);
+      }
+
+      const option = {
+        label: airport.iataCode ?? airport.icaoCode ?? airport.name ?? airport.id,
+        description: airport.name,
+        tags: tags,
+        value: airport.id,
+      } satisfies CommonOption;
+
+      if (airport.iataAreaCode) {
+        if (!areaCodeOptions[airport.iataAreaCode]) {
+          areaCodeOptions[airport.iataAreaCode] = [];
+        }
+
+        areaCodeOptions[airport.iataAreaCode].push(option);
+      } else {
+        options.push(option);
+      }
+
+      optionByAirportId[airport.id] = option;
+    }
+
+    for (const [areaCode, childOptions] of Object.entries(areaCodeOptions)) {
+      options.push({
+        label: areaCode,
+        options: childOptions,
+      } satisfies CommonOptionGroup);
+    }
+
+    return [options, optionByAirportId];
+  }, [airports]);
+}
+
+function useFilteredOptions(filterText: string, options: ReadonlyArray<CommonOption | CommonOptionGroup>): ReadonlyArray<CommonOption | CommonOptionGroup> {
+  return useMemo(() => {
+    const filter = filterText.trim();
+    if (filter === '') {
+      return options;
+    }
+
+    return filterOptions(filter.toUpperCase(), options)[0];
+  }, [filterText, options]);
+}
+
+function filterOptions(filter: string, options: ReadonlyArray<CommonOption | CommonOptionGroup>): [ReadonlyArray<CommonOption | CommonOptionGroup>, boolean] {
   const matchByLabel: Array<SelectProps.Option | SelectProps.OptionGroup> = [];
   const matchByDescription: Array<SelectProps.Option | SelectProps.OptionGroup> = [];
 
@@ -122,6 +193,6 @@ function filterOptions(filter: string, options: ReadonlyArray<SelectProps.Option
   return [[...matchByLabel, ...matchByDescription], matchByLabel.length > 0];
 }
 
-function isOptionGroup(option: SelectProps.Option | SelectProps.OptionGroup): option is SelectProps.OptionGroup {
+function isOptionGroup(option: CommonOption | CommonOptionGroup): option is CommonOptionGroup {
   return !!(option as SelectProps.OptionGroup).options;
 }
