@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Multiselect, MultiselectProps, Select, SelectProps } from '@cloudscape-design/components';
 import { Airport, AirportId } from '../../lib/api/api.model';
 import { useAirports } from '../util/state/data';
+import { useDebounce } from '../util/state/use-debounce';
 
 export interface AirportSelectProps {
   selectedAirportId: AirportId | null;
@@ -15,7 +16,7 @@ export function AirportSelect({ selectedAirportId, disabled, onChange, placehold
   const [options, optionByAirportId] = useAirportOptions(data.airports);
 
   const [filterText, setFilterText] = useState('');
-  const displayOptions = useFilteredOptions(filterText, options);
+  const [filterLoading, displayOptions] = useFilteredOptions(useDebounce(filterText, 250), options);
 
   const selectedOption = useMemo(() => {
     if (!selectedAirportId) {
@@ -32,7 +33,7 @@ export function AirportSelect({ selectedAirportId, disabled, onChange, placehold
       onChange={(e) => onChange((e.detail.selectedOption?.value as AirportId) ?? null)}
       virtualScroll={true}
       disabled={disabled}
-      statusType={loading ? 'loading' : 'finished'}
+      statusType={(loading || filterLoading) ? 'loading' : 'finished'}
       filteringType={'manual'}
       onLoadItems={(e) => setFilterText(e.detail.filteringText)}
       placeholder={placeholder}
@@ -52,7 +53,7 @@ export function AirportMultiselect({ selectedAirportIds, rawSelectedAirports, di
   const [options, optionByAirportId] = useAirportOptions(data.airports);
 
   const [filterText, setFilterText] = useState('');
-  const displayOptions = useFilteredOptions(filterText, options);
+  const [filterLoading, displayOptions] = useFilteredOptions(useDebounce(filterText, 250), options);
 
   const selectedOptions = useMemo(() => {
     const result: Array<MultiselectProps.Option> = [];
@@ -84,7 +85,7 @@ export function AirportMultiselect({ selectedAirportIds, rawSelectedAirports, di
       virtualScroll={true}
       tokenLimit={2}
       disabled={disabled}
-      statusType={loading ? 'loading' : 'finished'}
+      statusType={(loading || filterLoading) ? 'loading' : 'finished'}
       filteringType={'manual'}
       onLoadItems={(e) => setFilterText(e.detail.filteringText)}
     />
@@ -144,19 +145,32 @@ function useAirportOptions(airports: ReadonlyArray<Airport>): [ReadonlyArray<Com
   }, [airports]);
 }
 
-function useFilteredOptions(filterText: string, options: ReadonlyArray<CommonOption | CommonOptionGroup>): ReadonlyArray<CommonOption | CommonOptionGroup> {
-  return useMemo(() => {
-    const filter = filterText.trim();
-    if (filter === '') {
-      return options;
-    }
+function useFilteredOptions(filterText: string, options: ReadonlyArray<CommonOption | CommonOptionGroup>): [boolean, ReadonlyArray<CommonOption | CommonOptionGroup>] {
+  const [loading, setLoading] = useState(false);
+  const [filteredOptions, setFilteredOptions] = useState(options);
 
-    return filterOptions(filter.toUpperCase(), options)[0];
+  useEffect(() => {
+    setLoading(true);
+
+    (async () => {
+      const filter = filterText.trim();
+      if (filter === '') {
+        return options;
+      }
+
+      const [filtered] = await filterOptions(filter.toUpperCase(), options);
+      return filtered;
+    })()
+      .then((v) => setFilteredOptions(v))
+      .finally(() => setLoading(false));
   }, [filterText, options]);
+
+  return [loading, filteredOptions] as const;
 }
 
-function filterOptions(filter: string, options: ReadonlyArray<CommonOption | CommonOptionGroup>): [ReadonlyArray<CommonOption | CommonOptionGroup>, boolean] {
+async function filterOptions(filter: string, options: ReadonlyArray<CommonOption | CommonOptionGroup>): Promise<[ReadonlyArray<CommonOption | CommonOptionGroup>, boolean, boolean]> {
   const matchByLabel: Array<SelectProps.Option | SelectProps.OptionGroup> = [];
+  const matchByTags: Array<SelectProps.Option | SelectProps.OptionGroup> = [];
   const matchByDescription: Array<SelectProps.Option | SelectProps.OptionGroup> = [];
 
   for (const option of options) {
@@ -168,7 +182,7 @@ function filterOptions(filter: string, options: ReadonlyArray<CommonOption | Com
       matchByLabel.push(option);
       matched = true;
     } else if (isOptionGroup(option)) {
-      const [filtered, anyMatchedByLabel] = filterOptions(filter, option.options);
+      const [filtered, anyMatchedByLabel, anyMatchByTags] = await filterOptions(filter, option.options);
       if (filtered.length > 0) {
         const filteredOption = {
           ...option,
@@ -177,6 +191,8 @@ function filterOptions(filter: string, options: ReadonlyArray<CommonOption | Com
 
         if (anyMatchedByLabel) {
           matchByLabel.push(filteredOption);
+        } else if (anyMatchByTags) {
+          matchByTags.push(filteredOption);
         } else {
           matchByDescription.push(filteredOption);
         }
@@ -185,12 +201,25 @@ function filterOptions(filter: string, options: ReadonlyArray<CommonOption | Com
       }
     }
 
-    if (!matched && description?.includes(filter)) {
-      matchByDescription.push(option);
+    if (!matched) {
+      let matchedByTags = false;
+      if (option.tags) {
+        for (const tag of option.tags) {
+          if (tag.toUpperCase().includes(filter)) {
+            matchByTags.push(option);
+            matchedByTags = true;
+            break;
+          }
+        }
+      }
+
+      if (!matchedByTags && description?.includes(filter)) {
+        matchByDescription.push(option);
+      }
     }
   }
 
-  return [[...matchByLabel, ...matchByDescription], matchByLabel.length > 0];
+  return [[...matchByLabel, ...matchByTags, ...matchByDescription], matchByLabel.length > 0, matchByTags.length > 0];
 }
 
 function isOptionGroup(option: CommonOption | CommonOptionGroup): option is CommonOptionGroup {
