@@ -47,6 +47,12 @@ export class SfnConstruct extends Construct {
 
     const checkRemainingChoice = new Choice(this, 'CheckRemaining', {});
 
+    const updateDatabaseSecurityGroup = new SecurityGroup(this, 'UpdateDatabaseSecurityGroup', {
+      vpc: props.updateDatabaseVpc,
+      allowAllOutbound: true,
+      allowAllIpv6Outbound: false,
+    });
+
     const definition = new Choice(this, 'CheckInitial', {})
       .when(
         Condition.isNotPresent('$.loadScheduleRanges'),
@@ -228,13 +234,7 @@ export class SfnConstruct extends Construct {
                 ],
                 assignPublicIp: true, // required to access internet resources without NAT
                 subnets: props.updateDatabaseSubnets,
-                securityGroups: [
-                  new SecurityGroup(this, 'UpdateDatabaseSecurityGroup', {
-                    vpc: props.updateDatabaseVpc,
-                    allowAllOutbound: true,
-                    allowAllIpv6Outbound: false,
-                  }),
-                ],
+                securityGroups: [updateDatabaseSecurityGroup],
                 resultPath: '$.updateDatabaseResponse',
               }))
               .next(new LambdaInvoke(this, 'UpdateLambdaLayerTask', {
@@ -282,6 +282,65 @@ export class SfnConstruct extends Construct {
 
     this.flightSchedules = new StateMachine(this, 'FlightSchedules', {
       definitionBody: DefinitionBody.fromChainable(definition),
+      tracingEnabled: false,
+    });
+
+    new StateMachine(this, 'UpdateDatabaseAndLayer', {
+      definitionBody: DefinitionBody.fromChainable(
+        new Pass(this, 'PrepareUpdateDatabaseCommand', {
+          parameters: {
+            'args': JsonPath.array(
+              JsonPath.format('--time={}', JsonPath.executionStartTime),
+              `--database-bucket=${props.dataBucket.bucketName}`,
+              '--full-database-key=processed/flights.db',
+              '--basedata-database-key=processed/basedata.db',
+              `--parquet-bucket=${props.parquetBucket.bucketName}`,
+              '--variants-key=variants.parquet',
+              '--history-prefix=history/',
+              '--latest-prefix=latest/',
+              `--input-bucket=${props.dataBucket.bucketName}`,
+              `--input-prefix=${LH_FLIGHT_SCHEDULES_PREFIX}`,
+              '--date-ranges-json=[]',
+            ),
+          },
+          resultPath: '$.updateDatabaseCommand',
+        })
+          .next(new EcsRunTask(this, 'UpdateDatabaseTask', {
+            integrationPattern: IntegrationPattern.RUN_JOB, // runTask.sync
+            cluster: props.updateDatabaseCluster,
+            taskDefinition: props.updateDatabaseTask,
+            launchTarget: new EcsFargateLaunchTarget({
+              platformVersion: FargatePlatformVersion.LATEST,
+            }),
+            containerOverrides: [
+              {
+                containerDefinition: props.updateDatabaseTaskContainer,
+                command: JsonPath.listAt('$.updateDatabaseCommand.args'),
+              }
+            ],
+            assignPublicIp: true, // required to access internet resources without NAT
+            subnets: props.updateDatabaseSubnets,
+            securityGroups: [updateDatabaseSecurityGroup],
+            resultPath: '$.updateDatabaseResponse',
+          }))
+          .next(new LambdaInvoke(this, 'UpdateLambdaLayerTask', {
+            lambdaFunction: props.cronLambda_4G,
+            payload: TaskInput.fromObject({
+              'action': 'update_lambda_layer',
+              'params': {
+                'databaseBucket': props.dataBucket.bucketName,
+                'baseDataDatabaseKey': 'processed/basedata.db',
+                'parquetBucket': props.parquetBucket.bucketName,
+                'variantsKey': 'variants.parquet',
+                'layerName': BASE_DATA_LAYER_NAME,
+                'ssmParameterName': BASE_DATA_LAYER_SSM_PARAMETER_NAME,
+              },
+            }),
+            payloadResponseOnly: true,
+            resultPath: '$.updateLambdaLayerResponse',
+            retryOnServiceExceptions: true,
+          }))
+      ),
       tracingEnabled: false,
     });
   }
