@@ -2,6 +2,7 @@ package xtime
 
 import (
 	"cmp"
+	"fmt"
 	"time"
 )
 
@@ -80,4 +81,14 @@ func (ld *LocalDate) UnmarshalText(text []byte) error {
 
 func (ld LocalDate) MarshalText() ([]byte, error) {
 	return []byte(ld.String()), nil
+}
+
+func (ld *LocalDate) Scan(src any) error {
+	t, ok := src.(time.Time)
+	if !ok {
+		return fmt.Errorf("LocalDate.Scan: expected time.Time, got %T\n", src)
+	}
+
+	*ld = NewLocalDate(t)
+	return nil
 }

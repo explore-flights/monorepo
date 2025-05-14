@@ -11,7 +11,7 @@ import { useCollection } from '@cloudscape-design/collection-hooks';
 import { Header, Pagination, Popover, Table } from '@cloudscape-design/components';
 import { DateTime } from 'luxon';
 import { airportToString, flightNumberToString } from '../../lib/util/flight';
-import { withDepartureAirportFilter, withDepartureDateFilter } from '../../pages/flight';
+import { withDepartureAirportIdFilter, withDepartureDateFilter } from '../../pages/flight';
 import { FlightLink } from '../common/flight-link';
 import { BulletSeperator, Join } from '../common/join';
 
@@ -88,9 +88,7 @@ export function ConnectionsTable({ connections }: ConnectionsTableProps) {
 
             let query = new URLSearchParams();
             query = withDepartureDateFilter(query, v.departureTime);
-            if (v.departureAirport.iataCode) {
-              query = withDepartureAirportFilter(query, v.departureAirport.iataCode);
-            }
+            query = withDepartureAirportIdFilter(query, v.departureAirport.id);
 
             return <FlightLink flightNumber={flightNumberToString(v.flightNumber[1], v.flightNumber[0])} query={query} target={'_blank'} />;
           },
@@ -159,9 +157,7 @@ export function ConnectionsTable({ connections }: ConnectionsTableProps) {
 
             let query = new URLSearchParams();
             query = withDepartureDateFilter(query, v.departureTime);
-            if (v.departureAirport.iataCode) {
-              query = withDepartureAirportFilter(query, v.departureAirport.iataCode);
-            }
+            query = withDepartureAirportIdFilter(query, v.departureAirport.id);
 
             return (
               <Join

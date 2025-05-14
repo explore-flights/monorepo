@@ -8,6 +8,14 @@ type FlightNumber struct {
 	Suffix    string `json:"suffix,omitempty"`
 }
 
+func FlightNumberFromDb(fn db.FlightNumber) FlightNumber {
+	return FlightNumber{
+		AirlineId: UUID(fn.AirlineId),
+		Number:    fn.Number,
+		Suffix:    fn.Suffix,
+	}
+}
+
 type Airline struct {
 	Id       UUID   `json:"id"`
 	Name     string `json:"name"`

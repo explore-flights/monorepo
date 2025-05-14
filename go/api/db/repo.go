@@ -11,6 +11,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"golang.org/x/sync/errgroup"
 	"iter"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -385,6 +386,199 @@ ORDER BY fn.airline_id ASC, fn.number ASC, fn.suffix ASC
 	}
 }
 
+func (fr *FlightRepo) FlightScheduleVersions(ctx context.Context, fn FlightNumber) ([]time.Time, error) {
+	conn, err := fr.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	rows, err := conn.QueryContext(
+		ctx,
+		`
+SELECT DISTINCT created_at
+FROM flight_variant_history
+WHERE airline_id = ?
+AND number_mod_10 = (? % 10)
+AND number = ?
+AND suffix = ?
+ORDER BY created_at DESC
+`,
+		fn.AirlineId,
+		fn.Number,
+		fn.Number,
+		fn.Suffix,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	versions := make([]time.Time, 0)
+	for rows.Next() {
+		var version time.Time
+		if err = rows.Scan(&version); err != nil {
+			return nil, err
+		}
+
+		versions = append(versions, version)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return versions, nil
+}
+
+func (fr *FlightRepo) FlightSchedules(ctx context.Context, fn FlightNumber, version time.Time) (FlightSchedules, error) {
+	conn, err := fr.db.Conn(ctx)
+	if err != nil {
+		return FlightSchedules{}, err
+	}
+	defer conn.Close()
+
+	items := make([]FlightScheduleItem, 0)
+	variantsIds := make(common.Set[uuid.UUID])
+	err = func() error {
+		rows, err := conn.QueryContext(
+			ctx,
+			`
+WITH filtered_flight_variant_history AS (
+    SELECT
+        departure_date_local,
+		departure_airport_id,
+		code_shares,
+		flight_variant_id,
+		created_at
+    FROM flight_variant_history
+	WHERE airline_id = ?
+	AND number_mod_10 = (? % 10)
+	AND number = ?
+	AND suffix = ?
+	AND created_at <= CAST(? AS TIMESTAMPTZ)
+)
+SELECT
+    departure_date_local,
+    departure_airport_id,
+    FIRST(code_shares ORDER BY created_at DESC),
+    FIRST(flight_variant_id ORDER BY created_at DESC),
+    FIRST(created_at ORDER BY created_at DESC)
+FROM filtered_flight_variant_history
+GROUP BY departure_date_local, departure_airport_id
+ORDER BY departure_date_local ASC
+`,
+			fn.AirlineId,
+			fn.Number,
+			fn.Number,
+			fn.Suffix,
+			version.Format(time.RFC3339),
+		)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var fsi FlightScheduleItem
+			var codeShares xsql.SQLArray[FlightNumber, *FlightNumber]
+			err = rows.Scan(
+				&fsi.DepartureDateLocal,
+				&fsi.DepartureAirportId,
+				&codeShares,
+				&fsi.FlightVariantId,
+				&fsi.Version,
+			)
+			if err != nil {
+				return err
+			}
+
+			fsi.CodeShares = make(common.Set[FlightNumber])
+			for _, codeShareFn := range codeShares {
+				fsi.CodeShares.Add(codeShareFn)
+			}
+
+			items = append(items, fsi)
+
+			if fsi.FlightVariantId.Valid {
+				variantsIds.Add(fsi.FlightVariantId.V)
+			}
+		}
+
+		return rows.Err()
+	}()
+	if err != nil {
+		return FlightSchedules{}, err
+	}
+
+	variants := make(map[uuid.UUID]FlightScheduleVariant)
+	err = func() error {
+		placeholders, params := buildParams(maps.Keys(variantsIds))
+		rows, err := conn.QueryContext(
+			ctx,
+			strings.Replace(`
+SELECT
+    id,
+    operating_airline_id,
+    operating_number,
+    operating_suffix,
+    departure_time_local,
+    departure_utc_offset_seconds,
+    duration_seconds,
+    arrival_airport_id,
+    arrival_utc_offset_seconds,
+    service_type,
+    aircraft_owner,
+    aircraft_id,
+    aircraft_configuration_version,
+    aircraft_registration
+FROM flight_variants
+WHERE id IN (:flightVariantIds)
+			`, ":flightVariantIds", placeholders, 1),
+			params...,
+		)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var fsv FlightScheduleVariant
+			err = rows.Scan(
+				&fsv.Id,
+				&fsv.OperatedAs.AirlineId,
+				&fsv.OperatedAs.Number,
+				&fsv.OperatedAs.Suffix,
+				&fsv.DepartureTimeLocal,
+				&fsv.DepartureUtcOffsetSeconds,
+				&fsv.DurationSeconds,
+				&fsv.ArrivalAirportId,
+				&fsv.ArrivalUtcOffsetSeconds,
+				&fsv.ServiceType,
+				&fsv.AircraftOwner,
+				&fsv.AircraftId,
+				&fsv.AircraftConfigurationVersion,
+				&fsv.AircraftRegistration,
+			)
+			if err != nil {
+				return err
+			}
+
+			if variantsIds.Remove(fsv.Id) {
+				variants[fsv.Id] = fsv
+			}
+		}
+
+		return rows.Err()
+	}()
+
+	return FlightSchedules{
+		FlightNumber: fn,
+		Items:        items,
+		Variants:     variants,
+	}, nil
+}
+
 func (fr *FlightRepo) flightsInternal(ctx context.Context, d xtime.LocalDate) ([]Flight, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
@@ -469,4 +663,15 @@ AND day_utc = ?
 	}
 
 	return flights, rows.Err()
+}
+
+func buildParams[T any](values iter.Seq[T]) (string, []any) {
+	placeholders := make([]string, 0)
+	params := make([]any, 0)
+	for v := range values {
+		placeholders = append(placeholders, "?")
+		params = append(params, v)
+	}
+
+	return strings.Join(placeholders, ","), params
 }

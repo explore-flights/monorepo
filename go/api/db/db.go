@@ -205,7 +205,7 @@ func connInit(ctx context.Context) func(execer driver.ExecerContext) error {
 	return func(execer driver.ExecerContext) error {
 		bootQueries := []common.Tuple[string, []driver.NamedValue]{
 			{
-				`SET threads TO 1`,
+				`SET threads TO 8`,
 				[]driver.NamedValue{},
 			},
 		}

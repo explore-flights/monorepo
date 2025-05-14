@@ -360,11 +360,7 @@ func (ch *ConnectionsHandler) buildConnectionsResponse(conns []search.Connection
 			referencedAircraft.Add(conn.Flight.AircraftId)
 
 			flights[fid] = model.ConnectionFlightResponse{
-				FlightNumber: model.FlightNumber{
-					AirlineId: model.UUID(conn.Flight.AirlineId),
-					Number:    conn.Flight.Number,
-					Suffix:    conn.Flight.Suffix,
-				},
+				FlightNumber:          model.FlightNumberFromDb(conn.Flight.FlightNumber),
 				DepartureTime:         conn.Flight.DepartureTime,
 				DepartureAirportId:    model.UUID(conn.Flight.DepartureAirportId),
 				ArrivalTime:           conn.Flight.ArrivalTime,
@@ -395,12 +391,7 @@ func (ch *ConnectionsHandler) convertCodeShares(inp common.Set[db.FlightNumber],
 	r := make([]model.FlightNumber, 0, len(inp))
 	for fn := range inp {
 		referencedAirlines.Add(fn.AirlineId)
-
-		r = append(r, model.FlightNumber{
-			AirlineId: model.UUID(fn.AirlineId),
-			Number:    fn.Number,
-			Suffix:    fn.Suffix,
-		})
+		r = append(r, model.FlightNumberFromDb(fn))
 	}
 
 	return r

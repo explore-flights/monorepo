@@ -87,11 +87,7 @@ func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, map[uuid.
 	}
 
 	for i, fn := range fns {
-		resp.FlightNumbers[i] = model.FlightNumber{
-			AirlineId: model.UUID(fn.AirlineId),
-			Number:    fn.Number,
-			Suffix:    fn.Suffix,
-		}
+		resp.FlightNumbers[i] = model.FlightNumberFromDb(fn)
 
 		if added.Add(fn.AirlineId) {
 			if airline, ok := airlines[fn.AirlineId]; ok {

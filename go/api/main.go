@@ -100,6 +100,7 @@ func main() {
 		group.GET("/airports.json", dh.Airports)
 		group.GET("/aircraft.json", dh.Aircraft)
 		group.GET("/flight/:fn", dh.FlightSchedule)
+		group.GET("/flight/:fn/:version", dh.FlightSchedule)
 		group.GET("/flight/:fn/seatmap/:departure/:arrival/:date/:aircraft", web.NewSeatMapEndpoint(dataHandler))
 		group.GET("/:airline/schedule/:aircraftType/:aircraftConfigurationVersion/v3", web.NewFlightSchedulesByConfigurationEndpoint(dataHandler))
 		group.GET("/:fn/:departureDate/:departureAirport/feed.rss", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/rss+xml", (*feeds.Feed).WriteRss))

@@ -124,13 +124,46 @@ export interface ConnectionSearchShare {
   imageUrl: string;
 }
 
-export interface FlightScheduleVariantMetadata {
+export type FlightVariantId = Branded<string, 'FlightScheduleVariant'>;
+export interface FlightSchedules {
+  flightNumber: FlightNumber;
+  versions: ReadonlyArray<string>;
+  items: ReadonlyArray<FlightScheduleItem>;
+  variants: Record<FlightVariantId, FlightScheduleVariant>;
+  airlines: Record<AirlineId, Airline>;
+  airports: Record<AirportId, Airport>;
+  aircraft: Record<AircraftId, Aircraft>;
+}
+
+export interface FlightScheduleItem {
+  departureDateLocal: string;
+  departureAirportId: AirportId;
+  codeShares: ReadonlyArray<FlightNumber>;
+  flightVariantId?: FlightVariantId;
+  version: string;
+}
+
+export interface FlightScheduleVariant {
+  id: FlightVariantId;
+  operatedAs: FlightNumber;
+  departureTimeLocal: string;
+  departureUtcOffsetSeconds: number;
+  durationSeconds: number;
+  arrivalAirportId: AirportId;
+  arrivalUtcOffsetSeconds: number;
+  serviceType: string;
+  aircraftOwner: string;
+  aircraftId: AircraftId;
+  aircraftConfigurationVersion: string;
+}
+
+export interface OldFlightScheduleVariantMetadata {
   creationTime: string;
   rangesUpdateTime: string;
   dateUpdateTime: string;
 }
 
-export interface FlightScheduleVariantData {
+export interface OldFlightScheduleVariantData {
   operatedAs: string;
   departureTime: string;
   departureAirport: string;
@@ -145,17 +178,17 @@ export interface FlightScheduleVariantData {
   codeShares: ReadonlyArray<string>;
 }
 
-export interface FlightScheduleVariant {
+export interface OldFlightScheduleVariant {
   ranges: ReadonlyArray<[string, string]>;
-  data: FlightScheduleVariantData;
-  metadata: FlightScheduleVariantMetadata;
+  data: OldFlightScheduleVariantData;
+  metadata: OldFlightScheduleVariantMetadata;
 }
 
-export interface FlightSchedule {
+export interface OldFlightSchedule {
   airline: string;
   flightNumber: number;
   suffix: string;
-  variants: ReadonlyArray<FlightScheduleVariant>;
+  variants: ReadonlyArray<OldFlightScheduleVariant>;
 }
 
 export interface SeatMap {
@@ -277,7 +310,7 @@ export interface QuerySchedulesRequest {
   maxDepartureTime?: DateTime<true>;
 }
 
-export type QueryScheduleResponse = Record<string, FlightSchedule>;
+export type QueryScheduleResponse = Record<string, OldFlightSchedule>;
 
 export interface Notification {
   type: 'success' | 'info' | 'warning' | 'error' | 'in-progress';

@@ -79,3 +79,13 @@ func (lt *LocalTime) UnmarshalText(text []byte) error {
 func (lt LocalTime) MarshalText() ([]byte, error) {
 	return []byte(lt.String()), nil
 }
+
+func (lt *LocalTime) Scan(src any) error {
+	t, ok := src.(time.Time)
+	if !ok {
+		return fmt.Errorf("LocalTime.Scan: expected time.Time, got %T\n", src)
+	}
+
+	*lt = NewLocalTime(t)
+	return nil
+}

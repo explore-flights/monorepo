@@ -31,7 +31,6 @@ import { SchedulesTable, ScheduleTableItem } from '../../components/schedules/sc
 import {
   withAircraftConfigurationVersionFilter,
   withAircraftTypeFilter,
-  withArrivalAirportFilter,
   withDepartureAirportFilter, withDepartureDateFilter
 } from '../flight';
 
@@ -501,7 +500,6 @@ function ResultTable({ title, query }: { title: string, query: UseQueryResult<Qu
         }
 
         query = withDepartureAirportFilter(query, v.departureAirport.raw);
-        query = withArrivalAirportFilter(query, v.arrivalAirport.raw);
 
         if (v.type === 'child') {
           query = withAircraftTypeFilter(query, v.aircraft.raw);

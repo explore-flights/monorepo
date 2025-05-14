@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xsql"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/gofrs/uuid/v5"
 	"time"
 )
@@ -84,4 +85,39 @@ type Flight struct {
 	AircraftConfigurationVersion string
 	AircraftRegistration         string
 	CodeShares                   common.Set[FlightNumber]
+}
+
+type FlightSchedules struct {
+	FlightNumber
+	Items    []FlightScheduleItem
+	Variants map[uuid.UUID]FlightScheduleVariant
+}
+
+type FlightScheduleItem struct {
+	DepartureDateLocal xtime.LocalDate
+	DepartureAirportId uuid.UUID
+	CodeShares         common.Set[FlightNumber]
+	FlightVariantId    sql.Null[uuid.UUID]
+	Version            time.Time
+}
+
+type FlightScheduleVariant struct {
+	Id                           uuid.UUID
+	OperatedAs                   FlightNumber
+	DepartureTimeLocal           xtime.LocalTime
+	DepartureUtcOffsetSeconds    int64
+	DurationSeconds              int64
+	ArrivalAirportId             uuid.UUID
+	ArrivalUtcOffsetSeconds      int64
+	ServiceType                  string
+	AircraftOwner                string
+	AircraftId                   uuid.UUID
+	AircraftConfigurationVersion string
+	AircraftRegistration         string
+}
+
+type FlightSchedule struct {
+	Flight
+	OperatedAs FlightNumber
+	Version    time.Time
 }

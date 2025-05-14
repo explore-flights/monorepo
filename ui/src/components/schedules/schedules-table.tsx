@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Header, Pagination, Table, TableProps } from '@cloudscape-design/components';
-import { Aircraft, Airport, FlightSchedule, FlightScheduleVariant } from '../../lib/api/api.model';
+import { Aircraft, Airport, OldFlightSchedule, OldFlightScheduleVariant } from '../../lib/api/api.model';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { FlightLink } from '../common/flight-link';
 import { DateTime } from 'luxon';
@@ -19,7 +19,7 @@ interface ScheduleTableBaseItem {
   readonly departureAirport: Maybe<Airport>;
   readonly arrivalAirport: Maybe<Airport>;
   readonly operatingRange: OperatingRange;
-  readonly schedule: FlightSchedule;
+  readonly schedule: OldFlightSchedule;
 }
 
 export interface ScheduleTableParentItem extends ScheduleTableBaseItem {
@@ -31,14 +31,14 @@ export interface ScheduleTableChildItem extends ScheduleTableBaseItem {
   readonly type: 'child';
   readonly aircraft: Maybe<Aircraft>;
   readonly aircraftConfigurationVersion: string;
-  readonly variant: FlightScheduleVariant;
+  readonly variant: OldFlightScheduleVariant;
 }
 
 export type ScheduleTableItem = ScheduleTableParentItem | ScheduleTableChildItem;
 
 export interface SchedulesTableProps extends Omit<TableProps<ScheduleTableItem>, 'items' | 'columnDefinitions'> {
   title: string;
-  items: ReadonlyArray<FlightSchedule>;
+  items: ReadonlyArray<OldFlightSchedule>;
   flightLinkQuery?: (item: ScheduleTableItem) => URLSearchParams;
   columnDefinitions?: ReadonlyArray<TableProps.ColumnDefinition<ScheduleTableItem>>;
 }
@@ -201,7 +201,7 @@ function buildColumnDefinitions(flightLinkQuery?: (item: ScheduleTableItem) => U
   ];
 }
 
-function transformSchedules(schedules: ReadonlyArray<FlightSchedule>, airports: Airports, aircraft: Aircrafts): ReadonlyArray<ScheduleTableItem> {
+function transformSchedules(schedules: ReadonlyArray<OldFlightSchedule>, airports: Airports, aircraft: Aircrafts): ReadonlyArray<ScheduleTableItem> {
   const items: Array<ScheduleTableParentItem> = [];
 
   for (const schedule of schedules) {

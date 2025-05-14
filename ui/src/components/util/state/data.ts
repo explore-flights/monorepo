@@ -151,12 +151,12 @@ export function useAircrafts() {
   });
 }
 
-export function useFlightSchedule(flightNumber: string) {
+export function useFlightSchedule(flightNumber: string, version?: string) {
   const { apiClient } = useHttpClient();
   return useQuery({
-    queryKey: ['flight_schedule', flightNumber],
+    queryKey: ['flight_schedule', flightNumber, version],
     queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getFlightSchedule(flightNumber));
+      const { body } = expectSuccess(await apiClient.getFlightSchedule(flightNumber, version));
       return body;
     },
     retry: (count, e) => {
