@@ -287,7 +287,7 @@ export class SfnConstruct extends Construct {
 
     new StateMachine(this, 'UpdateDatabaseAndLayer', {
       definitionBody: DefinitionBody.fromChainable(
-        new Pass(this, 'PrepareUpdateDatabaseCommand', {
+        new Pass(this, 'PrepareUpdateDatabaseCommand2', {
           parameters: {
             'args': JsonPath.array(
               JsonPath.format('--time={}', JsonPath.executionStartTime),
@@ -305,7 +305,7 @@ export class SfnConstruct extends Construct {
           },
           resultPath: '$.updateDatabaseCommand',
         })
-          .next(new EcsRunTask(this, 'UpdateDatabaseTask', {
+          .next(new EcsRunTask(this, 'UpdateDatabaseTask2', {
             integrationPattern: IntegrationPattern.RUN_JOB, // runTask.sync
             cluster: props.updateDatabaseCluster,
             taskDefinition: props.updateDatabaseTask,
@@ -323,7 +323,7 @@ export class SfnConstruct extends Construct {
             securityGroups: [updateDatabaseSecurityGroup],
             resultPath: '$.updateDatabaseResponse',
           }))
-          .next(new LambdaInvoke(this, 'UpdateLambdaLayerTask', {
+          .next(new LambdaInvoke(this, 'UpdateLambdaLayerTask2', {
             lambdaFunction: props.cronLambda_4G,
             payload: TaskInput.fromObject({
               'action': 'update_lambda_layer',
