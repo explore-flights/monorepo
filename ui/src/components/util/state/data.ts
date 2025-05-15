@@ -151,7 +151,7 @@ export function useAircrafts() {
   });
 }
 
-export function useFlightSchedule(flightNumber: string, version?: string) {
+export function useFlightSchedule(flightNumber: string, version?: DateTime<true>) {
   const { apiClient } = useHttpClient();
   return useQuery({
     queryKey: ['flight_schedule', flightNumber, version],

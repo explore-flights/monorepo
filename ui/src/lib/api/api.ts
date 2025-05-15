@@ -80,10 +80,10 @@ export class ApiClient {
     return transform(this.httpClient.fetch('/data/aircraft.json?v=1'));
   }
 
-  getFlightSchedule(flightNumber: string, version?: string): Promise<ApiResponse<FlightSchedules>> {
+  getFlightSchedule(flightNumber: string, version?: DateTime<true>): Promise<ApiResponse<FlightSchedules>> {
     let suffix = '';
     if (version) {
-      suffix = `/${version}`;
+      suffix = `/${version.toUTC().toISO()}`;
     }
 
     return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}${suffix}?v=1`));

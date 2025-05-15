@@ -386,51 +386,6 @@ ORDER BY fn.airline_id ASC, fn.number ASC, fn.suffix ASC
 	}
 }
 
-func (fr *FlightRepo) FlightScheduleVersions(ctx context.Context, fn FlightNumber) ([]time.Time, error) {
-	conn, err := fr.db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	rows, err := conn.QueryContext(
-		ctx,
-		`
-SELECT DISTINCT created_at
-FROM flight_variant_history
-WHERE airline_id = ?
-AND number_mod_10 = (? % 10)
-AND number = ?
-AND suffix = ?
-ORDER BY created_at DESC
-`,
-		fn.AirlineId,
-		fn.Number,
-		fn.Number,
-		fn.Suffix,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	versions := make([]time.Time, 0)
-	for rows.Next() {
-		var version time.Time
-		if err = rows.Scan(&version); err != nil {
-			return nil, err
-		}
-
-		versions = append(versions, version)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return versions, nil
-}
-
 func (fr *FlightRepo) FlightSchedules(ctx context.Context, fn FlightNumber, version time.Time) (FlightSchedules, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {

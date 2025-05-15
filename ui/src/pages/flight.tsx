@@ -9,18 +9,14 @@ import {
   ColumnLayout,
   Container,
   ContentLayout,
-  DateInput,
-  FormField,
-  Header,
-  KeyValuePairs,
+  DateInput, DatePicker, FormField,
+  Header, KeyValuePairs,
   Link,
   Modal,
   Pagination,
   Popover,
   PropertyFilter,
-  PropertyFilterProps, Select,
-  SelectProps,
-  SpaceBetween,
+  PropertyFilterProps, SpaceBetween,
   Spinner,
   StatusIndicator,
   Table
@@ -53,7 +49,7 @@ export function FlightView() {
     throw new Error();
   }
 
-  const [version, setVersion] = useState('latest');
+  const [version, setVersion] = useState<DateTime<true>>();
   const flightScheduleResult = useFlightSchedule(id, version);
 
   if (!flightScheduleResult.data) {
@@ -127,7 +123,7 @@ interface ProcessedFlightSchedule {
   flights: ReadonlyArray<ScheduledFlight>;
 }
 
-function FlightScheduleContent({ flightSchedules, version, setVersion }: { flightSchedules: FlightSchedules, version: string, setVersion: (v: string) => void }) {
+function FlightScheduleContent({ flightSchedules, version, setVersion }: { flightSchedules: FlightSchedules, version?: DateTime<true>, setVersion: (v: DateTime<true>) => void }) {
   const [searchParams] = useSearchParams();
   const [filterQuery, setFilterQuery] = useState<PropertyFilterProps.Query>(parseSearchParams(searchParams) ?? {
     operation: 'and',
@@ -169,7 +165,7 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
     <ContentLayout header={<Header
       variant={'h1'}
       description={`Last updated: ${summary.lastModified.toISO()}`}
-      actions={<VersionSelect selectedVersion={version} versions={flightSchedules.versions} onChange={setVersion} />}
+      actions={<VersionSelect selectedVersion={version} onChange={setVersion} />}
     >{flightNumber}</Header>}>
       <ColumnLayout columns={1}>
         <Container>
@@ -547,42 +543,49 @@ function TableFilter({ query, setQuery, summary }: TableFilterProps) {
   );
 }
 
-function VersionSelect({ selectedVersion, versions, onChange }: { selectedVersion: string, versions: ReadonlyArray<string>, onChange: (v: string) => void }) {
-  const options = useMemo(() => {
-    const options: Array<SelectProps.Option> = [];
-    for (const version of versions) {
-      options.push({
-        label: version,
-        value: version,
-      });
+function VersionSelect({ selectedVersion, onChange }: { selectedVersion?: DateTime<true>, onChange: (v: DateTime<true>) => void }) {
+  const [minDate, maxDate] = useMemo(() => [Date.parse('2024-03-04T00:00:00Z'), Date.now()], []);
+  const currentActiveDate = useMemo(() => (selectedVersion ?? DateTime.now()).toISODate(), [selectedVersion]);
+  const [date, setDate] = useState(currentActiveDate);
+
+  function tryParseAndValidate(d: string): DateTime<true> | undefined {
+    if (d.length !== 10) {
+      return undefined;
     }
 
-    return options;
-  }, [versions]);
-
-  const selectedOption = useMemo(() => {
-    if (selectedVersion === '' || selectedVersion === 'latest') {
-      let maxOption: SelectProps.Option | null = null;
-      for (const option of options) {
-        if (!maxOption || option.value! > maxOption.value!) {
-          maxOption = option;
-        }
-      }
-
-      return maxOption;
+    const dt = DateTime.fromISO(d, { zone: 'utc' }).endOf('day');
+    if (!dt.isValid) {
+      return undefined;
     }
 
-    for (const option of options) {
-      if (option.value === selectedVersion) {
-        return option;
-      }
+    if (dt.toMillis() < minDate || dt.toMillis() > maxDate) {
+      return undefined;
     }
 
-    return null;
-  }, [selectedVersion, options]);
+    return dt;
+  }
 
   return (
-    <Select virtualScroll={true} selectedOption={selectedOption} options={options} onChange={(e) => onChange(e.detail.selectedOption.value ?? 'latest')} />
+    <SpaceBetween size={'xs'} direction={'horizontal'} alignItems={'center'}>
+      <Box variant={'strong'}>Version</Box>
+      <DatePicker
+        value={date}
+        placeholder={'YYYY/MM/DD'}
+        granularity={'day'}
+        isDateEnabled={(d) => d.getTime() >= minDate && d.getTime() <= maxDate}
+        onChange={(e) => setDate(e.detail.value)}
+      />
+      <Button
+        disabled={date === currentActiveDate || !tryParseAndValidate(date)}
+        onClick={() => {
+          const dt = tryParseAndValidate(date);
+          if (dt) {
+            onChange(dt);
+          }
+        }}
+        iconName={'refresh'}
+      />
+    </SpaceBetween>
   );
 }
 

@@ -127,7 +127,6 @@ export interface ConnectionSearchShare {
 export type FlightVariantId = Branded<string, 'FlightScheduleVariant'>;
 export interface FlightSchedules {
   flightNumber: FlightNumber;
-  versions: ReadonlyArray<string>;
   items: ReadonlyArray<FlightScheduleItem>;
   variants: Record<FlightVariantId, FlightScheduleVariant>;
   airlines: Record<AirlineId, Airline>;

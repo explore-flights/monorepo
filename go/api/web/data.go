@@ -28,7 +28,6 @@ type dataHandlerRepo interface {
 	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
 	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
 	Aircraft(ctx context.Context) (map[uuid.UUID]db.Aircraft, error)
-	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber) ([]time.Time, error)
 	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
 }
 
@@ -107,7 +106,6 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest)
 	}
 
-	var versions []time.Time
 	var flightSchedules db.FlightSchedules
 	var airlines map[uuid.UUID]db.Airline
 	var airports map[uuid.UUID]db.Airport
@@ -115,11 +113,6 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 
 	{
 		g, ctx := errgroup.WithContext(ctx)
-		g.Go(func() error {
-			var err error
-			versions, err = dh.repo.FlightScheduleVersions(ctx, fn)
-			return err
-		})
 
 		g.Go(func() error {
 			var err error
@@ -152,7 +145,6 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 
 	fs := model.FlightSchedules{
 		FlightNumber: model.FlightNumberFromDb(fn),
-		Versions:     versions,
 		Items:        make([]model.FlightScheduleItem, 0, len(flightSchedules.Items)),
 		Variants:     make(map[model.UUID]model.FlightScheduleVariant, len(flightSchedules.Variants)),
 		Airlines:     make(map[model.UUID]model.Airline),

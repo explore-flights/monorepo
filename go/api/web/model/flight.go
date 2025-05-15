@@ -7,7 +7,6 @@ import (
 
 type FlightSchedules struct {
 	FlightNumber FlightNumber                   `json:"flightNumber"`
-	Versions     []time.Time                    `json:"versions"`
 	Items        []FlightScheduleItem           `json:"items"`
 	Variants     map[UUID]FlightScheduleVariant `json:"variants"`
 	Airlines     map[UUID]Airline               `json:"airlines"`
