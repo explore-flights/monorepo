@@ -9,17 +9,17 @@ import {
   ColumnLayout,
   Container,
   ContentLayout,
-  DateInput, DatePicker, FormField,
-  Header, KeyValuePairs,
+  DateInput, DatePicker, ExpandableSection, FormField,
+  Header, KeyValuePairs, LineChart,
   Link,
   Modal,
-  Pagination,
+  Pagination, PieChart, PieChartProps,
   Popover,
   PropertyFilter,
   PropertyFilterProps, SpaceBetween,
   Spinner,
   StatusIndicator,
-  Table
+  Table, Tabs
 } from '@cloudscape-design/components';
 import { CodeView } from '@cloudscape-design/code-view';
 import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
@@ -28,7 +28,7 @@ import {
   useSeatMap
 } from '../components/util/state/data';
 import { ErrorNotificationContent } from '../components/util/context/app-controls';
-import { Aircraft, Airline, Airport, AirportId, FlightNumber, FlightSchedules } from '../lib/api/api.model';
+import { Aircraft, AircraftId, Airline, Airport, AirportId, FlightNumber, FlightSchedules } from '../lib/api/api.model';
 import { DateTime, Duration, FixedOffsetZone, WeekdayNumbers } from 'luxon';
 import {
   PropertyFilterOperator,
@@ -41,7 +41,7 @@ import { BulletSeperator, Join } from '../components/common/join';
 import { SeatMapView } from '../components/seatmap/seatmap';
 import { aircraftConfigurationVersionToName } from '../lib/consts';
 import { AircraftConfigurationVersionText, AirportText } from '../components/common/text';
-import { flightNumberToString } from '../lib/util/flight';
+import { airportToString, flightNumberToString } from '../lib/util/flight';
 
 export function FlightView() {
   const { id } = useParams();
@@ -116,6 +116,7 @@ interface FlightScheduleSummary {
   },
   operatedAs: ReadonlyArray<[Airline, FlightNumber]>,
   codeShares: ReadonlyArray<[Airline, FlightNumber]>,
+  years: ReadonlyArray<number>,
 }
 
 interface ProcessedFlightSchedule {
@@ -197,51 +198,6 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
                 value: flightSchedules.flightNumber.suffix || <Popover content={'This schedule has no suffix'} dismissButton={false}><StatusIndicator type={'info'}>None</StatusIndicator></Popover>,
               },
               {
-                label: 'Departure Airports',
-                value: (
-                  <ColumnLayout columns={1} variant={'text-grid'}>
-                    {...(summary.departureAirports.map((v) => <AirportText code={v.iataCode ?? v.icaoCode ?? v.id} airport={v} />))}
-                  </ColumnLayout>
-                ),
-              },
-              {
-                label: 'Arrival Airports',
-                value: (
-                  <ColumnLayout columns={1} variant={'text-grid'}>
-                    {...(summary.arrivalAirports.map((v) => <AirportText code={v.iataCode ?? v.icaoCode ?? v.id} airport={v} />))}
-                  </ColumnLayout>
-                ),
-              },
-              {
-                label: 'Routes',
-                value: (
-                  <ColumnLayout columns={1} variant={'text-grid'}>
-                    {...(summary.routes.map((v) => <RouteCell route={v} />))}
-                  </ColumnLayout>
-                ),
-              },
-              {
-                label: 'Aircraft',
-                value: (
-                  <ColumnLayout columns={1} variant={'text-grid'}>
-                    {...(summary.aircraft.map(([v, count]) => <AircraftCell value={v} count={count} />))}
-                  </ColumnLayout>
-                ),
-              },
-              {
-                label: 'Duration',
-                value: (
-                  <ColumnLayout columns={1} variant={'text-grid'}>
-                    <Box variant={'strong'}>Min: <Box variant={'span'}>{summary.duration.min.shiftTo('hours', 'minutes').toHuman({ unitDisplay: 'short' })}</Box></Box>
-                    <Box variant={'strong'}>Max: <Box variant={'span'}>{summary.duration.max.shiftTo('hours', 'minutes').toHuman({ unitDisplay: 'short' })}</Box></Box>
-                  </ColumnLayout>
-                ),
-              },
-              {
-                label: 'Operating Days',
-                value: <OperatingDaysCell operatingDays={summary.operatingDays} />,
-              },
-              {
                 label: 'Operated As',
                 value: <FlightNumberList flightNumbers={summary.operatedAs} exclude={flightSchedules.flightNumber} rel={'alternate'} />,
               },
@@ -252,122 +208,353 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
               {
                 label: 'Links',
                 value: (
-                  <ColumnLayout columns={1} variant={'text-grid'}>
+                  <SpaceBetween direction={'vertical'} size={'xs'}>
                     <Link href={`https://www.flightradar24.com/data/flights/${flightNumber.toLowerCase()}`} external={true}>flightradar24.com</Link>
                     <Link href={`https://www.flightera.net/flight/${flightNumber}`} external={true}>flightera.net</Link>
                     <Link href={`https://www.flightstats.com/v2/flight-tracker/${flightSchedules.airlines[flightSchedules.flightNumber.airlineId].iataCode}/${flightSchedules.flightNumber.number}${flightSchedules.flightNumber.suffix ?? ''}`} external={true}>flightstats.com</Link>
-                  </ColumnLayout>
+                  </SpaceBetween>
                 ),
               },
             ]}
           />
         </Container>
-        <Table
-          items={items}
-          {...collectionProps}
-          header={<Header counter={`(${filteredFlights.length}/${flights.length})`}>Flights</Header>}
-          pagination={<Pagination {...paginationProps}  />}
-          filter={<TableFilter
-            query={filterQuery}
-            setQuery={setFilterQuery}
-            summary={summary}
-          />}
-          variant={'stacked'}
-          stickyColumns={{ first: 0, last: 1 }}
-          columnDefinitions={[
-            {
-              id: 'departure_time',
-              header: 'Departure Time',
-              cell: (v) => <TimeCell value={v.departureTime} />,
-              sortingField: 'departureTime',
-            },
-            {
-              id: 'operated_as',
-              header: 'Operated As',
-              cell: (v) => <InternalFlightLink flightNumber={v.operatedAs[1]} airline={v.operatedAs[0]} query={queryForScheduledFlight(v)} exclude={flightSchedules.flightNumber} rel={'alternate nofollow'} />,
-            },
-            {
-              id: 'departure_airport',
-              header: 'Departure Airport',
-              cell: (v) => <AirportText code={v.departureAirport.iataCode ?? v.departureAirport.icaoCode ?? v.departureAirport.id} airport={v.departureAirport} />,
-              sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => compareAirports(a.departureAirport, b.departureAirport), []),
-            },
-            {
-              id: 'arrival_airport',
-              header: 'Arrival Airport',
-              cell: (v) => <AirportText code={v.arrivalAirport.iataCode ?? v.arrivalAirport.icaoCode ?? v.arrivalAirport.id} airport={v.arrivalAirport} />,
-              sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => compareAirports(a.arrivalAirport, b.arrivalAirport), []),
-            },
-            {
-              id: 'arrival_time',
-              header: 'Arrival Time',
-              cell: (v) => <TimeCell value={v.arrivalTime} />,
-            },
-            {
-              id: 'aircraft_type',
-              header: 'Aircraft',
-              cell: (v) => <AircraftCell value={v.aircraft} />,
-              sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => compareAircraft(a.aircraft, b.aircraft), []),
-            },
-            {
-              id: 'aircraft_configuration_version',
-              header: 'Aircraft Configuration Version',
-              cell: (v) => {
-                return (
-                  <AircraftConfigurationVersionText
-                    value={v.aircraftConfigurationVersion}
-                    popoverContent={<KeyValuePairs
-                      columns={2}
-                      items={[
-                        {
-                          label: 'Code',
-                          value: v.aircraftConfigurationVersion,
-                        },
-                        {
-                          label: 'Seatmap',
-                          value: <Button variant={'inline-link'} onClick={() => setSeatMapFlight(v)}>Open</Button>,
-                        },
-                      ]}
-                    />}
-                  />
-                );
+
+        <>
+          <Stats flights={filteredFlights} />
+          <Table
+            items={items}
+            {...collectionProps}
+            header={<Header counter={`(${filteredFlights.length}/${flights.length})`}>Flights</Header>}
+            pagination={<Pagination {...paginationProps}  />}
+            filter={<TableFilter
+              query={filterQuery}
+              setQuery={setFilterQuery}
+              summary={summary}
+            />}
+            variant={'stacked'}
+            stickyColumns={{ first: 0, last: 1 }}
+            columnDefinitions={[
+              {
+                id: 'departure_time',
+                header: 'Departure Time',
+                cell: (v) => <TimeCell value={v.departureTime} />,
+                sortingField: 'departureTime',
               },
-              sortingField: 'aircraftConfigurationVersion',
-            },
-            {
-              id: 'duration',
-              header: 'Duration',
-              cell: (v) => v.arrivalTime.diff(v.departureTime).rescale().toHuman({ unitDisplay: 'short' }),
-              sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => {
-                const aDuration = a.arrivalTime.diff(a.departureTime);
-                const bDuration = b.arrivalTime.diff(b.departureTime);
-                return aDuration.toMillis() - bDuration.toMillis();
-              }, []),
-            },
-            {
-              id: 'code_shares',
-              header: 'Codeshares',
-              cell: (v) => <FlightNumberList flightNumbers={v.codeShares} query={queryForScheduledFlight(v)} exclude={flightSchedules.flightNumber} rel={'alternate nofollow'} />,
-            },
-            {
-              id: 'actions',
-              header: 'Actions',
-              cell: (v) => {
-                const baseLink = `/data/${flightNumber}/${v.departureTime.toUTC().toISODate()}/${v.departureAirport.iataCode}`;
-                return (
-                  <SpaceBetween direction={'vertical'} size={'xs'}>
-                    <Button wrapText={false} variant={'inline-link'} href={`${baseLink}/feed.rss`} target={'_blank'} iconName={'download'}>RSS</Button>
-                    <Button wrapText={false} variant={'inline-link'} href={`${baseLink}/feed.atom`} target={'_blank'} iconName={'download'}>Atom</Button>
-                  </SpaceBetween>
-                );
+              {
+                id: 'operated_as',
+                header: 'Operated As',
+                cell: (v) => <InternalFlightLink flightNumber={v.operatedAs[1]} airline={v.operatedAs[0]} query={queryForScheduledFlight(v)} exclude={flightSchedules.flightNumber} rel={'alternate nofollow'} />,
               },
-            },
-          ]}
-        />
+              {
+                id: 'departure_airport',
+                header: 'Departure Airport',
+                cell: (v) => <AirportText code={v.departureAirport.iataCode ?? v.departureAirport.icaoCode ?? v.departureAirport.id} airport={v.departureAirport} />,
+                sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => compareAirports(a.departureAirport, b.departureAirport), []),
+              },
+              {
+                id: 'arrival_airport',
+                header: 'Arrival Airport',
+                cell: (v) => <AirportText code={v.arrivalAirport.iataCode ?? v.arrivalAirport.icaoCode ?? v.arrivalAirport.id} airport={v.arrivalAirport} />,
+                sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => compareAirports(a.arrivalAirport, b.arrivalAirport), []),
+              },
+              {
+                id: 'arrival_time',
+                header: 'Arrival Time',
+                cell: (v) => <TimeCell value={v.arrivalTime} />,
+              },
+              {
+                id: 'aircraft_type',
+                header: 'Aircraft',
+                cell: (v) => <AircraftCell value={v.aircraft} />,
+                sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => compareAircraft(a.aircraft, b.aircraft), []),
+              },
+              {
+                id: 'aircraft_configuration_version',
+                header: 'Aircraft Configuration Version',
+                cell: (v) => {
+                  return (
+                    <AircraftConfigurationVersionText
+                      value={v.aircraftConfigurationVersion}
+                      popoverContent={<KeyValuePairs
+                        columns={2}
+                        items={[
+                          {
+                            label: 'Code',
+                            value: v.aircraftConfigurationVersion,
+                          },
+                          {
+                            label: 'Seatmap',
+                            value: <Button variant={'inline-link'} onClick={() => setSeatMapFlight(v)}>Open</Button>,
+                          },
+                        ]}
+                      />}
+                    />
+                  );
+                },
+                sortingField: 'aircraftConfigurationVersion',
+              },
+              {
+                id: 'duration',
+                header: 'Duration',
+                cell: (v) => v.arrivalTime.diff(v.departureTime).rescale().toHuman({ unitDisplay: 'short' }),
+                sortingComparator: useCallback((a: ScheduledFlight, b: ScheduledFlight) => {
+                  const aDuration = a.arrivalTime.diff(a.departureTime);
+                  const bDuration = b.arrivalTime.diff(b.departureTime);
+                  return aDuration.toMillis() - bDuration.toMillis();
+                }, []),
+              },
+              {
+                id: 'code_shares',
+                header: 'Codeshares',
+                cell: (v) => <FlightNumberList flightNumbers={v.codeShares} query={queryForScheduledFlight(v)} exclude={flightSchedules.flightNumber} rel={'alternate nofollow'} />,
+              },
+              {
+                id: 'actions',
+                header: 'Actions',
+                cell: (v) => {
+                  const baseLink = `/data/${flightNumber}/${v.departureTime.toUTC().toISODate()}/${v.departureAirport.iataCode}`;
+                  return (
+                    <SpaceBetween direction={'vertical'} size={'xs'}>
+                      <Button wrapText={false} variant={'inline-link'} href={`${baseLink}/feed.rss`} target={'_blank'} iconName={'download'}>RSS</Button>
+                      <Button wrapText={false} variant={'inline-link'} href={`${baseLink}/feed.atom`} target={'_blank'} iconName={'download'}>Atom</Button>
+                    </SpaceBetween>
+                  );
+                },
+              },
+            ]}
+          />
+        </>
+
       </ColumnLayout>
 
       <SeatMapModal flight={seatMapFlight} onDismiss={() => setSeatMapFlight(undefined)} />
     </ContentLayout>
+  );
+}
+
+function Stats({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
+  return (
+    <ExpandableSection variant={'stacked'} headerText={'Stats'} headerInfo={<Box variant={'small'}>Table filters applied</Box>} defaultExpanded={false}>
+      <Tabs
+        tabs={[
+          {
+            id: 'route',
+            label: 'Route',
+            content: <RouteStat flights={flights} />,
+          },
+          {
+            id: 'aircraft',
+            label: 'Aircraft',
+            content: <AircraftStat flights={flights} />,
+          },
+          {
+            id: 'duration',
+            label: 'Duration',
+            content: <DurationStat flights={flights} />,
+          },
+          {
+            id: 'operating_day',
+            label: 'Operating Day',
+            content: <OperatingDayStat flights={flights} />,
+          },
+        ]}
+      />
+    </ExpandableSection>
+  );
+}
+
+function RouteStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
+  const data = useMemo(() => {
+    const indexByRoute: Record<string, number> = {};
+    const data: Array<PieChartProps.Datum> = [];
+
+    for (const flight of flights) {
+      const routeId = `${flight.departureAirport.id}-${flight.arrivalAirport.id}`;
+      if (!indexByRoute.hasOwnProperty(routeId)) {
+        indexByRoute[routeId] = data.push({
+          title: `${airportToString(flight.departureAirport)} - ${airportToString(flight.arrivalAirport)}`,
+          value: 0,
+        }) - 1;
+      }
+
+      data[indexByRoute[routeId]].value += 1;
+    }
+
+    return data;
+  }, [flights]);
+
+  return (
+    <PieChart data={data} />
+  );
+}
+
+interface Series {
+  type: 'line',
+  title: string;
+  data: Array<{ x: Date, y: number }>;
+}
+
+function AircraftStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
+  const [minDate, maxDate, series] = useMemo(() => {
+    const indexByAircraft: Record<AircraftId, number> = {};
+    const series: Array<Series> = [];
+    const uniqueXValues: Array<number> = [];
+    let minDate: Date | null = null;
+    let maxDate: Date | null = null;
+
+    for (const flight of flights) {
+      if (!indexByAircraft.hasOwnProperty(flight.aircraft.id)) {
+        indexByAircraft[flight.aircraft.id] = series.push({
+          type: 'line',
+          title: flight.aircraft.name ?? flight.aircraft.equipCode ?? flight.aircraft.iataCode ?? flight.aircraft.icaoCode ?? flight.aircraft.id,
+          data: [],
+        }) - 1;
+      }
+
+      const xValue = flight.departureTime.toUTC().startOf('week').toJSDate();
+      const v = series[indexByAircraft[flight.aircraft.id]];
+      let idx = v.data.findIndex((v) => v.x.getTime() === xValue.getTime());
+      if (idx === -1) {
+        idx = v.data.push({
+          x: xValue,
+          y: 0,
+        }) - 1;
+      }
+
+      v.data[idx].y += 1;
+
+      if (!uniqueXValues.includes(xValue.getTime())) {
+        uniqueXValues.push(xValue.getTime());
+      }
+
+      if (!minDate || minDate.getTime() > xValue.getTime()) {
+        minDate = xValue;
+      }
+
+      if (!maxDate || maxDate.getTime() < xValue.getTime()) {
+        maxDate = xValue;
+      }
+    }
+
+    for (const v of series) {
+      let missingXValues = [...uniqueXValues];
+      v.data.forEach((v) => {
+        const idx = missingXValues.indexOf(v.x.getTime());
+        if (idx !== -1) {
+          missingXValues.splice(idx, 1);
+        }
+      });
+
+      for (const missingX of missingXValues) {
+        v.data.push({
+          x: new Date(missingX),
+          y: 0,
+        });
+      }
+
+      v.data.sort((a, b) => a.x.getTime() - b.x.getTime());
+    }
+
+    return [minDate ?? new Date(), maxDate ?? new Date(), series];
+  }, [flights]);
+
+  return (
+    <LineChart
+      series={series}
+      xDomain={[minDate, maxDate]}
+      xScaleType={'time'}
+      xTitle={'Week (UTC)'}
+      yTitle={'Flights'}
+      xTickFormatter={(e) => DateTime.fromJSDate(e).toFormat('yyyy-MM-dd')}
+    />
+  );
+}
+
+function DurationStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
+  const [minDate, maxDate, series] = useMemo(() => {
+    const series: Series = {
+      type: 'line',
+      title: 'Duration',
+      data: [],
+    } satisfies Series;
+    let minDate: Date | null = null;
+    let maxDate: Date | null = null;
+
+    for (const flight of flights) {
+      const xValue = flight.departureTime.toJSDate();
+      const yValue = flight.departureTime.until(flight.arrivalTime);
+      series.data.push({
+        x: xValue,
+        y: yValue.toDuration().milliseconds,
+      });
+
+      if (!minDate || minDate.getTime() > xValue.getTime()) {
+        minDate = xValue;
+      }
+
+      if (!maxDate || maxDate.getTime() < xValue.getTime()) {
+        maxDate = xValue;
+      }
+    }
+
+    return [minDate ?? new Date(), maxDate ?? new Date(), series];
+  }, [flights]);
+
+  return (
+    <LineChart
+      series={[series]}
+      xDomain={[minDate, maxDate]}
+      xScaleType={'time'}
+      xTitle={'Time (UTC)'}
+      yTitle={'Duration'}
+      xTickFormatter={(e) => DateTime.fromJSDate(e).toFormat('yyyy-MM-dd HH:mm')}
+      yTickFormatter={(e) => Duration.fromMillis(e).rescale().toHuman({ listStyle: 'short', unitDisplay: 'short' })}
+    />
+  );
+}
+
+function OperatingDayStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
+  const data = useMemo(() => {
+    const data: Array<PieChartProps.Datum> = [
+      {
+        title: 'Monday',
+        value: 0,
+      },
+      {
+        title: 'Tuesday',
+        value: 0,
+      },
+      {
+        title: 'Wednesday',
+        value: 0,
+      },
+      {
+        title: 'Thursday',
+        value: 0,
+      },
+      {
+        title: 'Friday',
+        value: 0,
+      },
+      {
+        title: 'Saturday',
+        value: 0,
+      },
+      {
+        title: 'Sunday',
+        value: 0,
+      },
+    ];
+
+    for (const flight of flights) {
+      data[flight.departureTime.weekday - 1].value += 1;
+    }
+
+    return data;
+  }, [flights]);
+
+  return (
+    <PieChart data={data} />
   );
 }
 
@@ -411,36 +598,6 @@ function TimeCell({ value }: { value: DateTime<true> }) {
   )
 }
 
-function RouteCell({ route }: { route: [Airport, Airport] }) {
-  const [departure, arrival] = route;
-  return (
-    <>
-      <AirportText code={departure.iataCode ?? departure.icaoCode ?? departure.id} airport={departure} />
-      &nbsp;—&nbsp;
-      <AirportText code={arrival.iataCode ?? departure.icaoCode ?? departure.id} airport={arrival} />
-    </>
-  );
-}
-
-function OperatingDaysCell({ operatingDays }: { operatingDays: ReadonlyArray<WeekdayNumbers> }) {
-  const elements = useMemo(() => {
-    const result: Array<React.ReactNode> = [];
-    const weekdayNumber: ReadonlyArray<WeekdayNumbers> = [1, 2, 3, 4, 5, 6, 7];
-
-    for (const n of weekdayNumber) {
-      result.push(<Badge color={operatingDays.includes(n) ? 'green' : 'red'}>{weekdayNumberToName(n)}</Badge>)
-    }
-
-    return result;
-  }, [operatingDays]);
-
-  return (
-    <>
-      {...elements}
-    </>
-  );
-}
-
 function FlightNumberList({ flightNumbers, query, exclude, rel }: { flightNumbers: ReadonlyArray<[Airline, FlightNumber]>, query?: URLSearchParams, exclude?: FlightNumber, rel?: string }) {
   return (
     <Join
@@ -474,7 +631,18 @@ function TableFilter({ query, setQuery, summary }: TableFilterProps) {
         ...(summary.aircraftConfigurationVersions.map((v) => ({ propertyKey: 'aircraft_configuration_version', value: v, label: aircraftConfigurationVersionToName(v) ?? v }))),
         ...(summary.departureAirports.map((v) => ({ propertyKey: 'departure_airport_id', value: v.id, label: v.iataCode ?? v.icaoCode ?? v.name ?? v.id }))),
         ...(summary.arrivalAirports.map((v) => ({ propertyKey: 'arrival_airport_id', value: v.id, label: v.iataCode ?? v.icaoCode ?? v.name ?? v.id }))),
-        ...(summary.operatingDays.map((v) => ({ propertyKey: 'operating_day', value: v.toString(10), label: weekdayNumberToName(v) }))),
+        ...(([1, 2, 3, 4, 5, 6, 7] satisfies Array<WeekdayNumbers>).map((v) => ({ propertyKey: 'operating_day', value: v.toString(10), label: weekdayNumberToName(v) }))),
+        ...(summary.years.map((v) => ({ propertyKey: 'year', value: v.toString(10), label: v.toString(10) }))),
+        {
+          propertyKey: 'schedule',
+          value: 'summer',
+          label: 'Summer'
+        },
+        {
+          propertyKey: 'schedule',
+          value: 'winter',
+          label: 'Winter'
+        },
       ]}
       filteringProperties={[
         {
@@ -537,6 +705,23 @@ function TableFilter({ query, setQuery, summary }: TableFilterProps) {
           operators: ['=', '>=', '>', '<=', '<'].map((op) => buildDateOperator(op)),
           propertyLabel: 'Departure Date UTC',
           groupValuesLabel: 'Departure Date UTC values',
+        },
+        {
+          key: 'schedule',
+          operators: [
+            { operator: '=', tokenType: 'enum' },
+          ],
+          propertyLabel: 'Schedule',
+          groupValuesLabel: 'Schedule values',
+        },
+        {
+          key: 'year',
+          operators: [
+            { operator: '=', tokenType: 'enum' },
+            { operator: '!=', tokenType: 'enum' },
+          ],
+          propertyLabel: 'Year',
+          groupValuesLabel: 'Year values',
         },
       ]}
     />
@@ -673,6 +858,7 @@ function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFligh
   const operatingDays: Array<WeekdayNumbers> = [];
   const operatedAs: Array<[Airline, FlightNumber]> = [];
   const codeShares: Array<[Airline, FlightNumber]> = [];
+  const years: Array<number> = [];
   const flights: Array<ScheduledFlight> = [];
 
   let minDuration = Duration.fromMillis(Number.MAX_SAFE_INTEGER);
@@ -740,6 +926,10 @@ function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFligh
       maxDuration = duration;
     }
 
+    if (!years.includes(departureTime.year)) {
+      years.push(departureTime.year);
+    }
+
     if (departureTime.isValid && arrivalTime.isValid) {
       if (!operatingDays.includes(departureTime.weekday)) {
         operatingDays.push(departureTime.weekday);
@@ -777,6 +967,7 @@ function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFligh
       },
       operatedAs: operatedAs,
       codeShares: codeShares,
+      years: years,
     },
     flights: flights,
   };
@@ -924,6 +1115,18 @@ function evaluateTokenSingle(flight: ScheduledFlight, propertyKey: string, opera
     case 'departure_date_utc':
       cmpResult = flight.departureTime.toUTC().toISODate().localeCompare(filterValue);
       break;
+
+    case 'schedule':
+      if (filterValue === 'summer') {
+        cmpResult = isSummerSchedule(flight.departureTime) ? 0 : 1;
+      } else {
+        cmpResult = isSummerSchedule(flight.departureTime) ? 1 : 0;
+      }
+      break;
+
+    case 'year':
+      cmpResult = flight.departureTime.year - Number.parseInt(filterValue, 10);
+      break;
   }
 
   switch (operator) {
@@ -951,7 +1154,22 @@ function evaluateTokenSingle(flight: ScheduledFlight, propertyKey: string, opera
 
 function parseSearchParams(v: URLSearchParams): PropertyFilterProps.Query | null {
   const tokens: Array<PropertyFilterProps.Token> = [];
-  for (const prop of ['departure_time', 'aircraft_type', 'aircraft_id', 'aircraft_configuration_version', 'departure_airport', 'departure_airport_id', 'arrival_airport', 'arrival_airport_id', 'operating_day', 'departure_date_utc']) {
+  const regularProps = [
+    'departure_time',
+    'aircraft_type',
+    'aircraft_id',
+    'aircraft_configuration_version',
+    'departure_airport',
+    'departure_airport_id',
+    'arrival_airport',
+    'arrival_airport_id',
+    'operating_day',
+    'departure_date_utc',
+    'schedule',
+    'year',
+  ];
+
+  for (const prop of regularProps) {
     const values = v.getAll(prop);
     if (values.length >= 1) {
       if (values.length === 1) {
@@ -996,6 +1214,24 @@ function parseSearchParams(v: URLSearchParams): PropertyFilterProps.Query | null
     operation: 'and',
     tokens: tokens,
   } satisfies PropertyFilterProps.Query;
+}
+
+function isSummerSchedule(dt: DateTime<true>) {
+  const lastSundayOfMar = lastWeekdayOfMonth(dt, 3, 7).startOf('day').toMillis();
+  const lastSaturdayOfOct = lastWeekdayOfMonth(dt, 10, 6).endOf('day').toMillis();
+  const millis = dt.toMillis();
+
+  return millis >= lastSundayOfMar && millis <= lastSaturdayOfOct;
+}
+
+function lastWeekdayOfMonth(dt: DateTime<true>, month: number, weekday: WeekdayNumbers) {
+  dt = dt.set({ month: month }).endOf('month');
+  if (dt.weekday === weekday) {
+    return dt;
+  }
+
+  const dayDiff = 7 - (Math.max(dt.weekday, weekday) - Math.min(dt.weekday, weekday));
+  return dt.minus({ day: dayDiff });
 }
 
 export function withDepartureDateFilter(q: URLSearchParams, date: DateTime<true>, operator: '=' | '>=' | '<=' = '='): URLSearchParams {
