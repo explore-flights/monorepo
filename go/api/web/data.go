@@ -29,6 +29,7 @@ type dataHandlerRepo interface {
 	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
 	Aircraft(ctx context.Context) (map[uuid.UUID]db.Aircraft, error)
 	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
+	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber, departureAirport uuid.UUID, departureDate xtime.LocalDate) (db.FlightScheduleVersions, error)
 }
 
 type DataHandler struct {
@@ -219,6 +220,132 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 	return c.JSON(http.StatusOK, fs)
 }
 
+func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
+	ctx := c.Request().Context()
+	fnRaw := c.Param("fn")
+	departureAirportIdRaw := c.Param("departureAirport")
+	departureDateLocalRaw := c.Param("departureDateLocal")
+
+	fn, err := dh.parseFlightNumber(ctx, fnRaw)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest)
+	}
+
+	departureAirportId, err := dh.parseAirport(ctx, departureAirportIdRaw)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest)
+	}
+
+	var departureDateLocal xtime.LocalDate
+	if departureDateLocal, err = xtime.ParseLocalDate(departureDateLocalRaw); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest)
+	}
+
+	var flightScheduleVersions db.FlightScheduleVersions
+	var airlines map[uuid.UUID]db.Airline
+	var airports map[uuid.UUID]db.Airport
+	var aircraft map[uuid.UUID]db.Aircraft
+
+	{
+		g, ctx := errgroup.WithContext(ctx)
+
+		g.Go(func() error {
+			var err error
+			flightScheduleVersions, err = dh.repo.FlightScheduleVersions(ctx, fn, uuid.UUID(departureAirportId), departureDateLocal)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			airlines, err = dh.repo.Airlines(ctx)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			airports, err = dh.repo.Airports(ctx)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			aircraft, err = dh.repo.Aircraft(ctx)
+			return err
+		})
+
+		if err := g.Wait(); err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError)
+		}
+	}
+
+	fs := model.FlightScheduleVersions{
+		FlightNumber:       model.FlightNumberFromDb(fn),
+		DepartureDateLocal: departureDateLocal,
+		DepartureAirportId: model.UUID(departureAirportId),
+		Versions:           make([]model.FlightScheduleVersion, 0, len(flightScheduleVersions.Versions)),
+		Variants:           make(map[model.UUID]model.FlightScheduleVariant, len(flightScheduleVersions.Variants)),
+		Airlines:           make(map[model.UUID]model.Airline),
+		Airports:           make(map[model.UUID]model.Airport),
+		Aircraft:           make(map[model.UUID]model.Aircraft),
+	}
+	referencedAirlines := make(common.Set[uuid.UUID])
+	referencedAirports := make(common.Set[uuid.UUID])
+	referencedAircraft := make(common.Set[uuid.UUID])
+
+	referencedAirlines.Add(fn.AirlineId)
+	referencedAirports.Add(departureAirportId)
+
+	for _, version := range flightScheduleVersions.Versions {
+		var flightVariantId *model.UUID
+		if version.FlightVariantId.Valid {
+			id := model.UUID(version.FlightVariantId.V)
+			flightVariantId = &id
+		}
+
+		fsv := model.FlightScheduleVersion{
+			Version:         version.Version,
+			FlightVariantId: flightVariantId,
+		}
+
+		fs.Versions = append(fs.Versions, fsv)
+	}
+
+	for variantId, variant := range flightScheduleVersions.Variants {
+		fs.Variants[model.UUID(variantId)] = model.FlightScheduleVariant{
+			Id:                           model.UUID(variant.Id),
+			OperatedAs:                   model.FlightNumberFromDb(variant.OperatedAs),
+			DepartureTimeLocal:           variant.DepartureTimeLocal,
+			DepartureUtcOffsetSeconds:    variant.DepartureUtcOffsetSeconds,
+			DurationSeconds:              variant.DurationSeconds,
+			ArrivalAirportId:             model.UUID(variant.ArrivalAirportId),
+			ArrivalUtcOffsetSeconds:      variant.ArrivalUtcOffsetSeconds,
+			ServiceType:                  variant.ServiceType,
+			AircraftOwner:                variant.AircraftOwner,
+			AircraftId:                   model.UUID(variant.AircraftId),
+			AircraftConfigurationVersion: variant.AircraftConfigurationVersion,
+		}
+
+		referencedAirlines.Add(variant.OperatedAs.AirlineId)
+		referencedAirports.Add(variant.ArrivalAirportId)
+		referencedAircraft.Add(variant.AircraftId)
+	}
+
+	for airlineId := range referencedAirlines {
+		fs.Airlines[model.UUID(airlineId)] = model.AirlineFromDb(airlines[airlineId])
+	}
+
+	for airportId := range referencedAirports {
+		fs.Airports[model.UUID(airportId)] = model.AirportFromDb(airports[airportId])
+	}
+
+	for aircraftId := range referencedAircraft {
+		fs.Aircraft[model.UUID(aircraftId)] = model.AircraftFromDb(aircraft[aircraftId])
+	}
+
+	addExpirationHeaders(c, time.Now(), time.Hour)
+	return c.JSON(http.StatusOK, fs)
+}
+
 func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.FlightNumber, error) {
 	if airlineIdRaw, numberAndSuffix, found := strings.Cut(raw, "-"); found {
 		var airlineId model.UUID
@@ -285,6 +412,28 @@ func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.Fl
 	}
 
 	return db.FlightNumber{}, fmt.Errorf("invalid FlightNumber: %q", raw)
+}
+
+func (dh *DataHandler) parseAirport(ctx context.Context, raw string) (uuid.UUID, error) {
+	if len(raw) <= 4 {
+		airports, err := dh.repo.Airports(ctx)
+		if err != nil {
+			return uuid.Nil, err
+		}
+
+		for _, airport := range airports {
+			if (airport.IataCode.Valid && airport.IataCode.String == raw) || (airport.IcaoCode.Valid && airport.IcaoCode.String == raw) {
+				return airport.Id, nil
+			}
+		}
+	}
+
+	var airportId model.UUID
+	if err := airportId.FromString(raw); err != nil {
+		return uuid.Nil, err
+	}
+
+	return uuid.UUID(airportId), nil
 }
 
 func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {

@@ -12,7 +12,7 @@ import {
   SeatMap,
   QueryScheduleResponse,
   QuerySchedulesRequest,
-  Notification, Airline, SearchResponse, Airport, FlightSchedules
+  Notification, Airline, SearchResponse, Airport, FlightSchedules, AirportId, FlightScheduleVersions
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -87,6 +87,10 @@ export class ApiClient {
     }
 
     return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}${suffix}?v=2`));
+  }
+
+  getFlightScheduleVersions(flightNumber: string, departureAirport: string, departureDateLocal: string): Promise<ApiResponse<FlightScheduleVersions>> {
+    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(departureAirport)}/${encodeURIComponent(departureDateLocal)}`));
   }
 
   getConnections(req: ConnectionsSearchRequest): Promise<ApiResponse<ConnectionsSearchResponse>> {

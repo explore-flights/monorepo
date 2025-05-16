@@ -4,7 +4,7 @@ import {
   Alert,
   Badge,
   Box,
-  Button,
+  Button, ButtonDropdown,
   Calendar,
   ColumnLayout,
   Container,
@@ -42,6 +42,7 @@ import { SeatMapView } from '../components/seatmap/seatmap';
 import { aircraftConfigurationVersionToName } from '../lib/consts';
 import { AircraftConfigurationVersionText, AirportText } from '../components/common/text';
 import { airportToString, flightNumberToString } from '../lib/util/flight';
+import { RouterInlineLink } from '../components/common/router-link';
 
 export function FlightView() {
   const { id } = useParams();
@@ -224,7 +225,7 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
                   }
 
                   return `${airline.name} (${codes.join('/')})`;
-                }, [flightSchedules.airlines[flightSchedules.flightNumber.airlineId]]),
+                }, [flightSchedules]),
               },
               {
                 label: 'Number',
@@ -403,12 +404,26 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
                     return '';
                   }
 
-                  const baseLink = `/data/${flightNumber}/${v.departureDateLocal}/${v.departureAirport.iataCode}`;
+                  const airportId = v.departureAirport.iataCode ?? v.departureAirport.icaoCode ?? v.departureAirport.id;
+                  const baseLink = `/data/${encodeURIComponent(flightNumber)}/${encodeURIComponent(v.departureDateLocal)}/${encodeURIComponent(v.departureAirport.iataCode)}`;
+                  
                   return (
-                    <SpaceBetween direction={'vertical'} size={'xs'}>
-                      <Button wrapText={false} variant={'inline-link'} href={`${baseLink}/feed.rss`} target={'_blank'} iconName={'download'}>RSS</Button>
-                      <Button wrapText={false} variant={'inline-link'} href={`${baseLink}/feed.atom`} target={'_blank'} iconName={'download'}>Atom</Button>
-                    </SpaceBetween>
+                    <ButtonDropdown
+                      items={[
+                        { id: 'rss', text: 'RSS', iconName: 'download', href: `${baseLink}/feed.rss` },
+                        { id: 'atom', text: 'Atom', iconName: 'download', href: `${baseLink}/feed.atom` },
+                        { id: 'history', text: 'History', href: `/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(airportId)}/${encodeURIComponent(v.departureDateLocal)}` },
+                      ]}
+                      variant={'icon'}
+                      expandToViewport={true}
+                      ariaLabel={'Flight links'}
+                      onItemFollow={(e) => {
+                        if (e.detail.href) {
+                          e.preventDefault();
+                          window.open(e.detail.href, e.detail.id ?? '_blank');
+                        }
+                      }}
+                    />
                   );
                 }, []),
               },

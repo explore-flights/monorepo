@@ -172,6 +172,27 @@ export function useFlightSchedule(flightNumber: string, version?: DateTime<true>
   });
 }
 
+export function useFlightScheduleVersions(flightNumber: string, departureAirport: string, departureDateLocal: string) {
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['flight_schedule_versions', flightNumber, departureAirport, departureDateLocal],
+    queryFn: async () => {
+      const { body } = expectSuccess(await apiClient.getFlightScheduleVersions(flightNumber, departureAirport, departureDateLocal));
+      return body;
+    },
+    retry: (count, e) => {
+      if (count > 3) {
+        return false;
+      } else if (e instanceof ApiError && (e.response.status === 400 || e.response.status === 404)) {
+        return false;
+      }
+
+      return true;
+    },
+    staleTime: 1000 * 60 * 15,
+  });
+}
+
 export function useSeatMap(flightNumber: string,
                            departureAirport: string,
                            arrivalAirport: string,

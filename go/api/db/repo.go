@@ -394,7 +394,7 @@ func (fr *FlightRepo) FlightSchedules(ctx context.Context, fn FlightNumber, vers
 	defer conn.Close()
 
 	items := make([]FlightScheduleItem, 0)
-	variantsIds := make(common.Set[uuid.UUID])
+	variantIds := make(common.Set[uuid.UUID])
 	err = func() error {
 		rows, err := conn.QueryContext(
 			ctx,
@@ -458,7 +458,7 @@ ORDER BY departure_date_local ASC
 			items = append(items, fsi)
 
 			if fsi.FlightVariantId.Valid {
-				variantsIds.Add(fsi.FlightVariantId.V)
+				variantIds.Add(fsi.FlightVariantId.V)
 			}
 		}
 
@@ -468,12 +468,90 @@ ORDER BY departure_date_local ASC
 		return FlightSchedules{}, err
 	}
 
-	variants := make(map[uuid.UUID]FlightScheduleVariant)
+	variants, err := fr.flightVariants(ctx, conn, variantIds)
+	if err != nil {
+		return FlightSchedules{}, err
+	}
+
+	return FlightSchedules{
+		Items:    items,
+		Variants: variants,
+	}, nil
+}
+
+func (fr *FlightRepo) FlightScheduleVersions(ctx context.Context, fn FlightNumber, departureAirport uuid.UUID, departureDate xtime.LocalDate) (FlightScheduleVersions, error) {
+	conn, err := fr.db.Conn(ctx)
+	if err != nil {
+		return FlightScheduleVersions{}, err
+	}
+	defer conn.Close()
+
+	versions := make([]FlightScheduleVersion, 0)
+	variantsIds := make(common.Set[uuid.UUID])
 	err = func() error {
-		placeholders, params := buildParams(maps.Keys(variantsIds))
 		rows, err := conn.QueryContext(
 			ctx,
-			strings.Replace(`
+			`
+SELECT
+    created_at,
+    flight_variant_id
+FROM flight_variant_history
+WHERE airline_id = ?
+AND number_mod_10 = (? % 10)
+AND number = ?
+AND suffix = ?
+AND departure_airport_id = ?
+AND departure_date_local = ?
+ORDER BY created_at ASC
+`,
+			fn.AirlineId,
+			fn.Number,
+			fn.Number,
+			fn.Suffix,
+			departureAirport,
+			departureDate.String(),
+		)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var version FlightScheduleVersion
+			if err = rows.Scan(&version.Version, &version.FlightVariantId); err != nil {
+				return err
+			}
+
+			versions = append(versions, version)
+
+			if version.FlightVariantId.Valid {
+				variantsIds.Add(version.FlightVariantId.V)
+			}
+		}
+
+		return rows.Err()
+	}()
+	if err != nil {
+		return FlightScheduleVersions{}, err
+	}
+
+	variants, err := fr.flightVariants(ctx, conn, variantsIds)
+	if err != nil {
+		return FlightScheduleVersions{}, err
+	}
+
+	return FlightScheduleVersions{
+		Versions: versions,
+		Variants: variants,
+	}, nil
+}
+
+func (fr *FlightRepo) flightVariants(ctx context.Context, conn *sql.Conn, variantIds common.Set[uuid.UUID]) (map[uuid.UUID]FlightScheduleVariant, error) {
+	variantIds = maps.Clone(variantIds)
+	placeholders, params := buildParams(maps.Keys(variantIds))
+	rows, err := conn.QueryContext(
+		ctx,
+		strings.Replace(`
 SELECT
     id,
     operating_airline_id,
@@ -492,47 +570,42 @@ SELECT
 FROM flight_variants
 WHERE id IN (:flightVariantIds)
 			`, ":flightVariantIds", placeholders, 1),
-			params...,
+		params...,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	variants := make(map[uuid.UUID]FlightScheduleVariant)
+	for rows.Next() {
+		var fsv FlightScheduleVariant
+		err = rows.Scan(
+			&fsv.Id,
+			&fsv.OperatedAs.AirlineId,
+			&fsv.OperatedAs.Number,
+			&fsv.OperatedAs.Suffix,
+			&fsv.DepartureTimeLocal,
+			&fsv.DepartureUtcOffsetSeconds,
+			&fsv.DurationSeconds,
+			&fsv.ArrivalAirportId,
+			&fsv.ArrivalUtcOffsetSeconds,
+			&fsv.ServiceType,
+			&fsv.AircraftOwner,
+			&fsv.AircraftId,
+			&fsv.AircraftConfigurationVersion,
+			&fsv.AircraftRegistration,
 		)
 		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var fsv FlightScheduleVariant
-			err = rows.Scan(
-				&fsv.Id,
-				&fsv.OperatedAs.AirlineId,
-				&fsv.OperatedAs.Number,
-				&fsv.OperatedAs.Suffix,
-				&fsv.DepartureTimeLocal,
-				&fsv.DepartureUtcOffsetSeconds,
-				&fsv.DurationSeconds,
-				&fsv.ArrivalAirportId,
-				&fsv.ArrivalUtcOffsetSeconds,
-				&fsv.ServiceType,
-				&fsv.AircraftOwner,
-				&fsv.AircraftId,
-				&fsv.AircraftConfigurationVersion,
-				&fsv.AircraftRegistration,
-			)
-			if err != nil {
-				return err
-			}
-
-			if variantsIds.Remove(fsv.Id) {
-				variants[fsv.Id] = fsv
-			}
+			return nil, err
 		}
 
-		return rows.Err()
-	}()
+		if variantIds.Remove(fsv.Id) {
+			variants[fsv.Id] = fsv
+		}
+	}
 
-	return FlightSchedules{
-		Items:    items,
-		Variants: variants,
-	}, nil
+	return variants, rows.Err()
 }
 
 func (fr *FlightRepo) flightsInternal(ctx context.Context, d xtime.LocalDate) ([]Flight, error) {

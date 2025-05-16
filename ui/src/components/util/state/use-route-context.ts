@@ -32,6 +32,24 @@ const ROUTES = [{
           path: /^.*$/,
           title: (part) => part,
           breadcrumb: (part) => part,
+          children: [
+            {
+              path: 'versions',
+              breadcrumb: undefined,
+              children: [
+                {
+                  path: /^.*$/,
+                  children: [
+                    {
+                      path: /^.*$/,
+                      title: (part) => part,
+                      breadcrumb: (part) => part,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
         },
       ],
     },

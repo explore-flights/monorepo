@@ -116,8 +116,12 @@ type FlightScheduleVariant struct {
 	AircraftRegistration         string
 }
 
-type FlightSchedule struct {
-	Flight
-	OperatedAs FlightNumber
-	Version    time.Time
+type FlightScheduleVersions struct {
+	Versions []FlightScheduleVersion
+	Variants map[uuid.UUID]FlightScheduleVariant
+}
+
+type FlightScheduleVersion struct {
+	Version         time.Time
+	FlightVariantId sql.Null[uuid.UUID]
 }

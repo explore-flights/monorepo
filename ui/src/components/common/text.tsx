@@ -33,7 +33,7 @@ function AircraftCellPopover({ value, children }: React.PropsWithChildren<{ valu
 
 export function AircraftConfigurationVersionText({ value, popoverContent }: { value: string, popoverContent?: React.ReactNode }) {
   const name = aircraftConfigurationVersionToName(value);
-  const content = <Box variant={'span'}>{name ?? value}</Box>;
+  const content = <Box variant={'samp'}>{name ?? value}</Box>;
 
   if (popoverContent) {
     return (

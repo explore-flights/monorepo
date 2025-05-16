@@ -157,6 +157,22 @@ export interface FlightScheduleVariant {
   aircraftConfigurationVersion: string;
 }
 
+export interface FlightScheduleVersions {
+  flightNumber: FlightNumber;
+  departureDateLocal: string;
+  departureAirportId: AirportId;
+  versions: ReadonlyArray<FlightScheduleVersion>;
+  variants: Record<FlightVariantId, FlightScheduleVariant>;
+  airlines: Record<AirlineId, Airline>;
+  airports: Record<AirportId, Airport>;
+  aircraft: Record<AircraftId, Aircraft>;
+}
+
+export interface FlightScheduleVersion {
+  version: string;
+  flightVariantId?: FlightVariantId;
+}
+
 export interface OldFlightScheduleVariantMetadata {
   creationTime: string;
   rangesUpdateTime: string;

@@ -46,6 +46,14 @@ export function RouterInlineLink(props: RouterInlineLinkProps) {
     <Button
       href={href}
       onFollow={(e) => {
+        if (buttonProps.target) {
+          return;
+        }
+
+        if (buttonProps.onFollow) {
+          buttonProps.onFollow(e);
+        }
+
         e.preventDefault();
         navigate(to);
       }}

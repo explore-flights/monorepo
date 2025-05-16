@@ -36,3 +36,19 @@ type FlightScheduleVariant struct {
 	AircraftId                   UUID            `json:"aircraftId"`
 	AircraftConfigurationVersion string          `json:"aircraftConfigurationVersion"`
 }
+
+type FlightScheduleVersions struct {
+	FlightNumber       FlightNumber                   `json:"flightNumber"`
+	DepartureDateLocal xtime.LocalDate                `json:"departureDateLocal"`
+	DepartureAirportId UUID                           `json:"departureAirportId"`
+	Versions           []FlightScheduleVersion        `json:"versions"`
+	Variants           map[UUID]FlightScheduleVariant `json:"variants"`
+	Airlines           map[UUID]Airline               `json:"airlines"`
+	Airports           map[UUID]Airport               `json:"airports"`
+	Aircraft           map[UUID]Aircraft              `json:"aircraft"`
+}
+
+type FlightScheduleVersion struct {
+	Version         time.Time `json:"version"`
+	FlightVariantId *UUID     `json:"flightVariantId,omitempty"`
+}
