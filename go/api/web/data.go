@@ -170,6 +170,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 			CodeShares:         make([]model.FlightNumber, 0, len(item.CodeShares)),
 			FlightVariantId:    flightVariantId,
 			Version:            item.Version,
+			VersionCount:       item.VersionCount,
 		}
 
 		referencedAirports.Add(item.DepartureAirportId)

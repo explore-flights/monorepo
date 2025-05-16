@@ -88,7 +88,6 @@ type Flight struct {
 }
 
 type FlightSchedules struct {
-	FlightNumber
 	Items    []FlightScheduleItem
 	Variants map[uuid.UUID]FlightScheduleVariant
 }
@@ -99,6 +98,7 @@ type FlightScheduleItem struct {
 	CodeShares         common.Set[FlightNumber]
 	FlightVariantId    sql.Null[uuid.UUID]
 	Version            time.Time
+	VersionCount       int
 }
 
 type FlightScheduleVariant struct {

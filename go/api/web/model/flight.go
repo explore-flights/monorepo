@@ -20,6 +20,7 @@ type FlightScheduleItem struct {
 	CodeShares         []FlightNumber  `json:"codeShares"`
 	FlightVariantId    *UUID           `json:"flightVariantId,omitempty"`
 	Version            time.Time       `json:"version"`
+	VersionCount       int             `json:"versionCount"`
 }
 
 type FlightScheduleVariant struct {

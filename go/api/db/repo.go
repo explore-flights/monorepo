@@ -418,7 +418,8 @@ SELECT
     departure_airport_id,
     FIRST(code_shares ORDER BY created_at DESC),
     FIRST(flight_variant_id ORDER BY created_at DESC),
-    FIRST(created_at ORDER BY created_at DESC)
+    FIRST(created_at ORDER BY created_at DESC),
+    COUNT(DISTINCT created_at)
 FROM filtered_flight_variant_history
 GROUP BY departure_date_local, departure_airport_id
 ORDER BY departure_date_local ASC
@@ -443,6 +444,7 @@ ORDER BY departure_date_local ASC
 				&codeShares,
 				&fsi.FlightVariantId,
 				&fsi.Version,
+				&fsi.VersionCount,
 			)
 			if err != nil {
 				return err
@@ -528,9 +530,8 @@ WHERE id IN (:flightVariantIds)
 	}()
 
 	return FlightSchedules{
-		FlightNumber: fn,
-		Items:        items,
-		Variants:     variants,
+		Items:    items,
+		Variants: variants,
 	}, nil
 }
 

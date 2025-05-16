@@ -140,6 +140,7 @@ export interface FlightScheduleItem {
   codeShares: ReadonlyArray<FlightNumber>;
   flightVariantId?: FlightVariantId;
   version: string;
+  versionCount: number;
 }
 
 export interface FlightScheduleVariant {
