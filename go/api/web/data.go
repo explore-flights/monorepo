@@ -484,6 +484,9 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 		feed.Updated = item.Updated
 	}
 
+	// newest first
+	slices.Reverse(feed.Items)
+
 	return feed
 }
 
