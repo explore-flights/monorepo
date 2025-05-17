@@ -31,6 +31,9 @@ SELECT
         )
     ) AS codeShares
 FROM (
+    SELECT *, NULL AS cs
+    FROM lh_flight_schedules_operating
+    UNION ALL
     SELECT *, UNNEST(codeShares) AS cs
     FROM lh_flight_schedules_operating
 ) f
