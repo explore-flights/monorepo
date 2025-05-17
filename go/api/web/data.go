@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -11,10 +12,13 @@ import (
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/gofrs/uuid/v5"
+	"github.com/gorilla/feeds"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/sync/errgroup"
+	"io"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -207,22 +211,296 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
 	ctx := c.Request().Context()
 	fnRaw := c.Param("fn")
-	departureAirportIdRaw := c.Param("departureAirport")
+	departureAirportRaw := c.Param("departureAirport")
 	departureDateLocalRaw := c.Param("departureDateLocal")
 
-	fn, err := dh.parseFlightNumber(ctx, fnRaw)
+	fs, err := dh.loadFlightScheduleVersions(ctx, fnRaw, departureAirportRaw, departureDateLocalRaw)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest)
+		var httpErr *echo.HTTPError
+		if errors.As(err, &httpErr) {
+			return httpErr
+		}
+
+		return echo.NewHTTPError(http.StatusInternalServerError)
 	}
 
-	departureAirportId, err := dh.parseAirport(ctx, departureAirportIdRaw)
+	addExpirationHeaders(c, time.Now(), time.Hour)
+	return c.JSON(http.StatusOK, fs)
+}
+
+func (dh *DataHandler) FlightScheduleVersionsRSSFeed(c echo.Context) error {
+	return dh.flightScheduleVersionsFeed(c, "application/rss+xml", (*feeds.Feed).WriteRss)
+}
+
+func (dh *DataHandler) FlightScheduleVersionsAtomFeed(c echo.Context) error {
+	return dh.flightScheduleVersionsFeed(c, "application/atom+xml", (*feeds.Feed).WriteAtom)
+}
+
+func (dh *DataHandler) flightScheduleVersionsFeed(c echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
+	ctx := c.Request().Context()
+	fnRaw := c.Param("fn")
+	departureAirportRaw := c.Param("departureAirport")
+	departureDateLocalRaw := c.Param("departureDateLocal")
+
+	fs, err := dh.loadFlightScheduleVersions(ctx, fnRaw, departureAirportRaw, departureDateLocalRaw)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest)
+		var httpErr *echo.HTTPError
+		if errors.As(err, &httpErr) {
+			return httpErr
+		}
+
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+
+	feed := dh.buildFlightScheduleVersionsFeed(fs)
+
+	c.Response().Header().Add(echo.HeaderContentType, contentType)
+	addExpirationHeaders(c, time.Now(), time.Hour)
+
+	return writer(feed, c.Response())
+}
+
+func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVersions) *feeds.Feed {
+	const maxSize = 20
+
+	fnName := func(fn model.FlightNumber) string {
+		var airlinePrefix string
+		if airline, ok := fs.Airlines[fn.AirlineId]; ok {
+			airlinePrefix = cmp.Or(airline.IataCode, airline.IcaoCode, airline.Id.String()+"-")
+		} else {
+			airlinePrefix = fn.AirlineId.String() + "-"
+		}
+
+		return fmt.Sprintf("%s%d%s", airlinePrefix, fn.Number, fn.Suffix)
+	}
+
+	airportName := func(airportId model.UUID) string {
+		airport, ok := fs.Airports[airportId]
+		if !ok {
+			return airportId.String()
+		}
+
+		return cmp.Or(airport.IataCode, airport.IcaoCode, airport.Name, airport.Id.String())
+	}
+
+	aircraftName := func(aircraftId model.UUID) string {
+		aircraft, ok := fs.Aircraft[aircraftId]
+		if !ok {
+			return aircraftId.String()
+		}
+
+		return cmp.Or(aircraft.Name, aircraft.EquipCode, aircraft.IataCode, aircraft.IcaoCode, aircraft.Id.String())
+	}
+
+	aircraftAndConfigurationVersionName := func(aircraftId model.UUID, v string) string {
+		configName := v
+		if aircraft, ok := fs.Aircraft[aircraftId]; ok && aircraft.IataCode == "359" {
+			switch v {
+			case "C38E24M201":
+				configName = "Allegris (no first)"
+				break
+
+			case "F4C38E24M201":
+				configName = "Allegris (with first)"
+				break
+
+			case "C48E21M224":
+				configName = "LH Classic"
+				break
+
+			case "C30E26M262":
+				configName = "LH Philippines Config 1"
+				break
+
+			case "C30E24M241":
+				configName = "LH Philippines Config 2"
+				break
+			}
+		}
+
+		return fmt.Sprintf("%s (%s)", aircraftName(aircraftId), configName)
+	}
+
+	baseFnName := fnName(fs.FlightNumber)
+	departureAirportName := airportName(fs.DepartureAirportId)
+	feedId := fmt.Sprintf("https://explore.flights/flight/%s/versions/%s/%s", baseFnName, fs.DepartureAirportId.String(), fs.DepartureDateLocal.String())
+	baseLink := &feeds.Link{
+		Href: feedId,
+		Rel:  "alternate",
+		Type: "text/html",
+	}
+
+	feed := &feeds.Feed{
+		Id:      feedId,
+		Title:   fmt.Sprintf("Flight %s from %s on %s (airport local time)", baseFnName, departureAirportName, fs.DepartureDateLocal.String()),
+		Link:    baseLink,
+		Created: common.ProjectCreationTime(),
+		Updated: common.ProjectCreationTime(),
+	}
+
+	versions := fs.Versions
+	slices.SortFunc(versions, func(a, b model.FlightScheduleVersion) int {
+		return a.Version.Compare(b.Version)
+	})
+
+	if len(versions) > maxSize {
+		versions = versions[len(versions)-maxSize:]
+	} else if len(versions) < maxSize {
+		feed.Items = append(feed.Items, &feeds.Item{
+			Id:          fmt.Sprintf("%s#%s", feedId, common.ProjectCreationTime().Format(time.RFC3339)),
+			IsPermaLink: "false",
+			Title:       "Initial Record (empty)",
+			Link:        baseLink,
+			Created:     common.ProjectCreationTime(),
+			Updated:     common.ProjectCreationTime(),
+			Content:     "Start of the feed",
+			Description: "Start of the feed",
+		})
+	}
+
+	var prevVariant *model.FlightScheduleVariant
+	for _, version := range versions {
+		itemId := fmt.Sprintf("%s#%s", feedId, version.Version.Format(time.RFC3339))
+		item := &feeds.Item{
+			Id:          itemId,
+			IsPermaLink: "false",
+			Link: &feeds.Link{
+				Href: itemId,
+				Rel:  "alternate",
+				Type: "text/html",
+			},
+			Created: version.Version,
+			Updated: version.Version,
+		}
+
+		if version.FlightVariantId != nil {
+			variant := fs.Variants[*version.FlightVariantId]
+			updates := make([]string, 0)
+
+			if prevVariant == nil || prevVariant.OperatedAs != variant.OperatedAs {
+				var old string
+				if prevVariant != nil {
+					old = fmt.Sprintf("old=%s ", fnName(prevVariant.OperatedAs))
+				}
+
+				updates = append(updates, fmt.Sprintf("Operated As: %snew=%s", old, fnName(variant.OperatedAs)))
+			}
+
+			if prevVariant == nil || prevVariant.DepartureTimeLocal != variant.DepartureTimeLocal {
+				var old string
+				if prevVariant != nil {
+					old = fmt.Sprintf("old=%s ", prevVariant.DepartureTimeLocal.String())
+				}
+
+				updates = append(updates, fmt.Sprintf("Departure Time: %snew=%s", old, variant.DepartureTimeLocal.String()))
+			}
+
+			if prevVariant == nil || prevVariant.DurationSeconds != variant.DurationSeconds {
+				var old string
+				if prevVariant != nil {
+					old = fmt.Sprintf("old=%s ", (time.Duration(prevVariant.DurationSeconds) * time.Second).String())
+				}
+
+				updates = append(updates, fmt.Sprintf("Duration: %snew=%s", old, (time.Duration(variant.DurationSeconds)*time.Second).String()))
+			}
+
+			if prevVariant == nil || prevVariant.ArrivalAirportId != variant.ArrivalAirportId {
+				var old string
+				if prevVariant != nil {
+					old = fmt.Sprintf("old=%s ", airportName(prevVariant.ArrivalAirportId))
+				}
+
+				updates = append(updates, fmt.Sprintf("Arrival Airport: %snew=%s", old, airportName(variant.ArrivalAirportId)))
+			}
+
+			if prevVariant == nil || prevVariant.ServiceType != variant.ServiceType {
+				var old string
+				if prevVariant != nil {
+					old = fmt.Sprintf("old=%s ", prevVariant.ServiceType)
+				}
+
+				updates = append(updates, fmt.Sprintf("Service Type: %snew=%s", old, variant.ServiceType))
+			}
+
+			if prevVariant == nil || prevVariant.AircraftOwner != variant.AircraftOwner {
+				var old string
+				if prevVariant != nil {
+					old = fmt.Sprintf("old=%s ", prevVariant.AircraftOwner)
+				}
+
+				updates = append(updates, fmt.Sprintf("Aircraft Owner: %snew=%s", old, variant.AircraftOwner))
+			}
+
+			if prevVariant == nil || prevVariant.AircraftId != variant.AircraftId || prevVariant.AircraftConfigurationVersion != variant.AircraftConfigurationVersion {
+				var old string
+				if prevVariant != nil {
+					old = fmt.Sprintf("old=%s ", aircraftAndConfigurationVersionName(prevVariant.AircraftId, prevVariant.AircraftConfigurationVersion))
+				}
+
+				updates = append(updates, fmt.Sprintf("Aircraft: %snew=%s", old, aircraftAndConfigurationVersionName(variant.AircraftId, variant.AircraftConfigurationVersion)))
+			}
+
+			slices.SortFunc(variant.CodeShares, func(a, b model.FlightNumber) int {
+				return cmp.Or(
+					strings.Compare(a.AirlineId.String(), b.AirlineId.String()),
+					a.Number-b.Number,
+					strings.Compare(a.Suffix, b.Suffix),
+				)
+			})
+
+			if prevVariant == nil || !slices.Equal(prevVariant.CodeShares, variant.CodeShares) {
+				var old string
+				if prevVariant != nil {
+					parts := make([]string, 0, len(prevVariant.CodeShares))
+					for _, csFn := range prevVariant.CodeShares {
+						parts = append(parts, fnName(csFn))
+					}
+
+					old = fmt.Sprintf("old=%s ", strings.Join(parts, ","))
+				}
+
+				parts := make([]string, 0, len(variant.CodeShares))
+				for _, csFn := range variant.CodeShares {
+					parts = append(parts, fnName(csFn))
+				}
+
+				updates = append(updates, fmt.Sprintf("Codeshares: %snew=%s", old, strings.Join(parts, ",")))
+			}
+
+			item.Title = "Flight updated"
+			item.Content = strings.Join(updates, "\n")
+
+			prevVariant = &variant
+		} else {
+			item.Title = "Flight cancelled/removed"
+			item.Content = fmt.Sprintf("The flight %s departing from %s on %s was cancelled/removed from the Lufthansa API", baseFnName, departureAirportName, fs.DepartureDateLocal.String())
+
+			prevVariant = nil
+		}
+
+		item.Description = item.Content
+
+		feed.Items = append(feed.Items, item)
+		feed.Updated = item.Updated
+	}
+
+	return feed
+}
+
+func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, departureAirportRaw, departureDateLocalRaw string) (model.FlightScheduleVersions, error) {
+	fn, err := dh.parseFlightNumber(ctx, fnRaw)
+	if err != nil {
+		return model.FlightScheduleVersions{}, echo.NewHTTPError(http.StatusBadRequest)
+	}
+
+	departureAirportId, err := dh.parseAirport(ctx, departureAirportRaw)
+	if err != nil {
+		return model.FlightScheduleVersions{}, echo.NewHTTPError(http.StatusBadRequest)
 	}
 
 	var departureDateLocal xtime.LocalDate
 	if departureDateLocal, err = xtime.ParseLocalDate(departureDateLocalRaw); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest)
+		return model.FlightScheduleVersions{}, echo.NewHTTPError(http.StatusBadRequest)
 	}
 
 	var flightScheduleVersions db.FlightScheduleVersions
@@ -235,7 +513,7 @@ func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
 
 		g.Go(func() error {
 			var err error
-			flightScheduleVersions, err = dh.repo.FlightScheduleVersions(ctx, fn, uuid.UUID(departureAirportId), departureDateLocal)
+			flightScheduleVersions, err = dh.repo.FlightScheduleVersions(ctx, fn, departureAirportId, departureDateLocal)
 			return err
 		})
 
@@ -258,7 +536,7 @@ func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
 		})
 
 		if err := g.Wait(); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError)
+			return model.FlightScheduleVersions{}, echo.NewHTTPError(http.StatusInternalServerError)
 		}
 	}
 
@@ -318,8 +596,7 @@ func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
 		fs.Aircraft[model.UUID(aircraftId)] = model.AircraftFromDb(aircraft[aircraftId])
 	}
 
-	addExpirationHeaders(c, time.Now(), time.Hour)
-	return c.JSON(http.StatusOK, fs)
+	return fs, nil
 }
 
 func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.FlightNumber, error) {

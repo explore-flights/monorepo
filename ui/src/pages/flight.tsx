@@ -407,14 +407,14 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
                   }
 
                   const airportId = v.departureAirport.iataCode ?? v.departureAirport.icaoCode ?? v.departureAirport.id;
-                  const baseLink = `/data/${encodeURIComponent(flightNumber)}/${encodeURIComponent(v.departureDateLocal)}/${encodeURIComponent(v.departureAirport.iataCode)}`;
+                  const baseLink = `/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(airportId)}/${encodeURIComponent(v.departureDateLocal)}`;
                   
                   return (
                     <ButtonDropdown
                       items={[
-                        { id: 'rss', text: 'RSS', iconName: 'download', href: `${baseLink}/feed.rss` },
-                        { id: 'atom', text: 'Atom', iconName: 'download', href: `${baseLink}/feed.atom` },
-                        { id: 'history', text: 'History', href: `/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(airportId)}/${encodeURIComponent(v.departureDateLocal)}` },
+                        { id: 'rss', text: 'RSS', iconName: 'download', href: `/data${baseLink}/feed.rss` },
+                        { id: 'atom', text: 'Atom', iconName: 'download', href: `/data${baseLink}/feed.atom` },
+                        { id: 'history', text: 'History', href: baseLink },
                       ]}
                       variant={'icon'}
                       expandToViewport={true}

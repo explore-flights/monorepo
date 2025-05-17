@@ -10,7 +10,7 @@ import {
 } from '../lib/api/api.model';
 import {
   Alert,
-  Box,
+  Box, Button,
   ColumnLayout,
   Container,
   ContentLayout,
@@ -95,8 +95,30 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
     return `${flightNumberToString(flightVersions.flightNumber, airline)}, ${airportToString(airport)}, ${flightVersions.departureDateLocal}`;
   }
 
+  const feedBaseLink = useMemo(() => {
+    const airline = flightVersions.airlines[flightVersions.flightNumber.airlineId];
+    const airport = flightVersions.airports[flightVersions.departureAirportId];
+    const flightNumber = `${airline.iataCode ?? airline.icaoCode ?? (airline.id + '-')}${flightVersions.flightNumber.number}${flightVersions.flightNumber.suffix ?? ''}`;
+    const airportId = airport.iataCode ?? airport.icaoCode ?? airport.id;
+
+    return `/data/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(airportId)}/${encodeURIComponent(flightVersions.departureDateLocal)}`;
+  }, [flightVersions]);
+
+
+
   return (
-    <ContentLayout header={<Header variant={'h1'} description={`Last updated: ${lastModified.toISO()}`}>{pageTitle()}</Header>}>
+    <ContentLayout header={
+      <Header
+        variant={'h1'}
+        description={`Last updated: ${lastModified.toISO()}`}
+        actions={
+          <SpaceBetween direction={'horizontal'} size={'xs'}>
+            <Button href={`${feedBaseLink}/feed.rss`} iconName={'download'} target={'_blank'} rel={'nofollow'}>RSS</Button>
+            <Button href={`${feedBaseLink}/feed.atom`} iconName={'download'} target={'_blank'} rel={'nofollow'}>Atom</Button>
+          </SpaceBetween>
+        }
+      >{pageTitle()}</Header>
+    }>
       <ColumnLayout columns={1}>
         <Container>
           <KeyValuePairs
