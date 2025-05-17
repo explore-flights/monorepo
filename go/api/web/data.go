@@ -520,25 +520,3 @@ func NewFlightSchedulesByConfigurationEndpoint(dh *data.Handler) echo.HandlerFun
 		return c.JSON(http.StatusOK, result)
 	}
 }
-
-func jsonResponse[T any](c echo.Context, v T, err error, isEmpty func(T) bool) error {
-	if err != nil {
-		return errorResponse(c, err)
-	}
-
-	if isEmpty(v) {
-		return echo.NewHTTPError(http.StatusNotFound)
-	}
-
-	return c.JSON(http.StatusOK, v)
-}
-
-func errorResponse(c echo.Context, err error) error {
-	noCache(c)
-
-	if errors.Is(err, context.DeadlineExceeded) {
-		return echo.NewHTTPError(http.StatusRequestTimeout, err)
-	}
-
-	return echo.NewHTTPError(http.StatusInternalServerError)
-}
