@@ -95,7 +95,6 @@ type FlightSchedules struct {
 type FlightScheduleItem struct {
 	DepartureDateLocal xtime.LocalDate
 	DepartureAirportId uuid.UUID
-	CodeShares         common.Set[FlightNumber]
 	FlightVariantId    sql.Null[uuid.UUID]
 	Version            time.Time
 	VersionCount       int
@@ -114,6 +113,7 @@ type FlightScheduleVariant struct {
 	AircraftId                   uuid.UUID
 	AircraftConfigurationVersion string
 	AircraftRegistration         string
+	CodeShares                   common.Set[FlightNumber]
 }
 
 type FlightScheduleVersions struct {

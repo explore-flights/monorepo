@@ -193,15 +193,7 @@ func (u *updater) runMainUpdateSequence(ctx context.Context, t time.Time, conn *
 			nil,
 		},
 		{
-			[2]string{"drop raw", `DROP TABLE lh_flight_schedules_raw`},
-			nil,
-		},
-		{
 			[2]string{"X13OperatingFlights", db.X13OperatingFlights},
-			nil,
-		},
-		{
-			[2]string{"drop flattened", `DROP TABLE lh_flight_schedules_flattened`},
 			nil,
 		},
 		{
@@ -221,23 +213,23 @@ func (u *updater) runMainUpdateSequence(ctx context.Context, t time.Time, conn *
 			nil,
 		},
 		{
-			[2]string{"X18InsertFlightVariants", db.X18InsertFlightVariants},
+			[2]string{"X18OperatingFlightsWithCs", db.X18OperatingFlightsWithCs},
 			nil,
 		},
 		{
-			[2]string{"X19LhFlightsFresh", db.X19LhFlightsFresh},
+			[2]string{"X19InsertFlightVariants", db.X19InsertFlightVariants},
+			nil,
+		},
+		{
+			[2]string{"X20LhFlightsFresh", db.X20LhFlightsFresh},
 			[][]any{{t}},
 		},
 		{
-			[2]string{"drop operating", `DROP TABLE lh_flight_schedules_operating`},
+			[2]string{"X21UpdateHistory", db.X21UpdateHistory},
 			nil,
 		},
 		{
-			[2]string{"X20UpdateHistory", db.X20UpdateHistory},
-			nil,
-		},
-		{
-			[2]string{"X21CreateRemovedMarkers", db.X21CreateRemovedMarkers},
+			[2]string{"X22CreateRemovedMarkers", db.X22CreateRemovedMarkers},
 			[][]any{{t}},
 		},
 		{
@@ -371,22 +363,6 @@ COPY (
     fv.operating_airline_id,
     fv.operating_number,
     fv.operating_suffix,
-    COALESCE(
-      (
-        SELECT LIST_SORT(ARRAY_AGG(DISTINCT {
-          'airline_id': cs_fvh.airline_id,
-          'number': cs_fvh.number,
-          'suffix': cs_fvh.suffix
-        }))
-        FROM flight_variant_history cs_fvh
-        WHERE cs_fvh.flight_variant_id IS NOT NULL
-        AND cs_fvh.flight_variant_id = fvh.flight_variant_id
-        AND cs_fvh.departure_date_local = fvh.departure_date_local
-        AND NOT (cs_fvh.airline_id = fvh.airline_id AND cs_fvh.number = fvh.number AND cs_fvh.suffix = fvh.suffix)
-        AND GREATEST(fvh.created_at, cs_fvh.created_at) < LEAST(COALESCE(fvh.replaced_at, CAST('2999-12-31T23:59:59.999+00' AS TIMESTAMPTZ)), COALESCE(cs_fvh.replaced_at, CAST('2999-12-31T23:59:59.999+00' AS TIMESTAMPTZ)))
-      ),
-      []
-    ) AS code_shares,
     (fvh.number %% 10) AS number_mod_10
   FROM flight_variant_history fvh
   LEFT JOIN flight_variants fv
@@ -458,19 +434,7 @@ COPY (
       fv.aircraft_id,
       fv.aircraft_configuration_version,
       fv.aircraft_registration,
-      COALESCE(
-        (
-          SELECT LIST_SORT(ARRAY_AGG({
-            'airline_id': cs_fvh.airline_id,
-            'number': cs_fvh.number,
-            'suffix': cs_fvh.suffix
-          })) FROM latest_active_history cs_fvh
-          WHERE cs_fvh.flight_variant_id = fvh.flight_variant_id
-          AND cs_fvh.departure_date_local = fvh.departure_date_local
-          AND NOT (cs_fvh.airline_id = fvh.airline_id AND cs_fvh.number = fvh.number AND cs_fvh.suffix = fvh.suffix)
-        ),
-        []
-      ) AS code_shares
+      fv.code_shares
     FROM latest_active_history fvh
     INNER JOIN flight_variants fv
     ON fvh.flight_variant_id = fv.id

@@ -137,7 +137,6 @@ export interface FlightSchedules {
 export interface FlightScheduleItem {
   departureDateLocal: string;
   departureAirportId: AirportId;
-  codeShares: ReadonlyArray<FlightNumber>;
   flightVariantId?: FlightVariantId;
   version: string;
   versionCount: number;
@@ -155,6 +154,7 @@ export interface FlightScheduleVariant {
   aircraftOwner: string;
   aircraftId: AircraftId;
   aircraftConfigurationVersion: string;
+  codeShares: ReadonlyArray<FlightNumber>;
 }
 
 export interface FlightScheduleVersions {

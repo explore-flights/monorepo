@@ -86,11 +86,11 @@ export class ApiClient {
       suffix = `/${version.toUTC().toISO()}`;
     }
 
-    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}${suffix}?v=2`));
+    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}${suffix}?v=3`));
   }
 
   getFlightScheduleVersions(flightNumber: string, departureAirport: string, departureDateLocal: string): Promise<ApiResponse<FlightScheduleVersions>> {
-    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(departureAirport)}/${encodeURIComponent(departureDateLocal)}`));
+    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(departureAirport)}/${encodeURIComponent(departureDateLocal)}?v=2`));
   }
 
   getConnections(req: ConnectionsSearchRequest): Promise<ApiResponse<ConnectionsSearchResponse>> {

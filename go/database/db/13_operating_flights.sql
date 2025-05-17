@@ -79,3 +79,5 @@ FROM (
   )
 )
 GROUP BY airline, flightNumber, suffix, origin, departureDateLocal ;
+
+DROP TABLE lh_flight_schedules_flattened ;

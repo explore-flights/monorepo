@@ -165,38 +165,22 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 			flightVariantId = &id
 		}
 
-		fsi := model.FlightScheduleItem{
+		fs.Items = append(fs.Items, model.FlightScheduleItem{
 			DepartureDateLocal: item.DepartureDateLocal,
 			DepartureAirportId: model.UUID(item.DepartureAirportId),
-			CodeShares:         make([]model.FlightNumber, 0, len(item.CodeShares)),
 			FlightVariantId:    flightVariantId,
 			Version:            item.Version,
 			VersionCount:       item.VersionCount,
-		}
+		})
 
 		referencedAirports.Add(item.DepartureAirportId)
-
-		for cs := range item.CodeShares {
-			fsi.CodeShares = append(fsi.CodeShares, model.FlightNumberFromDb(cs))
-			referencedAirlines.Add(cs.AirlineId)
-		}
-
-		fs.Items = append(fs.Items, fsi)
 	}
 
 	for variantId, variant := range flightSchedules.Variants {
-		fs.Variants[model.UUID(variantId)] = model.FlightScheduleVariant{
-			Id:                           model.UUID(variant.Id),
-			OperatedAs:                   model.FlightNumberFromDb(variant.OperatedAs),
-			DepartureTimeLocal:           variant.DepartureTimeLocal,
-			DepartureUtcOffsetSeconds:    variant.DepartureUtcOffsetSeconds,
-			DurationSeconds:              variant.DurationSeconds,
-			ArrivalAirportId:             model.UUID(variant.ArrivalAirportId),
-			ArrivalUtcOffsetSeconds:      variant.ArrivalUtcOffsetSeconds,
-			ServiceType:                  variant.ServiceType,
-			AircraftOwner:                variant.AircraftOwner,
-			AircraftId:                   model.UUID(variant.AircraftId),
-			AircraftConfigurationVersion: variant.AircraftConfigurationVersion,
+		fs.Variants[model.UUID(variantId)] = model.FlightScheduleVariantFromDb(variant)
+
+		for cs := range variant.CodeShares {
+			referencedAirlines.Add(cs.AirlineId)
 		}
 
 		referencedAirlines.Add(variant.OperatedAs.AirlineId)
@@ -311,18 +295,10 @@ func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
 	}
 
 	for variantId, variant := range flightScheduleVersions.Variants {
-		fs.Variants[model.UUID(variantId)] = model.FlightScheduleVariant{
-			Id:                           model.UUID(variant.Id),
-			OperatedAs:                   model.FlightNumberFromDb(variant.OperatedAs),
-			DepartureTimeLocal:           variant.DepartureTimeLocal,
-			DepartureUtcOffsetSeconds:    variant.DepartureUtcOffsetSeconds,
-			DurationSeconds:              variant.DurationSeconds,
-			ArrivalAirportId:             model.UUID(variant.ArrivalAirportId),
-			ArrivalUtcOffsetSeconds:      variant.ArrivalUtcOffsetSeconds,
-			ServiceType:                  variant.ServiceType,
-			AircraftOwner:                variant.AircraftOwner,
-			AircraftId:                   model.UUID(variant.AircraftId),
-			AircraftConfigurationVersion: variant.AircraftConfigurationVersion,
+		fs.Variants[model.UUID(variantId)] = model.FlightScheduleVariantFromDb(variant)
+
+		for cs := range variant.CodeShares {
+			referencedAirlines.Add(cs.AirlineId)
 		}
 
 		referencedAirlines.Add(variant.OperatedAs.AirlineId)

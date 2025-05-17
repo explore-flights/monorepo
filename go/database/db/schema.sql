@@ -76,6 +76,8 @@ CREATE TABLE flight_variants (
     aircraft_id UUID NOT NULL,
     aircraft_configuration_version TEXT NOT NULL,
     aircraft_registration TEXT NOT NULL,
+    code_shares_hash UBIGINT NOT NULL,
+    code_shares STRUCT(airline_id UUID, number USMALLINT, suffix TEXT)[] NOT NULL,
     PRIMARY KEY (id),
     UNIQUE (
         operating_airline_id,
@@ -91,8 +93,11 @@ CREATE TABLE flight_variants (
         aircraft_owner,
         aircraft_id,
         aircraft_configuration_version,
-        aircraft_registration
+        aircraft_registration,
+        code_shares_hash
     ),
+    -- code_shares must be distinct and sorted (effectively a set) and match the provided hash
+    CHECK ( HASH(code_shares) = code_shares_hash AND HASH(LIST_SORT(LIST_DISTINCT(code_shares))) = code_shares_hash ),
     FOREIGN KEY (operating_airline_id, operating_number, operating_suffix) REFERENCES flight_numbers (airline_id, number, suffix),
     FOREIGN KEY (operating_airline_id) REFERENCES airlines (id),
     FOREIGN KEY (departure_airport_id) REFERENCES airports (id),

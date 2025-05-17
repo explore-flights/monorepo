@@ -36,13 +36,11 @@ import {
   useCollection
 } from '@cloudscape-design/collection-hooks';
 import { ApiError } from '../lib/api/api';
-import { FlightLink } from '../components/common/flight-link';
-import { BulletSeperator, Join } from '../components/common/join';
+import { FlightNumberList, InternalFlightLink } from '../components/common/flight-link';
 import { SeatMapView } from '../components/seatmap/seatmap';
 import { aircraftConfigurationVersionToName } from '../lib/consts';
 import { AircraftConfigurationVersionText, AirportText } from '../components/common/text';
 import { airportToString, flightNumberToString } from '../lib/util/flight';
-import { RouterInlineLink } from '../components/common/router-link';
 
 export function FlightView() {
   const { id } = useParams();
@@ -102,7 +100,7 @@ interface FlightTableBaseItem {
   aircraftOwner?: string;
   aircraft?: Aircraft,
   aircraftConfigurationVersion?: string;
-  codeShares: ReadonlyArray<[Airline, FlightNumber]>;
+  codeShares?: ReadonlyArray<[Airline, FlightNumber]>;
   version: DateTime<true>;
   versionCount: number;
 }
@@ -136,7 +134,7 @@ interface CancelledFlight extends FlightTableBaseItem {
   aircraftOwner: undefined;
   aircraft: undefined,
   aircraftConfigurationVersion: undefined;
-  codeShares: ReadonlyArray<[Airline, FlightNumber]>;
+  codeShares: undefined;
   version: DateTime<true>;
   versionCount: number;
 }
@@ -382,7 +380,11 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
               {
                 id: 'code_shares',
                 header: 'Codeshares',
-                cell: useCallback((v: FlightTableItem) => <FlightNumberList flightNumbers={v.codeShares} query={queryForFlight(v)} exclude={flightSchedules.flightNumber} rel={'alternate nofollow'} />, []),
+                cell: useCallback((v: FlightTableItem) => {
+                  return v.type === 'scheduled'
+                    ? <FlightNumberList flightNumbers={v.codeShares.toSorted(compareFlightNumbers)} query={queryForFlight(v)} exclude={flightSchedules.flightNumber} rel={'alternate nofollow'} />
+                    : '';
+                }, []),
               },
               {
                 id: 'version',
@@ -705,23 +707,6 @@ function TimeCell({ value }: { value: DateTime<true> }) {
   )
 }
 
-function FlightNumberList({ flightNumbers, query, exclude, rel }: { flightNumbers: ReadonlyArray<[Airline, FlightNumber]>, query?: URLSearchParams, exclude?: FlightNumber, rel?: string }) {
-  return (
-    <Join
-      seperator={BulletSeperator}
-      items={flightNumbers.toSorted(compareFlightNumbers).map(([airline, fn]) => <InternalFlightLink flightNumber={fn} airline={airline} query={query} exclude={exclude} rel={rel} />)}
-    />
-  );
-}
-
-function InternalFlightLink({ flightNumber, airline, query, exclude, rel }: { flightNumber: FlightNumber, airline: Airline, query?: URLSearchParams, exclude?: FlightNumber, rel?: string }) {
-  if (exclude && flightNumber.airlineId == exclude.airlineId && flightNumber.number === exclude.number && flightNumber.suffix === exclude.suffix) {
-    return flightNumberToString(flightNumber, airline);
-  }
-
-  return <FlightLink flightNumber={flightNumberToString(flightNumber, airline)} query={query} rel={rel} />;
-}
-
 interface TableFilterProps {
   query: PropertyFilterProps.Query;
   setQuery: (query: PropertyFilterProps.Query) => void;
@@ -992,16 +977,6 @@ function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFligh
     }
 
     const departureAirport = flightSchedules.airports[item.departureAirportId];
-    const css: Array<[Airline, FlightNumber]> = [];
-    for (const cs of item.codeShares) {
-      const csAirline = flightSchedules.airlines[cs.airlineId];
-      css.push([csAirline, cs]);
-
-      if (codeShares.findIndex((v) => compareFlightNumbersPlain(v[1], cs) === 0) === -1) {
-        codeShares.push([csAirline, cs]);
-      }
-    }
-
     if (!item.flightVariantId) {
       flights.push({
         type: 'cancelled',
@@ -1015,7 +990,7 @@ function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFligh
         aircraftOwner: undefined,
         aircraft: undefined,
         aircraftConfigurationVersion: undefined,
-        codeShares: css,
+        codeShares: undefined,
         version: version,
         versionCount: item.versionCount,
       } satisfies CancelledFlight);
@@ -1027,6 +1002,16 @@ function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFligh
     const variant = flightSchedules.variants[item.flightVariantId];
     const arrivalAirport = flightSchedules.airports[variant.arrivalAirportId];
     const ac = flightSchedules.aircraft[variant.aircraftId];
+    const css: Array<[Airline, FlightNumber]> = [];
+
+    for (const cs of variant.codeShares) {
+      const csAirline = flightSchedules.airlines[cs.airlineId];
+      css.push([csAirline, cs]);
+
+      if (codeShares.findIndex((v) => compareFlightNumbersPlain(v[1], cs) === 0) === -1) {
+        codeShares.push([csAirline, cs]);
+      }
+    }
 
     if (!departureAirports.includes(departureAirport)) {
       departureAirports.push(departureAirport);

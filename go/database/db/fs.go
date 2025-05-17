@@ -23,14 +23,17 @@ var X16InsertAircraft string
 //go:embed 17_insert_flight_numbers.sql
 var X17InsertFlightNumbers string
 
-//go:embed 18_insert_flight_variants.sql
-var X18InsertFlightVariants string
+//go:embed 18_operating_flights_with_cs.sql
+var X18OperatingFlightsWithCs string
 
-//go:embed 19_lh_flights_fresh.sql
-var X19LhFlightsFresh string
+//go:embed 19_insert_flight_variants.sql
+var X19InsertFlightVariants string
 
-//go:embed 20_update_history.sql
-var X20UpdateHistory string
+//go:embed 20_lh_flights_fresh.sql
+var X20LhFlightsFresh string
 
-//go:embed 21_create_removed_markers.sql
-var X21CreateRemovedMarkers string
+//go:embed 21_update_history.sql
+var X21UpdateHistory string
+
+//go:embed 22_create_removed_markers.sql
+var X22CreateRemovedMarkers string

@@ -43,3 +43,5 @@ FROM (
     FROM lh_flight_schedules_raw
   )
 ) ;
+
+DROP TABLE lh_flight_schedules_raw ;

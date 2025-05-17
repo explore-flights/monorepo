@@ -403,7 +403,6 @@ WITH filtered_flight_variant_history AS (
     SELECT
         departure_date_local,
 		departure_airport_id,
-		code_shares,
 		flight_variant_id,
 		created_at
     FROM flight_variant_history
@@ -416,7 +415,6 @@ WITH filtered_flight_variant_history AS (
 SELECT
     departure_date_local,
     departure_airport_id,
-    FIRST(code_shares ORDER BY created_at DESC),
     FIRST(flight_variant_id ORDER BY created_at DESC),
     FIRST(created_at ORDER BY created_at DESC),
     COUNT(DISTINCT created_at)
@@ -437,22 +435,15 @@ ORDER BY departure_date_local ASC
 
 		for rows.Next() {
 			var fsi FlightScheduleItem
-			var codeShares xsql.SQLArray[FlightNumber, *FlightNumber]
 			err = rows.Scan(
 				&fsi.DepartureDateLocal,
 				&fsi.DepartureAirportId,
-				&codeShares,
 				&fsi.FlightVariantId,
 				&fsi.Version,
 				&fsi.VersionCount,
 			)
 			if err != nil {
 				return err
-			}
-
-			fsi.CodeShares = make(common.Set[FlightNumber])
-			for _, codeShareFn := range codeShares {
-				fsi.CodeShares.Add(codeShareFn)
 			}
 
 			items = append(items, fsi)
@@ -566,7 +557,8 @@ SELECT
     aircraft_owner,
     aircraft_id,
     aircraft_configuration_version,
-    aircraft_registration
+    aircraft_registration,
+    code_shares
 FROM flight_variants
 WHERE id IN (:flightVariantIds)
 			`, ":flightVariantIds", placeholders, 1),
@@ -580,6 +572,7 @@ WHERE id IN (:flightVariantIds)
 	variants := make(map[uuid.UUID]FlightScheduleVariant)
 	for rows.Next() {
 		var fsv FlightScheduleVariant
+		var codeShares xsql.SQLArray[FlightNumber, *FlightNumber]
 		err = rows.Scan(
 			&fsv.Id,
 			&fsv.OperatedAs.AirlineId,
@@ -595,12 +588,18 @@ WHERE id IN (:flightVariantIds)
 			&fsv.AircraftId,
 			&fsv.AircraftConfigurationVersion,
 			&fsv.AircraftRegistration,
+			&codeShares,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 		if variantIds.Remove(fsv.Id) {
+			fsv.CodeShares = make(common.Set[FlightNumber])
+			for _, codeShareFn := range codeShares {
+				fsv.CodeShares.Add(codeShareFn)
+			}
+
 			variants[fsv.Id] = fsv
 		}
 	}

@@ -9,7 +9,7 @@ import {
   FlightScheduleVersions
 } from '../lib/api/api.model';
 import {
-  Alert, Badge,
+  Alert,
   Box,
   ColumnLayout,
   Container,
@@ -21,6 +21,7 @@ import {
 import { ErrorNotificationContent } from '../components/util/context/app-controls';
 import { airportToString, flightNumberToString } from '../lib/util/flight';
 import { DateTime, Duration, FixedOffsetZone } from 'luxon';
+import { FlightNumberList } from '../components/common/flight-link';
 
 export function FlightVersionsView() {
   const { id, departureAirport, departureDateLocal } = useParams();
@@ -76,6 +77,7 @@ interface FlightVersionTableItem extends BaseTableItem {
   aircraftOwner: Changed<string>;
   aircraft: Changed<Aircraft>,
   aircraftConfigurationVersion: Changed<string>;
+  codeShares: Changed<ReadonlyArray<[Airline, FlightNumber]>>;
 }
 
 interface FlightCancelledTableItem extends BaseTableItem {
@@ -267,6 +269,15 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
                   : '';
               }, []),
             },
+            {
+              id: 'code_shares',
+              header: 'Codeshares',
+              cell: useCallback((v: TableItem) => {
+                return v.type === 'scheduled'
+                  ? <WrapChanged changed={v.codeShares}><FlightNumberList flightNumbers={v.codeShares[0].toSorted(compareFlightNumbers)} rel={'alternate nofollow'} /></WrapChanged>
+                  : '';
+              }, []),
+            },
           ]}
         />
       </ColumnLayout>
@@ -333,6 +344,17 @@ function processVersions(flightVersions: FlightScheduleVersions): [ReadonlyArray
       const arrivalTime = departureTime.plus(duration).setZone(arrivalZone, { keepLocalTime: false });
 
       if (departureTime.isValid && arrivalTime.isValid) {
+        let codeShares: ReadonlyArray<[Airline, FlightNumber]>;
+        {
+          const css: Array<[Airline, FlightNumber]> = [];
+          for (const cs of variant.codeShares.toSorted(compareFlightNumbersPlain)) {
+            const csAirline = flightVersions.airlines[cs.airlineId];
+            css.push([csAirline, cs]);
+          }
+
+          codeShares = css;
+        }
+
         let item: FlightVersionTableItem;
         item = {
           type: 'scheduled',
@@ -345,6 +367,7 @@ function processVersions(flightVersions: FlightScheduleVersions): [ReadonlyArray
           aircraftOwner: buildChanged(variant.aircraftOwner, 'aircraftOwner', previous),
           aircraft: buildChanged(aircraft, 'aircraft', previous),
           aircraftConfigurationVersion: buildChanged(variant.aircraftConfigurationVersion, 'aircraftConfigurationVersion', previous),
+          codeShares: buildChanged(codeShares, 'codeShares', previous, isSameFlightNumberList),
         } satisfies FlightVersionTableItem;
 
         items.push(item);
@@ -361,11 +384,42 @@ function processVersions(flightVersions: FlightScheduleVersions): [ReadonlyArray
   }, [flightVersions]);
 }
 
-function isSameFlightNumber(a: [Airline, FlightNumber], b: [Airline, FlightNumber]) {
-  const fnA = a[1];
-  const fnB = b[1];
-  return fnA.airlineId === fnB.airlineId && fnA.number === fnB.number && fnA.suffix === fnB.suffix;
+function isSameFlightNumberList(a: ReadonlyArray<[Airline, FlightNumber]>, b: ReadonlyArray<[Airline, FlightNumber]>) {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  for (let i = 0; i < a.length; i++) {
+    if (!isSameFlightNumber(a[i], b[i])) {
+      return false;
+    }
+  }
+
+  return true;
 }
+
+function isSameFlightNumber(a: [Airline, FlightNumber], b: [Airline, FlightNumber]) {
+  return compareFlightNumbers(a, b) === 0;
+}
+
+function compareFlightNumbers(v1: [Airline, FlightNumber], v2: [Airline, FlightNumber]) {
+  return compareFlightNumbersPlain(v1[1], v2[1]);
+}
+
+function compareFlightNumbersPlain(v1: FlightNumber, v2: FlightNumber) {
+  let cmpResult = v1.airlineId.localeCompare(v2.airlineId);
+  if (cmpResult != 0) {
+    return cmpResult;
+  }
+
+  cmpResult = v1.number - v2.number;
+  if (cmpResult != 0) {
+    return cmpResult;
+  }
+
+  return (v1.suffix ?? '').localeCompare(v2.suffix ?? '');
+}
+
 
 function isSameTime(a: DateTime<true>, b: DateTime<true>) {
   return a.toMillis() === b.toMillis();
