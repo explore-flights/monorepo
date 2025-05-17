@@ -28,6 +28,13 @@ const (
 	workingDbName = "tmp_db"
 )
 
+type updateSequenceElement struct {
+	name   string
+	script string
+	params [][]any
+	checks []func(r sql.Result) error
+}
+
 type updater struct {
 	s3c interface {
 		adapt.S3Getter
@@ -179,62 +186,119 @@ func (u *updater) runMainUpdateSequence(ctx context.Context, t time.Time, conn *
 		anyTypedInputFileUris[i] = v
 	}
 
-	sequence := []common.Tuple[[2]string, [][]any]{
+	var rawDataRows, flattenedRows, operatingFlightRows int64
+	sequence := []updateSequenceElement{
 		{
-			[2]string{"use working db", fmt.Sprintf(`USE %s`, workingDbName)},
-			nil,
+			name:   "use working db",
+			script: fmt.Sprintf(`USE %s`, workingDbName),
 		},
 		{
-			[2]string{"X11LoadRawData", strings.Replace(db.X11LoadRawData, "?", "["+strings.Join(placeholders, ",")+"]", 1)},
-			[][]any{anyTypedInputFileUris},
+			name:   "X11LoadRawData",
+			script: strings.Replace(db.X11LoadRawData, "?", "["+strings.Join(placeholders, ",")+"]", 1),
+			params: [][]any{anyTypedInputFileUris},
+			checks: []func(sql.Result) error{
+				func(result sql.Result) error {
+					var err error
+					rawDataRows, err = result.RowsAffected()
+					return err
+				},
+			},
 		},
 		{
-			[2]string{"X12FlattenRawData", db.X12FlattenRawData},
-			nil,
+			name:   "X12FlattenRawData",
+			script: db.X12FlattenRawData,
+			checks: []func(sql.Result) error{
+				func(result sql.Result) error {
+					var err error
+					flattenedRows, err = result.RowsAffected()
+					if err != nil {
+						return err
+					}
+
+					if flattenedRows < rawDataRows {
+						return fmt.Errorf("flattened rows %d less than raw data rows %d", flattenedRows, rawDataRows)
+					}
+
+					return nil
+				},
+			},
 		},
 		{
-			[2]string{"X13OperatingFlights", db.X13OperatingFlights},
-			nil,
+			name:   "X13OperatingFlights",
+			script: db.X13OperatingFlights,
+			checks: []func(sql.Result) error{
+				func(result sql.Result) error {
+					var err error
+					operatingFlightRows, err = result.RowsAffected()
+					if err != nil {
+						return err
+					}
+
+					if operatingFlightRows > flattenedRows {
+						return fmt.Errorf("operating flights rows %d are more than flattened rows %d", operatingFlightRows, flattenedRows)
+					}
+
+					return nil
+				},
+			},
 		},
 		{
-			[2]string{"X14InsertAirlines", db.X14InsertAirlines},
-			nil,
+			name:   "X14InsertAirlines",
+			script: db.X14InsertAirlines,
 		},
 		{
-			[2]string{"X15InsertAirports", db.X15InsertAirports},
-			nil,
+			name:   "X15InsertAirports",
+			script: db.X15InsertAirports,
 		},
 		{
-			[2]string{"X16InsertAircraft", db.X16InsertAircraft},
-			nil,
+			name:   "X16InsertAircraft",
+			script: db.X16InsertAircraft,
 		},
 		{
-			[2]string{"X17InsertFlightNumbers", db.X17InsertFlightNumbers},
-			nil,
+			name:   "X17InsertFlightNumbers",
+			script: db.X17InsertFlightNumbers,
 		},
 		{
-			[2]string{"X18OperatingFlightsWithCs", db.X18OperatingFlightsWithCs},
-			nil,
+			name:   "X18OperatingFlightsWithCs",
+			script: db.X18OperatingFlightsWithCs,
+			checks: []func(sql.Result) error{
+				func(result sql.Result) error {
+					var operatingWithCsRows int64
+					var err error
+					operatingWithCsRows, err = result.RowsAffected()
+					if err != nil {
+						return err
+					}
+
+					if operatingWithCsRows != operatingFlightRows {
+						return fmt.Errorf("operating with cs rows %d are not equal to operating rows %d", operatingWithCsRows, operatingFlightRows)
+					}
+
+					return nil
+				},
+			},
 		},
 		{
-			[2]string{"X19InsertFlightVariants", db.X19InsertFlightVariants},
-			nil,
+			name:   "X19InsertFlightVariants",
+			script: db.X19InsertFlightVariants,
 		},
 		{
-			[2]string{"X20LhFlightsFresh", db.X20LhFlightsFresh},
-			[][]any{{t}},
+			name:   "X20LhFlightsFresh",
+			script: db.X20LhFlightsFresh,
+			params: [][]any{{t}},
 		},
 		{
-			[2]string{"X21UpdateHistory", db.X21UpdateHistory},
-			nil,
+			name:   "X21UpdateHistory",
+			script: db.X21UpdateHistory,
 		},
 		{
-			[2]string{"X22CreateRemovedMarkers", db.X22CreateRemovedMarkers},
-			[][]any{{t}},
+			name:   "X22CreateRemovedMarkers",
+			script: db.X22CreateRemovedMarkers,
+			params: [][]any{{t}},
 		},
 		{
-			[2]string{"drop fresh", `DROP TABLE lh_flights_fresh`},
-			nil,
+			name:   "drop fresh",
+			script: "DROP TABLE lh_flights_fresh",
 		},
 	}
 
@@ -253,15 +317,14 @@ func (u *updater) createAndUploadBaseDataDb(ctx context.Context, conn *sql.Conn,
 		return fmt.Errorf("failed to copy tmp db name: %w", err)
 	}
 
-	sequence := []common.Tuple[[2]string, [][]any]{
+	sequence := []updateSequenceElement{
 		{
-			[2]string{"use basedata db", fmt.Sprintf(`USE %s`, tmpDbName)},
-			nil,
+			name:   "use working db",
+			script: fmt.Sprintf(`USE %s`, workingDbName),
 		},
 		{
-			[2]string{
-				"delete unused basedata",
-				`
+			name: "delete unused basedata",
+			script: `
 DELETE FROM airline_identifiers aid
 WHERE NOT EXISTS ( FROM flight_numbers fn WHERE fn.airline_id = aid.airline_id ) ;
 
@@ -280,16 +343,14 @@ WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = aid.aircraft_i
 DELETE FROM aircraft ac
 WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = ac.id ) ;
 `,
-			},
-			nil,
 		},
 		{
-			[2]string{"drop history", `DROP TABLE flight_variant_history`},
-			nil,
+			name:   "drop history",
+			script: "DROP TABLE flight_variant_history",
 		},
 		{
-			[2]string{"drop variants", `DROP TABLE flight_variants`},
-			nil,
+			name:   "drop variants",
+			script: "DROP TABLE flight_variants",
 		},
 	}
 
@@ -310,25 +371,22 @@ WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = ac.id ) ;
 
 func (u *updater) exportVariants(ctx context.Context, conn *sql.Conn, bucket, key string) error {
 	exportUri := u.buildParquetFileUri(bucket, key)
-	sequence := []common.Tuple[[2]string, [][]any]{
+	sequence := []updateSequenceElement{
 		{
-			[2]string{"use working db", fmt.Sprintf(`USE %s`, workingDbName)},
-			nil,
+			name:   "use working db",
+			script: fmt.Sprintf(`USE %s`, workingDbName),
 		},
 		{
-			[2]string{"single thread", `SET threads TO 1`},
-			nil,
+			name:   "single thread",
+			script: "SET threads TO 1",
 		},
 		{
-			[2]string{
-				"export variants",
-				fmt.Sprintf(`COPY flight_variants TO '%s' ( FORMAT parquet, COMPRESSION gzip, OVERWRITE_OR_IGNORE )`, exportUri),
-			},
-			nil,
+			name:   "export variants",
+			script: fmt.Sprintf(`COPY flight_variants TO '%s' ( FORMAT parquet, COMPRESSION gzip, OVERWRITE_OR_IGNORE )`, exportUri),
 		},
 		{
-			[2]string{"reset threads", setThreads},
-			nil,
+			name:   "reset threads",
+			script: setThreads,
 		},
 	}
 
@@ -337,19 +395,19 @@ func (u *updater) exportVariants(ctx context.Context, conn *sql.Conn, bucket, ke
 
 func (u *updater) exportHistory(ctx context.Context, conn *sql.Conn, bucket, prefix string) error {
 	exportUri := u.buildParquetFileUri(bucket, prefix)
-	sequence := []common.Tuple[[2]string, [][]any]{
+	sequence := []updateSequenceElement{
 		{
-			[2]string{"use working db", fmt.Sprintf(`USE %s`, workingDbName)},
-			nil,
+			name:   "use working db",
+			script: fmt.Sprintf(`USE %s`, workingDbName),
 		},
 		{
-			[2]string{"single thread", `SET threads TO 1`},
-			nil,
+			name:   "single thread",
+			script: "SET threads TO 1",
 		},
 		{
-			[2]string{
-				"export history",
-				fmt.Sprintf(`
+			name: "export history",
+			script: fmt.Sprintf(
+				`
 COPY (
   SELECT
     fvh.airline_id,
@@ -374,13 +432,13 @@ COPY (
   PARTITION_BY (airline_id, number_mod_10),
   OVERWRITE_OR_IGNORE
 )
-				`, exportUri),
-			},
-			nil,
+`,
+				exportUri,
+			),
 		},
 		{
-			[2]string{"reset threads", setThreads},
-			nil,
+			name:   "reset threads",
+			script: setThreads,
 		},
 	}
 
@@ -389,19 +447,19 @@ COPY (
 
 func (u *updater) exportLatest(ctx context.Context, conn *sql.Conn, bucket, prefix string) error {
 	exportUri := u.buildParquetFileUri(bucket, prefix)
-	sequence := []common.Tuple[[2]string, [][]any]{
+	sequence := []updateSequenceElement{
 		{
-			[2]string{"use working db", fmt.Sprintf(`USE %s`, workingDbName)},
-			nil,
+			name:   "use working db",
+			script: fmt.Sprintf(`USE %s`, workingDbName),
 		},
 		{
-			[2]string{"single thread", `SET threads TO 1`},
-			nil,
+			name:   "single thread",
+			script: "SET threads TO 1",
 		},
 		{
-			[2]string{
-				"export latest",
-				fmt.Sprintf(`
+			name: "export latest",
+			script: fmt.Sprintf(
+				`
 COPY (
   WITH latest_active_history AS (
     SELECT *
@@ -449,22 +507,22 @@ COPY (
   PARTITION_BY (year_utc, month_utc, day_utc),
   OVERWRITE_OR_IGNORE
 )
-				`, exportUri),
-			},
-			nil,
+`,
+				exportUri,
+			),
 		},
 		{
-			[2]string{"reset threads", setThreads},
-			nil,
+			name:   "reset threads",
+			script: setThreads,
 		},
 	}
 
 	return u.runUpdateSequence(ctx, conn, sequence)
 }
 
-func (u *updater) runUpdateSequence(ctx context.Context, conn *sql.Conn, sequence []common.Tuple[[2]string, [][]any]) error {
-	for _, update := range sequence {
-		if err := u.runUpdateScript(ctx, conn, update.V1[0], update.V1[1], update.V2); err != nil {
+func (u *updater) runUpdateSequence(ctx context.Context, conn *sql.Conn, sequence []updateSequenceElement) error {
+	for _, element := range sequence {
+		if err := u.runUpdateScript(ctx, conn, element); err != nil {
 			return err
 		}
 	}
@@ -472,8 +530,8 @@ func (u *updater) runUpdateSequence(ctx context.Context, conn *sql.Conn, sequenc
 	return nil
 }
 
-func (u *updater) runUpdateScript(ctx context.Context, conn *sql.Conn, name, script string, params [][]any) error {
-	script = strings.TrimSpace(script)
+func (u *updater) runUpdateScript(ctx context.Context, conn *sql.Conn, element updateSequenceElement) error {
+	script := strings.TrimSpace(element.script)
 	queries := strings.Split(script, ";")
 	queries = slices.DeleteFunc(queries, func(s string) bool {
 		return strings.TrimSpace(s) == ""
@@ -481,8 +539,13 @@ func (u *updater) runUpdateScript(ctx context.Context, conn *sql.Conn, name, scr
 
 	for i, query := range queries {
 		var queryParams []any
-		if len(params) > i {
-			queryParams = params[i]
+		if len(element.params) > i {
+			queryParams = element.params[i]
+		}
+
+		var checkFn func(result sql.Result) error
+		if len(element.checks) > i {
+			checkFn = element.checks[i]
 		}
 
 		suffix := ""
@@ -490,7 +553,7 @@ func (u *updater) runUpdateScript(ctx context.Context, conn *sql.Conn, name, scr
 			suffix = fmt.Sprintf(" (%d/%d)", i+1, len(queries))
 		}
 
-		if err := u.runUpdateQuery(ctx, conn, name+suffix, query, queryParams); err != nil {
+		if err := u.runUpdateQuery(ctx, conn, element.name+suffix, query, queryParams, checkFn); err != nil {
 			return err
 		}
 	}
@@ -498,7 +561,7 @@ func (u *updater) runUpdateScript(ctx context.Context, conn *sql.Conn, name, scr
 	return nil
 }
 
-func (u *updater) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, query string, params []any) error {
+func (u *updater) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, query string, params []any, checkFn func(result sql.Result) error) error {
 	var rowsAffected int64
 	start := time.Now()
 	printDone := func() {
@@ -514,7 +577,11 @@ func (u *updater) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, quer
 	}
 
 	rowsAffected, _ = r.RowsAffected()
-	return nil
+	if checkFn == nil {
+		return nil
+	}
+
+	return checkFn(r)
 }
 
 func (u *updater) dbInit(ctx context.Context, ddbHomePath, tmpDbPath string) func(execer driver.ExecerContext) error {

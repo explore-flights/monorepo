@@ -41,7 +41,7 @@ FROM (
     LIST_DISTINCT(FLATTEN(LIST_TRANSFORM(COALESCE(dataElements[10], []), v -> STRING_SPLIT(v, '/')))) AS codeShares,
     1 AS priority
   FROM lh_flight_schedules_flattened
-  WHERE dataElements[50] IS NULL
+  WHERE dataElements[50] IS NULL OR LENGTH(dataElements[50]) = 0
   UNION ALL
   SELECT
     queryDate,
@@ -71,11 +71,9 @@ FROM (
     ) AS codeShares,
     2 AS priority
   FROM (
-    SELECT
-      *,
-      UNNEST(dataElements[50]) AS operatingFlightNumber
+    SELECT *, UNNEST(dataElements[50]) AS operatingFlightNumber
     FROM lh_flight_schedules_flattened
-    WHERE dataElements[50] IS NOT NULL
+    WHERE dataElements[50] IS NOT NULL AND LENGTH(dataElements[50]) > 0
   )
 )
 GROUP BY airline, flightNumber, suffix, origin, departureDateLocal ;
