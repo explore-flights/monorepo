@@ -13,7 +13,7 @@ import {
   Header, KeyValuePairs, LineChart,
   Link,
   Modal,
-  Pagination, PieChart, PieChartProps,
+  Pagination, PieChart,
   Popover,
   PropertyFilter,
   PropertyFilterProps, SpaceBetween,
@@ -28,7 +28,7 @@ import {
   useSeatMap
 } from '../components/util/state/data';
 import { ErrorNotificationContent } from '../components/util/context/app-controls';
-import { Aircraft, AircraftId, Airline, Airport, AirportId, FlightNumber, FlightSchedules } from '../lib/api/api.model';
+import { Aircraft, Airline, Airport, AirportId, FlightNumber, FlightSchedules } from '../lib/api/api.model';
 import { DateTime, Duration, FixedOffsetZone, WeekdayNumbers } from 'luxon';
 import {
   PropertyFilterOperator,
@@ -41,6 +41,7 @@ import { SeatMapView } from '../components/seatmap/seatmap';
 import { aircraftConfigurationVersionToName } from '../lib/consts';
 import { AircraftConfigurationVersionText, AirportText } from '../components/common/text';
 import { airportToString, flightNumberToString } from '../lib/util/flight';
+import { LineSeriesBuilder, PieChartDataBuilder } from '../lib/charts/builder';
 
 export function FlightView() {
   const { id } = useParams();
@@ -474,22 +475,15 @@ function Stats({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
 
 function RouteStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
   const data = useMemo(() => {
-    const indexByRoute: Record<string, number> = {};
-    const data: Array<PieChartProps.Datum> = [];
+    const builder = new PieChartDataBuilder<string, [Airport, Airport]>(undefined, ([a1, a2]) => a1.id + a2.id);
 
     for (const flight of flights) {
-      const routeId = `${flight.departureAirport.id}-${flight.arrivalAirport.id}`;
-      if (!indexByRoute.hasOwnProperty(routeId)) {
-        indexByRoute[routeId] = data.push({
-          title: `${airportToString(flight.departureAirport)} - ${airportToString(flight.arrivalAirport)}`,
-          value: 0,
-        }) - 1;
-      }
-
-      data[indexByRoute[routeId]].value += 1;
+      builder.add([flight.departureAirport, flight.arrivalAirport], 1);
     }
 
-    return data;
+    return builder.data(([a1, a2]) => ({
+      title: `${airportToString(a1)} - ${airportToString(a2)}`,
+    }));
   }, [flights]);
 
   return (
@@ -497,169 +491,91 @@ function RouteStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
   );
 }
 
-interface Series {
-  type: 'line',
-  title: string;
-  data: Array<{ x: Date, y: number }>;
-}
-
 function AircraftStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
-  const [minDate, maxDate, series] = useMemo(() => {
-    const indexByAircraft: Record<AircraftId, number> = {};
-    const series: Array<Series> = [];
-    const uniqueXValues: Array<number> = [];
-    let minDate: Date | null = null;
-    let maxDate: Date | null = null;
+  const [series, xDomain, yDomain] = useMemo(() => {
+    const builder = new LineSeriesBuilder<string, Date, [Aircraft, string]>(undefined, ([ac, acc]) => ac.id + acc);
 
     for (const flight of flights) {
-      if (!indexByAircraft.hasOwnProperty(flight.aircraft.id)) {
-        indexByAircraft[flight.aircraft.id] = series.push({
-          type: 'line',
-          title: flight.aircraft.name ?? flight.aircraft.equipCode ?? flight.aircraft.iataCode ?? flight.aircraft.icaoCode ?? flight.aircraft.id,
-          data: [],
-        }) - 1;
-      }
-
-      const xValue = flight.departureTime.toUTC().startOf('week').toJSDate();
-      const v = series[indexByAircraft[flight.aircraft.id]];
-      let idx = v.data.findIndex((v) => v.x.getTime() === xValue.getTime());
-      if (idx === -1) {
-        idx = v.data.push({
-          x: xValue,
-          y: 0,
-        }) - 1;
-      }
-
-      v.data[idx].y += 1;
-
-      if (!uniqueXValues.includes(xValue.getTime())) {
-        uniqueXValues.push(xValue.getTime());
-      }
-
-      if (!minDate || minDate.getTime() > xValue.getTime()) {
-        minDate = xValue;
-      }
-
-      if (!maxDate || maxDate.getTime() < xValue.getTime()) {
-        maxDate = xValue;
-      }
+      builder.add(
+        [flight.aircraft, flight.aircraftConfigurationVersion],
+        flight.departureTime.toUTC().startOf('week').toJSDate(),
+        1,
+      );
     }
 
-    for (const v of series) {
-      let missingXValues = [...uniqueXValues];
-      v.data.forEach((v) => {
-        const idx = missingXValues.indexOf(v.x.getTime());
-        if (idx !== -1) {
-          missingXValues.splice(idx, 1);
-        }
-      });
-
-      for (const missingX of missingXValues) {
-        v.data.push({
-          x: new Date(missingX),
-          y: 0,
-        });
-      }
-
-      v.data.sort((a, b) => a.x.getTime() - b.x.getTime());
-    }
-
-    return [minDate ?? new Date(), maxDate ?? new Date(), series];
+    return builder.series(([aircraft, configuration]) => ({
+      title: `${aircraft.name ?? aircraft.equipCode ?? aircraft.iataCode ?? aircraft.icaoCode ?? aircraft.id} (${aircraftConfigurationVersionToName(configuration) ?? configuration})`,
+    }), true, true);
   }, [flights]);
 
   return (
     <LineChart
       series={series}
-      xDomain={[minDate, maxDate]}
+      xDomain={xDomain}
+      yDomain={yDomain ? [0, yDomain[1]] : undefined}
       xScaleType={'time'}
       xTitle={'Week (UTC)'}
       yTitle={'Flights'}
-      xTickFormatter={(e) => DateTime.fromJSDate(e).toFormat('yyyy-MM-dd')}
+      xTickFormatter={(e) => DateTime.fromJSDate(e).toFormat('W/yyyy')}
     />
   );
 }
 
 function DurationStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
-  const [minDate, maxDate, series] = useMemo(() => {
-    const series: Series = {
-      type: 'line',
-      title: 'Duration',
-      data: [],
-    } satisfies Series;
-    let minDate: Date | null = null;
-    let maxDate: Date | null = null;
+  const durationFormatter = useCallback((v: number) => {
+    return Duration.fromMillis(v).shiftTo('hours', 'minutes').toHuman({ listStyle: 'narrow', unitDisplay: 'narrow', maximumFractionDigits: 0 });
+  }, []);
+
+  const [series, xDomain, yDomain] = useMemo(() => {
+    const builder = new LineSeriesBuilder<string, Date, [Airport, Airport]>(undefined, ([a1, a2]) => a1.id + a2.id);
 
     for (const flight of flights) {
-      const xValue = flight.departureTime.toJSDate();
-      const yValue = flight.departureTime.until(flight.arrivalTime);
-      series.data.push({
-        x: xValue,
-        y: yValue.toDuration().milliseconds,
-      });
-
-      if (!minDate || minDate.getTime() > xValue.getTime()) {
-        minDate = xValue;
-      }
-
-      if (!maxDate || maxDate.getTime() < xValue.getTime()) {
-        maxDate = xValue;
-      }
+      builder.add(
+        [flight.departureAirport, flight.arrivalAirport],
+        flight.departureTime.toUTC().startOf('day').toJSDate(),
+        flight.departureTime.until(flight.arrivalTime).toDuration('milliseconds').milliseconds,
+      );
     }
 
-    return [minDate ?? new Date(), maxDate ?? new Date(), series];
+    return builder.series(([a1, a2]) => ({
+      title: `${airportToString(a1)} - ${airportToString(a2)}`,
+      valueFormatter: (v, _) => durationFormatter(v),
+    }), false, true);
   }, [flights]);
 
   return (
     <LineChart
-      series={[series]}
-      xDomain={[minDate, maxDate]}
+      series={series}
+      xDomain={xDomain}
+      yDomain={yDomain ? [0, yDomain[1]]: undefined}
       xScaleType={'time'}
-      xTitle={'Time (UTC)'}
+      xTitle={'Day (UTC)'}
       yTitle={'Duration'}
-      xTickFormatter={(e) => DateTime.fromJSDate(e).toFormat('yyyy-MM-dd HH:mm')}
-      yTickFormatter={(e) => Duration.fromMillis(e).rescale().toHuman({ listStyle: 'short', unitDisplay: 'short' })}
+      xTickFormatter={(e) => DateTime.fromJSDate(e).toFormat('yyyy-MM-dd')}
+      yTickFormatter={durationFormatter}
     />
   );
 }
 
 function OperatingDayStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
   const data = useMemo(() => {
-    const data: Array<PieChartProps.Datum> = [
-      {
-        title: 'Monday',
-        value: 0,
-      },
-      {
-        title: 'Tuesday',
-        value: 0,
-      },
-      {
-        title: 'Wednesday',
-        value: 0,
-      },
-      {
-        title: 'Thursday',
-        value: 0,
-      },
-      {
-        title: 'Friday',
-        value: 0,
-      },
-      {
-        title: 'Saturday',
-        value: 0,
-      },
-      {
-        title: 'Sunday',
-        value: 0,
-      },
-    ];
+    const builder = new PieChartDataBuilder<WeekdayNumbers>([1, 2, 3, 4, 5, 6, 7]);
 
     for (const flight of flights) {
-      data[flight.departureTime.weekday - 1].value += 1;
+      builder.add(flight.departureTime.weekday, 1);
     }
 
-    return data;
+    return builder.data((weekday) => ({
+      title: ({
+        1: 'Monday',
+        2: 'Tuesday',
+        3: 'Wednesday',
+        4: 'Thursday',
+        5: 'Friday',
+        6: 'Saturday',
+        7: 'Sunday',
+      })[weekday],
+    }));
   }, [flights]);
 
   return (
