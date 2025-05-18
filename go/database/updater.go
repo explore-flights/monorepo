@@ -319,8 +319,8 @@ func (u *updater) createAndUploadBaseDataDb(ctx context.Context, conn *sql.Conn,
 
 	sequence := []updateSequenceElement{
 		{
-			name:   "use working db",
-			script: fmt.Sprintf(`USE %s`, workingDbName),
+			name:   "use basedata db",
+			script: fmt.Sprintf(`USE %s`, tmpDbName),
 		},
 		{
 			name: "delete unused basedata",
