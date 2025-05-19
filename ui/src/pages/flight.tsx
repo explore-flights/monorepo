@@ -1291,8 +1291,7 @@ function lastWeekdayOfMonth(dt: DateTime<true>, month: number, weekday: WeekdayN
     return dt;
   }
 
-  const dayDiff = 7 - (Math.max(dt.weekday, weekday) - Math.min(dt.weekday, weekday));
-  return dt.minus({ day: dayDiff });
+  return dt.minus({ day: ((dt.weekday - weekday + 7) % 7) });
 }
 
 export function withDepartureDateRawFilter(q: URLSearchParams, date: string, operator: '=' | '>=' | '<=' = '='): URLSearchParams {
