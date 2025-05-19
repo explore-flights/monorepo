@@ -52,6 +52,7 @@ func (u *updater) UpdateDatabase(
 	baseDataDatabaseKey,
 	parquetBucket,
 	variantsKey,
+	reportKey,
 	historyPrefix,
 	latestPrefix,
 	inputBucket,
@@ -93,6 +94,12 @@ func (u *updater) UpdateDatabase(
 
 			if err := u.runTimed("export variants", func() error {
 				return u.exportVariants(ctx, conn, parquetBucket, variantsKey)
+			}); err != nil {
+				return err
+			}
+
+			if err := u.runTimed("export report", func() error {
+				return u.exportReport(ctx, conn, parquetBucket, reportKey)
 			}); err != nil {
 				return err
 			}
@@ -383,6 +390,95 @@ func (u *updater) exportVariants(ctx context.Context, conn *sql.Conn, bucket, ke
 		{
 			name:   "export variants",
 			script: fmt.Sprintf(`COPY flight_variants TO '%s' ( FORMAT parquet, COMPRESSION gzip, OVERWRITE_OR_IGNORE )`, exportUri),
+		},
+		{
+			name:   "reset threads",
+			script: setThreads,
+		},
+	}
+
+	return u.runUpdateSequence(ctx, conn, sequence)
+}
+
+func (u *updater) exportReport(ctx context.Context, conn *sql.Conn, bucket, key string) error {
+	exportUri := u.buildParquetFileUri(bucket, key)
+	sequence := []updateSequenceElement{
+		{
+			name:   "use working db",
+			script: fmt.Sprintf(`USE %s`, workingDbName),
+		},
+		{
+			name:   "single thread",
+			script: "SET threads TO 1",
+		},
+		{
+			name: "create macros",
+			script: `
+CREATE OR REPLACE MACRO last_day_of_month(date, month) AS LAST_DAY(MAKE_DATE(YEAR(date), month, 1)) ;
+
+CREATE OR REPLACE MACRO last_weekday_of_month(date, month, weekday) AS CASE
+  WHEN DATE_PART('weekday', LAST_DAY_OF_MONTH(date, month)) = weekday THEN LAST_DAY_OF_MONTH(date, month)
+  ELSE CAST(DATE_ADD(LAST_DAY_OF_MONTH(date, month), -INTERVAL ((DATE_PART('weekday', LAST_DAY_OF_MONTH(date, month)) - weekday + 7) % 7) DAY) AS DATE)
+END ;
+
+CREATE OR REPLACE MACRO is_summer_schedule(date) AS date >= LAST_WEEKDAY_OF_MONTH(date, 3, 0) AND date <= LAST_WEEKDAY_OF_MONTH(date, 10, 6) ;
+`,
+		},
+		{
+			name: "export report",
+			script: fmt.Sprintf(
+				`
+COPY (
+	WITH latest_active_history AS (
+		SELECT *
+		FROM flight_variant_history
+		WHERE replaced_at IS NULL
+		AND flight_variant_id IS NOT NULL
+	)
+	SELECT
+		YEAR(fvh.departure_date_local) AS year_local,
+		IS_SUMMER_SCHEDULE(fvh.departure_date_local) AS is_summer_schedule,
+		fvh.airline_id,
+		fvh.number,
+		fvh.suffix,
+		fvh.departure_airport_id,
+		fv.arrival_airport_id,
+		fv.aircraft_id,
+		fv.aircraft_configuration_version,
+		(fvh.airline_id = fv.operating_airline_id AND fvh.number = fv.operating_number AND fvh.suffix = fv.operating_suffix) AS is_operating,
+		fv.duration_seconds - (fv.duration_seconds %% (60 * 5)) AS duration_seconds_5m_trunc,
+		COUNT(*) AS count,
+		MIN(fv.duration_seconds) AS min_duration_seconds,
+		MAX(fv.duration_seconds) AS max_duration_seconds,
+		SUM(fv.duration_seconds) AS sum_duration_seconds
+	FROM latest_active_history fvh
+	INNER JOIN flight_variants fv
+	ON fvh.flight_variant_id = fv.id
+	WHERE fv.service_type = 'J'
+	GROUP BY
+		YEAR(fvh.departure_date_local),
+		IS_SUMMER_SCHEDULE(fvh.departure_date_local),
+		fvh.airline_id,
+		fvh.number,
+		fvh.suffix,
+		fvh.departure_airport_id,
+		fv.arrival_airport_id,
+		fv.aircraft_id,
+		fv.aircraft_configuration_version,
+		(fvh.airline_id = fv.operating_airline_id AND fvh.number = fv.operating_number AND fvh.suffix = fv.operating_suffix),
+		fv.duration_seconds - (fv.duration_seconds %% (60 * 5))
+) TO '%s' (
+	FORMAT parquet,
+	COMPRESSION gzip,
+	OVERWRITE_OR_IGNORE
+)
+`,
+				exportUri,
+			),
+		},
+		{
+			name:   "drop macros",
+			script: `DROP MACRO is_summer_schedule; DROP MACRO last_weekday_of_month; DROP MACRO last_day_of_month;`,
 		},
 		{
 			name:   "reset threads",

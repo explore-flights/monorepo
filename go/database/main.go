@@ -23,6 +23,7 @@ func main() {
 		baseDataDatabaseKey string
 		parquetBucket       string
 		variantsKey         string
+		reportKey           string
 		historyPrefix       string
 		latestPrefix        string
 		inputBucket         string
@@ -38,6 +39,7 @@ func main() {
 	fs.StringVar(&baseDataDatabaseKey, "basedata-database-key", "", "")
 	fs.StringVar(&parquetBucket, "parquet-bucket", "", "")
 	fs.StringVar(&variantsKey, "variants-key", "", "")
+	fs.StringVar(&reportKey, "report-key", "", "")
 	fs.StringVar(&historyPrefix, "history-prefix", "", "")
 	fs.StringVar(&latestPrefix, "latest-prefix", "", "")
 	fs.StringVar(&inputBucket, "input-bucket", "", "")
@@ -66,6 +68,7 @@ func main() {
 		baseDataDatabaseKey == "" ||
 		parquetBucket == "" ||
 		variantsKey == "" ||
+		reportKey == "" ||
 		historyPrefix == "" ||
 		latestPrefix == "" ||
 		inputBucket == "" ||
@@ -90,7 +93,7 @@ func main() {
 		inputFileUriSchema:   "s3",
 	}
 
-	if err = u.UpdateDatabase(ctx, t, databaseBucket, fullDatabaseKey, baseDataDatabaseKey, parquetBucket, variantsKey, historyPrefix, latestPrefix, inputBucket, inputPrefix, dateRanges); err != nil {
+	if err = u.UpdateDatabase(ctx, t, databaseBucket, fullDatabaseKey, baseDataDatabaseKey, parquetBucket, variantsKey, reportKey, historyPrefix, latestPrefix, inputBucket, inputPrefix, dateRanges); err != nil {
 		log.Fatal(err)
 		return
 	}
