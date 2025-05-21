@@ -437,6 +437,11 @@ COPY (
 	)
 	SELECT
 		YEAR(fvh.departure_date_local) AS year_local,
+		MONTH(fvh.departure_date_local) AS month_local,
+		CASE
+			WHEN IS_SUMMER_SCHEDULE(fvh.departure_date_local) THEN YEAR(fvh.departure_date_local)
+			ELSE IF(MONTH(fvh.departure_date_local) >= 10, YEAR(fvh.departure_date_local), YEAR(fvh.departure_date_local) - 1)
+		END AS schedule_year,
 		IS_SUMMER_SCHEDULE(fvh.departure_date_local) AS is_summer_schedule,
 		fvh.airline_id,
 		fvh.number,
@@ -457,6 +462,7 @@ COPY (
 	WHERE fv.service_type = 'J'
 	GROUP BY
 		YEAR(fvh.departure_date_local),
+		MONTH(fvh.departure_date_local),
 		IS_SUMMER_SCHEDULE(fvh.departure_date_local),
 		fvh.airline_id,
 		fvh.number,
