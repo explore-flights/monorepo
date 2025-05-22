@@ -83,7 +83,7 @@ function AirportMarker({ airport, onClick, step }: { airport: WithRequired<Airpo
       {/*<RouterInlineLink to={`/airport/${airport.iataCode ?? airport.icaoCode ?? airport.id}`} variant={'normal'}>
         {airport.iataCode ?? airport.icaoCode ?? airport.name}
       </RouterInlineLink>*/}
-      <Button onClick={onClick} variant={step !== undefined ? 'primary' : 'normal'}>
+      <Button onClick={onClick} variant={step !== undefined ? 'primary' : 'normal'} iconName={step !== undefined ? 'remove' : undefined}>
         {badge}{airport.iataCode ?? airport.icaoCode ?? airport.name}
       </Button>
     </Marker>
