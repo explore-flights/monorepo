@@ -19,11 +19,15 @@ export function Airports() {
 
   const [selectedAirports, setSelectedAirports] = useState<ReadonlyArray<Airport>>([]);
 
-  const onAirportClick = useCallback((airport: Airport) => {
+  const onAirportClick = useCallback((airport: Airport, removeTail?: boolean) => {
     setSelectedAirports((prev) => {
-      const idx = prev.findIndex((v) => v.id === airport.id);
+      let idx = prev.findIndex((v) => v.id === airport.id);
       if (idx === -1) {
         return [...prev,  airport];
+      }
+
+      if (removeTail) {
+        idx += 1;
       }
 
       return prev.toSpliced(idx, prev.length - idx);
@@ -66,7 +70,7 @@ export function Airports() {
               e.preventDefault();
               const airport = e.detail.item.airport;
               if (airport) {
-                onAirportClick(airport);
+                onAirportClick(airport, true);
               } else {
                 setSelectedAirports([]);
               }
