@@ -94,9 +94,8 @@ function AirportNodeWithConnections({ airport, exclude, onClick, step }: { airpo
 
     if (exclude.findIndex((v) => v.id === destination.id) === -1) {
       nodes.push(<AirportMarker airport={{ ...destination, location: destination.location }} onClick={() => onClick(destination)} />);
+      nodes.push(<SmartLine src={[airport.location.lng, airport.location.lat]} dst={[destination.location.lng, destination.location.lat]} />);
     }
-
-    nodes.push(<SmartLine src={[airport.location.lng, airport.location.lat]} dst={[destination.location.lng, destination.location.lat]} />);
   }
 
   return (
@@ -123,7 +122,7 @@ function AirportMarker({ airport, onClick, step }: { airport: WithRequired<Airpo
       {/*<RouterInlineLink to={`/airport/${airport.iataCode ?? airport.icaoCode ?? airport.id}`} variant={'normal'}>
         {airport.iataCode ?? airport.icaoCode ?? airport.name}
       </RouterInlineLink>*/}
-      <Button onClick={onClick} variant={step !== undefined ? 'primary' : 'normal'} iconName={step !== undefined ? 'remove' : undefined}>
+      <Button onClick={onClick} variant={step !== undefined ? 'primary' : 'normal'} disabled={step !== undefined}>
         {badge}{airport.iataCode ?? airport.icaoCode ?? airport.name}
       </Button>
     </Marker>
