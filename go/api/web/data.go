@@ -671,25 +671,7 @@ func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.Fl
 }
 
 func (dh *DataHandler) parseAirport(ctx context.Context, raw string) (uuid.UUID, error) {
-	if len(raw) <= 4 {
-		airports, err := dh.repo.Airports(ctx)
-		if err != nil {
-			return uuid.Nil, err
-		}
-
-		for _, airport := range airports {
-			if (airport.IataCode.Valid && airport.IataCode.String == raw) || (airport.IcaoCode.Valid && airport.IcaoCode.String == raw) {
-				return airport.Id, nil
-			}
-		}
-	}
-
-	var airportId model.UUID
-	if err := airportId.FromString(raw); err != nil {
-		return uuid.Nil, err
-	}
-
-	return uuid.UUID(airportId), nil
+	return util{}.parseAirport(ctx, raw, dh.repo.Airports)
 }
 
 func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {

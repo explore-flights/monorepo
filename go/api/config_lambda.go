@@ -169,6 +169,7 @@ func database() (*db.Database, error) {
 	return db.NewDatabase(
 		"/opt/data/basedata.db",
 		"/opt/data/variants.parquet",
+		"/opt/data/report.parquet",
 		fmt.Sprintf("s3://%s/history", parquetBucketName),
 		fmt.Sprintf("s3://%s/latest", parquetBucketName),
 	), nil

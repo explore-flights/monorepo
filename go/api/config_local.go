@@ -87,6 +87,7 @@ func database() (*db.Database, error) {
 	return db.NewDatabase(
 		filepath.Join(localS3BasePath, dataBucketFolder, "processed", "basedata.db"),
 		filepath.Join(localS3BasePath, parquetBucketFolder, "variants.parquet"),
+		filepath.Join(localS3BasePath, parquetBucketFolder, "report.parquet"),
 		filepath.Join(localS3BasePath, parquetBucketFolder, "history"),
 		filepath.Join(localS3BasePath, parquetBucketFolder, "latest"),
 	), nil

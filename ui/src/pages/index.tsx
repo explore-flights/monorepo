@@ -15,6 +15,7 @@ import { FlightSelect } from './flight-select';
 import { Allegris } from './allegris';
 import { FlightSearch } from './tools/flight-search';
 import { FlightVersionsView } from './flight-versions';
+import { Airports } from './airports';
 
 // region router
 const router = createBrowserRouter([
@@ -47,6 +48,10 @@ const router = createBrowserRouter([
       {
         path: 'flight/:id/versions/:departureAirport/:departureDateLocal',
         element: <FlightVersionsView />,
+      },
+      {
+        path: 'airport',
+        element: <Airports />,
       },
       {
         path: 'allegris',

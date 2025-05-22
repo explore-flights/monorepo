@@ -12,7 +12,7 @@ import {
   SeatMap,
   QueryScheduleResponse,
   QuerySchedulesRequest,
-  Notification, Airline, SearchResponse, Airport, FlightSchedules, AirportId, FlightScheduleVersions
+  Notification, Airline, SearchResponse, Airport, FlightSchedules, FlightScheduleVersions
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -181,6 +181,10 @@ export class ApiClient {
     }
 
     return transform(this.httpClient.fetch(`/api/schedule/search?${params.toString()}`));
+  }
+
+  getDestinations(airport: string): Promise<ApiResponse<ReadonlyArray<Airport>>> {
+    return transform(this.httpClient.fetch(`/data/destinations/${encodeURIComponent(airport)}`));
   }
 
   search(query: string): Promise<ApiResponse<SearchResponse>> {

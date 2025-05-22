@@ -1,7 +1,11 @@
 package web
 
 import (
+	"context"
 	"fmt"
+	"github.com/explore-flights/monorepo/go/api/db"
+	"github.com/explore-flights/monorepo/go/api/web/model"
+	"github.com/gofrs/uuid/v5"
 	"github.com/labstack/echo/v4"
 	"net/http"
 	"strings"
@@ -55,4 +59,28 @@ func noCache(c echo.Context) {
 	res := c.Response()
 	res.Header().Del("Expires")
 	res.Header().Set(echo.HeaderCacheControl, "private, no-cache, no-store, max-age=0, must-revalidate")
+}
+
+type util struct{}
+
+func (util) parseAirport(ctx context.Context, raw string, airportsFn func(context.Context) (map[uuid.UUID]db.Airport, error)) (uuid.UUID, error) {
+	if len(raw) <= 4 {
+		airports, err := airportsFn(ctx)
+		if err != nil {
+			return uuid.Nil, err
+		}
+
+		for _, airport := range airports {
+			if (airport.IataCode.Valid && airport.IataCode.String == raw) || (airport.IcaoCode.Valid && airport.IcaoCode.String == raw) {
+				return airport.Id, nil
+			}
+		}
+	}
+
+	var airportId model.UUID
+	if err := airportId.FromString(raw); err != nil {
+		return uuid.Nil, err
+	}
+
+	return uuid.UUID(airportId), nil
 }

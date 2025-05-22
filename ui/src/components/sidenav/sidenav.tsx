@@ -11,6 +11,11 @@ export function SideNav() {
       items={[
         {
           type: 'link',
+          text: 'Airports',
+          href: useHref('/airport'),
+        },
+        {
+          type: 'link',
           text: 'Allegris',
           href: useHref('/allegris'),
         },

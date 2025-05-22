@@ -282,3 +282,16 @@ export function useSearch(query: string, enabled: boolean) {
     staleTime: 1000 * 60 * 15,
   });
 }
+
+export function useDestinations(airport: string) {
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['destinations', airport],
+    queryFn: async () => {
+      const { body } = expectSuccess(await apiClient.getDestinations(airport));
+      return body;
+    },
+    retry: 5,
+    initialData: [] satisfies ReadonlyArray<Airport>,
+  });
+}

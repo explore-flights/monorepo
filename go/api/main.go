@@ -49,6 +49,11 @@ func main() {
 	defer database.Close()
 
 	fr := db.NewFlightRepo(database)
+	rr := db.NewReportRepo(database)
+	repo := struct {
+		*db.FlightRepo
+		*db.ReportRepo
+	}{fr, rr}
 
 	connHandler := search.NewConnectionsHandler(fr)
 	dataHandler := data.NewHandler(s3c, lhc, database, bucket)
@@ -112,6 +117,9 @@ func main() {
 		group.GET("/allegris/feed.atom", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".atom"))
 		// group.GET("/allegris/v2/feed.rss", web.NewAllegrisUpdateFeedEndpointV2(database, ".rss"))
 		// group.GET("/allegris/v2/feed.atom", web.NewAllegrisUpdateFeedEndpointV2(database, ".atom"))
+
+		reportHandler := web.NewReportHandler(repo)
+		group.GET("/destinations/:airport", reportHandler.Destinations)
 
 		sitemapHandler := web.NewSitemapHandler(fr)
 		group.GET("/sitemap.xml", sitemapHandler.SitemapIndex)

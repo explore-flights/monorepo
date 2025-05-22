@@ -20,7 +20,7 @@ type Database struct {
 	err        error
 }
 
-func NewDatabase(baseDbPath, variantsParquetPath, historyParquetPath, latestParquetPath string) *Database {
+func NewDatabase(baseDbPath, variantsParquetPath, reportParquetPath, historyParquetPath, latestParquetPath string) *Database {
 	initDone := make(chan struct{})
 	db := Database{initDone: initDone}
 	go func() {
@@ -70,7 +70,7 @@ func NewDatabase(baseDbPath, variantsParquetPath, historyParquetPath, latestParq
 			return
 		}
 
-		if err = dbInit(context.Background(), conn, db.dbWorkPath, baseDbPath, variantsParquetPath, historyParquetPath, latestParquetPath); err != nil {
+		if err = dbInit(context.Background(), conn, db.dbWorkPath, baseDbPath, variantsParquetPath, reportParquetPath, historyParquetPath, latestParquetPath); err != nil {
 			err = errors.Join(err, conn.Close())
 			return
 		}
@@ -126,7 +126,7 @@ func (db *Database) Close() error {
 	return errors.Join(errs...)
 }
 
-func dbInit(ctx context.Context, conn *sql.Conn, dbWorkPath, baseDbPath, variantsParquetPath, historyParquetPath, latestParquetPath string) error {
+func dbInit(ctx context.Context, conn *sql.Conn, dbWorkPath, baseDbPath, variantsParquetPath, reportParquetPath, historyParquetPath, latestParquetPath string) error {
 	bootQueries := []common.Tuple[string, []any]{
 		{
 			`SET threads TO 1`,
@@ -173,6 +173,13 @@ func dbInit(ctx context.Context, conn *sql.Conn, dbWorkPath, baseDbPath, variant
 			fmt.Sprintf(
 				`CREATE OR REPLACE VIEW flight_variants AS SELECT * FROM read_parquet('%s', hive_partitioning = false)`,
 				variantsParquetPath,
+			),
+			nil,
+		},
+		{
+			fmt.Sprintf(
+				`CREATE OR REPLACE VIEW report AS SELECT * FROM read_parquet('%s', hive_partitioning = false)`,
+				reportParquetPath,
 			),
 			nil,
 		},
