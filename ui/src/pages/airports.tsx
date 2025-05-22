@@ -1,6 +1,14 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAirports, useDestinations } from '../components/util/state/data';
-import { Badge, Button, Container, ContentLayout, Header } from '@cloudscape-design/components';
+import {
+  Badge, BreadcrumbGroup,
+  BreadcrumbGroupProps,
+  Button,
+  ColumnLayout,
+  Container,
+  ContentLayout,
+  Header
+} from '@cloudscape-design/components';
 import { MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
 import { Marker } from 'react-map-gl/maplibre';
 import { Airport } from '../lib/api/api.model';
@@ -30,12 +38,44 @@ export function Airports() {
     return buildAirportMarkersAndLines(airports, onAirportClick, false);
   }, [airports, selectedAirports, onAirportClick]);
 
+  const breadcrumbItems = useMemo(() => {
+    const items: Array<BreadcrumbGroupProps.Item & { airport?: Airport }> = [];
+    items.push({
+      text: 'Start',
+      href: '#',
+    });
+
+    for (const airport of selectedAirports) {
+      items.push({
+        airport: airport,
+        text: airport.iataCode ?? airport.icaoCode ?? airport.id,
+        href: '#',
+      });
+    }
+
+    return items;
+  }, [selectedAirports]);
+
   return (
     <ContentLayout header={<Header variant={'h1'}>Airports</Header>}>
       <Container>
-        <MaplibreMap height={'80vh'}>
-          {...markersAndLines}
-        </MaplibreMap>
+        <ColumnLayout columns={1}>
+          <BreadcrumbGroup
+            items={breadcrumbItems}
+            onClick={(e) => {
+              e.preventDefault();
+              const airport = e.detail.item.airport;
+              if (airport) {
+                onAirportClick(airport);
+              } else {
+                setSelectedAirports([]);
+              }
+            }}
+          />
+          <MaplibreMap height={'80vh'}>
+            {...markersAndLines}
+          </MaplibreMap>
+        </ColumnLayout>
       </Container>
     </ContentLayout>
   );
