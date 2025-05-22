@@ -21,6 +21,7 @@ import {
   Popover,
   PopoverProps, SpaceBetween
 } from '@cloudscape-design/components';
+import { greatCircle } from '@turf/turf';
 import { useConsent } from '../util/state/use-consent';
 import { ConsentLevel } from '../../lib/consent.model';
 import { usePreferences } from '../util/state/use-preferences';
@@ -132,7 +133,7 @@ export function PopupMarker({ children, button, popover, ...markerProps }: React
 export function SmartLine({ src, dst }: { src: [number, number], dst: [number, number] }) {
   const [srcLng, srcLat] = src;
   const [dstLng, dstLat] = dst;
-  const coordinates = useMemo(() => {
+  const feature = useMemo(() => {
     const result: Array<[number, number]> = [];
     if (srcLng > dstLng) {
       result.push([srcLng, srcLat], [dstLng, dstLat]);
@@ -144,7 +145,7 @@ export function SmartLine({ src, dst }: { src: [number, number], dst: [number, n
       result[1][0] += 360;
     }
 
-    return result;
+    return greatCircle(result[0], result[1]);
   }, [srcLng, srcLat, dstLng, dstLat]);
 
   const [sourceId, layerId] = useMemo(() => {
@@ -153,27 +154,20 @@ export function SmartLine({ src, dst }: { src: [number, number], dst: [number, n
     const layerId = `LAYER:${sourceId}`;
 
     return [sourceId, layerId];
-  }, [coordinates]);
+  }, [feature]);
 
   const [preferences] = usePreferences();
   const lineColor = useMemo(() => ({
     [ColorScheme.DARK]: '#c6c6cd',
     [ColorScheme.LIGHT]: '#000000',
-  })[preferences.effectiveColorScheme], [preferences.effectiveColorScheme])
+  })[preferences.effectiveColorScheme], [preferences.effectiveColorScheme]);
 
   return (
     <Source
       key={sourceId}
       id={sourceId}
       type={'geojson'}
-      data={{
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'LineString',
-          coordinates: coordinates,
-        },
-      }}
+      data={feature}
     >
       <Layer key={layerId} id={layerId} type={'line'} source={sourceId} paint={{ 'line-color': lineColor, 'line-width': 3 }} />
     </Source>
