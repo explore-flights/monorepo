@@ -9,6 +9,7 @@ import {
   ContentLayout,
   Header
 } from '@cloudscape-design/components';
+import { distance } from '@turf/turf';
 import { MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
 import { Marker } from 'react-map-gl/maplibre';
 import { Airport } from '../lib/api/api.model';
@@ -49,12 +50,29 @@ export function Airports() {
       href: '#',
     });
 
-    for (const airport of selectedAirports) {
+    let previousAirportLocation: [number, number] | null = null;
+    let totalDistance = 0;
+
+    for (let i = 0; i < selectedAirports.length; i++) {
+      const airport = selectedAirports[i];
+      const location = [airport.location?.lng ?? 0.0, airport.location?.lat ?? 0.0] satisfies [number, number];
+
+      if (previousAirportLocation != null) {
+        totalDistance += distance(previousAirportLocation, location, { units: 'miles' });
+      }
+
+      let suffix = '';
+      if (i > 0 && i >= selectedAirports.length - 1) {
+        suffix = ` (${totalDistance.toFixed(2)} mi)`;
+      }
+
       items.push({
         airport: airport,
-        text: airport.iataCode ?? airport.icaoCode ?? airport.id,
+        text: (airport.iataCode ?? airport.icaoCode ?? airport.id) + suffix,
         href: '#',
       });
+
+      previousAirportLocation = location;
     }
 
     return items;
