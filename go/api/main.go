@@ -32,10 +32,12 @@ func main() {
 		panic(err)
 	}
 
-	authHandler, err := authorizationHandler(ctx, s3c)
-	if err != nil {
-		panic(err)
-	}
+	/*
+		authHandler, err := authorizationHandler(ctx, s3c)
+		if err != nil {
+			panic(err)
+		}
+	*/
 
 	lhc, err := lufthansaClient()
 	if err != nil {
@@ -65,7 +67,7 @@ func main() {
 			lwamw.WithRemoveHeaders(),
 		),
 		web.NoCacheOnErrorMiddleware(),
-		authHandler.Middleware,
+		// authHandler.Middleware,
 	)
 
 	{
@@ -88,14 +90,16 @@ func main() {
 		group.GET("/notifications", notificationHandler.Notifications)
 	}
 
-	{
-		group := e.Group("/auth", web.NeverCacheMiddleware())
-		group.HEAD("/info", authHandler.AuthInfo)
-		group.POST("/logout", authHandler.Logout)
-		group.GET("/oauth2/register/:issuer", authHandler.Register)
-		group.GET("/oauth2/login/:issuer", authHandler.Login)
-		group.GET("/oauth2/code/:issuer", authHandler.Code)
-	}
+	/*
+		{
+			group := e.Group("/auth", web.NeverCacheMiddleware())
+			group.HEAD("/info", authHandler.AuthInfo)
+			group.POST("/logout", authHandler.Logout)
+			group.GET("/oauth2/register/:issuer", authHandler.Register)
+			group.GET("/oauth2/login/:issuer", authHandler.Login)
+			group.GET("/oauth2/code/:issuer", authHandler.Code)
+		}
+	*/
 
 	{
 		group := e.Group("/data")
