@@ -7,12 +7,12 @@ SELECT
   suffix,
   LIST_REDUCE(
     LIST_TRANSFORM(
-      LIST_FILTER(dataElements, lambda de: sequenceNumber BETWEEN de.startLegSequenceNumber AND de.endLegSequenceNumber),
-      lambda de: MAP {de.id: [de.value]}
+      LIST_FILTER(dataElements, de -> sequenceNumber BETWEEN de.startLegSequenceNumber AND de.endLegSequenceNumber),
+      de -> MAP {de.id: [de.value]}
     ),
-    lambda acc, e: MAP_FROM_ENTRIES(LIST_TRANSFORM(
+    (acc, e) -> MAP_FROM_ENTRIES(LIST_TRANSFORM(
       LIST_DISTINCT(MAP_KEYS(acc) || MAP_KEYS(e)),
-      lambda k: {k: k, v: LIST_DISTINCT(COALESCE(acc[k], []) || COALESCE(e[k], []))}
+      k -> {k: k, v: LIST_DISTINCT(COALESCE(acc[k], []) || COALESCE(e[k], []))}
     ))
   ) AS dataElements,
   sequenceNumber,

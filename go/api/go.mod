@@ -16,7 +16,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/jxskiss/base62 v1.1.0
 	github.com/labstack/echo/v4 v4.13.3
-	github.com/marcboeker/go-duckdb/v2 v2.3.0
+	github.com/marcboeker/go-duckdb/v2 v2.2.1
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/sync v0.14.0
 	golang.org/x/time v0.11.0
@@ -43,12 +43,12 @@ require (
 	github.com/aws/smithy-go v1.22.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/disintegration/imaging v1.6.2 // indirect
-	github.com/duckdb/duckdb-go-bindings v0.1.15 // indirect
-	github.com/duckdb/duckdb-go-bindings/darwin-amd64 v0.1.10 // indirect
-	github.com/duckdb/duckdb-go-bindings/darwin-arm64 v0.1.10 // indirect
-	github.com/duckdb/duckdb-go-bindings/linux-amd64 v0.1.10 // indirect
-	github.com/duckdb/duckdb-go-bindings/linux-arm64 v0.1.10 // indirect
-	github.com/duckdb/duckdb-go-bindings/windows-amd64 v0.1.10 // indirect
+	github.com/duckdb/duckdb-go-bindings v0.1.14 // indirect
+	github.com/duckdb/duckdb-go-bindings/darwin-amd64 v0.1.9 // indirect
+	github.com/duckdb/duckdb-go-bindings/darwin-arm64 v0.1.9 // indirect
+	github.com/duckdb/duckdb-go-bindings/linux-amd64 v0.1.9 // indirect
+	github.com/duckdb/duckdb-go-bindings/linux-arm64 v0.1.9 // indirect
+	github.com/duckdb/duckdb-go-bindings/windows-amd64 v0.1.9 // indirect
 	github.com/flopp/go-findfont v0.1.0 // indirect
 	github.com/fogleman/gg v1.3.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.0 // indirect
@@ -60,8 +60,8 @@ require (
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
-	github.com/marcboeker/go-duckdb/arrowmapping v0.0.8 // indirect
-	github.com/marcboeker/go-duckdb/mapping v0.0.9 // indirect
+	github.com/marcboeker/go-duckdb/arrowmapping v0.0.7 // indirect
+	github.com/marcboeker/go-duckdb/mapping v0.0.7 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

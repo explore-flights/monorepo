@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.79.3
 	github.com/explore-flights/monorepo/go/common v0.0.0
-	github.com/marcboeker/go-duckdb/v2 v2.3.0
+	github.com/marcboeker/go-duckdb/v2 v2.2.1
 )
 
 require (
@@ -27,20 +27,20 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.30.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19 // indirect
 	github.com/aws/smithy-go v1.22.3 // indirect
-	github.com/duckdb/duckdb-go-bindings v0.1.15 // indirect
-	github.com/duckdb/duckdb-go-bindings/darwin-amd64 v0.1.10 // indirect
-	github.com/duckdb/duckdb-go-bindings/darwin-arm64 v0.1.10 // indirect
-	github.com/duckdb/duckdb-go-bindings/linux-amd64 v0.1.10 // indirect
-	github.com/duckdb/duckdb-go-bindings/linux-arm64 v0.1.10 // indirect
-	github.com/duckdb/duckdb-go-bindings/windows-amd64 v0.1.10 // indirect
+	github.com/duckdb/duckdb-go-bindings v0.1.14 // indirect
+	github.com/duckdb/duckdb-go-bindings/darwin-amd64 v0.1.9 // indirect
+	github.com/duckdb/duckdb-go-bindings/darwin-arm64 v0.1.9 // indirect
+	github.com/duckdb/duckdb-go-bindings/linux-amd64 v0.1.9 // indirect
+	github.com/duckdb/duckdb-go-bindings/linux-arm64 v0.1.9 // indirect
+	github.com/duckdb/duckdb-go-bindings/windows-amd64 v0.1.9 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/google/flatbuffers v25.2.10+incompatible // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
-	github.com/marcboeker/go-duckdb/arrowmapping v0.0.8 // indirect
-	github.com/marcboeker/go-duckdb/mapping v0.0.9 // indirect
+	github.com/marcboeker/go-duckdb/arrowmapping v0.0.7 // indirect
+	github.com/marcboeker/go-duckdb/mapping v0.0.7 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	golang.org/x/exp v0.0.0-20250506013437-ce4c2cf36ca6 // indirect
