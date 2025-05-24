@@ -1,4 +1,13 @@
-FROM golang:1.24 AS build
+FROM quay.io/pypa/manylinux_2_28_aarch64 AS build
+
+ENV GOVERSION="1.24.3"
+ENV GOOS="linux"
+ENV GOARCH="arm64"
+
+# install go
+ADD "https://go.dev/dl/go$GOVERSION.$GOOS-$GOARCH.tar.gz" ./go.tar.gz
+RUN tar -C /usr/local -xzf go.tar.gz && rm go.tar.gz
+ENV PATH="$PATH:/usr/local/go/bin"
 
 WORKDIR /build
 COPY ../.. .
