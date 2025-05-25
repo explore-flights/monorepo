@@ -37,18 +37,18 @@ func NewNotificationHandler(versionTxtPath string) *NotificationHandler {
 func (nh *NotificationHandler) Notifications(c echo.Context) error {
 	f, err := os.Open(nh.versionTxtPath)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 	defer f.Close()
 
 	b, err := io.ReadAll(f)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	t, err := time.Parse(time.RFC3339, string(b))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	notifications := make([]notification, 0)

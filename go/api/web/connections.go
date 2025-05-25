@@ -61,12 +61,12 @@ func (ch *ConnectionsHandler) connections(c echo.Context, export string) error {
 	ctx := c.Request().Context()
 	airports, err := ch.repo.Airports(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	req, err := ch.parseAndValidateRequest(c, airports)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 	}
 
 	minLayover := time.Duration(req.MinLayoverMS) * time.Millisecond
@@ -97,17 +97,17 @@ func (ch *ConnectionsHandler) connections(c echo.Context, export string) error {
 
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return echo.NewHTTPError(http.StatusRequestTimeout, err)
+			return NewHTTPError(http.StatusRequestTimeout, WithCause(err))
 		}
 
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	switch export {
 	case "json":
 		data, err := ch.exportConnectionsJSON(ctx, conns, airports)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError)
+			return err
 		}
 
 		res := model.ConnectionsSearchResponse{
@@ -126,7 +126,7 @@ func (ch *ConnectionsHandler) connections(c echo.Context, export string) error {
 		return ch.exportConnectionsImage(ctx, airports, conns, c.Response())
 
 	default:
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid export type")
+		return NewHTTPError(http.StatusBadRequest, WithMessage("invalid export type"))
 	}
 }
 
@@ -134,17 +134,17 @@ func (ch *ConnectionsHandler) ConnectionsShareCreate(c echo.Context) error {
 	ctx := c.Request().Context()
 	airports, err := ch.repo.Airports(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	req, err := ch.parseAndValidateRequest(c, airports)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 	}
 
 	b, err := proto.Marshal(req.ToPb())
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	scheme, host := contextSchemeAndHost(c)
@@ -160,12 +160,12 @@ func (ch *ConnectionsHandler) ConnectionsShareHTML(c echo.Context) error {
 	ctx := c.Request().Context()
 	airports, err := ch.repo.Airports(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	req, err := ch.parseAndValidateRequest(c, airports)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 	}
 
 	scheme, host := contextSchemeAndHost(c)
@@ -173,7 +173,7 @@ func (ch *ConnectionsHandler) ConnectionsShareHTML(c echo.Context) error {
 
 	tmpl, err := template.New("share").Parse(shareTemplateHtml)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	origins := make([]string, 0, len(req.Origins))
@@ -211,7 +211,7 @@ func (ch *ConnectionsHandler) ConnectionsShareHTML(c echo.Context) error {
 
 	var buf bytes.Buffer
 	if err = tmpl.Execute(&buf, data); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.HTMLBlob(http.StatusOK, buf.Bytes())

@@ -33,7 +33,7 @@ func (sh *SearchHandler) Search(c echo.Context) error {
 	if c.Request().Header.Get(echo.HeaderAccept) == echo.MIMEApplicationJSON {
 		// api request
 		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError)
+			return err
 		}
 
 		return c.JSON(http.StatusOK, resp)

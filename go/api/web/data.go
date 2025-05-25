@@ -51,7 +51,7 @@ func NewDataHandler(repo dataHandlerRepo, dh *data.Handler) *DataHandler {
 func (dh *DataHandler) Airlines(c echo.Context) error {
 	airlines, err := dh.repo.Airlines(c.Request().Context())
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	resp := make([]model.Airline, 0, len(airlines))
@@ -65,7 +65,7 @@ func (dh *DataHandler) Airlines(c echo.Context) error {
 func (dh *DataHandler) Airports(c echo.Context) error {
 	airports, err := dh.repo.Airports(c.Request().Context())
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	resp := make([]model.Airport, 0, len(airports))
@@ -79,7 +79,7 @@ func (dh *DataHandler) Airports(c echo.Context) error {
 func (dh *DataHandler) Aircraft(c echo.Context) error {
 	aircraft, err := dh.repo.Aircraft(c.Request().Context())
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	resp := make([]model.Aircraft, 0, len(aircraft))
@@ -102,13 +102,13 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 		var err error
 		version, err = time.Parse(time.RFC3339, versionRaw)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "Invalid version format")
+			return NewHTTPError(http.StatusBadRequest, WithMessage("Invalid version format"), WithCause(err))
 		}
 	}
 
 	fn, err := dh.parseFlightNumber(ctx, fnRaw)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest)
+		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 	}
 
 	var flightSchedules db.FlightSchedules
@@ -144,7 +144,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 		})
 
 		if err := g.Wait(); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError)
+			return err
 		}
 	}
 
@@ -216,12 +216,7 @@ func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
 
 	fs, err := dh.loadFlightScheduleVersions(ctx, fnRaw, departureAirportRaw, departureDateLocalRaw)
 	if err != nil {
-		var httpErr *echo.HTTPError
-		if errors.As(err, &httpErr) {
-			return httpErr
-		}
-
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	addExpirationHeaders(c, time.Now(), time.Hour)
@@ -244,12 +239,7 @@ func (dh *DataHandler) flightScheduleVersionsFeed(c echo.Context, contentType st
 
 	fs, err := dh.loadFlightScheduleVersions(ctx, fnRaw, departureAirportRaw, departureDateLocalRaw)
 	if err != nil {
-		var httpErr *echo.HTTPError
-		if errors.As(err, &httpErr) {
-			return httpErr
-		}
-
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	feed := dh.buildFlightScheduleVersionsFeed(fs)
@@ -493,17 +483,17 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, departureAirportRaw, departureDateLocalRaw string) (model.FlightScheduleVersions, error) {
 	fn, err := dh.parseFlightNumber(ctx, fnRaw)
 	if err != nil {
-		return model.FlightScheduleVersions{}, echo.NewHTTPError(http.StatusBadRequest)
+		return model.FlightScheduleVersions{}, NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
 	departureAirportId, err := dh.parseAirport(ctx, departureAirportRaw)
 	if err != nil {
-		return model.FlightScheduleVersions{}, echo.NewHTTPError(http.StatusBadRequest)
+		return model.FlightScheduleVersions{}, NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
 	var departureDateLocal xtime.LocalDate
 	if departureDateLocal, err = xtime.ParseLocalDate(departureDateLocalRaw); err != nil {
-		return model.FlightScheduleVersions{}, echo.NewHTTPError(http.StatusBadRequest)
+		return model.FlightScheduleVersions{}, NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
 	var flightScheduleVersions db.FlightScheduleVersions
@@ -539,7 +529,7 @@ func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, de
 		})
 
 		if err := g.Wait(); err != nil {
-			return model.FlightScheduleVersions{}, echo.NewHTTPError(http.StatusInternalServerError)
+			return model.FlightScheduleVersions{}, err
 		}
 	}
 
@@ -683,37 +673,37 @@ func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
 		aircraftType, aircraftConfigurationVersion, ok := strings.Cut(c.Param("aircraft"), "-")
 
 		if !ok {
-			return echo.NewHTTPError(http.StatusBadRequest)
+			return NewHTTPError(http.StatusBadRequest)
 		}
 
 		fn, err := common.ParseFlightNumber(fnRaw)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
+			return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 		}
 
 		if len(departureAirport) != 3 || len(arrivalAirport) != 3 {
-			return echo.NewHTTPError(http.StatusBadRequest)
+			return NewHTTPError(http.StatusBadRequest)
 		}
 
 		departureDate, err := xtime.ParseLocalDate(departureDateRaw)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, err)
+			return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 		}
 
 		fs, err := dh.FlightSchedule(c.Request().Context(), fn)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError)
+			return err
 		} else if fs == nil {
-			return echo.NewHTTPError(http.StatusNotFound)
+			return NewHTTPError(http.StatusNotFound)
 		}
 
 		fsd, ok := fs.Find(departureDate, departureAirport, arrivalAirport)
 		if !ok {
-			return echo.NewHTTPError(http.StatusNotFound)
+			return NewHTTPError(http.StatusNotFound)
 		}
 
 		if fsd.Data.AircraftType != aircraftType || fsd.Data.AircraftConfigurationVersion != aircraftConfigurationVersion {
-			return echo.NewHTTPError(http.StatusNotFound)
+			return NewHTTPError(http.StatusNotFound)
 		}
 
 		allowFetchFresh := fsd.DepartureTime(departureDate).After(time.Now().Add(-time.Hour * 3))
@@ -740,9 +730,9 @@ func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
 
 			if err != nil {
 				if errors.Is(err, data.ErrSeatMapFreshFetchRequired) {
-					return echo.NewHTTPError(http.StatusBadRequest, "Seatmaps can only be requested until 3 hours prior to departure")
+					return NewHTTPError(http.StatusBadRequest, WithMessage("Seatmaps can only be requested until 3 hours prior to departure"), WithCause(err))
 				} else {
-					return echo.NewHTTPError(http.StatusInternalServerError)
+					return err
 				}
 			}
 
@@ -775,7 +765,7 @@ func NewFlightSchedulesByConfigurationEndpoint(dh *data.Handler) echo.HandlerFun
 
 		if err != nil {
 			noCache(c)
-			return echo.NewHTTPError(http.StatusInternalServerError)
+			return err
 		}
 
 		addExpirationHeaders(c, time.Now(), time.Hour*3)

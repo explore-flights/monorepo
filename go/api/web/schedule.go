@@ -18,60 +18,60 @@ func NewQueryFlightSchedulesEndpoint(fr *db.FlightRepo, dh *data.Handler) echo.H
 		if airlines == nil || *airlines == nil {
 			var err error
 			if *airlines, err = fr.Airlines(ctx); err != nil {
-				return "", echo.NewHTTPError(http.StatusInternalServerError)
+				return "", err
 			}
 		}
 
 		var u model.UUID
 		if err := u.FromString(raw); err != nil {
-			return "", echo.NewHTTPError(http.StatusBadRequest)
+			return "", NewHTTPError(http.StatusBadRequest, WithCause(err))
 		}
 
 		if airline, ok := (*airlines)[uuid.UUID(u)]; ok && airline.IataCode.Valid {
 			return common.AirlineIdentifier(airline.IataCode.String), nil
 		}
 
-		return "", echo.NewHTTPError(http.StatusBadRequest)
+		return "", NewHTTPError(http.StatusBadRequest)
 	}
 
 	ensureAirport := func(ctx context.Context, airports *map[uuid.UUID]db.Airport, raw string) (string, error) {
 		if airports == nil || *airports == nil {
 			var err error
 			if *airports, err = fr.Airports(ctx); err != nil {
-				return "", echo.NewHTTPError(http.StatusInternalServerError)
+				return "", err
 			}
 		}
 
 		var u model.UUID
 		if err := u.FromString(raw); err != nil {
-			return "", echo.NewHTTPError(http.StatusBadRequest)
+			return "", NewHTTPError(http.StatusBadRequest, WithCause(err))
 		}
 
 		if airport, ok := (*airports)[uuid.UUID(u)]; ok && airport.IataCode.Valid {
 			return airport.IataCode.String, nil
 		}
 
-		return "", echo.NewHTTPError(http.StatusBadRequest)
+		return "", NewHTTPError(http.StatusBadRequest)
 	}
 
 	ensureAircraft := func(ctx context.Context, aircraft *map[uuid.UUID]db.Aircraft, raw string) (string, error) {
 		if aircraft == nil || *aircraft == nil {
 			var err error
 			if *aircraft, err = fr.Aircraft(ctx); err != nil {
-				return "", echo.NewHTTPError(http.StatusInternalServerError)
+				return "", err
 			}
 		}
 
 		var u model.UUID
 		if err := u.FromString(raw); err != nil {
-			return "", echo.NewHTTPError(http.StatusBadRequest)
+			return "", NewHTTPError(http.StatusBadRequest, WithCause(err))
 		}
 
 		if ac, ok := (*aircraft)[uuid.UUID(u)]; ok && ac.IataCode.Valid {
 			return ac.IataCode.String, nil
 		}
 
-		return "", echo.NewHTTPError(http.StatusBadRequest)
+		return "", NewHTTPError(http.StatusBadRequest)
 	}
 
 	return func(c echo.Context) error {
@@ -184,7 +184,7 @@ func NewQueryFlightSchedulesEndpoint(fr *db.FlightRepo, dh *data.Handler) echo.H
 
 				minDepartureTime, err := time.Parse(time.RFC3339, values[0])
 				if err != nil {
-					return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+					return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 				}
 
 				subOpts = append(subOpts, data.WithMinDepartureTime(minDepartureTime))
@@ -194,7 +194,7 @@ func NewQueryFlightSchedulesEndpoint(fr *db.FlightRepo, dh *data.Handler) echo.H
 
 				maxDepartureTime, err := time.Parse(time.RFC3339, values[0])
 				if err != nil {
-					return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+					return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 				}
 
 				subOpts = append(subOpts, data.WithMaxDepartureTime(maxDepartureTime))
@@ -210,12 +210,12 @@ func NewQueryFlightSchedulesEndpoint(fr *db.FlightRepo, dh *data.Handler) echo.H
 		}
 
 		if (len(options) - highFrequencyFilters) < 3 {
-			return echo.NewHTTPError(http.StatusBadRequest, "too few filters")
+			return NewHTTPError(http.StatusBadRequest, WithMessage("too few filters"))
 		}
 
 		result, err := dh.QuerySchedules(c.Request().Context(), options...)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "")
+			return err
 		}
 
 		return c.JSON(http.StatusOK, result)

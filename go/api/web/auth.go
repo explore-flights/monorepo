@@ -54,7 +54,7 @@ func NewAuthorizationHandler(clientId, clientSecret string, repo *auth.Repo, con
 
 func (ah *AuthorizationHandler) AuthInfo(c echo.Context) error {
 	if _, ok := c.Request().Context().Value(sessionContextKey{}).(auth.SessionJwtClaims); !ok {
-		return echo.NewHTTPError(http.StatusUnauthorized)
+		return NewHTTPError(http.StatusUnauthorized)
 	}
 
 	return c.NoContent(http.StatusNoContent)
@@ -89,7 +89,7 @@ func (ah *AuthorizationHandler) Middleware(next echo.HandlerFunc) echo.HandlerFu
 func (ah *AuthorizationHandler) Required(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		if _, ok := c.Request().Context().Value(sessionContextKey{}).(auth.SessionJwtClaims); !ok {
-			return echo.NewHTTPError(http.StatusUnauthorized)
+			return NewHTTPError(http.StatusUnauthorized)
 		}
 
 		return next(c)
@@ -118,7 +118,7 @@ func (ah *AuthorizationHandler) Login(c echo.Context) error {
 func (ah *AuthorizationHandler) loginOrRegister(c echo.Context, register bool) error {
 	issuer := c.Param("issuer")
 	if issuer != google {
-		return echo.NewHTTPError(http.StatusBadRequest, "bad issuer")
+		return NewHTTPError(http.StatusBadRequest, WithMessage("bad issuer"))
 	}
 
 	ctx := c.Request().Context()
@@ -133,7 +133,7 @@ func (ah *AuthorizationHandler) loginOrRegister(c echo.Context, register bool) e
 	})
 
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	return c.Redirect(http.StatusFound, authUrl)
@@ -142,25 +142,25 @@ func (ah *AuthorizationHandler) loginOrRegister(c echo.Context, register bool) e
 func (ah *AuthorizationHandler) Code(c echo.Context) error {
 	issuer := c.Param("issuer")
 	if issuer != google {
-		return echo.NewHTTPError(http.StatusBadRequest, "bad issuer")
+		return NewHTTPError(http.StatusBadRequest, WithMessage("bad issuer"))
 	}
 
 	if oauth2Err := c.QueryParam(oauth2.Error); oauth2Err != "" {
 		oauth2ErrDesc := c.QueryParam(oauth2.ErrorDescription)
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Errorf("oauth2 flow failed: err=[%v] desc=[%v]", oauth2Err, oauth2ErrDesc))
+		return NewHTTPError(http.StatusBadRequest, WithMessage(fmt.Sprintf("oauth2 flow failed: err=[%v] desc=[%v]", oauth2Err, oauth2ErrDesc)))
 	}
 
 	state := c.QueryParam(oauth2.State)
 	code := c.QueryParam(oauth2.Code)
 	if state == "" || code == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Errorf("missing required params %v and/or %v", oauth2.State, oauth2.Code))
+		return NewHTTPError(http.StatusBadRequest, WithMessage(fmt.Sprintf("missing required params %v and/or %v", oauth2.State, oauth2.Code)))
 	}
 
 	ctx := c.Request().Context()
 
 	authReq, err := ah.repo.Request(ctx, issuer, state)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid state")
+		return NewHTTPError(http.StatusBadRequest, WithMessage("invalid state"))
 	}
 
 	var tkRes oauth2.TokenResponseWithIdToken
@@ -171,42 +171,42 @@ func (ah *AuthorizationHandler) Code(c echo.Context) error {
 	}
 
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	if time.Duration(tkRes.ExpiresIn)*time.Second <= time.Minute*30 {
-		return echo.NewHTTPError(http.StatusBadRequest, "token must be valid for at least 30m")
+		return NewHTTPError(http.StatusBadRequest, WithMessage("token must be valid for at least 30m"))
 	}
 
 	token, err := jwt.ParseWithClaims(tkRes.IdToken, &googleIdTokenClaims{}, ah.jwksVerifier.JWTKeyFuncWithContext(ctx))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	} else if !token.Valid {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid ID Token")
+		return NewHTTPError(http.StatusBadRequest, WithMessage("invalid ID Token"))
 	}
 
 	claims, ok := token.Claims.(*googleIdTokenClaims)
 	if !ok || claims.Subject == "" {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return NewHTTPError(http.StatusInternalServerError)
 	}
 
 	var acc auth.Account
 	if authReq.Register {
 		acc, err = ah.repo.CreateAccount(ctx, issuer, claims.Subject)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "could not create account")
+			return NewHTTPError(http.StatusBadRequest, WithMessage("could not create account"), WithCause(err))
 		}
 	} else {
 		acc, err = ah.repo.AccountByFederation(ctx, issuer, claims.Subject)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusBadRequest, "could not retrieve account")
+			return NewHTTPError(http.StatusBadRequest, WithMessage("could not retrieve account"), WithCause(err))
 		}
 	}
 
 	exp := time.Now().Add(time.Hour * 24)
 	jwtStr, err := ah.conv.WriteJWT(acc.Id, issuer, claims.Subject, exp)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+		return err
 	}
 
 	c.SetCookie(&http.Cookie{

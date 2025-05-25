@@ -84,3 +84,49 @@ func (util) parseAirport(ctx context.Context, raw string, airportsFn func(contex
 
 	return uuid.UUID(airportId), nil
 }
+
+type HTTPErrorOption func(e *HTTPError)
+
+type HTTPError struct {
+	code        int
+	message     string
+	cause       error
+	unmaskCause bool
+}
+
+func (e *HTTPError) Error() string {
+	if e.cause != nil {
+		return fmt.Sprintf("%d %s: %s", e.code, e.message, e.cause)
+	}
+
+	return fmt.Sprintf("%d %s", e.code, e.message)
+}
+
+func WithMessage(message string) HTTPErrorOption {
+	return func(e *HTTPError) {
+		e.message = message
+	}
+}
+
+func WithCause(cause error) HTTPErrorOption {
+	return func(e *HTTPError) {
+		e.cause = cause
+	}
+}
+
+func WithUnmaskedCause() HTTPErrorOption {
+	return func(e *HTTPError) {
+		e.unmaskCause = true
+	}
+}
+
+func NewHTTPError(code int, opts ...HTTPErrorOption) *HTTPError {
+	err := new(HTTPError)
+	err.code = code
+
+	for _, opt := range opts {
+		opt(err)
+	}
+
+	return err
+}

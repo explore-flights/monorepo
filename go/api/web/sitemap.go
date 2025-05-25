@@ -39,7 +39,7 @@ func (sh *SitemapHandler) SitemapIndex(c echo.Context) error {
 	ctx := c.Request().Context()
 	airlines, err := sh.repo.Airlines(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	baseURL := baseUrl(c)
@@ -49,7 +49,7 @@ func (sh *SitemapHandler) SitemapIndex(c echo.Context) error {
 
 	_, err = res.Write([]byte(xml.Header))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	enc := xml.NewEncoder(res)
@@ -63,12 +63,12 @@ func (sh *SitemapHandler) SitemapIndex(c echo.Context) error {
 	})
 
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	for id := range airlines {
 		if err = sh.addSitemapURL(enc, "sitemap", sh.buildSitemapURL(baseURL, id), time.Time{}); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError)
+			return err
 		}
 	}
 
@@ -85,13 +85,13 @@ func (sh *SitemapHandler) SitemapAirline(c echo.Context) error {
 
 	var airlineId model.UUID
 	if err := airlineId.FromString(c.Param("airlineId")); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest)
+		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
 	ctx := c.Request().Context()
 	airlines, err := sh.repo.Airlines(ctx)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	baseURL := baseUrl(c)
@@ -101,7 +101,7 @@ func (sh *SitemapHandler) SitemapAirline(c echo.Context) error {
 
 	_, err = res.Write([]byte(xml.Header))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	enc := xml.NewEncoder(res)
@@ -115,17 +115,17 @@ func (sh *SitemapHandler) SitemapAirline(c echo.Context) error {
 	})
 
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	for fn, lastModified := range sh.repo.IterFlightNumbers(ctx, uuid.UUID(airlineId), &err) {
 		if err = sh.addSitemapURL(enc, "url", sh.buildFlightURL(baseURL, airlines, fn), lastModified); err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError)
+			return err
 		}
 	}
 
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	return enc.EncodeToken(xml.EndElement{

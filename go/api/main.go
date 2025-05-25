@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/feeds"
 	lwamw "github.com/its-felix/aws-lwa-go-middleware"
 	"github.com/labstack/echo/v4"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -66,6 +67,7 @@ func main() {
 			lwamw.WithMaskError(),
 			lwamw.WithRemoveHeaders(),
 		),
+		web.ErrorLogAndMaskMiddleware(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile)),
 		web.NoCacheOnErrorMiddleware(),
 		// authHandler.Middleware,
 	)

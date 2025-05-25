@@ -28,7 +28,7 @@ func (rh *ReportHandler) Destinations(c echo.Context) error {
 	ctx := c.Request().Context()
 	airportId, err := util{}.parseAirport(ctx, c.Param("airport"), rh.repo.Airports)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest)
+		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
 	var destinationAirportIds []uuid.UUID
@@ -48,7 +48,7 @@ func (rh *ReportHandler) Destinations(c echo.Context) error {
 	})
 
 	if err := g.Wait(); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError)
+		return err
 	}
 
 	result := make([]model.Airport, 0, len(destinationAirportIds))
@@ -70,7 +70,7 @@ func (rh *ReportHandler) Report(c echo.Context) error {
 		},
 	})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		return err
 	}
 
 	return c.JSON(http.StatusOK, report)
