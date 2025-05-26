@@ -33,7 +33,7 @@ jobs:
 
   build_and_test_api:
     name: 'Build and test API'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
