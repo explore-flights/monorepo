@@ -15,11 +15,13 @@ import {
   Box,
   Button,
   ButtonProps,
-  Container, Grid,
+  Container,
+  Grid,
   Header,
   Link,
   Popover,
-  PopoverProps, SpaceBetween
+  PopoverProps,
+  SpaceBetween
 } from '@cloudscape-design/components';
 import { greatCircle } from '@turf/turf';
 import { useConsent } from '../util/state/use-consent';
@@ -27,6 +29,7 @@ import { ConsentLevel } from '../../lib/consent.model';
 import { usePreferences } from '../util/state/use-preferences';
 import { ColorScheme } from '../../lib/preferences.model';
 import { LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
+import { colorful, eclipse } from '@versatiles/style';
 
 function ComponentResize() {
   const map = useMap();
@@ -88,14 +91,12 @@ function MaplibreMapConsent({ height, onAllowOnceClick }: { height: string | num
 
 function MaplibreMapInternal({ children, height }: React.PropsWithChildren<MaplibreMapProps>) {
   const [preferences] = usePreferences();
-  const mapStyleURL = useMemo(() => {
-    // https://github.com/versatiles-org/versatiles-style
-    const variant = ({
-      [ColorScheme.DARK]: 'eclipse',
-      [ColorScheme.LIGHT]: 'colorful',
-    })[preferences.effectiveColorScheme];
+  const mapStyle = useMemo(() => {
+    if (preferences.effectiveColorScheme === ColorScheme.DARK) {
+      return eclipse({ baseUrl: 'https://tiles.versatiles.org', language: 'en' });
+    }
 
-    return `https://tiles.versatiles.org/assets/styles/${variant}/style.json`;
+    return colorful({ baseUrl: 'https://tiles.versatiles.org', language: 'en' });
   }, [preferences.effectiveColorScheme]);
 
   return (
@@ -106,7 +107,8 @@ function MaplibreMapInternal({ children, height }: React.PropsWithChildren<Mapli
         latitude: 0.0,
         zoom: 0,
       }}
-      mapStyle={mapStyleURL}
+      // projection={'globe'}
+      mapStyle={mapStyle}
     >
       <ComponentResize />
       <FullscreenControl />
@@ -158,11 +160,6 @@ export function SmartLine({ src, dst, dashed }: { src: [number, number], dst: [n
   }, [feature]);
 
   const [preferences] = usePreferences();
-  const lineColor = useMemo(() => ({
-    [ColorScheme.DARK]: '#c6c6cd',
-    [ColorScheme.LIGHT]: '#000000',
-  })[preferences.effectiveColorScheme], [preferences.effectiveColorScheme]);
-
   const paint = useMemo(() => {
     let paint: LineLayerSpecification['paint'] = {
       'line-width': 3,
