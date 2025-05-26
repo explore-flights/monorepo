@@ -26,6 +26,7 @@ import { useConsent } from '../util/state/use-consent';
 import { ConsentLevel } from '../../lib/consent.model';
 import { usePreferences } from '../util/state/use-preferences';
 import { ColorScheme } from '../../lib/preferences.model';
+import { LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 
 function ComponentResize() {
   const map = useMap();
@@ -130,7 +131,7 @@ export function PopupMarker({ children, button, popover, ...markerProps }: React
   );
 }
 
-export function SmartLine({ src, dst }: { src: [number, number], dst: [number, number] }) {
+export function SmartLine({ src, dst, dashed }: { src: [number, number], dst: [number, number], dashed?: boolean }) {
   const [srcLng, srcLat] = src;
   const [dstLng, dstLat] = dst;
   const feature = useMemo(() => {
@@ -162,6 +163,22 @@ export function SmartLine({ src, dst }: { src: [number, number], dst: [number, n
     [ColorScheme.LIGHT]: '#000000',
   })[preferences.effectiveColorScheme], [preferences.effectiveColorScheme]);
 
+  const paint = useMemo(() => {
+    let paint: LineLayerSpecification['paint'] = {
+      'line-width': 3,
+      'line-color': ({
+        [ColorScheme.DARK]: '#c6c6cd',
+        [ColorScheme.LIGHT]: '#000000',
+      })[preferences.effectiveColorScheme],
+    };
+
+    if (dashed) {
+      paint['line-dasharray'] = [1, 1];
+    }
+
+    return paint;
+  }, [preferences.effectiveColorScheme, dashed]);
+
   return (
     <Source
       key={sourceId}
@@ -169,7 +186,7 @@ export function SmartLine({ src, dst }: { src: [number, number], dst: [number, n
       type={'geojson'}
       data={feature}
     >
-      <Layer key={layerId} id={layerId} type={'line'} source={sourceId} paint={{ 'line-color': lineColor, 'line-width': 3 }} />
+      <Layer key={layerId} id={layerId} type={'line'} source={sourceId} paint={paint} />
     </Source>
   );
 }

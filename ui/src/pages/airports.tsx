@@ -7,7 +7,7 @@ import {
   ColumnLayout,
   Container,
   ContentLayout,
-  Header
+  Header, SpaceBetween
 } from '@cloudscape-design/components';
 import { distance } from '@turf/turf';
 import { MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
@@ -23,44 +23,51 @@ export function Airports() {
     tailShowConnections: false,
   });
 
-  const onAirportClick = useCallback((airport: Airport) => {
+  const addAirport = useCallback((airport: Airport) => {
+    setSelectionState((prev) => ({
+      airports: [...prev.airports, airport],
+      tailShowConnections: true,
+    }));
+  }, []);
+
+  const removeAirport = useCallback((airport: Airport) => {
     setSelectionState((prev) => {
       let idx = prev.airports.findLastIndex((v) => v.id === airport.id);
-      if (idx === -1 || idx < prev.airports.length - 1) {
-        return {
-          airports: [...prev.airports,  airport],
-          tailShowConnections: true,
-        };
-      }
-
-      if (prev.tailShowConnections) {
-        return { ...prev, tailShowConnections: false };
+      if (idx === -1) {
+        return prev;
       }
 
       return {
+        ...prev,
         airports: prev.airports.toSpliced(idx, prev.airports.length - idx),
-        tailShowConnections: true,
       };
     });
+  }, []);
+
+  const toggleShowTailConnections = useCallback(() => {
+    setSelectionState((prev) => ({
+      ...prev,
+      tailShowConnections: !prev.tailShowConnections,
+    }));
   }, []);
 
   const markersAndLines = useMemo(() => {
     if (selectedAirports.length > 0) {
       if (tailShowConnections) {
         return (
-          <SelectedAirportsMarkersWithTailConnections airports={selectedAirports} onAirportClick={onAirportClick} />
+          <SelectedAirportsMarkersWithTailConnections airports={selectedAirports} addAirport={addAirport} removeAirport={removeAirport} toggleShowConnections={toggleShowTailConnections} />
         );
       } else {
         return (
-          <SelectedAirportsMarkersWithoutTailConnections airports={selectedAirports} onAirportClick={onAirportClick} />
+          <SelectedAirportsMarkersWithoutTailConnections airports={selectedAirports} addAirport={addAirport} removeAirport={removeAirport} toggleShowConnections={toggleShowTailConnections} />
         );
       }
     }
 
     return (
-      <AllAirportsMarkers airports={airports} onAirportClick={onAirportClick} />
+      <AllAirportsMarkers airports={airports} onAirportClick={addAirport} />
     );
-  }, [airports, selectedAirports, tailShowConnections, onAirportClick]);
+  }, [airports, selectedAirports, tailShowConnections, addAirport, removeAirport, toggleShowTailConnections]);
 
   const breadcrumbItems = useMemo(
     () => buildBreadcrumbItems(selectedAirports),
@@ -108,7 +115,17 @@ function AllAirportsMarkers({ airports, onAirportClick }: { airports: ReadonlyAr
       }
 
       const airport = { ..._airport, location: _airport.location };
-      nodes.push(<AirportMarker airport={airport} onClick={() => onAirportClick(airport)} indexes={[]} connectable={true} disabled={false} />);
+      nodes.push(
+        <AirportMarker
+          airport={airport}
+          onClick={() => onAirportClick(airport)}
+          onRemoveClick={() => {}}
+          indexes={[]}
+          connectable={true}
+          removable={false}
+          disabled={false}
+        />
+      );
     }
 
     return nodes;
@@ -119,20 +136,27 @@ function AllAirportsMarkers({ airports, onAirportClick }: { airports: ReadonlyAr
   );
 }
 
-function SelectedAirportsMarkersWithoutTailConnections({ airports, onAirportClick }: { airports: ReadonlyArray<Airport>, onAirportClick: (airport: Airport) => void }) {
+interface SelectedAirportProps {
+  airports: ReadonlyArray<Airport>;
+  addAirport: (airport: Airport) => void;
+  removeAirport: (airport: Airport) => void;
+  toggleShowConnections: () => void;
+}
+
+function SelectedAirportsMarkersWithoutTailConnections(props: SelectedAirportProps) {
   return (
-    <SelectedAirportsMarkers airports={airports} tailConnections={[]} onAirportClick={onAirportClick} />
+    <SelectedAirportsMarkers {...props} tailConnections={[]} />
   );
 }
 
-function SelectedAirportsMarkersWithTailConnections({ airports, onAirportClick }: { airports: ReadonlyArray<Airport>, onAirportClick: (airport: Airport) => void }) {
+function SelectedAirportsMarkersWithTailConnections({ airports, ...props }: SelectedAirportProps) {
   const lastAirportDestinations = useDestinations(airports[airports.length - 1].id).data;
   return (
-    <SelectedAirportsMarkers airports={airports} tailConnections={lastAirportDestinations} onAirportClick={onAirportClick} />
+    <SelectedAirportsMarkers {...props} airports={airports} tailConnections={lastAirportDestinations} />
   );
 }
 
-function SelectedAirportsMarkers({ airports, tailConnections, onAirportClick }: { airports: ReadonlyArray<Airport>, tailConnections: ReadonlyArray<Airport>, onAirportClick: (airport: Airport) => void }) {
+function SelectedAirportsMarkers({ airports, tailConnections, addAirport, removeAirport, toggleShowConnections }: SelectedAirportProps & { tailConnections: ReadonlyArray<Airport> }) {
   const nodes = useMemo(() => {
     const indexesByAirportId: Map<AirportId, Array<number>> = new Map();
     for (let i = 0; i < airports.length; i++) {
@@ -147,6 +171,7 @@ function SelectedAirportsMarkers({ airports, tailConnections, onAirportClick }: 
     }
 
     const nodes: Array<React.ReactNode> = [];
+    let previousAirportId: AirportId | null = null;
     let previousAirportLocation: [number, number] | null = null;
 
     for (let i = 0; i < airports.length; i++) {
@@ -158,46 +183,69 @@ function SelectedAirportsMarkers({ airports, tailConnections, onAirportClick }: 
       const airport = { ..._airport, location: _airport.location };
       const indexes = indexesByAirportId.get(airport.id)!;
 
+      // add the marker for the last index only
       if (i === indexes[indexes.length - 1]) {
         const isTail = i >= airports.length - 1;
         const hasTailConnection = tailConnections.findIndex((v) => v.id === airport.id) !== -1;
 
-        nodes.push(<AirportMarker airport={airport} onClick={() => onAirportClick(airport)} indexes={indexes} connectable={hasTailConnection} disabled={!isTail && !hasTailConnection} />);
+        if (isTail || !hasTailConnection) {
+          nodes.push(
+            <AirportMarker
+              airport={airport}
+              onClick={() => toggleShowConnections()}
+              onRemoveClick={() => removeAirport(airport)}
+              indexes={indexes}
+              connectable={false}
+              removable={isTail}
+              disabled={!isTail}
+            />
+          );
+        }
       }
 
       if (previousAirportLocation != null) {
         nodes.push(<SmartLine src={previousAirportLocation} dst={[airport.location.lng, airport.location.lat]} />);
       }
 
+      previousAirportId = airport.id;
       previousAirportLocation = [airport.location.lng, airport.location.lat];
     }
 
     if (previousAirportLocation != null) {
       for (let i = 0; i < tailConnections.length; i++) {
         const _airport = tailConnections[i];
-        if (!_airport.location) {
+        if (!_airport.location || _airport.id === previousAirportId) {
           continue;
         }
 
         const airport = { ..._airport, location: _airport.location };
+        const indexes = indexesByAirportId.get(airport.id) ?? [];
 
-        if (!indexesByAirportId.has(airport.id)) {
-          nodes.push(<AirportMarker airport={airport} onClick={() => onAirportClick(airport)} indexes={[]} connectable={true} disabled={false} />);
-        }
+        nodes.push(
+          <AirportMarker
+            airport={airport}
+            onClick={() => addAirport(airport)}
+            onRemoveClick={() => {}}
+            indexes={indexes}
+            connectable={true}
+            removable={false}
+            disabled={false}
+          />
+        );
 
-        nodes.push(<SmartLine src={previousAirportLocation} dst={[airport.location.lng, airport.location.lat]} />);
+        nodes.push(<SmartLine src={previousAirportLocation} dst={[airport.location.lng, airport.location.lat]} dashed={true} />);
       }
     }
 
     return nodes;
-  }, [airports, tailConnections, onAirportClick]);
+  }, [airports, tailConnections, addAirport, removeAirport, toggleShowConnections]);
 
   return (
     <>{...nodes}</>
   );
 }
 
-function AirportMarker({ airport, onClick, indexes, connectable, disabled }: { airport: WithRequired<Airport, 'location'>, onClick: () => void, indexes: ReadonlyArray<number>, connectable: boolean, disabled: boolean }) {
+function AirportMarker({ airport, onClick, onRemoveClick, indexes, connectable, removable, disabled }: { airport: WithRequired<Airport, 'location'>, onClick: () => void, onRemoveClick: () => void, indexes: ReadonlyArray<number>, connectable: boolean, removable: boolean, disabled: boolean }) {
   let badge: React.ReactNode | null = null;
   if (indexes.length > 0) {
     const text = indexes.map((v) => v + 1).join(',');
@@ -209,14 +257,24 @@ function AirportMarker({ airport, onClick, indexes, connectable, disabled }: { a
     );
   }
 
+  let content = (
+    <Button variant={connectable ? 'normal' : 'primary'} onClick={onClick} disabled={disabled}>
+      {badge}{airport.iataCode ?? airport.icaoCode ?? airport.name}
+    </Button>
+  );
+
+  if (removable) {
+    content = (
+      <SpaceBetween size={'xs'} direction={'horizontal'}>
+        {content}
+        <Button variant={'icon'} iconName={'remove'} onClick={onRemoveClick} />
+      </SpaceBetween>
+    );
+  }
+
   return (
-    <Marker
-      longitude={airport.location.lng}
-      latitude={airport.location.lat}
-    >
-      <Button variant={connectable ? 'normal' : 'primary'} onClick={onClick} disabled={disabled}>
-        {badge}{airport.iataCode ?? airport.icaoCode ?? airport.name}
-      </Button>
+    <Marker longitude={airport.location.lng} latitude={airport.location.lat}>
+      {content}
     </Marker>
   );
 }
