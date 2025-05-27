@@ -12,14 +12,12 @@ import (
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/xtime"
-	"github.com/explore-flights/monorepo/go/database/db"
+	"github.com/explore-flights/monorepo/go/database/business"
 	"github.com/marcboeker/go-duckdb/v2"
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -27,13 +25,6 @@ const (
 	setThreads    = "SET threads TO 16"
 	workingDbName = "tmp_db"
 )
-
-type updateSequenceElement struct {
-	name   string
-	script string
-	params [][]any
-	checks []func(r sql.Result) error
-}
 
 type updater struct {
 	s3c interface {
@@ -186,130 +177,13 @@ func (u *updater) withDatabase(ctx context.Context, ddbHomePath, tmpDbPath strin
 }
 
 func (u *updater) runMainUpdateSequence(ctx context.Context, t time.Time, conn *sql.Conn, inputFileUris []string) error {
-	placeholders := make([]string, len(inputFileUris))
-	anyTypedInputFileUris := make([]any, len(inputFileUris))
-	for i, v := range inputFileUris {
-		placeholders[i] = "?"
-		anyTypedInputFileUris[i] = v
+	_, err := conn.ExecContext(ctx, fmt.Sprintf(`USE %s`, workingDbName))
+	if err != nil {
+		return err
 	}
 
-	var rawDataRows, flattenedRows, operatingFlightRows int64
-	sequence := []updateSequenceElement{
-		{
-			name:   "use working db",
-			script: fmt.Sprintf(`USE %s`, workingDbName),
-		},
-		{
-			name:   "X11LoadRawData",
-			script: strings.Replace(db.X11LoadRawData, "?", "["+strings.Join(placeholders, ",")+"]", 1),
-			params: [][]any{anyTypedInputFileUris},
-			checks: []func(sql.Result) error{
-				func(result sql.Result) error {
-					var err error
-					rawDataRows, err = result.RowsAffected()
-					return err
-				},
-			},
-		},
-		{
-			name:   "X12FlattenRawData",
-			script: db.X12FlattenRawData,
-			checks: []func(sql.Result) error{
-				func(result sql.Result) error {
-					var err error
-					flattenedRows, err = result.RowsAffected()
-					if err != nil {
-						return err
-					}
-
-					if flattenedRows < rawDataRows {
-						return fmt.Errorf("flattened rows %d less than raw data rows %d", flattenedRows, rawDataRows)
-					}
-
-					return nil
-				},
-			},
-		},
-		{
-			name:   "X13OperatingFlights",
-			script: db.X13OperatingFlights,
-			checks: []func(sql.Result) error{
-				func(result sql.Result) error {
-					var err error
-					operatingFlightRows, err = result.RowsAffected()
-					if err != nil {
-						return err
-					}
-
-					if operatingFlightRows > flattenedRows {
-						return fmt.Errorf("operating flights rows %d are more than flattened rows %d", operatingFlightRows, flattenedRows)
-					}
-
-					return nil
-				},
-			},
-		},
-		{
-			name:   "X14InsertAirlines",
-			script: db.X14InsertAirlines,
-		},
-		{
-			name:   "X15InsertAirports",
-			script: db.X15InsertAirports,
-		},
-		{
-			name:   "X16InsertAircraft",
-			script: db.X16InsertAircraft,
-		},
-		{
-			name:   "X17InsertFlightNumbers",
-			script: db.X17InsertFlightNumbers,
-		},
-		{
-			name:   "X18OperatingFlightsWithCs",
-			script: db.X18OperatingFlightsWithCs,
-			checks: []func(sql.Result) error{
-				func(result sql.Result) error {
-					var operatingWithCsRows int64
-					var err error
-					operatingWithCsRows, err = result.RowsAffected()
-					if err != nil {
-						return err
-					}
-
-					if operatingWithCsRows != operatingFlightRows {
-						return fmt.Errorf("operating with cs rows %d are not equal to operating rows %d", operatingWithCsRows, operatingFlightRows)
-					}
-
-					return nil
-				},
-			},
-		},
-		{
-			name:   "X19InsertFlightVariants",
-			script: db.X19InsertFlightVariants,
-		},
-		{
-			name:   "X20LhFlightsFresh",
-			script: db.X20LhFlightsFresh,
-			params: [][]any{{t}},
-		},
-		{
-			name:   "X21UpdateHistory",
-			script: db.X21UpdateHistory,
-		},
-		{
-			name:   "X22CreateRemovedMarkers",
-			script: db.X22CreateRemovedMarkers,
-			params: [][]any{{t}},
-		},
-		{
-			name:   "drop fresh",
-			script: "DROP TABLE lh_flights_fresh",
-		},
-	}
-
-	return u.runUpdateSequence(ctx, conn, sequence)
+	upd := business.Updater{}
+	return upd.RunUpdateSequence(ctx, conn, t, inputFileUris)
 }
 
 func (u *updater) createAndUploadBaseDataDb(ctx context.Context, conn *sql.Conn, tmpDir, bucket, key string) error {
@@ -324,14 +198,14 @@ func (u *updater) createAndUploadBaseDataDb(ctx context.Context, conn *sql.Conn,
 		return fmt.Errorf("failed to copy tmp db name: %w", err)
 	}
 
-	sequence := []updateSequenceElement{
+	sequence := business.UpdateSequence{
 		{
-			name:   "use basedata db",
-			script: fmt.Sprintf(`USE %s`, tmpDbName),
+			Name:   "use basedata db",
+			Script: fmt.Sprintf(`USE %s`, tmpDbName),
 		},
 		{
-			name: "delete unused basedata",
-			script: `
+			Name: "delete unused basedata",
+			Script: `
 DELETE FROM airline_identifiers aid
 WHERE NOT EXISTS ( FROM flight_numbers fn WHERE fn.airline_id = aid.airline_id ) ;
 
@@ -352,16 +226,16 @@ WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = ac.id ) ;
 `,
 		},
 		{
-			name:   "drop history",
-			script: "DROP TABLE flight_variant_history",
+			Name:   "drop history",
+			Script: "DROP TABLE flight_variant_history",
 		},
 		{
-			name:   "drop variants",
-			script: "DROP TABLE flight_variants",
+			Name:   "drop variants",
+			Script: "DROP TABLE flight_variants",
 		},
 	}
 
-	if err = u.runUpdateSequence(ctx, conn, sequence); err != nil {
+	if err = sequence.Run(ctx, conn); err != nil {
 		return fmt.Errorf("failed to run update sequence: %w", err)
 	}
 
@@ -378,42 +252,42 @@ WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = ac.id ) ;
 
 func (u *updater) exportVariants(ctx context.Context, conn *sql.Conn, bucket, key string) error {
 	exportUri := u.buildParquetFileUri(bucket, key)
-	sequence := []updateSequenceElement{
+	sequence := business.UpdateSequence{
 		{
-			name:   "use working db",
-			script: fmt.Sprintf(`USE %s`, workingDbName),
+			Name:   "use working db",
+			Script: fmt.Sprintf(`USE %s`, workingDbName),
 		},
 		{
-			name:   "single thread",
-			script: "SET threads TO 1",
+			Name:   "single thread",
+			Script: "SET threads TO 1",
 		},
 		{
-			name:   "export variants",
-			script: fmt.Sprintf(`COPY flight_variants TO '%s' ( FORMAT parquet, COMPRESSION gzip, OVERWRITE_OR_IGNORE )`, exportUri),
+			Name:   "export variants",
+			Script: fmt.Sprintf(`COPY flight_variants TO '%s' ( FORMAT parquet, COMPRESSION gzip, OVERWRITE_OR_IGNORE )`, exportUri),
 		},
 		{
-			name:   "reset threads",
-			script: setThreads,
+			Name:   "reset threads",
+			Script: setThreads,
 		},
 	}
 
-	return u.runUpdateSequence(ctx, conn, sequence)
+	return sequence.Run(ctx, conn)
 }
 
 func (u *updater) exportReport(ctx context.Context, conn *sql.Conn, bucket, key string) error {
 	exportUri := u.buildParquetFileUri(bucket, key)
-	sequence := []updateSequenceElement{
+	sequence := business.UpdateSequence{
 		{
-			name:   "use working db",
-			script: fmt.Sprintf(`USE %s`, workingDbName),
+			Name:   "use working db",
+			Script: fmt.Sprintf(`USE %s`, workingDbName),
 		},
 		{
-			name:   "single thread",
-			script: "SET threads TO 1",
+			Name:   "single thread",
+			Script: "SET threads TO 1",
 		},
 		{
-			name: "create macros",
-			script: `
+			Name: "create macros",
+			Script: `
 CREATE OR REPLACE MACRO last_day_of_month(date, month) AS LAST_DAY(MAKE_DATE(YEAR(date), month, 1)) ;
 
 CREATE OR REPLACE MACRO last_weekday_of_month(date, month, weekday) AS CASE
@@ -425,8 +299,8 @@ CREATE OR REPLACE MACRO is_summer_schedule(date) AS date >= LAST_WEEKDAY_OF_MONT
 `,
 		},
 		{
-			name: "export report",
-			script: fmt.Sprintf(
+			Name: "export report",
+			Script: fmt.Sprintf(
 				`
 COPY (
 	WITH latest_active_history AS (
@@ -483,32 +357,32 @@ COPY (
 			),
 		},
 		{
-			name:   "drop macros",
-			script: `DROP MACRO is_summer_schedule; DROP MACRO last_weekday_of_month; DROP MACRO last_day_of_month;`,
+			Name:   "drop macros",
+			Script: `DROP MACRO is_summer_schedule; DROP MACRO last_weekday_of_month; DROP MACRO last_day_of_month;`,
 		},
 		{
-			name:   "reset threads",
-			script: setThreads,
+			Name:   "reset threads",
+			Script: setThreads,
 		},
 	}
 
-	return u.runUpdateSequence(ctx, conn, sequence)
+	return sequence.Run(ctx, conn)
 }
 
 func (u *updater) exportHistory(ctx context.Context, conn *sql.Conn, bucket, prefix string) error {
 	exportUri := u.buildParquetFileUri(bucket, prefix)
-	sequence := []updateSequenceElement{
+	sequence := business.UpdateSequence{
 		{
-			name:   "use working db",
-			script: fmt.Sprintf(`USE %s`, workingDbName),
+			Name:   "use working db",
+			Script: fmt.Sprintf(`USE %s`, workingDbName),
 		},
 		{
-			name:   "single thread",
-			script: "SET threads TO 1",
+			Name:   "single thread",
+			Script: "SET threads TO 1",
 		},
 		{
-			name: "export history",
-			script: fmt.Sprintf(
+			Name: "export history",
+			Script: fmt.Sprintf(
 				`
 COPY (
   SELECT
@@ -539,28 +413,28 @@ COPY (
 			),
 		},
 		{
-			name:   "reset threads",
-			script: setThreads,
+			Name:   "reset threads",
+			Script: setThreads,
 		},
 	}
 
-	return u.runUpdateSequence(ctx, conn, sequence)
+	return sequence.Run(ctx, conn)
 }
 
 func (u *updater) exportLatest(ctx context.Context, conn *sql.Conn, bucket, prefix string) error {
 	exportUri := u.buildParquetFileUri(bucket, prefix)
-	sequence := []updateSequenceElement{
+	sequence := business.UpdateSequence{
 		{
-			name:   "use working db",
-			script: fmt.Sprintf(`USE %s`, workingDbName),
+			Name:   "use working db",
+			Script: fmt.Sprintf(`USE %s`, workingDbName),
 		},
 		{
-			name:   "single thread",
-			script: "SET threads TO 1",
+			Name:   "single thread",
+			Script: "SET threads TO 1",
 		},
 		{
-			name: "export latest",
-			script: fmt.Sprintf(
+			Name: "export latest",
+			Script: fmt.Sprintf(
 				`
 COPY (
   WITH latest_active_history AS (
@@ -614,76 +488,12 @@ COPY (
 			),
 		},
 		{
-			name:   "reset threads",
-			script: setThreads,
+			Name:   "reset threads",
+			Script: setThreads,
 		},
 	}
 
-	return u.runUpdateSequence(ctx, conn, sequence)
-}
-
-func (u *updater) runUpdateSequence(ctx context.Context, conn *sql.Conn, sequence []updateSequenceElement) error {
-	for _, element := range sequence {
-		if err := u.runUpdateScript(ctx, conn, element); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (u *updater) runUpdateScript(ctx context.Context, conn *sql.Conn, element updateSequenceElement) error {
-	script := strings.TrimSpace(element.script)
-	queries := strings.Split(script, ";")
-	queries = slices.DeleteFunc(queries, func(s string) bool {
-		return strings.TrimSpace(s) == ""
-	})
-
-	for i, query := range queries {
-		var queryParams []any
-		if len(element.params) > i {
-			queryParams = element.params[i]
-		}
-
-		var checkFn func(result sql.Result) error
-		if len(element.checks) > i {
-			checkFn = element.checks[i]
-		}
-
-		suffix := ""
-		if len(queries) > 1 {
-			suffix = fmt.Sprintf(" (%d/%d)", i+1, len(queries))
-		}
-
-		if err := u.runUpdateQuery(ctx, conn, element.name+suffix, query, queryParams, checkFn); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (u *updater) runUpdateQuery(ctx context.Context, conn *sql.Conn, name, query string, params []any, checkFn func(result sql.Result) error) error {
-	var rowsAffected int64
-	start := time.Now()
-	printDone := func() {
-		fmt.Printf("%s done within %v; rows affected: %d\n", name, time.Since(start), rowsAffected)
-	}
-
-	fmt.Printf("running %s\n", name)
-	defer printDone()
-
-	r, err := conn.ExecContext(ctx, query, params...)
-	if err != nil {
-		return fmt.Errorf("failed to run query %s: %w", name, err)
-	}
-
-	rowsAffected, _ = r.RowsAffected()
-	if checkFn == nil {
-		return nil
-	}
-
-	return checkFn(r)
+	return sequence.Run(ctx, conn)
 }
 
 func (u *updater) dbInit(ctx context.Context, ddbHomePath, tmpDbPath string) func(execer driver.ExecerContext) error {
