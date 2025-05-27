@@ -4,7 +4,6 @@ import {
   Badge, BreadcrumbGroup,
   BreadcrumbGroupProps,
   Button,
-  ColumnLayout,
   Container,
   ContentLayout,
   Header, SpaceBetween
@@ -77,29 +76,33 @@ export function Airports() {
   return (
     <ContentLayout header={<Header variant={'h1'}>Airports</Header>}>
       <Container>
-        <ColumnLayout columns={1}>
-          <BreadcrumbGroup
-            items={breadcrumbItems}
-            onClick={(e) => {
-              e.preventDefault();
-              const index = e.detail.item.index;
-              if (index >= 0) {
-                setSelectionState((prev) => ({
-                  airports: prev.airports.toSpliced(index + 1, prev.airports.length - index - 1),
-                  tailShowConnections: true,
-                }));
-              } else {
-                setSelectionState({
-                  airports: [],
-                  tailShowConnections: false,
-                });
-              }
-            }}
-          />
-          <MaplibreMap height={'80vh'}>
-            {markersAndLines}
-          </MaplibreMap>
-        </ColumnLayout>
+        <MaplibreMap
+          height={'80vh'}
+          controls={[
+            (
+              <BreadcrumbGroup
+                items={breadcrumbItems}
+                onClick={(e) => {
+                  e.preventDefault();
+                  const index = e.detail.item.index;
+                  if (index >= 0) {
+                    setSelectionState((prev) => ({
+                      airports: prev.airports.toSpliced(index + 1, prev.airports.length - index - 1),
+                      tailShowConnections: true,
+                    }));
+                  } else {
+                    setSelectionState({
+                      airports: [],
+                      tailShowConnections: false,
+                    });
+                  }
+                }}
+              />
+            )
+          ]}
+        >
+          {markersAndLines}
+        </MaplibreMap>
       </Container>
     </ContentLayout>
   );

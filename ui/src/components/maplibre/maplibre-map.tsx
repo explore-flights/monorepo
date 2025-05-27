@@ -21,7 +21,7 @@ import {
   Link,
   Popover,
   PopoverProps,
-  SpaceBetween
+  SpaceBetween, ToggleButton
 } from '@cloudscape-design/components';
 import { greatCircle } from '@turf/turf';
 import { useConsent } from '../util/state/use-consent';
@@ -29,7 +29,7 @@ import { ConsentLevel } from '../../lib/consent.model';
 import { usePreferences } from '../util/state/use-preferences';
 import { ColorScheme } from '../../lib/preferences.model';
 import { LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
-import { colorful, eclipse } from '@versatiles/style';
+import { colorful } from '@versatiles/style';
 
 function ComponentResize() {
   const map = useMap();
@@ -42,6 +42,7 @@ function ComponentResize() {
 
 export interface MaplibreMapProps {
   height: string | number;
+  controls?: ReadonlyArray<React.ReactNode>;
 }
 
 export function MaplibreMap(props: React.PropsWithChildren<MaplibreMapProps>) {
@@ -89,14 +90,17 @@ function MaplibreMapConsent({ height, onAllowOnceClick }: { height: string | num
   );
 }
 
-function MaplibreMapInternal({ children, height }: React.PropsWithChildren<MaplibreMapProps>) {
+function MaplibreMapInternal({ children, height, controls }: React.PropsWithChildren<MaplibreMapProps>) {
   const [preferences] = usePreferences();
+  const [projection, setProjection] = useState<'globe' | 'mercator'>('mercator');
   const mapStyle = useMemo(() => {
-    if (preferences.effectiveColorScheme === ColorScheme.DARK) {
-      return eclipse({ baseUrl: 'https://tiles.versatiles.org', language: 'en' });
-    }
-
-    return colorful({ baseUrl: 'https://tiles.versatiles.org', language: 'en' });
+    return colorful({
+      baseUrl: 'https://tiles.versatiles.org',
+      language: 'en',
+      recolor: {
+        invertBrightness: preferences.effectiveColorScheme === ColorScheme.DARK,
+      },
+    });
   }, [preferences.effectiveColorScheme]);
 
   return (
@@ -105,16 +109,33 @@ function MaplibreMapInternal({ children, height }: React.PropsWithChildren<Mapli
       initialViewState={{
         longitude: 0.0,
         latitude: 0.0,
-        zoom: 0,
+        zoom: 3,
       }}
-      // projection={'globe'}
+      projection={projection}
       mapStyle={mapStyle}
     >
       <ComponentResize />
+      <div style={{ float: 'left', marginTop: '10px', marginLeft: '10px' }}>
+        <SpaceBetween size={'m'} direction={'horizontal'} alignItems={'center'}>
+          <GlobeTransition projection={projection} setProjection={setProjection} />
+          {...(controls ?? [])}
+        </SpaceBetween>
+      </div>
       <FullscreenControl />
       <ScaleControl />
       {children}
     </Map>
+  );
+}
+
+function GlobeTransition({ projection, setProjection }: { projection: 'globe' | 'mercator', setProjection: (projection: 'globe' | 'mercator') => void }) {
+  return (
+    <ToggleButton
+      pressed={projection === 'globe'}
+      onChange={(e) => setProjection(e.detail.pressed ? 'globe' : 'mercator')}
+      iconName={'globe'}
+      pressedIconName={'map'}
+    ></ToggleButton>
   );
 }
 
