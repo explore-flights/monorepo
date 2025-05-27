@@ -10,7 +10,7 @@ SELECT
   MAP_FROM_ENTRIES(
     LIST_FILTER(
       MAP_ENTRIES(FIRST(dataElements ORDER BY priority ASC)),
-      e -> e.key != 10 AND e.key != 50
+      lambda e: e.key != 10 AND e.key != 50
     )
   ) AS dataElements,
   FIRST(destination ORDER BY priority ASC, originalAirline ASC) AS destination,
@@ -28,7 +28,7 @@ SELECT
   FIRST(EPOCH(arrivalDateLocal + arrivalTimeLocal - TO_SECONDS(arrivalUTCOffsetSeconds)) - EPOCH(departureDateLocal + departureTimeLocal - TO_SECONDS(departureUTCOffsetSeconds)) ORDER BY priority ASC, originalAirline ASC) AS durationSeconds,
   LIST_TRANSFORM(
     LIST_DISTINCT(FLATTEN(ARRAY_AGG(codeShares))),
-    cs -> {
+    lambda cs: {
       'airline': REGEXP_EXTRACT(cs, '^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$', 1),
       'flightNumber': CAST(REGEXP_EXTRACT(cs, '^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$', 2) AS USMALLINT),
       'suffix': REGEXP_EXTRACT(cs, '^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$', 3)
@@ -37,7 +37,7 @@ SELECT
 FROM (
   SELECT
     *,
-    LIST_DISTINCT(FLATTEN(LIST_TRANSFORM(COALESCE(dataElements[10], []), v -> STRING_SPLIT(v, '/')))) AS codeShares,
+    LIST_DISTINCT(FLATTEN(LIST_TRANSFORM(COALESCE(dataElements[10], []), lambda v: STRING_SPLIT(v, '/')))) AS codeShares,
     airline AS originalAirline,
     1 AS priority
   FROM lh_flight_schedules_flattened
@@ -65,7 +65,7 @@ FROM (
     arrivalUTCOffsetSeconds,
     LIST_DISTINCT(
       LIST_APPEND(
-        FLATTEN(LIST_TRANSFORM(COALESCE(dataElements[10], []), v -> STRING_SPLIT(v, '/'))),
+        FLATTEN(LIST_TRANSFORM(COALESCE(dataElements[10], []), lambda v: STRING_SPLIT(v, '/'))),
         CONCAT(airline, flightNumber, suffix)
       )
     ) AS codeShares,
