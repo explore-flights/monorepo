@@ -13,20 +13,19 @@ SELECT
       e -> e.key != 10 AND e.key != 50
     )
   ) AS dataElements,
-  FIRST(sequenceNumber ORDER BY priority ASC) AS sequenceNumber,
-  FIRST(destination ORDER BY priority ASC) AS destination,
-  FIRST(serviceType ORDER BY priority ASC) AS serviceType,
-  FIRST(IF(LENGTH(aircraftOwner) = 2, aircraftOwner, airline) ORDER BY priority ASC) AS aircraftOwner,
-  FIRST(aircraftType ORDER BY priority ASC) AS aircraftType,
-  COALESCE(FIRST(aircraftConfigurationVersion ORDER BY priority ASC), '') AS aircraftConfigurationVersion,
-  FIRST(registration ORDER BY priority ASC) AS registration,
+  FIRST(destination ORDER BY priority ASC, originalAirline ASC) AS destination,
+  FIRST(serviceType ORDER BY priority ASC, originalAirline ASC) AS serviceType,
+  FIRST(IF(LENGTH(aircraftOwner) = 2, aircraftOwner, airline) ORDER BY priority ASC, originalAirline ASC) AS aircraftOwner,
+  FIRST(aircraftType ORDER BY priority ASC, originalAirline ASC) AS aircraftType,
+  COALESCE(FIRST(aircraftConfigurationVersion ORDER BY priority ASC, originalAirline ASC), '') AS aircraftConfigurationVersion,
+  FIRST(registration ORDER BY priority ASC, originalAirline ASC) AS registration,
   departureDateLocal,
-  FIRST(departureTimeLocal ORDER BY priority ASC) AS departureTimeLocal,
-  FIRST(departureUTCOffsetSeconds ORDER BY priority ASC) AS departureUTCOffsetSeconds,
-  FIRST(arrivalDateLocal ORDER BY priority ASC) AS arrivalDateLocal,
-  FIRST(arrivalTimeLocal ORDER BY priority ASC) AS arrivalTimeLocal,
-  FIRST(arrivalUTCOffsetSeconds ORDER BY priority ASC) AS arrivalUTCOffsetSeconds,
-  FIRST(EPOCH(arrivalDateLocal + arrivalTimeLocal - TO_SECONDS(arrivalUTCOffsetSeconds)) - EPOCH(departureDateLocal + departureTimeLocal - TO_SECONDS(departureUTCOffsetSeconds)) ORDER BY priority ASC) AS durationSeconds,
+  FIRST(departureTimeLocal ORDER BY priority ASC, originalAirline ASC) AS departureTimeLocal,
+  FIRST(departureUTCOffsetSeconds ORDER BY priority ASC, originalAirline ASC) AS departureUTCOffsetSeconds,
+  FIRST(arrivalDateLocal ORDER BY priority ASC, originalAirline ASC) AS arrivalDateLocal,
+  FIRST(arrivalTimeLocal ORDER BY priority ASC, originalAirline ASC) AS arrivalTimeLocal,
+  FIRST(arrivalUTCOffsetSeconds ORDER BY priority ASC, originalAirline ASC) AS arrivalUTCOffsetSeconds,
+  FIRST(EPOCH(arrivalDateLocal + arrivalTimeLocal - TO_SECONDS(arrivalUTCOffsetSeconds)) - EPOCH(departureDateLocal + departureTimeLocal - TO_SECONDS(departureUTCOffsetSeconds)) ORDER BY priority ASC, originalAirline ASC) AS durationSeconds,
   LIST_TRANSFORM(
     LIST_DISTINCT(FLATTEN(ARRAY_AGG(codeShares))),
     cs -> {
@@ -39,6 +38,7 @@ FROM (
   SELECT
     *,
     LIST_DISTINCT(FLATTEN(LIST_TRANSFORM(COALESCE(dataElements[10], []), v -> STRING_SPLIT(v, '/')))) AS codeShares,
+    airline AS originalAirline,
     1 AS priority
   FROM lh_flight_schedules_flattened
   WHERE dataElements[50] IS NULL OR LENGTH(dataElements[50]) = 0
@@ -69,6 +69,7 @@ FROM (
         CONCAT(airline, flightNumber, suffix)
       )
     ) AS codeShares,
+    airline AS originalAirline,
     2 AS priority
   FROM (
     SELECT *, UNNEST(dataElements[50]) AS operatingFlightNumber
