@@ -95,7 +95,7 @@ AND f.aircraftOwner = fv.aircraft_owner
 AND f.aircraftId = fv.aircraft_id
 AND f.aircraftConfigurationVersion = fv.aircraft_configuration_version
 AND f.registration = fv.aircraft_registration
-AND HASH(f.codeShares) = fv.code_shares_hash
+AND MD5_NUMBER(TO_JSON(f.codeShares)) = fv.code_shares_hash
 LEFT JOIN (
   SELECT
     fvh_temp.airline_id,

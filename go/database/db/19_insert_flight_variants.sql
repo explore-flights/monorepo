@@ -34,7 +34,7 @@ SELECT
   aircraftId,
   aircraftConfigurationVersion,
   registration,
-  HASH(codeShares),
+  MD5_NUMBER(TO_JSON(codeShares)),
   codeShares
 FROM lh_flight_schedules_operating_with_cs
 GROUP BY
