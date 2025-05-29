@@ -4,7 +4,7 @@ import {
   Alert,
   Badge,
   Box,
-  Button, ButtonDropdown,
+  Button,
   Calendar,
   ColumnLayout,
   Container,
@@ -42,6 +42,7 @@ import { aircraftConfigurationVersionToName } from '../lib/consts';
 import { AircraftConfigurationVersionText, AirportText } from '../components/common/text';
 import { airportToString, flightNumberToString } from '../lib/util/flight';
 import { LineSeriesBuilder, PieChartDataBuilder } from '../lib/charts/builder';
+import { RouterInlineLink, RouterLink } from '../components/common/router-link';
 
 export function FlightView() {
   const { id } = useParams();
@@ -403,31 +404,10 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
                 id: 'actions',
                 header: 'Actions',
                 cell: useCallback((v: FlightTableItem) => {
-                  if (!v.departureAirport.iataCode) {
-                    return '';
-                  }
-
-                  const airportId = v.departureAirport.iataCode ?? v.departureAirport.icaoCode ?? v.departureAirport.id;
-                  const baseLink = `/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(airportId)}/${encodeURIComponent(v.departureDateLocal)}`;
+                  const airportRef = v.departureAirport.iataCode ?? v.departureAirport.icaoCode ?? v.departureAirport.id;
+                  const historyLink = `/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(airportRef)}/${encodeURIComponent(v.departureDateLocal)}`;
                   
-                  return (
-                    <ButtonDropdown
-                      items={[
-                        { id: 'rss', text: 'RSS', iconName: 'download', href: `/data${baseLink}/feed.rss` },
-                        { id: 'atom', text: 'Atom', iconName: 'download', href: `/data${baseLink}/feed.atom` },
-                        { id: 'history', text: 'History', href: baseLink },
-                      ]}
-                      variant={'icon'}
-                      expandToViewport={true}
-                      ariaLabel={'Flight links'}
-                      onItemFollow={(e) => {
-                        if (e.detail.href) {
-                          e.preventDefault();
-                          window.open(e.detail.href, e.detail.id ?? '_blank');
-                        }
-                      }}
-                    />
-                  );
+                  return <RouterInlineLink to={historyLink} target={'_blank'}>History</RouterInlineLink>;
                 }, []),
               },
             ]}
