@@ -1,11 +1,8 @@
 package business
 
 import (
-	"archive/tar"
-	"compress/gzip"
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -13,7 +10,6 @@ import (
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/database/db"
 	"github.com/explore-flights/monorepo/go/database/util"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -34,6 +30,32 @@ type Fresh struct {
 }
 
 func (f *Fresh) GenerateFreshDatabase(ctx context.Context, baseDataBucket, baseDataKey, historyBucket, historyPrefix, finalBucket, finalKey string) error {
+	return f.updateDatabase(
+		ctx,
+		baseDataBucket,
+		baseDataKey,
+		finalBucket,
+		finalKey,
+		func(ctx context.Context, conn *sql.Conn, historyPath string) error {
+			return f.runUpdates(ctx, conn, historyBucket, historyPrefix, historyPath)
+		},
+	)
+}
+
+func (f *Fresh) UpdateDatabase(ctx context.Context, initialDataBucket, initialDataKey string, t time.Time, historyBucket, historyFileKey, finalBucket, finalKey string) error {
+	return f.updateDatabase(
+		ctx,
+		initialDataBucket,
+		initialDataKey,
+		finalBucket,
+		finalKey,
+		func(ctx context.Context, conn *sql.Conn, historyPath string) error {
+			return f.runUpdate(ctx, conn, t, historyBucket, historyFileKey, historyPath)
+		},
+	)
+}
+
+func (f *Fresh) updateDatabase(ctx context.Context, initialDataBucket, initialDataKey, finalBucket, finalKey string, updateFn func(ctx context.Context, conn *sql.Conn, historyPath string) error) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -47,15 +69,15 @@ func (f *Fresh) GenerateFreshDatabase(ctx context.Context, baseDataBucket, baseD
 			return err
 		}
 
-		if err := util.RunTimed("download basedata", func() error {
-			return util.DownloadS3File(ctx, f.S3CBaseData, baseDataBucket, baseDataKey, tmpDbPath)
+		if err := util.RunTimed("download initial data", func() error {
+			return util.DownloadS3File(ctx, f.S3CBaseData, initialDataBucket, initialDataKey, tmpDbPath)
 		}); err != nil {
 			return err
 		}
 
 		if err := util.WithDatabase(ctx, ddbHomePath, tmpDbPath, "tmp_db", 16, func(conn *sql.Conn) error {
 			if err := util.RunTimed("run updates", func() error {
-				return f.runUpdates(ctx, conn, historyBucket, historyPrefix, historyPath)
+				return updateFn(ctx, conn, historyPath)
 			}); err != nil {
 				return err
 			}
@@ -144,54 +166,9 @@ func (f *Fresh) runUpdate(ctx context.Context, conn *sql.Conn, t time.Time, hist
 		return fmt.Errorf("failed to download history: %w", err)
 	}
 
-	return f.Updater.RunUpdateSequence(ctx, conn, t, []string{historyPath + "/**/*.json"})
+	return f.Updater.RunUpdateSequence(ctx, conn, t, historyPath+"/**/*.json")
 }
 
 func (f *Fresh) downloadHistory(ctx context.Context, historyBucket, historyKey, historyPath string) error {
-	resp, err := f.S3CHistory.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(historyBucket),
-		Key:    aws.String(historyKey),
-	})
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	gzR, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return err
-	}
-	defer gzR.Close()
-
-	tarR := tar.NewReader(gzR)
-	for {
-		header, err := tarR.Next()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-
-			return err
-		}
-
-		path := filepath.Join(historyPath, header.Name)
-		if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
-			return fmt.Errorf("error creating directory for file %q: %w", path, err)
-		}
-
-		if err := func() error {
-			f, err := os.Create(path)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-
-			_, err = io.Copy(f, tarR)
-			return err
-		}(); err != nil {
-			return err
-		}
-	}
-
-	return gzR.Close()
+	return util.DownloadAndUpackGzippedTar(ctx, f.S3CHistory, historyBucket, historyKey, historyPath)
 }

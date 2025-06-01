@@ -1,13 +1,17 @@
 package util
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"io"
 	"os"
+	"path/filepath"
 )
 
 func UploadS3File(ctx context.Context, s3c adapt.S3Putter, bucket, key, filePath string) error {
@@ -50,4 +54,53 @@ func CopyS3FileTo(ctx context.Context, s3c adapt.S3Getter, bucket, key string, w
 	}
 
 	return nil
+}
+
+func DownloadAndUpackGzippedTar(ctx context.Context, s3c adapt.S3Getter, bucket, key, dstDir string) error {
+	resp, err := s3c.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	gzR, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return err
+	}
+	defer gzR.Close()
+
+	tarR := tar.NewReader(gzR)
+	for {
+		header, err := tarR.Next()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+
+			return err
+		}
+
+		path := filepath.Join(dstDir, header.Name)
+		if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
+			return fmt.Errorf("error creating directory for file %q: %w", path, err)
+		}
+
+		if err := func() error {
+			f, err := os.Create(path)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+
+			_, err = io.Copy(f, tarR)
+			return err
+		}(); err != nil {
+			return err
+		}
+	}
+
+	return gzR.Close()
 }

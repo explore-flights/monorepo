@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/common/adapt"
-	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/explore-flights/monorepo/go/database/business"
 	"github.com/explore-flights/monorepo/go/database/util"
 	"os"
@@ -25,7 +24,6 @@ type updater struct {
 		adapt.S3Putter
 	}
 	parquetFileUriSchema string
-	inputFileUriSchema   string
 }
 
 func (u *updater) UpdateDatabase(
@@ -40,8 +38,8 @@ func (u *updater) UpdateDatabase(
 	historyPrefix,
 	latestPrefix,
 	inputBucket,
-	inputPrefix string,
-	dateRanges xtime.LocalDateRanges) error {
+	inputKey string,
+	skipUpdateDatabase bool) error {
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -62,9 +60,9 @@ func (u *updater) UpdateDatabase(
 		}
 
 		if err := util.WithDatabase(ctx, ddbHomePath, tmpDbPath, workingDbName, numThreads, func(conn *sql.Conn) error {
-			if !dateRanges.Empty() {
+			if !skipUpdateDatabase {
 				if err := util.RunTimed("update database", func() error {
-					return u.runMainUpdateSequence(ctx, t, conn, u.buildInputFileUris(inputBucket, inputPrefix, dateRanges))
+					return u.runUpdateDatabase(ctx, t, conn, inputBucket, inputKey)
 				}); err != nil {
 					return err
 				}
@@ -100,8 +98,10 @@ func (u *updater) UpdateDatabase(
 				return err
 			}
 
-			if _, err := util.ExportDatabase(ctx, conn, workingDbName, dstDbPath, true, true, numThreads); err != nil {
-				return err
+			if !skipUpdateDatabase {
+				if _, err := util.ExportDatabase(ctx, conn, workingDbName, dstDbPath, true, true, numThreads); err != nil {
+					return err
+				}
 			}
 
 			return nil
@@ -123,14 +123,20 @@ func (u *updater) UpdateDatabase(
 	return nil
 }
 
-func (u *updater) runMainUpdateSequence(ctx context.Context, t time.Time, conn *sql.Conn, inputFileUris []string) error {
-	_, err := conn.ExecContext(ctx, fmt.Sprintf(`USE %s`, workingDbName))
-	if err != nil {
-		return err
-	}
+func (u *updater) runUpdateDatabase(ctx context.Context, t time.Time, conn *sql.Conn, inputBucket, inputKey string) error {
+	return util.WithTempDir(func(tmpDir string) error {
+		if err := util.DownloadAndUpackGzippedTar(ctx, u.s3c, inputBucket, inputKey, tmpDir); err != nil {
+			return fmt.Errorf("failed to download and upack tar: %w", err)
+		}
 
-	upd := business.Updater{}
-	return upd.RunUpdateSequence(ctx, conn, t, inputFileUris)
+		_, err := conn.ExecContext(ctx, fmt.Sprintf(`USE %s`, workingDbName))
+		if err != nil {
+			return err
+		}
+
+		upd := business.Updater{}
+		return upd.RunUpdateSequence(ctx, conn, t, tmpDir+"/**/*.json")
+	})
 }
 
 func (u *updater) createAndUploadBaseDataDb(ctx context.Context, conn *sql.Conn, tmpDir, bucket, key string) error {
@@ -445,13 +451,4 @@ COPY (
 
 func (u *updater) buildParquetFileUri(bucket, key string) string {
 	return fmt.Sprintf("%s://%s/%s", u.parquetFileUriSchema, bucket, key)
-}
-
-func (u *updater) buildInputFileUris(bucket, prefix string, ldrs xtime.LocalDateRanges) []string {
-	paths := make([]string, 0)
-	for d := range ldrs.Iter {
-		paths = append(paths, fmt.Sprintf("%s://%s/%s%s.json", u.inputFileUriSchema, bucket, prefix, d.Time(nil).Format("2006/01/02")))
-	}
-
-	return paths
 }

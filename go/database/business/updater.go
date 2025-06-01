@@ -5,25 +5,17 @@ import (
 	"database/sql"
 	"github.com/explore-flights/monorepo/go/database/db"
 	"github.com/explore-flights/monorepo/go/database/util"
-	"strings"
 	"time"
 )
 
 type Updater struct{}
 
-func (*Updater) RunUpdateSequence(ctx context.Context, conn *sql.Conn, t time.Time, inputFileUris []string) error {
-	placeholders := make([]string, len(inputFileUris))
-	anyTypedInputFileUris := make([]any, len(inputFileUris))
-	for i, v := range inputFileUris {
-		placeholders[i] = "?"
-		anyTypedInputFileUris[i] = v
-	}
-
+func (*Updater) RunUpdateSequence(ctx context.Context, conn *sql.Conn, t time.Time, inputFileUri string) error {
 	sequence := util.UpdateSequence{
 		{
 			Name:   "X11LoadRawData",
-			Script: strings.Replace(db.X11LoadRawData, "?", "["+strings.Join(placeholders, ",")+"]", 1),
-			Params: [][]any{anyTypedInputFileUris},
+			Script: db.X11LoadRawData,
+			Params: [][]any{{inputFileUri}},
 		},
 		{
 			Name:   "X12UpdateDatabase",

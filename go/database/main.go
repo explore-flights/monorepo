@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/explore-flights/monorepo/go/common/xtime"
 	"log"
 	"os"
 	"os/signal"
@@ -27,9 +25,8 @@ func main() {
 		historyPrefix       string
 		latestPrefix        string
 		inputBucket         string
-		inputPrefix         string
-		dateRangesJSON      string
-		dateRanges          xtime.LocalDateRanges
+		inputKey            string
+		skipUpdateDatabase  bool
 	)
 
 	fs := flag.NewFlagSet("", flag.PanicOnError)
@@ -43,8 +40,8 @@ func main() {
 	fs.StringVar(&historyPrefix, "history-prefix", "", "")
 	fs.StringVar(&latestPrefix, "latest-prefix", "", "")
 	fs.StringVar(&inputBucket, "input-bucket", "", "")
-	fs.StringVar(&inputPrefix, "input-prefix", "", "")
-	fs.StringVar(&dateRangesJSON, "date-ranges-json", "", "")
+	fs.StringVar(&inputKey, "input-key", "", "")
+	fs.BoolVar(&skipUpdateDatabase, "skip-update-database", false, "")
 	fs.SetOutput(os.Stdout)
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
@@ -56,12 +53,6 @@ func main() {
 		}
 		return
 	}
-
-	if err := json.Unmarshal([]byte(dateRangesJSON), &dateRanges); err != nil {
-		log.Fatal(err)
-		return
-	}
-
 	if t.IsZero() ||
 		databaseBucket == "" ||
 		fullDatabaseKey == "" ||
@@ -71,8 +62,7 @@ func main() {
 		reportKey == "" ||
 		historyPrefix == "" ||
 		latestPrefix == "" ||
-		inputBucket == "" ||
-		inputPrefix == "" {
+		(!skipUpdateDatabase && (inputBucket == "" || inputKey == "")) {
 
 		log.Fatal("missing input argument")
 		return
@@ -90,10 +80,9 @@ func main() {
 	u := updater{
 		s3c:                  s3.NewFromConfig(cfg),
 		parquetFileUriSchema: "s3",
-		inputFileUriSchema:   "s3",
 	}
 
-	if err = u.UpdateDatabase(ctx, t, databaseBucket, fullDatabaseKey, baseDataDatabaseKey, parquetBucket, variantsKey, reportKey, historyPrefix, latestPrefix, inputBucket, inputPrefix, dateRanges); err != nil {
+	if err = u.UpdateDatabase(ctx, t, databaseBucket, fullDatabaseKey, baseDataDatabaseKey, parquetBucket, variantsKey, reportKey, historyPrefix, latestPrefix, inputBucket, inputKey, skipUpdateDatabase); err != nil {
 		log.Fatal(err)
 		return
 	}

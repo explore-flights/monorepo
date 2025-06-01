@@ -137,7 +137,7 @@ SELECT
 FROM lh_flight_schedules_flattened
 WHERE dataElements[50] IS NULL OR LENGTH(dataElements[50]) < 1 ;
 
--- insert operating
+-- insert operating based on data elements
 INSERT INTO lh_all_flights (
     createdAt,
     airline,
@@ -197,7 +197,7 @@ FROM (
     WHERE dataElements[50] IS NOT NULL AND LENGTH(dataElements[50]) > 0
 ) ;
 
--- insert codeshares
+-- insert codeshares based on data elements
 INSERT INTO lh_all_flights (
     createdAt,
     airline,
@@ -257,7 +257,7 @@ FROM (
     WHERE LENGTH(codeSharesRaw) > 0
 ) ;
 
--- insert operating based on existing
+-- insert operating based on previous inserts
 INSERT INTO lh_all_flights (
     createdAt,
     airline,

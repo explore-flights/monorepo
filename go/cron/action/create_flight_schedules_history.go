@@ -24,6 +24,8 @@ type CreateFlightSchedulesHistoryParams struct {
 }
 
 type CreateFlightSchedulesHistoryOutput struct {
+	Bucket string `json:"bucket"`
+	Key    string `json:"key"`
 }
 
 type cfshAction struct {
@@ -35,6 +37,11 @@ func CreateFlightSchedulesHistoryAction(s3c MinimalS3Client) Action[CreateFlight
 }
 
 func (a *cfshAction) Handle(ctx context.Context, params CreateFlightSchedulesHistoryParams) (CreateFlightSchedulesHistoryOutput, error) {
+	output := CreateFlightSchedulesHistoryOutput{
+		Bucket: params.OutputBucket,
+		Key:    params.OutputPrefix + params.Time.Format(time.RFC3339) + ".tar.gz",
+	}
+
 	err := func() error {
 		dir, err := os.MkdirTemp("", "flight_schedules_history_*")
 		if err != nil {
@@ -47,14 +54,14 @@ func (a *cfshAction) Handle(ctx context.Context, params CreateFlightSchedulesHis
 			return fmt.Errorf("failed to create archive: %w", err)
 		}
 
-		if err = a.uploadArchive(ctx, params.OutputBucket, params.OutputPrefix+params.Time.Format(time.RFC3339)+".tar.gz", tempArchivePath); err != nil {
+		if err = a.uploadArchive(ctx, output.Bucket, output.Key, tempArchivePath); err != nil {
 			return fmt.Errorf("failed to upload archive: %w", err)
 		}
 
 		return nil
 	}()
 
-	return CreateFlightSchedulesHistoryOutput{}, err
+	return output, err
 }
 
 func (a *cfshAction) uploadArchive(ctx context.Context, bucket, key, archivePath string) error {

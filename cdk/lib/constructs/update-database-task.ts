@@ -56,7 +56,7 @@ export class UpdateDatabaseConstruct extends Construct {
       assumedBy: new ServicePrincipal('ecs-tasks.amazonaws.com'),
     });
 
-    props.dataBucket.grantRead(taskRole, 'raw/LH_Public_Data/flightschedules/*');
+    props.dataBucket.grantRead(taskRole, 'raw/LH_Public_Data/flightschedules_history/*');
     props.dataBucket.grantReadWrite(taskRole, 'processed/flights.db');
     props.dataBucket.grantReadWrite(taskRole, 'processed/basedata.db');
     props.parquetBucket.grantReadWrite(taskRole);
