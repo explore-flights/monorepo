@@ -1,11 +1,14 @@
-package business
+package util
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/binary"
 	"fmt"
 	"iter"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -34,13 +37,32 @@ func (us UpdateScript) Queries() iter.Seq[UpdateQuery] {
 		script := strings.TrimSpace(us.Script)
 		queries := strings.Split(script, ";")
 		queries = slices.DeleteFunc(queries, func(s string) bool {
-			return strings.TrimSpace(s) == ""
+			for line := range strings.Lines(s) {
+				line = strings.TrimSpace(line)
+				if line != "" && !strings.HasPrefix(line, "--") {
+					return false
+				}
+			}
+
+			return true
 		})
 
 		for i, query := range queries {
 			q := UpdateQuery{
 				name:  us.Name,
 				query: query,
+			}
+
+			{
+				// if the query starts with a comment, use that as additional info
+				firstLine := strings.SplitN(strings.TrimSpace(query), "\n", 2)[0]
+				firstLine = strings.TrimSpace(firstLine)
+				if name, ok := strings.CutPrefix(firstLine, "--"); ok {
+					name = strings.TrimSpace(name)
+					if name != "" {
+						q.name += fmt.Sprintf(" (%q)", name)
+					}
+				}
 			}
 
 			if len(us.Params) > i {
@@ -100,4 +122,26 @@ func (uq UpdateQuery) Run(ctx context.Context, conn *sql.Conn) error {
 	}
 
 	return uq.check(r)
+}
+
+func GenerateIdentifier() (string, error) {
+	const randomLength = 10
+	const timestampLength = 8 // hex unix timestamp (within reasonable time span)
+	const chars = "abcdefghijklmnopqrstuvwxyz"
+
+	r := make([]byte, 0, randomLength+timestampLength+1)
+	b := make([]byte, 4)
+
+	for range randomLength {
+		if _, err := rand.Read(b); err != nil {
+			return "", err
+		}
+
+		r = append(r, chars[binary.BigEndian.Uint32(b)%uint32(len(chars))])
+	}
+
+	r = append(r, '_')
+	r = strconv.AppendInt(r, time.Now().Unix(), 16)
+
+	return string(r), nil
 }

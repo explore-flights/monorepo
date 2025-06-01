@@ -2,26 +2,19 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"database/sql/driver"
-	"encoding/binary"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/explore-flights/monorepo/go/database/business"
-	"github.com/marcboeker/go-duckdb/v2"
-	"io"
+	"github.com/explore-flights/monorepo/go/database/util"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 )
 
 const (
+	numThreads    = 16
 	setThreads    = "SET threads TO 16"
 	workingDbName = "tmp_db"
 )
@@ -53,7 +46,7 @@ func (u *updater) UpdateDatabase(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if err := u.withTempDir(func(tmpDir string) error {
+	if err := util.WithTempDir(func(tmpDir string) error {
 		ddbHomePath := filepath.Join(tmpDir, "duckdb-home")
 		tmpDbPath := filepath.Join(tmpDir, "tmp.db")
 		dstDbPath := filepath.Join(tmpDir, "dst.db")
@@ -62,52 +55,52 @@ func (u *updater) UpdateDatabase(
 			return err
 		}
 
-		if err := u.runTimed("download db file", func() error {
-			return u.downloadS3File(ctx, databaseBucket, fullDatabaseKey, tmpDbPath)
+		if err := util.RunTimed("download db file", func() error {
+			return util.DownloadS3File(ctx, u.s3c, databaseBucket, fullDatabaseKey, tmpDbPath)
 		}); err != nil {
 			return err
 		}
 
-		if err := u.withDatabase(ctx, ddbHomePath, tmpDbPath, func(conn *sql.Conn) error {
+		if err := util.WithDatabase(ctx, ddbHomePath, tmpDbPath, workingDbName, numThreads, func(conn *sql.Conn) error {
 			if !dateRanges.Empty() {
-				if err := u.runTimed("update database", func() error {
+				if err := util.RunTimed("update database", func() error {
 					return u.runMainUpdateSequence(ctx, t, conn, u.buildInputFileUris(inputBucket, inputPrefix, dateRanges))
 				}); err != nil {
 					return err
 				}
 			}
 
-			if err := u.runTimed("create and upload basedata db", func() error {
+			if err := util.RunTimed("create and upload basedata db", func() error {
 				return u.createAndUploadBaseDataDb(ctx, conn, tmpDir, databaseBucket, baseDataDatabaseKey)
 			}); err != nil {
 				return err
 			}
 
-			if err := u.runTimed("export variants", func() error {
+			if err := util.RunTimed("export variants", func() error {
 				return u.exportVariants(ctx, conn, parquetBucket, variantsKey)
 			}); err != nil {
 				return err
 			}
 
-			if err := u.runTimed("export report", func() error {
+			if err := util.RunTimed("export report", func() error {
 				return u.exportReport(ctx, conn, parquetBucket, reportKey)
 			}); err != nil {
 				return err
 			}
 
-			if err := u.runTimed("export history", func() error {
+			if err := util.RunTimed("export history", func() error {
 				return u.exportHistory(ctx, conn, parquetBucket, historyPrefix)
 			}); err != nil {
 				return err
 			}
 
-			if err := u.runTimed("export latest", func() error {
+			if err := util.RunTimed("export latest", func() error {
 				return u.exportLatest(ctx, conn, parquetBucket, latestPrefix)
 			}); err != nil {
 				return err
 			}
 
-			if _, err := u.exportDatabase(ctx, conn, workingDbName, dstDbPath, true, true); err != nil {
+			if _, err := util.ExportDatabase(ctx, conn, workingDbName, dstDbPath, true, true, numThreads); err != nil {
 				return err
 			}
 
@@ -116,8 +109,8 @@ func (u *updater) UpdateDatabase(
 			return err
 		}
 
-		if err := u.runTimed("upload db file", func() error {
-			return u.uploadDbFile(ctx, databaseBucket, fullDatabaseKey, dstDbPath)
+		if err := util.RunTimed("upload db file", func() error {
+			return util.UploadS3File(ctx, u.s3c, databaseBucket, fullDatabaseKey, dstDbPath)
 		}); err != nil {
 			return err
 		}
@@ -128,52 +121,6 @@ func (u *updater) UpdateDatabase(
 	}
 
 	return nil
-}
-
-func (u *updater) downloadS3File(ctx context.Context, bucket, key, dstFilePath string) error {
-	f, err := os.Create(dstFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to create dst file %q: %w", dstFilePath, err)
-	}
-	defer f.Close()
-
-	return u.copyS3FileTo(ctx, bucket, key, f)
-}
-
-func (u *updater) copyS3FileTo(ctx context.Context, bucket, key string, w io.Writer) error {
-	resp, err := u.s3c.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(key),
-	})
-	if err != nil {
-		return fmt.Errorf("failed GetObject for key %q: %w", key, err)
-	}
-	defer resp.Body.Close()
-
-	if _, err = io.Copy(w, resp.Body); err != nil {
-		return fmt.Errorf("failed to download file from s3: %w", err)
-	}
-
-	return nil
-}
-
-func (u *updater) withDatabase(ctx context.Context, ddbHomePath, tmpDbPath string, fn func(conn *sql.Conn) error) error {
-	connector, err := duckdb.NewConnector("", u.dbInit(ctx, ddbHomePath, tmpDbPath))
-	if err != nil {
-		return fmt.Errorf("failed to connect to duckdb: %w", err)
-	}
-	defer connector.Close()
-
-	database := sql.OpenDB(connector)
-	defer database.Close()
-
-	conn, err := database.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-	defer conn.Close()
-
-	return fn(conn)
 }
 
 func (u *updater) runMainUpdateSequence(ctx context.Context, t time.Time, conn *sql.Conn, inputFileUris []string) error {
@@ -193,12 +140,12 @@ func (u *updater) createAndUploadBaseDataDb(ctx context.Context, conn *sql.Conn,
 	defer os.Remove(tmpFilePath)
 	defer os.Remove(finalFilePath)
 
-	tmpDbName, err := u.exportDatabase(ctx, conn, workingDbName, tmpFilePath, false, false)
+	tmpDbName, err := util.ExportDatabase(ctx, conn, workingDbName, tmpFilePath, false, false, numThreads)
 	if err != nil {
 		return fmt.Errorf("failed to copy tmp db name: %w", err)
 	}
 
-	sequence := business.UpdateSequence{
+	sequence := util.UpdateSequence{
 		{
 			Name:   "use basedata db",
 			Script: fmt.Sprintf(`USE %s`, tmpDbName),
@@ -239,11 +186,11 @@ WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = ac.id ) ;
 		return fmt.Errorf("failed to run update sequence: %w", err)
 	}
 
-	if _, err = u.exportDatabase(ctx, conn, tmpDbName, finalFilePath, true, true); err != nil {
+	if _, err = util.ExportDatabase(ctx, conn, tmpDbName, finalFilePath, true, true, numThreads); err != nil {
 		return fmt.Errorf("failed to copy tmp db name: %w", err)
 	}
 
-	if err = u.uploadDbFile(ctx, bucket, key, finalFilePath); err != nil {
+	if err = util.UploadS3File(ctx, u.s3c, bucket, key, finalFilePath); err != nil {
 		return fmt.Errorf("failed to upload basedata db file: %w", err)
 	}
 
@@ -252,7 +199,7 @@ WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = ac.id ) ;
 
 func (u *updater) exportVariants(ctx context.Context, conn *sql.Conn, bucket, key string) error {
 	exportUri := u.buildParquetFileUri(bucket, key)
-	sequence := business.UpdateSequence{
+	sequence := util.UpdateSequence{
 		{
 			Name:   "use working db",
 			Script: fmt.Sprintf(`USE %s`, workingDbName),
@@ -276,7 +223,7 @@ func (u *updater) exportVariants(ctx context.Context, conn *sql.Conn, bucket, ke
 
 func (u *updater) exportReport(ctx context.Context, conn *sql.Conn, bucket, key string) error {
 	exportUri := u.buildParquetFileUri(bucket, key)
-	sequence := business.UpdateSequence{
+	sequence := util.UpdateSequence{
 		{
 			Name:   "use working db",
 			Script: fmt.Sprintf(`USE %s`, workingDbName),
@@ -333,7 +280,7 @@ COPY (
 	FROM latest_active_history fvh
 	INNER JOIN flight_variants fv
 	ON fvh.flight_variant_id = fv.id
-	WHERE fv.service_type = 'J'
+	WHERE fv.service_type = 'J' OR fv.service_type = 'U'
 	GROUP BY
 		YEAR(fvh.departure_date_local),
 		MONTH(fvh.departure_date_local),
@@ -371,7 +318,7 @@ COPY (
 
 func (u *updater) exportHistory(ctx context.Context, conn *sql.Conn, bucket, prefix string) error {
 	exportUri := u.buildParquetFileUri(bucket, prefix)
-	sequence := business.UpdateSequence{
+	sequence := util.UpdateSequence{
 		{
 			Name:   "use working db",
 			Script: fmt.Sprintf(`USE %s`, workingDbName),
@@ -423,7 +370,7 @@ COPY (
 
 func (u *updater) exportLatest(ctx context.Context, conn *sql.Conn, bucket, prefix string) error {
 	exportUri := u.buildParquetFileUri(bucket, prefix)
-	sequence := business.UpdateSequence{
+	sequence := util.UpdateSequence{
 		{
 			Name:   "use working db",
 			Script: fmt.Sprintf(`USE %s`, workingDbName),
@@ -496,146 +443,6 @@ COPY (
 	return sequence.Run(ctx, conn)
 }
 
-func (u *updater) dbInit(ctx context.Context, ddbHomePath, tmpDbPath string) func(execer driver.ExecerContext) error {
-	return func(execer driver.ExecerContext) error {
-		bootQueries := []common.Tuple[string, []driver.NamedValue]{
-			{
-				setThreads,
-				[]driver.NamedValue{},
-			},
-			// https://github.com/duckdb/duckdb/issues/12837
-			{
-				`SET home_directory = ?`,
-				[]driver.NamedValue{{Ordinal: 1, Value: filepath.Join(ddbHomePath, "home")}},
-			},
-			{
-				`SET secret_directory = ?`,
-				[]driver.NamedValue{{Ordinal: 1, Value: filepath.Join(ddbHomePath, "secrets")}},
-			},
-			{
-				`SET extension_directory = ?`,
-				[]driver.NamedValue{{Ordinal: 1, Value: filepath.Join(ddbHomePath, "extensions")}},
-			},
-			{
-				`SET temp_directory = ?`,
-				[]driver.NamedValue{{Ordinal: 1, Value: filepath.Join(ddbHomePath, "tmp")}},
-			},
-			{
-				`SET allow_persistent_secrets = false`,
-				[]driver.NamedValue{},
-			},
-			{
-				`SET memory_limit = '16GB'`,
-				[]driver.NamedValue{},
-			},
-			{
-				`SET partitioned_write_max_open_files = 1`,
-				[]driver.NamedValue{},
-			},
-			{
-				`SET partitioned_write_flush_threshold = 10000`,
-				[]driver.NamedValue{},
-			},
-			{
-				`CREATE OR REPLACE SECRET secret ( TYPE s3, PROVIDER credential_chain, REGION 'eu-central-1' )`,
-				[]driver.NamedValue{},
-			},
-			{
-				fmt.Sprintf(`ATTACH '%s' AS %s`, tmpDbPath, workingDbName),
-				[]driver.NamedValue{},
-			},
-		}
-
-		for i, query := range bootQueries {
-			if err := u.runTimed(fmt.Sprintf("db init (%d) %q", i, query.V1), func() error {
-				_, err := execer.ExecContext(ctx, query.V1, query.V2)
-				return err
-			}); err != nil {
-				return fmt.Errorf("failed to run query %q: %w", query.V1, err)
-			}
-		}
-
-		return nil
-	}
-}
-
-func (u *updater) exportDatabase(ctx context.Context, conn *sql.Conn, srcDbName, dstDbFilePath string, detachDst, detachSrc bool) (string, error) {
-	tmpExportDbName, err := u.generateIdentifier()
-	if err != nil {
-		return "", fmt.Errorf("failed to generate temp export database identifier: %w", err)
-	}
-
-	return tmpExportDbName, u.runTimed(fmt.Sprintf("export db %q to %q", srcDbName, dstDbFilePath), func() error {
-		if _, err = conn.ExecContext(ctx, fmt.Sprintf(`ATTACH '%s' AS %s`, dstDbFilePath, tmpExportDbName)); err != nil {
-			return fmt.Errorf("failed to attach export database: %w", err)
-		}
-
-		if err = u.copyDatabase(ctx, conn, srcDbName, tmpExportDbName); err != nil {
-			return fmt.Errorf("failed to copy database %q to %q: %w", srcDbName, tmpExportDbName, err)
-		}
-
-		if detachDst {
-			if _, err = conn.ExecContext(ctx, fmt.Sprintf(`DETACH %s`, tmpExportDbName)); err != nil {
-				return fmt.Errorf("failed to attach export database: %w", err)
-			}
-		}
-
-		if detachSrc {
-			if _, err = conn.ExecContext(ctx, `USE memory`); err != nil {
-				return fmt.Errorf("failed to switch to memory db: %w", err)
-			}
-
-			if _, err = conn.ExecContext(ctx, fmt.Sprintf(`DETACH %s`, srcDbName)); err != nil {
-				return fmt.Errorf("failed to detach src database: %w", err)
-			}
-		}
-
-		return nil
-	})
-}
-
-func (u *updater) copyDatabase(ctx context.Context, conn *sql.Conn, srcDbName, dstDbName string) error {
-	queries := []string{
-		`SET threads TO 1`,
-		fmt.Sprintf(`COPY FROM DATABASE %s TO %s`, srcDbName, dstDbName),
-		setThreads,
-	}
-
-	for _, query := range queries {
-		if _, err := conn.ExecContext(ctx, query); err != nil {
-			return fmt.Errorf("failed to run query %q: %w", query, err)
-		}
-	}
-
-	return nil
-}
-
-func (u *updater) uploadDbFile(ctx context.Context, bucket, key, dbFilePath string) error {
-	f, err := os.Open(dbFilePath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = u.s3c.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(key),
-		Body:   f,
-	})
-	return err
-}
-
-func (u *updater) runTimed(name string, fn func() error) error {
-	start := time.Now()
-	fmt.Printf("running %s\n", name)
-	if err := fn(); err != nil {
-		return fmt.Errorf("%s failed: %w", name, err)
-	}
-
-	fmt.Printf("finished %s, took %v\n", name, time.Since(start))
-	return nil
-}
-
 func (u *updater) buildParquetFileUri(bucket, key string) string {
 	return fmt.Sprintf("%s://%s/%s", u.parquetFileUriSchema, bucket, key)
 }
@@ -647,37 +454,4 @@ func (u *updater) buildInputFileUris(bucket, prefix string, ldrs xtime.LocalDate
 	}
 
 	return paths
-}
-
-func (u *updater) withTempDir(fn func(dir string) error) error {
-	dir, err := os.MkdirTemp("", "duckdb_update_database_*")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary directory: %w", err)
-	}
-
-	defer os.RemoveAll(dir)
-
-	return fn(dir)
-}
-
-func (u *updater) generateIdentifier() (string, error) {
-	const randomLength = 10
-	const timestampLength = 8 // hex unix timestamp (within reasonable time span)
-	const chars = "abcdefghijklmnopqrstuvwxyz"
-
-	r := make([]byte, 0, randomLength+timestampLength+1)
-	b := make([]byte, 4)
-
-	for range randomLength {
-		if _, err := rand.Read(b); err != nil {
-			return "", err
-		}
-
-		r = append(r, chars[binary.BigEndian.Uint32(b)%uint32(len(chars))])
-	}
-
-	r = append(r, '_')
-	r = strconv.AppendInt(r, time.Now().Unix(), 16)
-
-	return string(r), nil
 }

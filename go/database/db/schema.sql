@@ -1,11 +1,11 @@
 -- region airlines
-CREATE TABLE airlines (
+CREATE TABLE IF NOT EXISTS airlines (
     id UUID NOT NULL,
     name TEXT,
     PRIMARY KEY (id)
 ) ;
 
-CREATE TABLE airline_identifiers (
+CREATE TABLE IF NOT EXISTS airline_identifiers (
     issuer TEXT NOT NULL,
     identifier TEXT NOT NULL,
     airline_id UUID NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE airline_identifiers (
 ) ;
 -- endregion
 -- region airports
-CREATE TABLE airports (
+CREATE TABLE IF NOT EXISTS airports (
     id UUID NOT NULL,
     iata_area_code TEXT,
     country_code TEXT,
@@ -27,7 +27,7 @@ CREATE TABLE airports (
     PRIMARY KEY (id)
 ) ;
 
-CREATE TABLE airport_identifiers (
+CREATE TABLE IF NOT EXISTS airport_identifiers (
     issuer TEXT NOT NULL,
     identifier TEXT NOT NULL,
     airport_id UUID NOT NULL,
@@ -36,14 +36,14 @@ CREATE TABLE airport_identifiers (
 ) ;
 -- endregion
 -- region aircraft
-CREATE TABLE aircraft (
+CREATE TABLE IF NOT EXISTS aircraft (
     id UUID NOT NULL,
     equip_code TEXT,
     name TEXT,
     PRIMARY KEY (id)
 ) ;
 
-CREATE TABLE aircraft_identifiers (
+CREATE TABLE IF NOT EXISTS aircraft_identifiers (
     issuer TEXT NOT NULL,
     identifier TEXT NOT NULL,
     aircraft_id UUID NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE aircraft_identifiers (
 ) ;
 -- endregion
 -- region data
-CREATE TABLE flight_numbers (
+CREATE TABLE IF NOT EXISTS flight_numbers (
     airline_id UUID NOT NULL,
     number USMALLINT NOT NULL,
     suffix TEXT NOT NULL,
@@ -60,7 +60,7 @@ CREATE TABLE flight_numbers (
     FOREIGN KEY (airline_id) REFERENCES airlines (id)
 ) ;
 
-CREATE TABLE flight_variants (
+CREATE TABLE IF NOT EXISTS flight_variants (
     id UUID NOT NULL,
     operating_airline_id UUID NOT NULL,
     operating_number USMALLINT NOT NULL,
@@ -105,7 +105,7 @@ CREATE TABLE flight_variants (
     FOREIGN KEY (aircraft_id) REFERENCES aircraft (id)
 ) ;
 
-CREATE TABLE flight_variant_history (
+CREATE TABLE IF NOT EXISTS flight_variant_history (
     airline_id UUID NOT NULL,
     number USMALLINT NOT NULL,
     suffix TEXT NOT NULL,
@@ -114,6 +114,7 @@ CREATE TABLE flight_variant_history (
     created_at TIMESTAMPTZ NOT NULL,
     replaced_at TIMESTAMPTZ,
     query_dates DATE[] NOT NULL,
+    is_derived BOOL NOT NULL,
     flight_variant_id UUID,
     PRIMARY KEY (airline_id, number, suffix, departure_airport_id, departure_date_local, created_at),
     UNIQUE (airline_id, number, suffix, departure_airport_id, departure_date_local, replaced_at),
