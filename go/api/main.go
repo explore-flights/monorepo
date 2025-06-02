@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/explore-flights/monorepo/go/api/business/connections"
 	"github.com/explore-flights/monorepo/go/api/business/seatmap"
+	"github.com/explore-flights/monorepo/go/api/config"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web"
@@ -23,12 +24,12 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	s3c, err := s3Client(ctx)
+	s3c, err := config.Config.S3Client(ctx)
 	if err != nil {
 		panic(err)
 	}
 
-	bucket, err := dataBucket()
+	bucket, err := config.Config.DataBucket()
 	if err != nil {
 		panic(err)
 	}
@@ -40,12 +41,12 @@ func main() {
 		}
 	*/
 
-	lhc, err := lufthansaClient()
+	lhc, err := config.Config.LufthansaClient()
 	if err != nil {
 		panic(err)
 	}
 
-	database, err := database()
+	database, err := config.Config.Database()
 	if err != nil {
 		panic(err)
 	}
@@ -88,7 +89,7 @@ func main() {
 
 		group.GET("/schedule/search", web.NewQueryFlightSchedulesEndpoint(fr, dataHandler))
 
-		notificationHandler := web.NewNotificationHandler(versionTxtPath())
+		notificationHandler := web.NewNotificationHandler(config.Config.VersionTxtPath())
 		group.GET("/notifications", notificationHandler.Notifications)
 	}
 
@@ -146,7 +147,7 @@ func run(ctx context.Context, e *echo.Echo) error {
 		}
 	}()
 
-	if err := e.Start(fmt.Sprintf(":%d", echoPort())); err != nil {
+	if err := e.Start(fmt.Sprintf(":%d", config.Config.EchoPort())); err != nil {
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}

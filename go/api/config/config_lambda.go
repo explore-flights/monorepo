@@ -1,6 +1,6 @@
 //go:build lambda
 
-package main
+package config
 
 import (
 	"cmp"
@@ -23,29 +23,55 @@ import (
 	"time"
 )
 
-var awsConfig = sync.OnceValues(func() (aws.Config, error) {
-	return config.LoadDefaultConfig(context.Background())
-})
+var Config = func() *accessor {
+	awsConfig := sync.OnceValues(func() (aws.Config, error) {
+		return config.LoadDefaultConfig(context.Background())
+	})
 
-var ssmParams = sync.OnceValues(func() (map[string]string, error) {
-	return loadSsmParams(
-		context.Background(),
-		"FLIGHTS_SSM_GOOGLE_CLIENT_ID",
-		"FLIGHTS_SSM_GOOGLE_CLIENT_SECRET",
-		"FLIGHTS_SSM_SESSION_RSA_PRIV",
-		"FLIGHTS_SSM_SESSION_RSA_PUB",
-		"FLIGHTS_SSM_LUFTHANSA_CLIENT_ID",
-		"FLIGHTS_SSM_LUFTHANSA_CLIENT_SECRET",
-	)
-})
+	ssmParamsDone := make(chan struct{})
+	a := &accessor{
+		awsConfig:     awsConfig,
+		ssmParamsDone: ssmParamsDone,
+	}
 
-func echoPort() int {
+	go func() {
+		defer close(ssmParamsDone)
+
+		cfg, err := awsConfig()
+		if err != nil {
+			a.ssmParamsErr = err
+			return
+		}
+
+		a.ssmParams, a.ssmParamsErr = loadSsmParams(
+			context.Background(),
+			cfg,
+			"FLIGHTS_SSM_GOOGLE_CLIENT_ID",
+			"FLIGHTS_SSM_GOOGLE_CLIENT_SECRET",
+			"FLIGHTS_SSM_SESSION_RSA_PRIV",
+			"FLIGHTS_SSM_SESSION_RSA_PUB",
+			"FLIGHTS_SSM_LUFTHANSA_CLIENT_ID",
+			"FLIGHTS_SSM_LUFTHANSA_CLIENT_SECRET",
+		)
+	}()
+
+	return a
+}()
+
+type accessor struct {
+	awsConfig     func() (aws.Config, error)
+	ssmParamsDone <-chan struct{}
+	ssmParams     map[string]string
+	ssmParamsErr  error
+}
+
+func (*accessor) EchoPort() int {
 	port, _ := strconv.Atoi(os.Getenv("AWS_LWA_PORT"))
 	return cmp.Or(port, 8080)
 }
 
-func s3Client(ctx context.Context) (*s3.Client, error) {
-	cfg, err := awsConfig()
+func (a *accessor) S3Client(ctx context.Context) (S3Client, error) {
+	cfg, err := a.awsConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -53,16 +79,7 @@ func s3Client(ctx context.Context) (*s3.Client, error) {
 	return s3.NewFromConfig(cfg), nil
 }
 
-func ssmClient() (*ssm.Client, error) {
-	cfg, err := awsConfig()
-	if err != nil {
-		return nil, err
-	}
-
-	return ssm.NewFromConfig(cfg), nil
-}
-
-func dataBucket() (string, error) {
+func (*accessor) DataBucket() (string, error) {
 	bucket := os.Getenv("FLIGHTS_DATA_BUCKET")
 	if bucket == "" {
 		return "", errors.New("env variable FLIGHTS_DATA_BUCKET required")
@@ -71,7 +88,7 @@ func dataBucket() (string, error) {
 	return bucket, nil
 }
 
-func parquetBucket() (string, error) {
+func (*accessor) ParquetBucket() (string, error) {
 	bucket := os.Getenv("FLIGHTS_PARQUET_BUCKET")
 	if bucket == "" {
 		return "", errors.New("env variable FLIGHTS_PARQUET_BUCKET required")
@@ -80,13 +97,18 @@ func parquetBucket() (string, error) {
 	return bucket, nil
 }
 
-func authorizationHandler(ctx context.Context, s3c auth.MinimalS3Client) (*web.AuthorizationHandler, error) {
+func (a *accessor) AuthorizationHandler(ctx context.Context) (*web.AuthorizationHandler, error) {
+	s3c, err := a.S3Client(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	bucket := os.Getenv("FLIGHTS_AUTH_BUCKET")
 	if bucket == "" {
 		return nil, errors.New("env variable FLIGHTS_AUTH_BUCKET required")
 	}
 
-	params, err := ssmParams()
+	params, err := a.getSsmParams()
 	if err != nil {
 		return nil, err
 	}
@@ -109,8 +131,8 @@ func authorizationHandler(ctx context.Context, s3c auth.MinimalS3Client) (*web.A
 	)
 }
 
-func lufthansaClient() (*lufthansa.Client, error) {
-	params, err := ssmParams()
+func (a *accessor) LufthansaClient() (*lufthansa.Client, error) {
+	params, err := a.getSsmParams()
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +144,31 @@ func lufthansaClient() (*lufthansa.Client, error) {
 	), nil
 }
 
-func loadSsmParams(ctx context.Context, envNames ...string) (map[string]string, error) {
+func (a *accessor) Database() (*db.Database, error) {
+	parquetBucketName, err := a.ParquetBucket()
+	if err != nil {
+		return nil, err
+	}
+
+	return db.NewDatabase(
+		"/opt/data/basedata.db",
+		"/opt/data/variants.parquet",
+		"/opt/data/report.parquet",
+		fmt.Sprintf("s3://%s/history", parquetBucketName),
+		fmt.Sprintf("s3://%s/latest", parquetBucketName),
+	), nil
+}
+
+func (*accessor) VersionTxtPath() string {
+	return "/opt/data/version.txt"
+}
+
+func (a *accessor) getSsmParams() (map[string]string, error) {
+	<-a.ssmParamsDone
+	return a.ssmParams, a.ssmParamsErr
+}
+
+func loadSsmParams(ctx context.Context, cfg aws.Config, envNames ...string) (map[string]string, error) {
 	reqNames := make([]string, 0, len(envNames))
 	lookup := make(map[string]string)
 
@@ -136,11 +182,7 @@ func loadSsmParams(ctx context.Context, envNames ...string) (map[string]string, 
 		lookup[reqName] = envName
 	}
 
-	ssmc, err := ssmClient()
-	if err != nil {
-		return nil, err
-	}
-
+	ssmc := ssm.NewFromConfig(cfg)
 	resp, err := ssmc.GetParameters(ctx, &ssm.GetParametersInput{
 		Names:          reqNames,
 		WithDecryption: aws.Bool(true),
@@ -158,23 +200,4 @@ func loadSsmParams(ctx context.Context, envNames ...string) (map[string]string, 
 	}
 
 	return result, nil
-}
-
-func database() (*db.Database, error) {
-	parquetBucketName, err := parquetBucket()
-	if err != nil {
-		return nil, err
-	}
-
-	return db.NewDatabase(
-		"/opt/data/basedata.db",
-		"/opt/data/variants.parquet",
-		"/opt/data/report.parquet",
-		fmt.Sprintf("s3://%s/history", parquetBucketName),
-		fmt.Sprintf("s3://%s/latest", parquetBucketName),
-	), nil
-}
-
-func versionTxtPath() string {
-	return "/opt/data/version.txt"
 }

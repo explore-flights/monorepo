@@ -1,6 +1,6 @@
 //go:build !lambda
 
-package main
+package config
 
 import (
 	"cmp"
@@ -19,11 +19,15 @@ import (
 	"time"
 )
 
-func echoPort() int {
+var Config = accessor{}
+
+type accessor struct{}
+
+func (accessor) EchoPort() int {
 	return 8080
 }
 
-func s3Client(ctx context.Context) (*local.S3Client, error) {
+func (accessor) S3Client(ctx context.Context) (S3Client, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
@@ -32,15 +36,20 @@ func s3Client(ctx context.Context) (*local.S3Client, error) {
 	return local.NewS3Client(filepath.Join(home, "Downloads", "local_s3")), nil
 }
 
-func dataBucket() (string, error) {
+func (accessor) DataBucket() (string, error) {
 	return cmp.Or(os.Getenv("FLIGHTS_DATA_BUCKET"), "flights_data_bucket"), nil
 }
 
-func parquetBucket() (string, error) {
+func (accessor) ParquetBucket() (string, error) {
 	return cmp.Or(os.Getenv("FLIGHTS_PARQUET_BUCKET"), "flights_parquet_bucket"), nil
 }
 
-func authorizationHandler(ctx context.Context, s3c auth.MinimalS3Client) (*web.AuthorizationHandler, error) {
+func (a accessor) AuthorizationHandler(ctx context.Context) (*web.AuthorizationHandler, error) {
+	s3c, err := a.S3Client(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	kid, err := uuid.NewV4()
 	if err != nil {
 		return nil, err
@@ -59,7 +68,7 @@ func authorizationHandler(ctx context.Context, s3c auth.MinimalS3Client) (*web.A
 	)
 }
 
-func lufthansaClient() (*lufthansa.Client, error) {
+func (accessor) LufthansaClient() (*lufthansa.Client, error) {
 	return lufthansa.NewClient(
 		os.Getenv("FLIGHTS_LUFTHANSA_CLIENT_ID"),
 		os.Getenv("FLIGHTS_LUFTHANSA_CLIENT_SECRET"),
@@ -67,18 +76,18 @@ func lufthansaClient() (*lufthansa.Client, error) {
 	), nil
 }
 
-func database() (*db.Database, error) {
+func (a accessor) Database() (*db.Database, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
 
-	dataBucketFolder, err := dataBucket()
+	dataBucketFolder, err := a.DataBucket()
 	if err != nil {
 		return nil, err
 	}
 
-	parquetBucketFolder, err := parquetBucket()
+	parquetBucketFolder, err := a.ParquetBucket()
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +102,7 @@ func database() (*db.Database, error) {
 	), nil
 }
 
-func versionTxtPath() string {
+func (accessor) VersionTxtPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		panic(err)
