@@ -595,8 +595,26 @@ INSERT OR IGNORE INTO flight_numbers
 SELECT DISTINCT airlineId, flightNumber, suffix
 FROM lh_all_flights_with_ids ;
 
--- create codeshares
-CREATE TABLE lh_operating_codeshares AS
+-- create codeshares table
+CREATE TABLE lh_operating_codeshares (
+    operatingAirlineId UUID NOT NULL,
+    operatingFlightNumber USMALLINT NOT NULL,
+    operatingSuffix TEXT NOT NULL,
+    departureAirportId UUID NOT NULL,
+    departureDateLocal DATE NOT NULL,
+    codeShares STRUCT(airline_id UUID, number USMALLINT, suffix TEXT)[] NOT NULL,
+    CHECK ( TO_JSON(codeShares) = TO_JSON(LIST_SORT(LIST_DISTINCT(codeShares))) )
+) ;
+
+-- insert codeshares
+INSERT INTO lh_operating_codeshares (
+    operatingAirlineId,
+    operatingFlightNumber,
+    operatingSuffix,
+    departureAirportId,
+    departureDateLocal,
+    codeShares
+)
 SELECT
     operatingAirlineId,
     operatingFlightNumber,
@@ -607,12 +625,12 @@ SELECT
         LIST_DISTINCT(
             COALESCE(
                 ARRAY_AGG({
-                    'airline_id': airlineId,
-                    'number': flightNumber,
-                    'suffix': suffix
+                    'airline_id': CAST(airlineId AS UUID),
+                    'number': CAST(flightNumber AS USMALLINT),
+                    'suffix': CAST(suffix AS TEXT)
                 }) FILTER (
                     airlineId IS NOT NULL
-                    AND NOT ( airlineId = operatingAirlineId AND flightNumber = operatingFlightNumber AND suffix = operatingSuffix )
+                    AND ( airlineId != operatingAirlineId OR flightNumber != operatingFlightNumber OR suffix != operatingSuffix )
                 ),
                 []
             )
@@ -626,6 +644,17 @@ GROUP BY
     departureAirportId,
     departureDateLocal
 ;
+
+-- harden codeshares, for some reason the filter doesnt work on all platforms(?)
+UPDATE lh_operating_codeshares
+SET codeShares = LIST_SORT(LIST_DISTINCT(LIST_FILTER(
+    codeShares,
+    lambda cs: ( cs.airline_id != operatingAirlineId OR cs.number != operatingFlightNumber OR cs.suffix != operatingSuffix )
+)))
+WHERE LENGTH(LIST_FILTER(
+    codeShares,
+    lambda cs: ( cs.airline_id = operatingAirlineId AND cs.number = operatingFlightNumber AND cs.suffix = operatingSuffix )
+)) > 0 ;
 
 -- insert new flight variants
 INSERT INTO flight_variants (
