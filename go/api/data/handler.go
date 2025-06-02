@@ -3,7 +3,6 @@ package data
 import (
 	"compress/gzip"
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,42 +14,15 @@ import (
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	jsoniter "github.com/json-iterator/go"
-	"io"
 	"iter"
 	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
 	"sync/atomic"
-	"time"
 )
 
 var ErrSeatMapFreshFetchRequired = errors.New("fresh fetch required but not allowed")
-
-type AirportsResponse struct {
-	Airports          []Airport          `json:"airports"`
-	MetropolitanAreas []MetropolitanArea `json:"metropolitanAreas"`
-}
-
-type MetropolitanArea struct {
-	Code     string    `json:"code"`
-	Name     string    `json:"name"`
-	Airports []Airport `json:"airports"`
-}
-
-type Airport struct {
-	Code string  `json:"code"`
-	Name string  `json:"name"`
-	Lat  float64 `json:"lat"`
-	Lng  float64 `json:"lng"`
-}
-
-type Aircraft struct {
-	Code           string             `json:"code"`
-	EquipCode      string             `json:"equipCode"`
-	Name           string             `json:"name"`
-	Configurations common.Set[string] `json:"configurations"`
-}
 
 type MinimalS3Client interface {
 	adapt.S3Getter
@@ -89,30 +61,6 @@ func (h *Handler) FlightSchedule(ctx context.Context, fn common.FlightNumber) (*
 	})
 
 	return fs, err
-}
-
-func (h *Handler) Flight(ctx context.Context, fn common.FlightNumber, departureDateUTC xtime.LocalDate, departureAirport string, allowCodeShare bool) (*common.Flight, time.Time, error) {
-	var flights []*common.Flight
-	lastModified, err := adapt.S3GetJsonWithLastModified(ctx, h.s3c, h.bucket, "processed/flights/"+departureDateUTC.Time(nil).Format("2006/01/02")+".json", &flights)
-	if err != nil {
-		if adapt.IsS3NotFound(err) {
-			return nil, lastModified, nil
-		} else {
-			return nil, lastModified, err
-		}
-	}
-
-	for _, f := range flights {
-		if f.DepartureAirport == departureAirport {
-			if f.Number() == fn {
-				return f, lastModified, nil
-			} else if _, ok := f.CodeShares[fn]; allowCodeShare && ok {
-				return f, lastModified, nil
-			}
-		}
-	}
-
-	return nil, lastModified, nil
 }
 
 func (h *Handler) Airlines(ctx context.Context, prefix string) ([]common.AirlineIdentifier, error) {
@@ -246,73 +194,6 @@ func (h *Handler) flightSchedulesStream(ctx context.Context, airline common.Airl
 	})
 
 	return errors.Join(err, it.Error)
-}
-
-func (h *Handler) readCSV(ctx context.Context, name string, outErr *error) iter.Seq[map[string]string] {
-	return func(yield func(map[string]string) bool) {
-		resp, err := h.s3c.GetObject(ctx, &s3.GetObjectInput{
-			Bucket: aws.String(h.bucket),
-			Key:    aws.String("raw/ourairports_data/" + name + ".csv"),
-		})
-
-		if err != nil {
-			*outErr = err
-			return
-		}
-
-		defer resp.Body.Close()
-
-		r := csv.NewReader(resp.Body)
-
-		row, err := r.Read()
-		if err != nil {
-			*outErr = err
-			return
-		}
-
-		headers := make(map[string]int)
-		for i, v := range row {
-			headers[v] = i
-		}
-
-		for {
-			row, err = r.Read()
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					return
-				}
-
-				*outErr = err
-				return
-			}
-
-			values := make(map[string]string)
-			for name, i := range headers {
-				values[name] = row[i]
-			}
-
-			if !yield(values) {
-				return
-			}
-		}
-	}
-}
-
-func findName(names lufthansa.Names, lang string) string {
-	if len(names.Name) < 1 {
-		return ""
-	}
-
-	r := names.Name[0].Name
-	for _, n := range names.Name {
-		if n.LanguageCode == lang {
-			return n.Name
-		} else if n.LanguageCode == "EN" {
-			r = n.Name
-		}
-	}
-
-	return r
 }
 
 type onceIter[T any] struct {
