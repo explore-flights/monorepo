@@ -1,11 +1,11 @@
-package search
+package connections
 
 import (
 	"github.com/gofrs/uuid/v5"
 	"slices"
 )
 
-type ConnectionSearchOption interface {
+type SearchOption interface {
 	Apply(f *Options)
 }
 

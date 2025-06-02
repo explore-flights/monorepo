@@ -1,4 +1,4 @@
-package search
+package connections
 
 import (
 	"github.com/explore-flights/monorepo/go/api/db"

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/explore-flights/monorepo/go/api/connections"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/explore-flights/monorepo/go/api/seatmap"
 	"github.com/explore-flights/monorepo/go/api/web"
 	lwamw "github.com/its-felix/aws-lwa-go-middleware"
@@ -58,7 +58,7 @@ func main() {
 		*db.ReportRepo
 	}{fr, rr}
 
-	connHandler := search.NewConnectionsHandler(fr)
+	connSearch := connections.NewSearch(repo)
 	dataHandler := data.NewHandler(s3c, lhc, database, bucket)
 
 	e := echo.New()
@@ -75,7 +75,7 @@ func main() {
 	{
 		group := e.Group("/api")
 
-		connWebHandler := web.NewConnectionsHandler(fr, connHandler)
+		connWebHandler := web.NewConnectionsHandler(repo, connSearch)
 		group.POST("/connections/json", connWebHandler.ConnectionsJSON)
 		group.GET("/connections/json/:payload", connWebHandler.ConnectionsJSON)
 		group.POST("/connections/png", connWebHandler.ConnectionsPNG)
@@ -83,7 +83,7 @@ func main() {
 		group.POST("/connections/share", connWebHandler.ConnectionsShareCreate)
 		group.GET("/connections/share/:payload", connWebHandler.ConnectionsShareHTML)
 
-		searchHandler := web.NewSearchHandler(fr)
+		searchHandler := web.NewSearchHandler(repo)
 		group.GET("/search", searchHandler.Search)
 
 		group.GET("/schedule/search", web.NewQueryFlightSchedulesEndpoint(fr, dataHandler))

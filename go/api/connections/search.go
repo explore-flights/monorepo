@@ -1,4 +1,4 @@
-package search
+package connections
 
 import (
 	"context"
@@ -74,7 +74,7 @@ func (pctx *predicateContext) globMatch(v, pattern string) bool {
 
 type flightPredicate func(pctx *predicateContext, f *Flight) bool
 
-type connectionsHandlerRepo interface {
+type searchRepo interface {
 	Flights(ctx context.Context, start, end xtime.LocalDate) (map[xtime.LocalDate][]db.Flight, error)
 	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
 	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
@@ -92,15 +92,15 @@ type Connection struct {
 	Outgoing []Connection
 }
 
-type ConnectionsHandler struct {
-	fr connectionsHandlerRepo
+type Search struct {
+	repo searchRepo
 }
 
-func NewConnectionsHandler(fr connectionsHandlerRepo) *ConnectionsHandler {
-	return &ConnectionsHandler{fr}
+func NewSearch(repo searchRepo) *Search {
+	return &Search{repo}
 }
 
-func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, destinations []uuid.UUID, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, options ...ConnectionSearchOption) ([]Connection, error) {
+func (ch *Search) FindConnections(ctx context.Context, origins, destinations []uuid.UUID, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, options ...SearchOption) ([]Connection, error) {
 	var f Options
 	for _, opt := range options {
 		opt.Apply(&f)
@@ -120,25 +120,25 @@ func (ch *ConnectionsHandler) FindConnections(ctx context.Context, origins, dest
 		g, ctx := errgroup.WithContext(ctx)
 		g.Go(func() error {
 			var err error
-			flightsByDate, err = ch.fr.Flights(ctx, minDate, maxDate)
+			flightsByDate, err = ch.repo.Flights(ctx, minDate, maxDate)
 			return err
 		})
 
 		g.Go(func() error {
 			var err error
-			airlines, err = ch.fr.Airlines(ctx)
+			airlines, err = ch.repo.Airlines(ctx)
 			return err
 		})
 
 		g.Go(func() error {
 			var err error
-			airports, err = ch.fr.Airports(ctx)
+			airports, err = ch.repo.Airports(ctx)
 			return err
 		})
 
 		g.Go(func() error {
 			var err error
-			aircraft, err = ch.fr.Aircraft(ctx)
+			aircraft, err = ch.repo.Aircraft(ctx)
 			return err
 		})
 

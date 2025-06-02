@@ -8,9 +8,9 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/explore-flights/monorepo/go/api/connections"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/pb"
-	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/goccy/go-graphviz"
@@ -38,14 +38,14 @@ type connectionsHandlerFlightRepo interface {
 }
 
 type ConnectionsHandler struct {
-	repo connectionsHandlerFlightRepo
-	ch   *search.ConnectionsHandler
+	repo   connectionsHandlerFlightRepo
+	search *connections.Search
 }
 
-func NewConnectionsHandler(repo connectionsHandlerFlightRepo, ch *search.ConnectionsHandler) *ConnectionsHandler {
+func NewConnectionsHandler(repo connectionsHandlerFlightRepo, search *connections.Search) *ConnectionsHandler {
 	return &ConnectionsHandler{
-		repo: repo,
-		ch:   ch,
+		repo:   repo,
+		search: search,
 	}
 }
 
@@ -73,16 +73,16 @@ func (ch *ConnectionsHandler) connections(c echo.Context, export string) error {
 	maxLayover := time.Duration(req.MaxLayoverMS) * time.Millisecond
 	maxDuration := time.Duration(req.MaxDurationMS) * time.Millisecond
 
-	options := make([]search.ConnectionSearchOption, 0)
-	options = append(options, search.WithCountMultiLeg(req.CountMultiLeg))
-	options = appendStringOptions[search.WithIncludeAirport, search.WithIncludeAirportGlob](options, req.IncludeAirport)
-	options = appendSliceOptions[search.WithExcludeAirport, search.WithExcludeAirportGlob](options, req.ExcludeAirport)
-	options = appendRegularStringOptions[search.WithIncludeFlightNumber, search.WithIncludeFlightNumberGlob](options, req.IncludeFlightNumber)
-	options = appendRegularSliceOptions[search.WithExcludeFlightNumber, search.WithExcludeFlightNumberGlob](options, req.ExcludeFlightNumber)
-	options = appendStringOptions[search.WithIncludeAircraft, search.WithIncludeAircraftGlob](options, req.IncludeAircraft)
-	options = appendSliceOptions[search.WithExcludeAircraft, search.WithExcludeAircraftGlob](options, req.ExcludeAircraft)
+	options := make([]connections.SearchOption, 0)
+	options = append(options, connections.WithCountMultiLeg(req.CountMultiLeg))
+	options = appendStringOptions[connections.WithIncludeAirport, connections.WithIncludeAirportGlob](options, req.IncludeAirport)
+	options = appendSliceOptions[connections.WithExcludeAirport, connections.WithExcludeAirportGlob](options, req.ExcludeAirport)
+	options = appendRegularStringOptions[connections.WithIncludeFlightNumber, connections.WithIncludeFlightNumberGlob](options, req.IncludeFlightNumber)
+	options = appendRegularSliceOptions[connections.WithExcludeFlightNumber, connections.WithExcludeFlightNumberGlob](options, req.ExcludeFlightNumber)
+	options = appendStringOptions[connections.WithIncludeAircraft, connections.WithIncludeAircraftGlob](options, req.IncludeAircraft)
+	options = appendSliceOptions[connections.WithExcludeAircraft, connections.WithExcludeAircraftGlob](options, req.ExcludeAircraft)
 
-	conns, err := ch.ch.FindConnections(
+	conns, err := ch.search.FindConnections(
 		ctx,
 		ch.mapAirports(req.Origins),
 		ch.mapAirports(req.Destinations),
@@ -288,12 +288,12 @@ func (ch *ConnectionsHandler) parseRequest(c echo.Context, airports map[uuid.UUI
 	return req, nil
 }
 
-func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns []search.Connection, airports map[uuid.UUID]db.Airport) (model.ConnectionsResponse, error) {
+func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns []connections.Connection, airports map[uuid.UUID]db.Airport) (model.ConnectionsResponse, error) {
 	flights := make(map[model.UUID]model.ConnectionFlightResponse)
 	referencedAirlines := make(common.Set[uuid.UUID])
 	referencedAirports := make(common.Set[uuid.UUID])
 	referencedAircraft := make(common.Set[uuid.UUID])
-	connections, err := ch.buildConnectionsResponse(conns, flights, make(map[*search.Flight]model.UUID), referencedAirlines, referencedAirports, referencedAircraft)
+	connections, err := ch.buildConnectionsResponse(conns, flights, make(map[*connections.Flight]model.UUID), referencedAirlines, referencedAirports, referencedAircraft)
 	if err != nil {
 		return model.ConnectionsResponse{}, err
 	}
@@ -331,7 +331,7 @@ func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns [
 	return r, nil
 }
 
-func (ch *ConnectionsHandler) buildConnectionsResponse(conns []search.Connection, flights map[model.UUID]model.ConnectionFlightResponse, uuidByFlight map[*search.Flight]model.UUID, referencedAirlines, referencedAirports, referencedAircraft common.Set[uuid.UUID]) ([]model.ConnectionResponse, error) {
+func (ch *ConnectionsHandler) buildConnectionsResponse(conns []connections.Connection, flights map[model.UUID]model.ConnectionFlightResponse, uuidByFlight map[*connections.Flight]model.UUID, referencedAirlines, referencedAirports, referencedAircraft common.Set[uuid.UUID]) ([]model.ConnectionResponse, error) {
 	r := make([]model.ConnectionResponse, 0, len(conns))
 
 	for _, conn := range conns {
@@ -397,7 +397,7 @@ func (ch *ConnectionsHandler) convertCodeShares(inp common.Set[db.FlightNumber],
 	return r
 }
 
-func (ch *ConnectionsHandler) exportConnectionsImage(ctx context.Context, airports map[uuid.UUID]db.Airport, conns []search.Connection, w io.Writer) error {
+func (ch *ConnectionsHandler) exportConnectionsImage(ctx context.Context, airports map[uuid.UUID]db.Airport, conns []connections.Connection, w io.Writer) error {
 	airlines, err := ch.repo.Airlines(ctx)
 	if err != nil {
 		return err
@@ -421,14 +421,14 @@ func (ch *ConnectionsHandler) exportConnectionsImage(ctx context.Context, airpor
 	}
 
 	var nodeId, edgeId graphviz.ID
-	if err = ch.buildGraph(nil, airlines, airports, aircraft, conns, graph, make(map[*search.Flight]*cgraph.Node), &nodeId, &edgeId); err != nil {
+	if err = ch.buildGraph(nil, airlines, airports, aircraft, conns, graph, make(map[*connections.Flight]*cgraph.Node), &nodeId, &edgeId); err != nil {
 		return err
 	}
 
 	return g.Render(ctx, graph, graphviz.PNG, w)
 }
 
-func (ch *ConnectionsHandler) buildGraph(parent *search.Flight, airlines map[uuid.UUID]db.Airline, airports map[uuid.UUID]db.Airport, aircraft map[uuid.UUID]db.Aircraft, conns []search.Connection, graph *cgraph.Graph, lookup map[*search.Flight]*cgraph.Node, nodeId *graphviz.ID, edgeId *graphviz.ID) error {
+func (ch *ConnectionsHandler) buildGraph(parent *connections.Flight, airlines map[uuid.UUID]db.Airline, airports map[uuid.UUID]db.Airport, aircraft map[uuid.UUID]db.Aircraft, conns []connections.Connection, graph *cgraph.Graph, lookup map[*connections.Flight]*cgraph.Node, nodeId *graphviz.ID, edgeId *graphviz.ID) error {
 	var err error
 	for _, conn := range conns {
 		airline, ok := airlines[conn.Flight.AirlineId]
@@ -483,7 +483,7 @@ func (ch *ConnectionsHandler) buildGraph(parent *search.Flight, airlines map[uui
 	return nil
 }
 
-func (ch *ConnectionsHandler) buildNodeLabel(f *search.Flight, airline db.Airline, departureAirport, arrivalAirport db.Airport, aircraft db.Aircraft) string {
+func (ch *ConnectionsHandler) buildNodeLabel(f *connections.Flight, airline db.Airline, departureAirport, arrivalAirport db.Airport, aircraft db.Aircraft) string {
 	var fnStr string
 	{
 		var fnPrefix string
@@ -597,15 +597,15 @@ func (ch *ConnectionsHandler) validateRequest(req model.ConnectionsSearchRequest
 
 type uuidSliceRestr interface {
 	~[]uuid.UUID
-	search.ConnectionSearchOption
+	connections.SearchOption
 }
 
 type stringSliceRestr interface {
 	~[]string
-	search.ConnectionSearchOption
+	connections.SearchOption
 }
 
-func appendSliceOptions[Reg uuidSliceRestr, Glob stringSliceRestr](options []search.ConnectionSearchOption, values []string) []search.ConnectionSearchOption {
+func appendSliceOptions[Reg uuidSliceRestr, Glob stringSliceRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
 	unique := make(map[string]struct{})
 	regular := make(Reg, 0)
 	glob := make(Glob, 0)
@@ -638,7 +638,7 @@ func appendSliceOptions[Reg uuidSliceRestr, Glob stringSliceRestr](options []sea
 	return options
 }
 
-func appendRegularSliceOptions[Reg stringSliceRestr, Glob stringSliceRestr](options []search.ConnectionSearchOption, values []string) []search.ConnectionSearchOption {
+func appendRegularSliceOptions[Reg stringSliceRestr, Glob stringSliceRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
 	unique := make(map[string]struct{})
 	regular := make(Reg, 0)
 	glob := make(Glob, 0)
@@ -670,15 +670,15 @@ func appendRegularSliceOptions[Reg stringSliceRestr, Glob stringSliceRestr](opti
 
 type uuidRestr interface {
 	~[16]byte
-	search.ConnectionSearchOption
+	connections.SearchOption
 }
 
 type stringRestr interface {
 	~string
-	search.ConnectionSearchOption
+	connections.SearchOption
 }
 
-func appendStringOptions[Reg uuidRestr, Glob stringRestr](options []search.ConnectionSearchOption, values []string) []search.ConnectionSearchOption {
+func appendStringOptions[Reg uuidRestr, Glob stringRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
 	unique := make(map[string]struct{})
 
 	for _, v := range values {
@@ -701,7 +701,7 @@ func appendStringOptions[Reg uuidRestr, Glob stringRestr](options []search.Conne
 	return options
 }
 
-func appendRegularStringOptions[Reg stringRestr, Glob stringRestr](options []search.ConnectionSearchOption, values []string) []search.ConnectionSearchOption {
+func appendRegularStringOptions[Reg stringRestr, Glob stringRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
 	unique := make(map[string]struct{})
 
 	for _, v := range values {
