@@ -8,7 +8,6 @@ import (
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/search"
 	"github.com/explore-flights/monorepo/go/api/web"
-	"github.com/gorilla/feeds"
 	lwamw "github.com/its-felix/aws-lwa-go-middleware"
 	"github.com/labstack/echo/v4"
 	"log"
@@ -117,8 +116,6 @@ func main() {
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal/feed.atom", dh.FlightScheduleVersionsAtomFeed)
 		group.GET("/flight/:fn/seatmap/:departure/:arrival/:date/:aircraft", web.NewSeatMapEndpoint(dataHandler))
 		group.GET("/:airline/schedule/:aircraftType/:aircraftConfigurationVersion/v3", web.NewFlightSchedulesByConfigurationEndpoint(dataHandler))
-		group.GET("/:fn/:departureDate/:departureAirport/feed.rss", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/rss+xml", (*feeds.Feed).WriteRss))
-		group.GET("/:fn/:departureDate/:departureAirport/feed.atom", web.NewFlightUpdateFeedEndpoint(dataHandler, "application/atom+xml", (*feeds.Feed).WriteAtom))
 		group.GET("/allegris/feed.rss", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".rss"))
 		group.GET("/allegris/feed.atom", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".atom"))
 		// group.GET("/allegris/v2/feed.rss", web.NewAllegrisUpdateFeedEndpointV2(database, ".rss"))
