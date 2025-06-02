@@ -42,7 +42,7 @@ import { aircraftConfigurationVersionToName } from '../lib/consts';
 import { AircraftConfigurationVersionText, AirportText } from '../components/common/text';
 import { airportToString, flightNumberToString } from '../lib/util/flight';
 import { LineSeriesBuilder, PieChartDataBuilder } from '../lib/charts/builder';
-import { RouterInlineLink, RouterLink } from '../components/common/router-link';
+import { RouterInlineLink } from '../components/common/router-link';
 
 export function FlightView() {
   const { id } = useParams();
@@ -786,7 +786,7 @@ function SeatMapModal({ flight, onDismiss }: { flight?: ScheduledFlight, onDismi
     <Modal
       onDismiss={onDismiss}
       visible={!!flight}
-      header={flight ? `Seatmap ${flight.operatedAs}, ${flight.departureTime.toISODate()} (${flight.aircraftConfigurationVersion})` : 'Seatmap'}
+      header={flight ? `Seatmap ${flightNumberToString(flight.operatedAs[1], flight.operatedAs[0])}, ${flight.departureTime.toISODate()} (${flight.aircraftConfigurationVersion})` : 'Seatmap'}
       size={'large'}
     >
       {flight && <SeatMapModalContent flight={flight} />}
@@ -802,10 +802,7 @@ function SeatMapModalContent({ flight }: { flight: ScheduledFlight }) {
   const seatMapQuery = useSeatMap(
     flightNumberToString(flight.operatedAs[1], flight.operatedAs[0]),
     flight.departureAirport.iataCode,
-    flight.arrivalAirport.iataCode,
     flight.departureTime,
-    flight.aircraft.iataCode,
-    flight.aircraftConfigurationVersion,
   );
 
   if (seatMapQuery.isLoading || seatMapQuery.isPending) {

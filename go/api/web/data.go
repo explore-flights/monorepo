@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/db"
+	"github.com/explore-flights/monorepo/go/api/seatmap"
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
-	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/gofrs/uuid/v5"
 	"github.com/gorilla/feeds"
@@ -37,14 +37,14 @@ type dataHandlerRepo interface {
 }
 
 type DataHandler struct {
-	repo dataHandlerRepo
-	dh   *data.Handler
+	repo     dataHandlerRepo
+	smSearch *seatmap.Search
 }
 
-func NewDataHandler(repo dataHandlerRepo, dh *data.Handler) *DataHandler {
+func NewDataHandler(repo dataHandlerRepo, smSearch *seatmap.Search) *DataHandler {
 	return &DataHandler{
-		repo: repo,
-		dh:   dh,
+		repo:     repo,
+		smSearch: smSearch,
 	}
 }
 
@@ -221,6 +221,40 @@ func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
 
 	addExpirationHeaders(c, time.Now(), time.Hour)
 	return c.JSON(http.StatusOK, fs)
+}
+
+func (dh *DataHandler) SeatMap(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	fnRaw := c.Param("fn")
+	departureAirportRaw := strings.ToUpper(c.Param("departureAirport"))
+	departureDateLocalRaw := c.Param("departureDateLocal")
+
+	fn, err := dh.parseFlightNumber(ctx, fnRaw)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err))
+	}
+
+	departureAirportId, err := dh.parseAirport(ctx, departureAirportRaw)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err))
+	}
+
+	var departureDateLocal xtime.LocalDate
+	if departureDateLocal, err = xtime.ParseLocalDate(departureDateLocalRaw); err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err))
+	}
+
+	sm, err := dh.smSearch.SeatMap(ctx, fn, departureAirportId, departureDateLocal)
+	if err != nil {
+		if errors.Is(err, seatmap.ErrNotFound) {
+			return NewHTTPError(http.StatusNotFound, WithCause(err))
+		}
+
+		return err
+	}
+
+	return c.JSON(http.StatusOK, sm)
 }
 
 func (dh *DataHandler) FlightScheduleVersionsRSSFeed(c echo.Context) error {
@@ -662,90 +696,6 @@ func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.Fl
 
 func (dh *DataHandler) parseAirport(ctx context.Context, raw string) (uuid.UUID, error) {
 	return util{}.parseAirport(ctx, raw, dh.repo.Airports)
-}
-
-func NewSeatMapEndpoint(dh *data.Handler) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		fnRaw := c.Param("fn")
-		departureAirport := strings.ToUpper(c.Param("departure"))
-		arrivalAirport := strings.ToUpper(c.Param("arrival"))
-		departureDateRaw := c.Param("date")
-		aircraftType, aircraftConfigurationVersion, ok := strings.Cut(c.Param("aircraft"), "-")
-
-		if !ok {
-			return NewHTTPError(http.StatusBadRequest)
-		}
-
-		fn, err := common.ParseFlightNumber(fnRaw)
-		if err != nil {
-			return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
-		}
-
-		if len(departureAirport) != 3 || len(arrivalAirport) != 3 {
-			return NewHTTPError(http.StatusBadRequest)
-		}
-
-		departureDate, err := xtime.ParseLocalDate(departureDateRaw)
-		if err != nil {
-			return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
-		}
-
-		fs, err := dh.FlightSchedule(c.Request().Context(), fn)
-		if err != nil {
-			return err
-		} else if fs == nil {
-			return NewHTTPError(http.StatusNotFound)
-		}
-
-		fsd, ok := fs.Find(departureDate, departureAirport, arrivalAirport)
-		if !ok {
-			return NewHTTPError(http.StatusNotFound)
-		}
-
-		if fsd.Data.AircraftType != aircraftType || fsd.Data.AircraftConfigurationVersion != aircraftConfigurationVersion {
-			return NewHTTPError(http.StatusNotFound)
-		}
-
-		allowFetchFresh := fsd.DepartureTime(departureDate).After(time.Now().Add(-time.Hour * 3))
-		cabinClasses := []lufthansa.RequestCabinClass{
-			lufthansa.RequestCabinClassEco,
-			lufthansa.RequestCabinClassPremiumEco,
-			lufthansa.RequestCabinClassBusiness,
-			lufthansa.RequestCabinClassFirst,
-		}
-		rawSeatMaps := make(map[lufthansa.RequestCabinClass]lufthansa.SeatAvailability)
-
-		for _, cabinClass := range cabinClasses {
-			sm, err := dh.SeatMap(
-				c.Request().Context(),
-				fn,
-				departureAirport,
-				arrivalAirport,
-				departureDate,
-				cabinClass,
-				aircraftType,
-				aircraftConfigurationVersion,
-				allowFetchFresh,
-			)
-
-			if err != nil {
-				if errors.Is(err, data.ErrSeatMapFreshFetchRequired) {
-					return NewHTTPError(http.StatusBadRequest, WithMessage("Seatmaps can only be requested until 3 hours prior to departure"), WithCause(err))
-				} else {
-					return err
-				}
-			}
-
-			if sm != nil {
-				rawSeatMaps[cabinClass] = *sm
-			}
-		}
-
-		sm := normalizeSeatMaps(rawSeatMaps)
-
-		addExpirationHeaders(c, time.Now(), time.Hour*24*3)
-		return c.JSON(http.StatusOK, sm)
-	}
 }
 
 func NewFlightSchedulesByConfigurationEndpoint(dh *data.Handler) echo.HandlerFunc {

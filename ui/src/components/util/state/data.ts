@@ -193,18 +193,12 @@ export function useFlightScheduleVersions(flightNumber: string, departureAirport
   });
 }
 
-export function useSeatMap(flightNumber: string,
-                           departureAirport: string,
-                           arrivalAirport: string,
-                           departureTime: DateTime<true>,
-                           aircraftType: string,
-                           aircraftConfigurationVersion: string) {
-
+export function useSeatMap(flightNumber: string, departureAirport: string, departureTime: DateTime<true>) {
   const { apiClient } = useHttpClient();
   return useQuery({
-    queryKey: ['seatmap', flightNumber, departureAirport, arrivalAirport, departureTime, aircraftType, aircraftConfigurationVersion],
+    queryKey: ['seatmap', flightNumber, departureAirport, departureTime],
     queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getSeatMap(flightNumber, departureAirport, arrivalAirport, departureTime, aircraftType, aircraftConfigurationVersion));
+      const { body } = expectSuccess(await apiClient.getSeatMap(flightNumber, departureAirport, departureTime));
       return body;
     },
     retry: (count, e) => {

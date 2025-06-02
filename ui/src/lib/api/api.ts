@@ -117,21 +117,13 @@ export class ApiClient {
     ));
   }
 
-  getSeatMap(flightNumber: string,
-             departureAirport: string,
-             arrivalAirport: string,
-             departureTime: DateTime<true>,
-             aircraftType: string,
-             aircraftConfigurationVersion: string): Promise<ApiResponse<SeatMap>> {
-
+  getSeatMap(flightNumber: string, departureAirport: string, departureTime: DateTime<true>): Promise<ApiResponse<SeatMap>> {
     const url = [
       '/data/flight',
       encodeURIComponent(flightNumber),
       'seatmap',
       encodeURIComponent(departureAirport),
-      encodeURIComponent(arrivalAirport),
       encodeURIComponent(departureTime.toISODate()),
-      encodeURIComponent(`${aircraftType}-${aircraftConfigurationVersion}`),
     ].join('/');
 
     return transform(this.httpClient.fetch(url));
