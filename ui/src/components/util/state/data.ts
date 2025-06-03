@@ -9,7 +9,7 @@ import {
   AirlineId,
   Airport,
   AirportId,
-  QuerySchedulesRequest,
+  QuerySchedulesRequest, QuerySchedulesResponseV2,
   SearchResponse
 } from '../../../lib/api/api.model';
 
@@ -213,12 +213,12 @@ export function useSeatMap(flightNumber: string, departureAirport: string, depar
   });
 }
 
-export function useFlightSchedulesByConfiguration(airline: string, aircraftType: string, aircraftConfigurationVersion: string) {
+export function useAllegrisSchedules() {
   const { apiClient } = useHttpClient();
   return useQuery({
-    queryKey: ['flight_schedules_by_configuration', airline, aircraftType, aircraftConfigurationVersion],
+    queryKey: ['schedule', 'allegris'],
     queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getFlightSchedulesByConfiguration(airline, aircraftType, aircraftConfigurationVersion));
+      const { body } = expectSuccess(await apiClient.getAllegrisSchedules());
       return body;
     },
     retry: (count, e) => {
@@ -239,7 +239,13 @@ export function useQueryFlightSchedules(req: QuerySchedulesRequest) {
     queryKey: ['query_flight_schedules', req],
     queryFn: async () => {
       if (Object.entries(req).length < 1) {
-        return {};
+        return {
+          schedules: [],
+          variants: {},
+          airlines: {},
+          airports: {},
+          aircraft: {},
+        } satisfies QuerySchedulesResponseV2;
       }
 
       const { body } = expectSuccess(await apiClient.queryFlightSchedules(req));

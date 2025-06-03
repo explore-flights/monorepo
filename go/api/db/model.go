@@ -92,6 +92,11 @@ type FlightSchedules struct {
 	Variants map[uuid.UUID]FlightScheduleVariant
 }
 
+type FlightSchedulesMany struct {
+	Schedules map[FlightNumber][]FlightScheduleItem
+	Variants  map[uuid.UUID]FlightScheduleVariant
+}
+
 type FlightScheduleItem struct {
 	DepartureDateLocal xtime.LocalDate
 	DepartureAirportId uuid.UUID

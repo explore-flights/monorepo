@@ -28,7 +28,7 @@ import {
   useSeatMap
 } from '../components/util/state/data';
 import { ErrorNotificationContent } from '../components/util/context/app-controls';
-import { Aircraft, Airline, Airport, AirportId, FlightNumber, FlightSchedules } from '../lib/api/api.model';
+import { Aircraft, AircraftId, Airline, Airport, AirportId, FlightNumber, FlightSchedules } from '../lib/api/api.model';
 import { DateTime, Duration, FixedOffsetZone, WeekdayNumbers } from 'luxon';
 import {
   PropertyFilterOperator,
@@ -1303,8 +1303,8 @@ export function withDepartureAirportFilter(q: URLSearchParams, airport: string):
   return q;
 }
 
-export function withAircraftTypeFilter(q: URLSearchParams, aircraftType: string): URLSearchParams {
-  q.append('aircraft_type', aircraftType);
+export function withAircraftIdFilter(q: URLSearchParams, aircraftId: AircraftId): URLSearchParams {
+  q.append('aircraft_id', aircraftId);
   return q;
 }
 

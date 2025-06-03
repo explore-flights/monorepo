@@ -13,8 +13,8 @@ import {
   AircraftId,
   AirlineId,
   AirportId,
-  QueryScheduleResponse,
-  QuerySchedulesRequest
+  QuerySchedulesRequest,
+  QuerySchedulesResponseV2,
 } from '../../lib/api/api.model';
 import {
   useAircrafts,
@@ -30,8 +30,9 @@ import { DateTime } from 'luxon';
 import { SchedulesTable, ScheduleTableItem } from '../../components/schedules/schedules-table';
 import {
   withAircraftConfigurationVersionFilter,
-  withAircraftTypeFilter,
-  withDepartureAirportFilter, withDepartureDateFilter
+  withAircraftIdFilter,
+  withDepartureAirportIdFilter,
+  withDepartureDateFilter,
 } from '../flight';
 
 export function FlightSearch() {
@@ -142,7 +143,7 @@ function SearchForm({ actions, disabled, request, onUpdate }: { actions: React.R
                 aircraftIds={request.aircraftId ?? []}
                 aircraftConfigurationVersions={request.aircraftConfigurationVersion ?? []}
                 aircraft={request.aircraft ?? []}
-                onAircraftIdsChange={(v) => onUpdate((prev) => ({ ...prev, aircraftType: v }))}
+                onAircraftIdsChange={(v) => onUpdate((prev) => ({ ...prev, aircraftId: v }))}
                 onAircraftConfigurationVersionChange={(v) => onUpdate((prev) => ({ ...prev, aircraftConfigurationVersion: v }))}
                 onAircraftChange={(v) => onUpdate((prev) => ({ ...prev, aircraft: v }))}
                 disabled={disabled}
@@ -466,7 +467,7 @@ function AircraftConfigurationSelect({ selectedAirlineIds, selectedAircraftId, s
   );
 }
 
-function ResultTable({ title, query }: { title: string, query: UseQueryResult<QueryScheduleResponse, Error> }) {
+function ResultTable({ title, query }: { title: string, query: UseQueryResult<QuerySchedulesResponseV2, Error> }) {
   const { notification } = useAppControls();
 
   useEffect(() => {
@@ -483,7 +484,7 @@ function ResultTable({ title, query }: { title: string, query: UseQueryResult<Qu
   return (
     <SchedulesTable
       title={title}
-      items={query.data ? Object.values(query.data) : []}
+      result={query.data}
       loading={query.isLoading}
       flightLinkQuery={useCallback((v: ScheduleTableItem) => {
         let query = new URLSearchParams();
@@ -499,26 +500,11 @@ function ResultTable({ title, query }: { title: string, query: UseQueryResult<Qu
           query = withDepartureDateFilter(query, maxDepartureDate, '<=');
         }
 
-        query = withDepartureAirportFilter(query, v.departureAirport.raw);
+        query = withDepartureAirportIdFilter(query, v.departureAirport.id);
 
         if (v.type === 'child') {
-          query = withAircraftTypeFilter(query, v.aircraft.raw);
+          query = withAircraftIdFilter(query, v.aircraft.id);
           query = withAircraftConfigurationVersionFilter(query, v.aircraftConfigurationVersion);
-        } else {
-          const uniqueAircraft = new Map<string, {}>();
-          const uniqueConfiguration = new Map<string, {}>();
-
-          for (const child of v.children) {
-            if (!uniqueAircraft.has(child.aircraft.raw)) {
-              uniqueAircraft.set(child.aircraft.raw, {});
-              query = withAircraftTypeFilter(query, child.aircraft.raw);
-            }
-
-            if (!uniqueConfiguration.has(child.aircraftConfigurationVersion)) {
-              uniqueConfiguration.set(child.aircraftConfigurationVersion, {});
-              query = withAircraftConfigurationVersionFilter(query, child.aircraftConfigurationVersion);
-            }
-          }
         }
 
         return query;

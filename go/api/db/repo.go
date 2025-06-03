@@ -470,6 +470,93 @@ ORDER BY departure_date_local ASC
 	}, nil
 }
 
+func (fr *FlightRepo) FlightSchedulesLatestRaw(ctx context.Context, filter string, params []any) (FlightSchedulesMany, error) {
+	conn, err := fr.db.Conn(ctx)
+	if err != nil {
+		return FlightSchedulesMany{}, err
+	}
+	defer conn.Close()
+
+	result := make(map[FlightNumber][]FlightScheduleItem)
+	variantIds := make(common.Set[uuid.UUID])
+	err = func() error {
+		rows, err := conn.QueryContext(
+			ctx,
+			fmt.Sprintf(
+				`
+SELECT
+    fvh.airline_id,
+    fvh.number,
+    fvh.suffix,
+    fvh.departure_date_local,
+    fvh.departure_airport_id,
+    FIRST(fvh.flight_variant_id ORDER BY created_at DESC),
+    FIRST(fvh.created_at ORDER BY created_at DESC),
+FROM flight_variant_history fvh
+LEFT JOIN flight_variants fv
+ON fvh.flight_variant_id = fv.id
+WHERE fvh.replaced_at IS NULL AND ( %s )
+GROUP BY
+	fvh.airline_id,
+	fvh.number,
+	fvh.suffix,
+	fvh.departure_date_local,
+	fvh.departure_airport_id
+ORDER BY
+    fvh.airline_id ASC,
+	fvh.number ASC,
+	fvh.suffix ASC,
+	fvh.departure_date_local ASC
+`,
+				filter,
+			),
+			params...,
+		)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var fn FlightNumber
+			var fsi FlightScheduleItem
+			err = rows.Scan(
+				&fn.AirlineId,
+				&fn.Number,
+				&fn.Suffix,
+				&fsi.DepartureDateLocal,
+				&fsi.DepartureAirportId,
+				&fsi.FlightVariantId,
+				&fsi.Version,
+			)
+			if err != nil {
+				return err
+			}
+
+			result[fn] = append(result[fn], fsi)
+
+			if fsi.FlightVariantId.Valid {
+				variantIds.Add(fsi.FlightVariantId.V)
+			}
+		}
+
+		return rows.Err()
+	}()
+	if err != nil {
+		return FlightSchedulesMany{}, err
+	}
+
+	variants, err := fr.flightVariants(ctx, conn, variantIds)
+	if err != nil {
+		return FlightSchedulesMany{}, err
+	}
+
+	return FlightSchedulesMany{
+		Schedules: result,
+		Variants:  variants,
+	}, nil
+}
+
 func (fr *FlightRepo) FlightScheduleVersions(ctx context.Context, fn FlightNumber, departureAirport uuid.UUID, departureDate xtime.LocalDate) (FlightScheduleVersions, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {

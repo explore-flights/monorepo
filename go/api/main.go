@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/api/business/connections"
+	"github.com/explore-flights/monorepo/go/api/business/schedulesearch"
 	"github.com/explore-flights/monorepo/go/api/business/seatmap"
 	"github.com/explore-flights/monorepo/go/api/config"
-	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web"
 	lwamw "github.com/its-felix/aws-lwa-go-middleware"
@@ -60,7 +60,7 @@ func main() {
 	}{fr, rr}
 
 	connSearch := connections.NewSearch(repo)
-	dataHandler := data.NewHandler(s3c, lhc, database, bucket)
+	sshHandler := web.NewScheduleSearchHandler(repo, schedulesearch.NewSearch(repo))
 
 	e := echo.New()
 	e.Use(
@@ -87,7 +87,7 @@ func main() {
 		searchHandler := web.NewSearchHandler(repo)
 		group.GET("/search", searchHandler.Search)
 
-		group.GET("/schedule/search", web.NewQueryFlightSchedulesEndpoint(fr, dataHandler))
+		group.GET("/schedule/search", sshHandler.Query)
 
 		notificationHandler := web.NewNotificationHandler(config.Config.VersionTxtPath())
 		group.GET("/notifications", notificationHandler.Notifications)
@@ -117,7 +117,7 @@ func main() {
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal/feed.rss", dh.FlightScheduleVersionsRSSFeed)
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal/feed.atom", dh.FlightScheduleVersionsAtomFeed)
 		group.GET("/flight/:fn/seatmap/:departureAirport/:departureDateLocal", dh.SeatMap)
-		group.GET("/:airline/schedule/:aircraftType/:aircraftConfigurationVersion/v3", web.NewFlightSchedulesByConfigurationEndpoint(dataHandler))
+		group.GET("/schedule/allegris", sshHandler.Allegris)
 		group.GET("/allegris/feed.rss", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".rss"))
 		group.GET("/allegris/feed.atom", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".atom"))
 		// group.GET("/allegris/v2/feed.rss", web.NewAllegrisUpdateFeedEndpointV2(database, ".rss"))

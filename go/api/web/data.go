@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/api/business/seatmap"
-	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
@@ -163,20 +162,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 	referencedAirlines.Add(fn.AirlineId)
 
 	for _, item := range flightSchedules.Items {
-		var flightVariantId *model.UUID
-		if item.FlightVariantId.Valid {
-			id := model.UUID(item.FlightVariantId.V)
-			flightVariantId = &id
-		}
-
-		fs.Items = append(fs.Items, model.FlightScheduleItem{
-			DepartureDateLocal: item.DepartureDateLocal,
-			DepartureAirportId: model.UUID(item.DepartureAirportId),
-			FlightVariantId:    flightVariantId,
-			Version:            item.Version,
-			VersionCount:       item.VersionCount,
-		})
-
+		fs.Items = append(fs.Items, model.FlightScheduleItemFromDb(item))
 		referencedAirports.Add(item.DepartureAirportId)
 	}
 
@@ -696,29 +682,4 @@ func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.Fl
 
 func (dh *DataHandler) parseAirport(ctx context.Context, raw string) (uuid.UUID, error) {
 	return util{}.parseAirport(ctx, raw, dh.repo.Airports)
-}
-
-func NewFlightSchedulesByConfigurationEndpoint(dh *data.Handler) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		airline := strings.ToUpper(c.Param("airline"))
-		aircraftType := strings.ToUpper(c.Param("aircraftType"))
-		aircraftConfigurationVersion := strings.ToUpper(c.Param("aircraftConfigurationVersion"))
-
-		result, err := dh.QuerySchedules(
-			c.Request().Context(),
-			data.WithServiceType("J"),
-			data.WithAirlines(common.AirlineIdentifier(airline)),
-			data.WithAircraftType(aircraftType),
-			data.WithAircraftConfigurationVersion(aircraftConfigurationVersion),
-			data.WithIgnoreCodeShares(),
-		)
-
-		if err != nil {
-			noCache(c)
-			return err
-		}
-
-		addExpirationHeaders(c, time.Now(), time.Hour*3)
-		return c.JSON(http.StatusOK, result)
-	}
 }

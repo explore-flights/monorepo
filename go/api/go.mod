@@ -13,7 +13,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/gorilla/feeds v1.2.0
 	github.com/its-felix/aws-lwa-go-middleware v0.1.1
-	github.com/json-iterator/go v1.1.12
 	github.com/jxskiss/base62 v1.1.0
 	github.com/labstack/echo/v4 v4.13.3
 	github.com/marcboeker/go-duckdb/v2 v2.3.0
@@ -64,8 +63,6 @@ require (
 	github.com/marcboeker/go-duckdb/mapping v0.0.9 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect

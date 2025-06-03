@@ -173,6 +173,19 @@ export interface FlightScheduleVersion {
   flightVariantId?: FlightVariantId;
 }
 
+export interface QuerySchedulesResponseV2 {
+  schedules: ReadonlyArray<FlightNumberAndScheduleItems>;
+  variants: Record<FlightVariantId, FlightScheduleVariant>;
+  airlines: Record<AirlineId, Airline>;
+  airports: Record<AirportId, Airport>;
+  aircraft: Record<AircraftId, Aircraft>;
+}
+
+export interface FlightNumberAndScheduleItems {
+  flightNumber: FlightNumber;
+  items: ReadonlyArray<FlightScheduleItem>;
+}
+
 export interface OldFlightScheduleVariantMetadata {
   creationTime: string;
   rangesUpdateTime: string;

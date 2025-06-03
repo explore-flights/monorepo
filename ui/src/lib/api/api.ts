@@ -10,9 +10,8 @@ import {
   ConnectionsSearchResponseWithSearch,
   ConnectionsSearchResponse,
   SeatMap,
-  QueryScheduleResponse,
   QuerySchedulesRequest,
-  Notification, Airline, SearchResponse, Airport, FlightSchedules, FlightScheduleVersions
+  Notification, Airline, SearchResponse, Airport, FlightSchedules, FlightScheduleVersions, QuerySchedulesResponseV2
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -129,11 +128,11 @@ export class ApiClient {
     return transform(this.httpClient.fetch(url));
   }
 
-  getFlightSchedulesByConfiguration(airline: string, aircraftType: string, aircraftConfigurationVersion: string): Promise<ApiResponse<QueryScheduleResponse>> {
-    return transform(this.httpClient.fetch(`/data/${encodeURIComponent(airline)}/schedule/${encodeURIComponent(aircraftType)}/${aircraftConfigurationVersion}/v3`));
+  getAllegrisSchedules(): Promise<ApiResponse<QuerySchedulesResponseV2>> {
+    return transform(this.httpClient.fetch('/data/schedule/allegris'));
   }
 
-  queryFlightSchedules(req: QuerySchedulesRequest): Promise<ApiResponse<QueryScheduleResponse>> {
+  queryFlightSchedules(req: QuerySchedulesRequest): Promise<ApiResponse<QuerySchedulesResponseV2>> {
     const params = new URLSearchParams();
 
     for (const airlineId of req.airlineId ?? []) {

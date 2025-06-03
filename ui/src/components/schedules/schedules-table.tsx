@@ -1,25 +1,26 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Header, Pagination, Table, TableProps } from '@cloudscape-design/components';
-import { Aircraft, Airport, OldFlightSchedule, OldFlightScheduleVariant } from '../../lib/api/api.model';
+import {
+  Aircraft, Airline,
+  Airport,
+  FlightNumberAndScheduleItems, FlightScheduleItem,
+  FlightScheduleVariant,
+  QuerySchedulesResponseV2
+} from '../../lib/api/api.model';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { FlightLink } from '../common/flight-link';
-import { DateTime } from 'luxon';
-import { Aircrafts, Airports, useAircrafts, useAirports } from '../util/state/data';
 import { AircraftConfigurationVersionText, AircraftText, AirportText } from '../common/text';
-
-interface Maybe<T> {
-  raw: string;
-  value?: T;
-}
+import { flightNumberToString } from '../../lib/util/flight';
 
 type OperatingRange = [string, string, number];
 
 interface ScheduleTableBaseItem {
   readonly type: 'parent' | 'child';
-  readonly departureAirport: Maybe<Airport>;
-  readonly arrivalAirport: Maybe<Airport>;
+  readonly departureAirport: Airport;
+  readonly arrivalAirport: Airport;
   readonly operatingRange: OperatingRange;
-  readonly schedule: OldFlightSchedule;
+  readonly airline: Airline;
+  readonly schedule: FlightNumberAndScheduleItems;
 }
 
 export interface ScheduleTableParentItem extends ScheduleTableBaseItem {
@@ -29,27 +30,25 @@ export interface ScheduleTableParentItem extends ScheduleTableBaseItem {
 
 export interface ScheduleTableChildItem extends ScheduleTableBaseItem {
   readonly type: 'child';
-  readonly aircraft: Maybe<Aircraft>;
+  readonly aircraft: Aircraft;
   readonly aircraftConfigurationVersion: string;
-  readonly variant: OldFlightScheduleVariant;
+  readonly item: FlightScheduleItem;
+  readonly variant: FlightScheduleVariant;
 }
 
 export type ScheduleTableItem = ScheduleTableParentItem | ScheduleTableChildItem;
 
 export interface SchedulesTableProps extends Omit<TableProps<ScheduleTableItem>, 'items' | 'columnDefinitions'> {
   title: string;
-  items: ReadonlyArray<OldFlightSchedule>;
+  result?: QuerySchedulesResponseV2;
   flightLinkQuery?: (item: ScheduleTableItem) => URLSearchParams;
   columnDefinitions?: ReadonlyArray<TableProps.ColumnDefinition<ScheduleTableItem>>;
 }
 
-export function SchedulesTable({ title, items: rawItems, flightLinkQuery, columnDefinitions: providedColumnDefinitions, ...tableProps }: SchedulesTableProps) {
-  const airportsQuery = useAirports();
-  const aircraftQuery = useAircrafts();
-
+export function SchedulesTable({ title, result, flightLinkQuery, columnDefinitions: providedColumnDefinitions, ...tableProps }: SchedulesTableProps) {
   const transformedItems = useMemo(
-    () => transformSchedules(rawItems, airportsQuery.data, aircraftQuery.data),
-    [rawItems, airportsQuery.data, aircraftQuery.data],
+    () => result ? transformSchedules(result) : [],
+    [result],
   );
 
   const columnDefinitions = useMemo(() => {
@@ -121,30 +120,30 @@ function buildColumnDefinitions(flightLinkQuery?: (item: ScheduleTableItem) => U
       id: 'flight_number',
       header: 'Flight Number',
       cell: (v) => {
-        const fn = `${v.schedule.airline}${v.schedule.flightNumber}${v.schedule.suffix}`;
+        const fn = flightNumberToString(v.schedule.flightNumber, v.airline);
         const query = flightLinkQuery ? flightLinkQuery(v) : undefined
 
         return <FlightLink flightNumber={fn} query={query} target={'_blank'} />;
       },
       sortingComparator: (a, b) => {
         return compareAll(
-          a.schedule.airline.localeCompare(b.schedule.airline),
-          a.schedule.flightNumber - b.schedule.flightNumber,
-          a.schedule.suffix.localeCompare(b.schedule.suffix),
+          a.schedule.flightNumber.airlineId.localeCompare(b.schedule.flightNumber.airlineId),
+          a.schedule.flightNumber.number - b.schedule.flightNumber.number,
+          (a.schedule.flightNumber.suffix ?? '').localeCompare(b.schedule.flightNumber.suffix ?? ''),
         );
       },
     },
     {
       id: 'departure_airport',
       header: 'Departure Airport',
-      cell: (v) => <AirportText code={v.departureAirport.raw} airport={v.departureAirport.value} />,
-      sortingComparator: (a, b) => a.departureAirport.raw.localeCompare(b.departureAirport.raw),
+      cell: (v) => <AirportText code={v.departureAirport.iataCode ?? v.departureAirport.icaoCode ?? v.departureAirport.id} airport={v.departureAirport} />,
+      sortingComparator: (a, b) => a.departureAirport.id.localeCompare(b.departureAirport.id),
     },
     {
       id: 'arrival_airport',
       header: 'Arrival Airport',
-      cell: (v) => <AirportText code={v.arrivalAirport.raw} airport={v.arrivalAirport.value} />,
-      sortingComparator: (a, b) => a.arrivalAirport.raw.localeCompare(b.arrivalAirport.raw),
+      cell: (v) => <AirportText code={v.arrivalAirport.iataCode ?? v.arrivalAirport.icaoCode ?? v.arrivalAirport.id} airport={v.arrivalAirport} />,
+      sortingComparator: (a, b) => a.arrivalAirport.id.localeCompare(b.arrivalAirport.id),
     },
     {
       id: 'operating_start',
@@ -172,11 +171,11 @@ function buildColumnDefinitions(flightLinkQuery?: (item: ScheduleTableItem) => U
           return <></>;
         }
 
-        return <AircraftText code={v.aircraft.raw} aircraft={v.aircraft.value} />;
+        return <AircraftText code={v.aircraft.equipCode ?? v.aircraft.iataCode ?? v.aircraft.icaoCode ?? v.aircraft.id} aircraft={v.aircraft} />;
       },
       sortingComparator: (a, b) => {
-        const aircraftA = a.type === 'child' ? a.aircraft.raw : '';
-        const aircraftB = b.type === 'child' ? b.aircraft.raw : '';
+        const aircraftA = a.type === 'child' ? a.aircraft.id : '';
+        const aircraftB = b.type === 'child' ? b.aircraft.id : '';
 
         return aircraftA.localeCompare(aircraftB);
       },
@@ -192,8 +191,8 @@ function buildColumnDefinitions(flightLinkQuery?: (item: ScheduleTableItem) => U
         return <AircraftConfigurationVersionText value={v.aircraftConfigurationVersion} />;
       },
       sortingComparator: (a, b) => {
-        const aircraftA = a.type === 'child' ? a.aircraft.raw : '';
-        const aircraftB = b.type === 'child' ? b.aircraft.raw : '';
+        const aircraftA = a.type === 'child' ? a.aircraft.id : '';
+        const aircraftB = b.type === 'child' ? b.aircraft.id : '';
 
         return aircraftA.localeCompare(aircraftB);
       },
@@ -201,20 +200,27 @@ function buildColumnDefinitions(flightLinkQuery?: (item: ScheduleTableItem) => U
   ];
 }
 
-function transformSchedules(schedules: ReadonlyArray<OldFlightSchedule>, airports: Airports, aircraft: Aircrafts): ReadonlyArray<ScheduleTableItem> {
+function transformSchedules(result: QuerySchedulesResponseV2): ReadonlyArray<ScheduleTableItem> {
   const items: Array<ScheduleTableParentItem> = [];
 
-  for (const schedule of schedules) {
+  for (const schedule of result.schedules) {
     interface MutableParent extends ScheduleTableParentItem {
       children: Array<ScheduleTableChildItem>;
     }
 
     const parents = new Map<string, MutableParent>();
 
-    for (const variant of schedule.variants) {
-      const parentIdentifier = `${variant.data.departureAirport}-${variant.data.arrivalAirport}`;
-      const departureAirport = { raw: variant.data.departureAirport, value: airports.lookupByIata.get(variant.data.departureAirport) };
-      const arrivalAirport = { raw: variant.data.arrivalAirport, value: airports.lookupByIata.get(variant.data.arrivalAirport) };
+    for (const item of schedule.items) {
+      if (!item.flightVariantId) {
+        continue;
+      }
+
+      const variant = result.variants[item.flightVariantId];
+      const airline = result.airlines[schedule.flightNumber.airlineId];
+      const departureAirport = result.airports[item.departureAirportId];
+      const arrivalAirport = result.airports[variant.arrivalAirportId];
+      const aircraft = result.aircraft[variant.aircraftId];
+      const parentIdentifier = `${departureAirport.id}-${arrivalAirport.id}`;
 
       let parent = parents.get(parentIdentifier);
       if (!parent) {
@@ -224,6 +230,7 @@ function transformSchedules(schedules: ReadonlyArray<OldFlightSchedule>, airport
           arrivalAirport: arrivalAirport,
           operatingRange: ['', '', 0],
           children: [],
+          airline: airline,
           schedule: schedule,
         };
 
@@ -231,33 +238,29 @@ function transformSchedules(schedules: ReadonlyArray<OldFlightSchedule>, airport
         items.push(parent);
       }
 
-      for (const range of variant.ranges) {
-        const operatingRange = buildOperatingRange(range);
-        expandOperatingRange(parent.operatingRange, operatingRange);
+      const operatingRange = buildOperatingRange(item.departureDateLocal);
+      expandOperatingRange(parent.operatingRange, operatingRange);
 
-        parent.children.push({
-          type: 'child',
-          departureAirport: departureAirport,
-          arrivalAirport: arrivalAirport,
-          operatingRange: operatingRange,
-          aircraft: { raw: variant.data.aircraftType, value: aircraft.lookupByIata.get(variant.data.aircraftType) },
-          aircraftConfigurationVersion: variant.data.aircraftConfigurationVersion,
-          schedule: schedule,
-          variant: variant,
-        });
-      }
+      parent.children.push({
+        type: 'child',
+        departureAirport: departureAirport,
+        arrivalAirport: arrivalAirport,
+        operatingRange: operatingRange,
+        aircraft: aircraft,
+        aircraftConfigurationVersion: variant.aircraftConfigurationVersion,
+        airline: airline,
+        schedule: schedule,
+        item: item,
+        variant: variant,
+      });
     }
   }
 
   return items;
 }
 
-function buildOperatingRange(range: [string, string]): OperatingRange {
-  const start = DateTime.fromISO(range[0]);
-  const end = DateTime.fromISO(range[1]);
-  const span = end.diff(start, 'days');
-
-  return [range[0], range[1], span.days + 1];
+function buildOperatingRange(date: string): OperatingRange {
+  return [date, date, 1];
 }
 
 function expandOperatingRange(acc: OperatingRange, other: OperatingRange) {

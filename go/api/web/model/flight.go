@@ -23,6 +23,22 @@ type FlightScheduleItem struct {
 	VersionCount       int             `json:"versionCount"`
 }
 
+func FlightScheduleItemFromDb(item db.FlightScheduleItem) FlightScheduleItem {
+	var flightVariantId *UUID
+	if item.FlightVariantId.Valid {
+		id := UUID(item.FlightVariantId.V)
+		flightVariantId = &id
+	}
+
+	return FlightScheduleItem{
+		DepartureDateLocal: item.DepartureDateLocal,
+		DepartureAirportId: UUID(item.DepartureAirportId),
+		FlightVariantId:    flightVariantId,
+		Version:            item.Version,
+		VersionCount:       item.VersionCount,
+	}
+}
+
 type FlightScheduleVariant struct {
 	Id                           UUID            `json:"id"`
 	OperatedAs                   FlightNumber    `json:"operatedAs"`
