@@ -186,40 +186,6 @@ export interface FlightNumberAndScheduleItems {
   items: ReadonlyArray<FlightScheduleItem>;
 }
 
-export interface OldFlightScheduleVariantMetadata {
-  creationTime: string;
-  rangesUpdateTime: string;
-  dateUpdateTime: string;
-}
-
-export interface OldFlightScheduleVariantData {
-  operatedAs: string;
-  departureTime: string;
-  departureAirport: string;
-  departureUTCOffset: number;
-  durationSeconds: number;
-  arrivalAirport: string;
-  arrivalUTCOffset: number;
-  serviceType: string;
-  aircraftOwner: string;
-  aircraftType: string;
-  aircraftConfigurationVersion: string;
-  codeShares: ReadonlyArray<string>;
-}
-
-export interface OldFlightScheduleVariant {
-  ranges: ReadonlyArray<[string, string]>;
-  data: OldFlightScheduleVariantData;
-  metadata: OldFlightScheduleVariantMetadata;
-}
-
-export interface OldFlightSchedule {
-  airline: string;
-  flightNumber: number;
-  suffix: string;
-  variants: ReadonlyArray<OldFlightScheduleVariant>;
-}
-
 export interface SeatMap {
   cabinClasses: ReadonlyArray<CabinClass>;
   decks: ReadonlyArray<SeatMapDeck>;
@@ -338,8 +304,6 @@ export interface QuerySchedulesRequest {
   minDepartureTime?: DateTime<true>;
   maxDepartureTime?: DateTime<true>;
 }
-
-export type QueryScheduleResponse = Record<string, OldFlightSchedule>;
 
 export interface Notification {
   type: 'success' | 'info' | 'warning' | 'error' | 'in-progress';
