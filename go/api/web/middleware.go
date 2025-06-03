@@ -4,9 +4,46 @@ import (
 	"errors"
 	"fmt"
 	"github.com/labstack/echo/v4"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"sync"
+	"time"
 )
+
+func VersionHeaderMiddleware(versionTxtPath string) echo.MiddlewareFunc {
+	readVersion := sync.OnceValues(func() (time.Time, error) {
+		f, err := os.Open(versionTxtPath)
+		if err != nil {
+			return time.Time{}, err
+		}
+		defer f.Close()
+
+		b, err := io.ReadAll(f)
+		if err != nil {
+			return time.Time{}, err
+		}
+
+		t, err := time.Parse(time.RFC3339, string(b))
+		if err != nil {
+			return time.Time{}, err
+		}
+
+		return t, nil
+	})
+
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			version, err := readVersion()
+			if err == nil {
+				c.Response().Header().Add("Ef-Data-Version", version.Format(time.RFC3339))
+			}
+
+			return next(c)
+		}
+	}
+}
 
 func NoCacheOnErrorMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {

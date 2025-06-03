@@ -69,6 +69,7 @@ func main() {
 			lwamw.WithRemoveHeaders(),
 		),
 		web.ErrorLogAndMaskMiddleware(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile)),
+		web.VersionHeaderMiddleware(config.Config.VersionTxtPath()),
 		web.NoCacheOnErrorMiddleware(),
 		// authHandler.Middleware,
 	)
