@@ -116,7 +116,9 @@ func (s *Search) loadSeatMap(ctx context.Context, fn db.FlightNumber, departureA
 			return SeatMap{}, err
 		}
 
-		rawSeatMaps[cabinClass] = *sm
+		if sm != nil {
+			rawSeatMaps[cabinClass] = *sm
+		}
 	}
 
 	return s.normalizeSeatMaps(rawSeatMaps), nil
