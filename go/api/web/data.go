@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"slices"
 	"strconv"
@@ -498,6 +499,92 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 	slices.Reverse(feed.Items)
 
 	return feed
+}
+
+func (dh *DataHandler) LegacyFlightScheduleVersionsRSSFeed(c echo.Context) error {
+	return dh.legacyFlightScheduleVersionsFeed(c, "application/rss+xml", (*feeds.Feed).WriteRss)
+}
+
+func (dh *DataHandler) LegacyFlightScheduleVersionsAtomFeed(c echo.Context) error {
+	return dh.legacyFlightScheduleVersionsFeed(c, "application/atom+xml", (*feeds.Feed).WriteAtom)
+}
+
+func (dh *DataHandler) legacyFlightScheduleVersionsFeed(c echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
+	buildFeedId := func(fn common.FlightNumber, departureDateUtc xtime.LocalDate, departureAirport string) string {
+		q := make(url.Values)
+		q.Set("departure_airport", departureAirport)
+		q.Set("departure_date_utc", departureDateUtc.String())
+
+		return fmt.Sprintf("https://explore.flights/flight/%s?%s", fn.String(), q.Encode())
+	}
+
+	fnRaw := c.Param("fn")
+	departureDateRaw := c.Param("departureDate")
+	departureAirport := strings.ToUpper(c.Param("departureAirport"))
+
+	fn, err := common.ParseFlightNumber(fnRaw)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
+	}
+
+	departureDate, err := xtime.ParseLocalDate(departureDateRaw)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
+	}
+
+	feedId := buildFeedId(fn, departureDate, departureAirport)
+	link := &feeds.Link{
+		Href: feedId,
+		Rel:  "alternate",
+		Type: "text/html",
+	}
+
+	created := time.Date(2024, time.May, 1, 0, 0, 0, 0, time.UTC)
+	lastModified := time.Date(2025, time.June, 4, 0, 0, 0, 0, time.UTC)
+	sunsetDate := time.Date(2025, time.July, 1, 0, 0, 0, 0, time.UTC)
+	newLink := fmt.Sprintf("https://explore.flights/flight/%s/versions/%s/%s", fnRaw, departureAirport, departureDate.String())
+	newLinkMinusOne := fmt.Sprintf("https://explore.flights/flight/%s/versions/%s/%s", fnRaw, departureAirport, (departureDate - 1).String())
+	newLinkPlusOne := fmt.Sprintf("https://explore.flights/flight/%s/versions/%s/%s", fnRaw, departureAirport, (departureDate + 1).String())
+	feed := &feeds.Feed{
+		Id:      feedId,
+		Title:   fmt.Sprintf("Flight %s from %s on %s (UTC)", fn.String(), departureAirport, departureDate.String()),
+		Link:    link,
+		Created: created,
+		Updated: lastModified,
+		Items: []*feeds.Item{
+			{
+				Id:          feedId,
+				IsPermaLink: "false",
+				Title:       "Endpoint deprecated",
+				Link: &feeds.Link{
+					Href: newLink,
+					Rel:  "alternate",
+					Type: "text/html",
+				},
+				Created: lastModified,
+				Updated: lastModified,
+				Content: "This feed endpoint has been deprecated",
+				Description: strings.TrimSpace(fmt.Sprintf(
+					`
+This feed endpoint has been deprecated. This endpoint does not yield any updates anymore immedietly.
+Please update your process to use the new feed endpoint which you can find at either of:
+- %s
+- %s
+- %s
+Depending on the AIRPORT LOCAL DEPARTURE DATE of your flight. This endpoint used the UTC DEPARTURE DATE. The new endpoints use the AIRPORT LOCAL DEPARTURE DATE.
+
+This endpoint will be removed after %s.
+`,
+					newLink,
+					newLinkMinusOne,
+					newLinkPlusOne,
+					sunsetDate.Format(time.RFC3339),
+				)),
+			},
+		},
+	}
+
+	return writer(feed, c.Response())
 }
 
 func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, departureAirportRaw, departureDateLocalRaw string) (model.FlightScheduleVersions, error) {

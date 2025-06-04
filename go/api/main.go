@@ -124,6 +124,10 @@ func main() {
 		// group.GET("/allegris/v2/feed.rss", web.NewAllegrisUpdateFeedEndpointV2(database, ".rss"))
 		// group.GET("/allegris/v2/feed.atom", web.NewAllegrisUpdateFeedEndpointV2(database, ".atom"))
 
+		// deprecated feed endpoints
+		group.GET("/:fn/:departureDate/:departureAirport/feed.rss", dh.LegacyFlightScheduleVersionsRSSFeed)
+		group.GET("/:fn/:departureDate/:departureAirport/feed.atom", dh.LegacyFlightScheduleVersionsAtomFeed)
+
 		reportHandler := web.NewReportHandler(repo)
 		group.GET("/destinations/:airport", reportHandler.Destinations)
 
