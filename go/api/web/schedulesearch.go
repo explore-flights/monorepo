@@ -1,15 +1,22 @@
 package web
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"github.com/explore-flights/monorepo/go/api/business/schedulesearch"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/gofrs/uuid/v5"
+	"github.com/gorilla/feeds"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/sync/errgroup"
+	"io"
 	"net/http"
+	"net/url"
+	"slices"
 	"strings"
 	"time"
 )
@@ -159,13 +166,227 @@ func (h *ScheduleSearchHandler) Query(c echo.Context) error {
 
 func (h *ScheduleSearchHandler) Allegris(c echo.Context) error {
 	ctx := c.Request().Context()
+	result, err := h.queryAllegris(ctx)
+	if err != nil {
+		return err
+	}
 
+	return c.JSON(http.StatusOK, result)
+}
+
+func (h *ScheduleSearchHandler) AllegrisRSSFeed(c echo.Context) error {
+	return h.allegrisFeed(c, "application/rss+xml", (*feeds.Feed).WriteRss)
+}
+
+func (h *ScheduleSearchHandler) AllegrisAtomFeed(c echo.Context) error {
+	return h.allegrisFeed(c, "application/atom+xml", (*feeds.Feed).WriteAtom)
+}
+
+func (h *ScheduleSearchHandler) allegrisFeed(c echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
+	ctx := c.Request().Context()
+	result, err := h.queryAllegris(ctx)
+	if err != nil {
+		return err
+	}
+
+	fnName := func(fn model.FlightNumber) string {
+		var airlinePrefix string
+		if airline, ok := result.Airlines[fn.AirlineId]; ok {
+			airlinePrefix = cmp.Or(airline.IataCode, airline.IcaoCode, airline.Id.String()+"-")
+		} else {
+			airlinePrefix = fn.AirlineId.String() + "-"
+		}
+
+		return fmt.Sprintf("%s%d%s", airlinePrefix, fn.Number, fn.Suffix)
+	}
+
+	airportName := func(airportId model.UUID) string {
+		airport, ok := result.Airports[airportId]
+		if !ok {
+			return airportId.String()
+		}
+
+		return cmp.Or(airport.IataCode, airport.IcaoCode, airport.Name, airport.Id.String())
+	}
+
+	routeName := func(departureAirportId, arrivalAirportId model.UUID) string {
+		return fmt.Sprintf("%s - %s", airportName(departureAirportId), airportName(arrivalAirportId))
+	}
+
+	feedId := "https://explore.flights/allegris"
+	baseLink := &feeds.Link{
+		Href: feedId,
+		Rel:  "alternate",
+		Type: "text/html",
+	}
+
+	feed := &feeds.Feed{
+		Id:      feedId,
+		Title:   "Lufthansa Allegris Flights",
+		Link:    baseLink,
+		Created: common.ProjectCreationTime(),
+		Updated: common.ProjectCreationTime(),
+	}
+
+	for _, schedule := range result.Schedules {
+		fnStr := fnName(schedule.FlightNumber)
+		aggByAirports := make(map[model.UUID]map[model.UUID][]struct {
+			MinVersion                    time.Time
+			MaxVersion                    time.Time
+			MinDepartureDateLocal         xtime.LocalDate
+			MaxDepartureDateLocal         xtime.LocalDate
+			OperatingDays                 int
+			AircraftIds                   common.Set[model.UUID]
+			AircraftConfigurationVersions common.Set[string]
+		})
+
+		// make sure the items are sorted by departure date
+		slices.SortFunc(schedule.Items, func(a, b model.FlightScheduleItem) int {
+			return int(a.DepartureDateLocal - b.DepartureDateLocal)
+		})
+
+		for _, item := range schedule.Items {
+			if item.FlightVariantId == nil {
+				continue
+			}
+
+			flightVariant := result.Variants[*item.FlightVariantId]
+			aggByArrivalAirport, ok := aggByAirports[item.DepartureAirportId]
+			if !ok {
+				aggByArrivalAirport = make(map[model.UUID][]struct {
+					MinVersion                    time.Time
+					MaxVersion                    time.Time
+					MinDepartureDateLocal         xtime.LocalDate
+					MaxDepartureDateLocal         xtime.LocalDate
+					OperatingDays                 int
+					AircraftIds                   common.Set[model.UUID]
+					AircraftConfigurationVersions common.Set[string]
+				})
+				aggByAirports[item.DepartureAirportId] = aggByArrivalAirport
+			}
+
+			agg := aggByArrivalAirport[flightVariant.ArrivalAirportId]
+			var latestEntry struct {
+				MinVersion                    time.Time
+				MaxVersion                    time.Time
+				MinDepartureDateLocal         xtime.LocalDate
+				MaxDepartureDateLocal         xtime.LocalDate
+				OperatingDays                 int
+				AircraftIds                   common.Set[model.UUID]
+				AircraftConfigurationVersions common.Set[string]
+			}
+
+			if len(agg) > 0 && (item.DepartureDateLocal-agg[len(agg)-1].MaxDepartureDateLocal) < 7 {
+				idx := len(agg) - 1
+				latestEntry = agg[idx]
+
+				if item.Version.Before(latestEntry.MinVersion) {
+					latestEntry.MinVersion = item.Version
+				}
+
+				if item.Version.After(latestEntry.MaxVersion) {
+					latestEntry.MaxVersion = item.Version
+				}
+
+				latestEntry.MaxDepartureDateLocal = item.DepartureDateLocal
+				latestEntry.OperatingDays += 1
+				latestEntry.AircraftIds.Add(flightVariant.AircraftId)
+				latestEntry.AircraftConfigurationVersions.Add(flightVariant.AircraftConfigurationVersion)
+
+				agg[idx] = latestEntry
+			} else {
+				latestEntry.MinVersion = item.Version
+				latestEntry.MaxVersion = item.Version
+				latestEntry.MinDepartureDateLocal = item.DepartureDateLocal
+				latestEntry.MaxDepartureDateLocal = item.DepartureDateLocal
+				latestEntry.OperatingDays = 1
+
+				latestEntry.AircraftIds = make(common.Set[model.UUID])
+				latestEntry.AircraftConfigurationVersions = make(common.Set[string])
+
+				latestEntry.AircraftIds.Add(flightVariant.AircraftId)
+				latestEntry.AircraftConfigurationVersions.Add(flightVariant.AircraftConfigurationVersion)
+
+				agg = append(agg, latestEntry)
+			}
+
+			aggByArrivalAirport[flightVariant.ArrivalAirportId] = agg
+		}
+
+		for departureAirportId, aggByArrivalAirport := range aggByAirports {
+			for arrivalAirportId, entries := range aggByArrivalAirport {
+				for _, entry := range entries {
+					q := make(url.Values)
+					q.Set("departure_airport_id", departureAirportId.String())
+					q.Set("departure_date_gte", entry.MinDepartureDateLocal.String())
+					q.Set("departure_date_lte", entry.MaxDepartureDateLocal.String())
+
+					for aircraftId := range entry.AircraftIds {
+						q.Set("aircraft_id", aircraftId.String())
+					}
+
+					for aircraftConfigurationVersion := range entry.AircraftConfigurationVersions {
+						q.Set("aircraft_configuration_version", aircraftConfigurationVersion)
+					}
+
+					itemId := fmt.Sprintf("https://explore.flights/flight/%s?%s", fnStr, q.Encode())
+					item := &feeds.Item{
+						Id:          itemId,
+						IsPermaLink: "false",
+						Link: &feeds.Link{
+							Href: itemId,
+							Rel:  "alternate",
+							Type: "text/html",
+						},
+						Title: fmt.Sprintf("Flight %s operates on Allegris", fnStr),
+						Content: strings.TrimSpace(fmt.Sprintf(
+							`
+Flight %s operates on Allegris (%s)
+From %s until %s for a total of %d flights
+`,
+							fnStr,
+							routeName(departureAirportId, arrivalAirportId),
+							entry.MinDepartureDateLocal.String(),
+							entry.MaxDepartureDateLocal.String(),
+							entry.OperatingDays,
+						)),
+						Created: entry.MinVersion,
+						Updated: entry.MaxVersion,
+					}
+
+					item.Description = item.Content
+					feed.Items = append(feed.Items, item)
+
+					if item.Updated.After(feed.Updated) {
+						feed.Updated = item.Updated
+					}
+				}
+			}
+		}
+	}
+
+	slices.SortFunc(feed.Items, func(a, b *feeds.Item) int {
+		// reverse order (newest first)
+		return cmp.Or(
+			b.Updated.Compare(a.Updated),
+			strings.Compare(a.Title, b.Title),
+			strings.Compare(a.Description, b.Description),
+		)
+	})
+
+	c.Response().Header().Add(echo.HeaderContentType, contentType)
+	addExpirationHeaders(c, time.Now(), time.Hour)
+
+	return writer(feed, c.Response())
+}
+
+func (h *ScheduleSearchHandler) queryAllegris(ctx context.Context) (model.FlightSchedulesMany, error) {
 	var lhAirlineId uuid.UUID
 	var a350900AircraftId uuid.UUID
 	{
 		airlines, err := h.repo.Airlines(ctx)
 		if err != nil {
-			return err
+			return model.FlightSchedulesMany{}, err
 		}
 
 		for _, airline := range airlines {
@@ -177,7 +398,7 @@ func (h *ScheduleSearchHandler) Allegris(c echo.Context) error {
 
 		aircraft, err := h.repo.Aircraft(ctx)
 		if err != nil {
-			return err
+			return model.FlightSchedulesMany{}, err
 		}
 
 		for _, ac := range aircraft {
@@ -189,7 +410,7 @@ func (h *ScheduleSearchHandler) Allegris(c echo.Context) error {
 	}
 
 	if lhAirlineId.IsNil() || a350900AircraftId.IsNil() {
-		return NewHTTPError(http.StatusInternalServerError)
+		return model.FlightSchedulesMany{}, NewHTTPError(http.StatusInternalServerError)
 	}
 
 	result, err := h.queryInternal(
@@ -204,10 +425,10 @@ func (h *ScheduleSearchHandler) Allegris(c echo.Context) error {
 		),
 	)
 	if err != nil {
-		return err
+		return model.FlightSchedulesMany{}, err
 	}
 
-	return c.JSON(http.StatusOK, result)
+	return result, nil
 }
 
 func (h *ScheduleSearchHandler) queryInternal(ctx context.Context, condition schedulesearch.Condition) (model.FlightSchedulesMany, error) {

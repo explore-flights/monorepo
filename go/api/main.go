@@ -119,10 +119,10 @@ func main() {
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal/feed.atom", dh.FlightScheduleVersionsAtomFeed)
 		group.GET("/flight/:fn/seatmap/:departureAirport/:departureDateLocal", dh.SeatMap)
 		group.GET("/schedule/allegris", sshHandler.Allegris)
-		group.GET("/allegris/feed.rss", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".rss"))
-		group.GET("/allegris/feed.atom", web.NewAllegrisUpdateFeedEndpoint(s3c, bucket, ".atom"))
-		// group.GET("/allegris/v2/feed.rss", web.NewAllegrisUpdateFeedEndpointV2(database, ".rss"))
-		// group.GET("/allegris/v2/feed.atom", web.NewAllegrisUpdateFeedEndpointV2(database, ".atom"))
+		group.GET("/schedule/allegris/feed.rss", sshHandler.AllegrisRSSFeed)
+		group.GET("/schedule/allegris/feed.atom", sshHandler.AllegrisAtomFeed)
+		group.GET("/allegris/feed.rss", sshHandler.AllegrisRSSFeed)
+		group.GET("/allegris/feed.atom", sshHandler.AllegrisAtomFeed)
 
 		// deprecated feed endpoints
 		group.GET("/:fn/:departureDate/:departureAirport/feed.rss", dh.LegacyFlightScheduleVersionsRSSFeed)

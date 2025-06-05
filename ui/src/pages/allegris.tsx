@@ -17,8 +17,8 @@ export function Allegris() {
 
   const actions = (
     <SpaceBetween direction={'horizontal'} size={'xs'}>
-      <Button href={'/data/allegris/feed.rss'} target={'_blank'} iconName={'download'}>RSS</Button>
-      <Button href={'/data/allegris/feed.atom'} target={'_blank'} iconName={'download'}>Atom</Button>
+      <Button href={'/data/schedule/allegris/feed.rss'} target={'_blank'} iconName={'download'}>RSS</Button>
+      <Button href={'/data/schedule/allegris/feed.atom'} target={'_blank'} iconName={'download'}>Atom</Button>
     </SpaceBetween>
   );
 
