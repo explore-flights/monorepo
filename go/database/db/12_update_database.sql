@@ -623,16 +623,13 @@ SELECT
     departureDateLocal,
     LIST_SORT(
         LIST_DISTINCT(
-            COALESCE(
-                ARRAY_AGG({
-                    'airline_id': CAST(airlineId AS UUID),
-                    'number': CAST(flightNumber AS USMALLINT),
-                    'suffix': CAST(suffix AS TEXT)
-                }) FILTER (
-                    airlineId IS NOT NULL
-                    AND ( airlineId != operatingAirlineId OR flightNumber != operatingFlightNumber OR suffix != operatingSuffix )
-                ),
-                []
+            LIST_FILTER(-- aggregation filter does not work on linux https://github.com/duckdb/duckdb/issues/17757
+                COALESCE(ARRAY_AGG({
+                    'airline_id': airlineId,
+                    'number': flightNumber,
+                    'suffix': suffix
+                }), []),
+                lambda cs: ( cs.airline_id != operatingAirlineId OR cs.number != operatingFlightNumber OR cs.suffix != operatingSuffix )
             )
         )
     ) AS codeShares
@@ -645,7 +642,7 @@ GROUP BY
     departureDateLocal
 ;
 
--- harden codeshares, for some reason the filter doesnt work on all platforms(?)
+-- harden codeshares, for some reason the filter doesnt work on all platforms(?) https://github.com/duckdb/duckdb/issues/17757
 UPDATE lh_operating_codeshares
 SET codeShares = LIST_SORT(LIST_DISTINCT(LIST_FILTER(
     codeShares,
