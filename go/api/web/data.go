@@ -584,6 +584,9 @@ This endpoint will be removed after %s.
 		},
 	}
 
+	c.Response().Header().Add(echo.HeaderContentType, contentType)
+	addExpirationHeaders(c, time.Now(), time.Hour)
+
 	return writer(feed, c.Response())
 }
 
