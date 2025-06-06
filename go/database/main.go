@@ -26,6 +26,8 @@ func main() {
 		latestPrefix        string
 		inputBucket         string
 		inputKey            string
+		updateSummaryBucket string
+		updateSummaryKey    string
 		skipUpdateDatabase  bool
 	)
 
@@ -41,6 +43,8 @@ func main() {
 	fs.StringVar(&latestPrefix, "latest-prefix", "", "")
 	fs.StringVar(&inputBucket, "input-bucket", "", "")
 	fs.StringVar(&inputKey, "input-key", "", "")
+	fs.StringVar(&updateSummaryBucket, "update-summary-bucket", "", "")
+	fs.StringVar(&updateSummaryKey, "update-summary-key", "", "")
 	fs.BoolVar(&skipUpdateDatabase, "skip-update-database", false, "")
 	fs.SetOutput(os.Stdout)
 
@@ -82,7 +86,25 @@ func main() {
 		parquetFileUriSchema: "s3",
 	}
 
-	if err = u.UpdateDatabase(ctx, t, databaseBucket, fullDatabaseKey, baseDataDatabaseKey, parquetBucket, variantsKey, reportKey, historyPrefix, latestPrefix, inputBucket, inputKey, skipUpdateDatabase); err != nil {
+	err = u.UpdateDatabase(
+		ctx,
+		t,
+		databaseBucket,
+		fullDatabaseKey,
+		baseDataDatabaseKey,
+		parquetBucket,
+		variantsKey,
+		reportKey,
+		historyPrefix,
+		latestPrefix,
+		inputBucket,
+		inputKey,
+		updateSummaryBucket,
+		updateSummaryKey,
+		skipUpdateDatabase,
+	)
+
+	if err != nil {
 		log.Fatal(err)
 		return
 	}

@@ -38,7 +38,9 @@ func (u *updater) UpdateDatabase(
 	historyPrefix,
 	latestPrefix,
 	inputBucket,
-	inputKey string,
+	inputKey,
+	updateSummaryBucket,
+	updateSummaryKey string,
 	skipUpdateDatabase bool) error {
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -62,7 +64,7 @@ func (u *updater) UpdateDatabase(
 		if err := util.WithDatabase(ctx, ddbHomePath, tmpDbPath, workingDbName, numThreads, func(conn *sql.Conn) error {
 			if !skipUpdateDatabase {
 				if err := util.RunTimed("update database", func() error {
-					return u.runUpdateDatabase(ctx, t, conn, inputBucket, inputKey)
+					return u.runUpdateDatabase(ctx, t, conn, inputBucket, inputKey, updateSummaryBucket, updateSummaryKey)
 				}); err != nil {
 					return err
 				}
@@ -125,7 +127,7 @@ func (u *updater) UpdateDatabase(
 	return nil
 }
 
-func (u *updater) runUpdateDatabase(ctx context.Context, t time.Time, conn *sql.Conn, inputBucket, inputKey string) error {
+func (u *updater) runUpdateDatabase(ctx context.Context, t time.Time, conn *sql.Conn, inputBucket, inputKey, updateSummaryBucket, updateSummaryKey string) error {
 	return util.WithTempDir(func(tmpDir string) error {
 		if err := util.DownloadAndUpackGzippedTar(ctx, u.s3c, inputBucket, inputKey, tmpDir); err != nil {
 			return fmt.Errorf("failed to download and upack tar: %w", err)
@@ -143,6 +145,12 @@ func (u *updater) runUpdateDatabase(ctx context.Context, t time.Time, conn *sql.
 		}
 
 		fmt.Printf("rows: %+v\n", rows)
+
+		if updateSummaryBucket != "" && updateSummaryKey != "" {
+			if err := adapt.S3PutJson(ctx, u.s3c, updateSummaryBucket, updateSummaryKey, rows); err != nil {
+				return fmt.Errorf("failed to upload update summary: %w", err)
+			}
+		}
 
 		return nil
 	})

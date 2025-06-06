@@ -59,6 +59,7 @@ export class UpdateDatabaseConstruct extends Construct {
     props.dataBucket.grantRead(taskRole, 'raw/LH_Public_Data/flightschedules_history/*');
     props.dataBucket.grantReadWrite(taskRole, 'processed/flights.db');
     props.dataBucket.grantReadWrite(taskRole, 'processed/basedata.db');
+    props.dataBucket.grantWrite(taskRole, 'tmp/cron_database_update_summary.json');
     props.parquetBucket.grantReadWrite(taskRole);
 
     this.task = new FargateTaskDefinition(this, 'TaskDefinition', {

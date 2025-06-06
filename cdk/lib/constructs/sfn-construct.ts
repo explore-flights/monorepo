@@ -15,7 +15,7 @@ import {
   Succeed,
   TaskInput
 } from 'aws-cdk-lib/aws-stepfunctions';
-import { EcsFargateLaunchTarget, EcsRunTask, LambdaInvoke } from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import { EcsFargateLaunchTarget, EcsRunTask, LambdaInvoke, CallAwsService } from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { ContainerDefinition, FargatePlatformVersion, ICluster, TaskDefinition } from 'aws-cdk-lib/aws-ecs';
 import { IVpc, SecurityGroup, SubnetSelection } from 'aws-cdk-lib/aws-ec2';
 import { BASE_DATA_LAYER_NAME, BASE_DATA_LAYER_SSM_PARAMETER_NAME } from '../util/consts';
@@ -40,6 +40,7 @@ export class SfnConstruct extends Construct {
     super(scope, id);
 
     const LH_FLIGHT_SCHEDULES_PREFIX = 'raw/LH_Public_Data/flightschedules/';
+    const DATABASE_UPDATE_SUMMARY_KEY = 'tmp/cron_database_update_summary.json';
 
     const checkRemainingChoice = new Choice(this, 'CheckRemaining', {});
 
@@ -149,6 +150,8 @@ export class SfnConstruct extends Construct {
                     '--latest-prefix=latest/',
                     JsonPath.format('--input-bucket={}', JsonPath.stringAt('$.createFlightSchedulesHistoryResponse.bucket')),
                     JsonPath.format('--input-key={}', JsonPath.stringAt('$.createFlightSchedulesHistoryResponse.key')),
+                    `--update-summary-bucket=${props.dataBucket.bucketName}`,
+                    `--update-summary-key=${DATABASE_UPDATE_SUMMARY_KEY}`,
                     '--skip-update-database=false',
                   ),
                 },
@@ -190,6 +193,21 @@ export class SfnConstruct extends Construct {
                 resultPath: '$.updateLambdaLayerResponse',
                 retryOnServiceExceptions: true,
               }))
+              .next(new CallAwsService(this, 'LoadUpdateSummaryTask', {
+                service: 's3',
+                action: 'getObject',
+                parameters: {
+                  'Bucket': props.dataBucket.bucketName,
+                  'Key': DATABASE_UPDATE_SUMMARY_KEY,
+                },
+                iamResources: [
+                  props.dataBucket.arnForObjects(DATABASE_UPDATE_SUMMARY_KEY),
+                ],
+                resultSelector: {
+                  'body.$': JsonPath.stringToJson(JsonPath.stringAt('$.Body')),
+                },
+                resultPath: '$.updateSummary',
+              }))
           )
           // endregion
       )
@@ -208,10 +226,10 @@ export class SfnConstruct extends Construct {
         props.cronLambda_1G,
         props.webhookUrl,
         JsonPath.format(
-          'FlightSchedules Cron {} succeeded:\nQueried:\n```json\n{}\n```\nTouched:\n```json\n{}\n```',
+          'FlightSchedules Cron {} succeeded:\nQueried:\n```json\n{}\n```\nUpdate Summary:\n```json\n{}\n```',
           JsonPath.stringAt('$.time'),
           JsonPath.jsonToString(JsonPath.objectAt('$.loadScheduleRanges.completed')),
-          JsonPath.jsonToString(JsonPath.objectAt('$.convertSchedulesResponse.dateRanges')),
+          JsonPath.jsonToString(JsonPath.objectAt('$.updateSummary.body')),
         ),
       ))
       .next(new Succeed(this, 'Success'));
