@@ -135,7 +135,14 @@ func (u *updater) runUpdateDatabase(ctx context.Context, t time.Time, conn *sql.
 		}
 
 		upd := business.Updater{}
-		return upd.RunUpdateSequence(ctx, conn, t, tmpDir+"/**/*.json")
+		rows, err := upd.RunUpdateSequence(ctx, conn, t, tmpDir+"/**/*.json")
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("rows: %+v\n", rows)
+
+		return nil
 	})
 }
 
@@ -188,7 +195,7 @@ WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = ac.id ) ;
 		},
 	}
 
-	if err = sequence.Run(ctx, conn); err != nil {
+	if err = sequence.Run(ctx, conn, nil); err != nil {
 		return fmt.Errorf("failed to run update sequence: %w", err)
 	}
 
@@ -224,7 +231,7 @@ func (u *updater) exportVariants(ctx context.Context, conn *sql.Conn, bucket, ke
 		},
 	}
 
-	return sequence.Run(ctx, conn)
+	return sequence.Run(ctx, conn, nil)
 }
 
 func (u *updater) exportReport(ctx context.Context, conn *sql.Conn, bucket, key string) error {
@@ -319,7 +326,7 @@ COPY (
 		},
 	}
 
-	return sequence.Run(ctx, conn)
+	return sequence.Run(ctx, conn, nil)
 }
 
 func (u *updater) exportHistory(ctx context.Context, conn *sql.Conn, bucket, prefix string) error {
@@ -371,7 +378,7 @@ COPY (
 		},
 	}
 
-	return sequence.Run(ctx, conn)
+	return sequence.Run(ctx, conn, nil)
 }
 
 func (u *updater) exportLatest(ctx context.Context, conn *sql.Conn, bucket, prefix string) error {
@@ -446,7 +453,7 @@ COPY (
 		},
 	}
 
-	return sequence.Run(ctx, conn)
+	return sequence.Run(ctx, conn, nil)
 }
 
 func (u *updater) buildParquetFileUri(bucket, key string) string {

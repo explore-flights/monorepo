@@ -1,4 +1,5 @@
 -- flatten into one row per leg
+-- id:lh_flight_schedules_flattened
 CREATE TABLE lh_flight_schedules_flattened AS
 SELECT
     CAST(? AS TIMESTAMPTZ) AS createdAt,
@@ -47,10 +48,13 @@ FROM (
     )
 ) ;
 
+-- assert: lh_flight_schedules_flattened > lh_flight_schedules_raw
+
 -- drop lh_flight_schedules_raw
 DROP TABLE lh_flight_schedules_raw ;
 
 -- create queried dates table
+-- id:queried_dates
 CREATE TABLE queried_dates AS
 SELECT DISTINCT queryDate FROM lh_flight_schedules_flattened ;
 
@@ -343,6 +347,7 @@ GROUP BY
 ;
 
 -- create lh_all_flights_deduped
+-- id:lh_all_flights_deduped
 CREATE TABLE lh_all_flights_deduped AS
 SELECT
     createdAt,
@@ -367,6 +372,8 @@ GROUP BY
     departureDateLocal
 ;
 
+-- assert: lh_all_flights_deduped > lh_flight_schedules_flattened
+
 -- drop lh_all_flights
 DROP TABLE lh_all_flights ;
 
@@ -383,6 +390,7 @@ WHERE aid.issuer IS NULL
 GROUP BY fresh.airline ;
 
 -- insert new airlines
+-- id:new_airlines
 INSERT INTO airlines
 (id, name)
 SELECT id, NULL
@@ -413,6 +421,7 @@ WHERE aid.issuer IS NULL
 GROUP BY fresh.airport ;
 
 -- insert airport ids
+-- id:new_airports
 INSERT INTO airports
 (id, iata_area_code, country_code, city_code, type, lng, lat, timezone, name)
 SELECT id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
@@ -440,6 +449,7 @@ WHERE aid.issuer IS NULL
 GROUP BY fresh.aircraftType ;
 
 -- insert aircraft ids
+-- id:new_aircraft
 INSERT INTO aircraft
 (id, equip_code, name)
 SELECT id, NULL, NULL
@@ -455,6 +465,7 @@ FROM temp_new_aircraft ;
 DROP TABLE temp_new_aircraft ;
 
 -- create all flights with ids
+-- id:lh_all_flights_with_ids
 CREATE TABLE lh_all_flights_with_ids AS
 SELECT
     fresh.createdAt,
@@ -502,7 +513,10 @@ LEFT JOIN aircraft_identifiers airc_id -- aircraft id
 ON airc_id.issuer = 'iata'
 AND opdata.aircraftType = airc_id.identifier ;
 
+-- assert: lh_all_flights_with_ids == lh_all_flights_deduped
+
 -- add flights with same operating number which were not part of this update
+-- id:lh_all_flights_with_ids_existing
 INSERT INTO lh_all_flights_with_ids (
     createdAt,
     airlineId,
@@ -590,6 +604,7 @@ DROP TABLE lh_all_flights_deduped ;
 DROP TABLE lh_operating_flight_data ;
 
 -- insert new flight numbers
+-- id:new_flight_numbers
 INSERT OR IGNORE INTO flight_numbers
 (airline_id, number, suffix)
 SELECT DISTINCT airlineId, flightNumber, suffix
@@ -607,6 +622,7 @@ CREATE TABLE lh_operating_codeshares (
 ) ;
 
 -- insert codeshares
+-- id:codeshares_by_operating
 INSERT INTO lh_operating_codeshares (
     operatingAirlineId,
     operatingFlightNumber,
@@ -643,6 +659,7 @@ GROUP BY
 ;
 
 -- harden codeshares, for some reason the filter doesnt work on all platforms(?) https://github.com/duckdb/duckdb/issues/17757
+-- id:harden_codeshares
 UPDATE lh_operating_codeshares
 SET codeShares = LIST_SORT(LIST_DISTINCT(LIST_FILTER(
     codeShares,
@@ -652,6 +669,8 @@ WHERE LENGTH(LIST_FILTER(
     codeShares,
     lambda cs: ( cs.airline_id = operatingAirlineId AND cs.number = operatingFlightNumber AND cs.suffix = operatingSuffix )
 )) > 0 ;
+
+-- assert: harden_codeshares == 0
 
 -- insert new flight variants
 INSERT INTO flight_variants (
@@ -733,6 +752,7 @@ ON CONFLICT (
 ) DO NOTHING ;
 
 -- create all flights with variants
+-- id:lh_all_flights_with_variants
 CREATE TABLE lh_all_flights_with_variants AS
 SELECT
     fresh.*,
@@ -761,6 +781,8 @@ AND fresh.aircraftConfigurationVersion = fv.aircraft_configuration_version
 AND fresh.aircraftRegistration = fv.aircraft_registration
 AND MD5_NUMBER(TO_JSON(cs.codeShares)) = fv.code_shares_hash
 AND cs.codeShares = fv.code_shares ;
+
+-- assert: lh_all_flights_with_variants == (lh_all_flights_with_ids + lh_all_flights_with_ids_existing)
 
 -- drop lh_all_flights_with_ids
 DROP TABLE lh_all_flights_with_ids ;

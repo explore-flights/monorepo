@@ -109,7 +109,7 @@ func (f *Fresh) updateDatabase(ctx context.Context, initialDataBucket, initialDa
 }
 
 func (f *Fresh) runUpdates(ctx context.Context, conn *sql.Conn, historyBucket, historyPrefix, historyPath string) error {
-	if err := (util.UpdateScript{Name: "Init Schema", Script: db.Schema}.Run(ctx, conn)); err != nil {
+	if err := (util.UpdateScript{Name: "Init Schema", Script: db.Schema}.Run(ctx, conn, nil)); err != nil {
 		return fmt.Errorf("failed to init schema: %w", err)
 	}
 
@@ -166,7 +166,8 @@ func (f *Fresh) runUpdate(ctx context.Context, conn *sql.Conn, t time.Time, hist
 		return fmt.Errorf("failed to download history: %w", err)
 	}
 
-	return f.Updater.RunUpdateSequence(ctx, conn, t, historyPath+"/**/*.json")
+	_, err := f.Updater.RunUpdateSequence(ctx, conn, t, historyPath+"/**/*.json")
+	return err
 }
 
 func (f *Fresh) downloadHistory(ctx context.Context, historyBucket, historyKey, historyPath string) error {

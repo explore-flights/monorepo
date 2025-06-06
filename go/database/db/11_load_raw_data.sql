@@ -1,4 +1,5 @@
 -- load updated raw data
+-- id:lh_flight_schedules_raw
 CREATE TEMP TABLE lh_flight_schedules_raw AS
 SELECT *
 FROM read_json(

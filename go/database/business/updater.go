@@ -10,7 +10,7 @@ import (
 
 type Updater struct{}
 
-func (*Updater) RunUpdateSequence(ctx context.Context, conn *sql.Conn, t time.Time, inputFileUri string) error {
+func (*Updater) RunUpdateSequence(ctx context.Context, conn *sql.Conn, t time.Time, inputFileUri string) (map[string]int64, error) {
 	sequence := util.UpdateSequence{
 		{
 			Name:   "X11LoadRawData",
@@ -29,5 +29,6 @@ func (*Updater) RunUpdateSequence(ctx context.Context, conn *sql.Conn, t time.Ti
 		},
 	}
 
-	return sequence.Run(ctx, conn)
+	rows := make(map[string]int64)
+	return rows, sequence.Run(ctx, conn, rows)
 }

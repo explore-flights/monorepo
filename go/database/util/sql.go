@@ -6,8 +6,9 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"fmt"
+	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types"
 	"iter"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -15,9 +16,9 @@ import (
 
 type UpdateSequence []UpdateScript
 
-func (us UpdateSequence) Run(ctx context.Context, conn *sql.Conn) error {
+func (us UpdateSequence) Run(ctx context.Context, conn *sql.Conn, rows map[string]int64) error {
 	for _, script := range us {
-		if err := script.Run(ctx, conn); err != nil {
+		if err := script.Run(ctx, conn, rows); err != nil {
 			return err
 		}
 	}
@@ -29,79 +30,120 @@ type UpdateScript struct {
 	Name   string
 	Script string
 	Params [][]any
-	Checks []func(r sql.Result) error
 }
 
-func (us UpdateScript) Queries() iter.Seq[UpdateQuery] {
-	return func(yield func(UpdateQuery) bool) {
+func (us UpdateScript) Steps(outErr *error) iter.Seq[UpdateStep] {
+	return func(yield func(UpdateStep) bool) {
+		env, err := cel.NewEnv()
+		if err != nil {
+			*outErr = err
+			return
+		}
+
 		script := strings.TrimSpace(us.Script)
-		queries := strings.Split(script, ";")
-		queries = slices.DeleteFunc(queries, func(s string) bool {
-			for line := range strings.Lines(s) {
-				line = strings.TrimSpace(line)
-				if line != "" && !strings.HasPrefix(line, "--") {
-					return false
+		rawQueries := strings.Split(script, ";")
+
+		var queryIdx int
+		for _, rawQuery := range rawQueries {
+			for step := range us.ParseSteps(env, rawQuery, &queryIdx, outErr) {
+				if !yield(step) {
+					return
 				}
-			}
-
-			return true
-		})
-
-		for i, query := range queries {
-			q := UpdateQuery{
-				name:  us.Name,
-				query: query,
-			}
-
-			{
-				// if the query starts with a comment, use that as additional info
-				firstLine := strings.SplitN(strings.TrimSpace(query), "\n", 2)[0]
-				firstLine = strings.TrimSpace(firstLine)
-				if name, ok := strings.CutPrefix(firstLine, "--"); ok {
-					name = strings.TrimSpace(name)
-					if name != "" {
-						q.name += fmt.Sprintf(" (%q)", name)
-					}
-				}
-			}
-
-			if len(us.Params) > i {
-				q.params = us.Params[i]
-			}
-
-			if len(us.Checks) > i {
-				q.check = us.Checks[i]
-			}
-
-			if len(queries) > 1 {
-				q.name += fmt.Sprintf(" (%d/%d)", i+1, len(queries))
-			}
-
-			if !yield(q) {
-				break
 			}
 		}
 	}
 }
 
-func (us UpdateScript) Run(ctx context.Context, conn *sql.Conn) error {
-	for q := range us.Queries() {
-		if err := q.Run(ctx, conn); err != nil {
+func (us UpdateScript) ParseSteps(env *cel.Env, raw string, queryIdx *int, outErr *error) iter.Seq[UpdateStep] {
+	return func(yield func(UpdateStep) bool) {
+		raw = strings.TrimSpace(raw)
+
+		isQuery := false
+		identifier := ""
+		name := us.Name
+
+		for line := range strings.Lines(raw) {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+
+			comment, ok := strings.CutPrefix(line, "--")
+			if !ok {
+				isQuery = true
+				break
+			}
+
+			comment = strings.TrimSpace(comment)
+
+			if assertionRaw, ok := strings.CutPrefix(comment, "assert:"); ok {
+				assertionRaw = strings.TrimSpace(assertionRaw)
+				ast, issues := env.Parse(assertionRaw)
+				if issues != nil && issues.Err() != nil {
+					*outErr = issues.Err()
+					return
+				}
+
+				program, err := env.Program(ast)
+				if err != nil {
+					*outErr = err
+					return
+				}
+
+				if !yield(UpdateAssertion{raw: assertionRaw, program: program}) {
+					return
+				}
+			} else {
+				name += fmt.Sprintf(" %s", comment)
+				if id, ok := strings.CutPrefix(comment, "id:"); ok {
+					identifier = strings.TrimSpace(id)
+				}
+			}
+		}
+
+		if isQuery {
+			var params []any
+			if len(us.Params) > *queryIdx {
+				params = us.Params[*queryIdx]
+			}
+
+			name += fmt.Sprintf(" (part %d)", *queryIdx+1)
+
+			yield(UpdateQuery{
+				identifier: identifier,
+				name:       name,
+				query:      raw,
+				params:     params,
+			})
+
+			*queryIdx++
+		}
+	}
+}
+
+func (us UpdateScript) Run(ctx context.Context, conn *sql.Conn, rows map[string]int64) error {
+	var err error
+	for q := range us.Steps(&err) {
+		if err = q.Run(ctx, conn, rows); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return err
+}
+
+type UpdateStep interface {
+	Run(ctx context.Context, conn *sql.Conn, rows map[string]int64) error
 }
 
 type UpdateQuery struct {
-	name   string
-	query  string
-	params []any
-	check  func(r sql.Result) error
+	identifier string
+	name       string
+	query      string
+	params     []any
 }
 
-func (uq UpdateQuery) Run(ctx context.Context, conn *sql.Conn) error {
+func (uq UpdateQuery) Run(ctx context.Context, conn *sql.Conn, rows map[string]int64) error {
 	var rowsAffected int64
 	start := time.Now()
 	printDone := func() {
@@ -117,11 +159,36 @@ func (uq UpdateQuery) Run(ctx context.Context, conn *sql.Conn) error {
 	}
 
 	rowsAffected, _ = r.RowsAffected()
-	if uq.check == nil {
-		return nil
+	if rows != nil && uq.identifier != "" {
+		rows[uq.identifier] = rowsAffected
 	}
 
-	return uq.check(r)
+	return nil
+}
+
+type UpdateAssertion struct {
+	raw     string
+	program cel.Program
+}
+
+func (uc UpdateAssertion) Run(ctx context.Context, conn *sql.Conn, rows map[string]int64) error {
+	anyMap := make(map[string]any)
+	for k, v := range rows {
+		anyMap[k] = v
+	}
+
+	res, _, err := uc.program.ContextEval(ctx, anyMap)
+	if err != nil {
+		return fmt.Errorf("check %q failed: %w", uc.raw, err)
+	}
+
+	if !res.ConvertToType(types.BoolType).Value().(bool) {
+		return fmt.Errorf("check %q returned false", uc.raw)
+	}
+
+	fmt.Printf("check %q OK\n", uc.raw)
+
+	return nil
 }
 
 func GenerateIdentifier() (string, error) {
