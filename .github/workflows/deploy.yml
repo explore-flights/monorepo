@@ -68,7 +68,7 @@ jobs:
 
   build_and_test_cron:
     name: 'Build and test cron'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
@@ -224,7 +224,7 @@ jobs:
   deploy:
     name: 'Deploy'
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     environment:
       name: 'prod'
     permissions:
