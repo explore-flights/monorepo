@@ -68,7 +68,7 @@ jobs:
 
   build_and_test_cron:
     name: 'Build and test cron'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
@@ -124,7 +124,7 @@ jobs:
 
   build_otel_collector:
     name: 'Build otel collector'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
