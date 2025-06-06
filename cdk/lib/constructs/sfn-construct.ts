@@ -200,11 +200,12 @@ export class SfnConstruct extends Construct {
                   'Bucket': props.dataBucket.bucketName,
                   'Key': DATABASE_UPDATE_SUMMARY_KEY,
                 },
+                iamAction: 's3:GetObject',
                 iamResources: [
                   props.dataBucket.arnForObjects(DATABASE_UPDATE_SUMMARY_KEY),
                 ],
                 resultSelector: {
-                  'body.$': JsonPath.stringToJson(JsonPath.stringAt('$.Body')),
+                  'body': JsonPath.stringToJson(JsonPath.stringAt('$.Body')),
                 },
                 resultPath: '$.updateSummary',
               }))
