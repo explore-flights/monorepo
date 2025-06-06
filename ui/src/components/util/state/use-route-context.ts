@@ -72,11 +72,6 @@ const ROUTES = [{
           breadcrumb: 'Flight Search',
         },
         {
-          path: 'mm-quick-search',
-          title: 'M&M Quick Search',
-          breadcrumb: 'M&M Quick Search',
-        },
-        {
           path: 'links',
           title: 'Links',
           breadcrumb: 'Links',

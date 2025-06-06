@@ -8,7 +8,6 @@ import { ErrorLayout, ErrorPage } from './error-page';
 import { BaseProviders, RootLayout } from '../components/root';
 import { Legal } from './legal';
 import { PrivacyPolicy } from './privacy-policy';
-import { MmQuickSearch } from './tools/mm-quick-search';
 import { Links } from './tools/links';
 import { FlightView } from './flight';
 import { FlightSelect } from './flight-select';
@@ -60,10 +59,6 @@ const router = createBrowserRouter([
       {
         path: 'tools/flight-search',
         element: <FlightSearch />,
-      },
-      {
-        path: 'tools/mm-quick-search',
-        element: <MmQuickSearch />,
       },
       {
         path: 'tools/links',
