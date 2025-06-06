@@ -109,10 +109,12 @@ func (u *updater) UpdateDatabase(
 			return err
 		}
 
-		if err := util.RunTimed("upload db file", func() error {
-			return util.UploadS3File(ctx, u.s3c, databaseBucket, fullDatabaseKey, dstDbPath)
-		}); err != nil {
-			return err
+		if !skipUpdateDatabase {
+			if err := util.RunTimed("upload db file", func() error {
+				return util.UploadS3File(ctx, u.s3c, databaseBucket, fullDatabaseKey, dstDbPath)
+			}); err != nil {
+				return err
+			}
 		}
 
 		return nil
