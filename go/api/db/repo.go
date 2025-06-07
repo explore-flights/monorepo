@@ -470,7 +470,7 @@ ORDER BY departure_date_local ASC
 	}, nil
 }
 
-func (fr *FlightRepo) FlightSchedulesLatestRaw(ctx context.Context, filter string, params []any) (FlightSchedulesMany, error) {
+func (fr *FlightRepo) FlightSchedulesLatestRaw(ctx context.Context, filter Condition) (FlightSchedulesMany, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return FlightSchedulesMany{}, err
@@ -480,6 +480,7 @@ func (fr *FlightRepo) FlightSchedulesLatestRaw(ctx context.Context, filter strin
 	result := make(map[FlightNumber][]FlightScheduleItem)
 	variantIds := make(common.Set[uuid.UUID])
 	err = func() error {
+		filter, params := filter.Apply()
 		rows, err := conn.QueryContext(
 			ctx,
 			fmt.Sprintf(

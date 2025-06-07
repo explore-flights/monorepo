@@ -6,7 +6,7 @@ import (
 )
 
 type searchRepo interface {
-	FlightSchedulesLatestRaw(ctx context.Context, filter string, params []any) (db.FlightSchedulesMany, error)
+	FlightSchedulesLatestRaw(ctx context.Context, filter db.Condition) (db.FlightSchedulesMany, error)
 }
 
 type Search struct {
@@ -18,6 +18,5 @@ func NewSearch(repo searchRepo) *Search {
 }
 
 func (s *Search) QuerySchedules(ctx context.Context, cond Condition) (db.FlightSchedulesMany, error) {
-	filter, params := cond.Apply()
-	return s.repo.FlightSchedulesLatestRaw(ctx, filter, params)
+	return s.repo.FlightSchedulesLatestRaw(ctx, cond.cond)
 }
