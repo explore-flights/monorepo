@@ -11,7 +11,14 @@ import {
   ConnectionsSearchResponse,
   SeatMap,
   QuerySchedulesRequest,
-  Notification, Airline, SearchResponse, Airport, FlightSchedules, FlightScheduleVersions, QuerySchedulesResponseV2
+  Notification,
+  Airline,
+  SearchResponse,
+  Airport,
+  FlightSchedules,
+  FlightScheduleVersions,
+  QuerySchedulesResponseV2,
+  AircraftReport
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -174,8 +181,38 @@ export class ApiClient {
     return transform(this.httpClient.fetch(`/api/schedule/search?${params.toString()}`));
   }
 
-  getDestinations(airport: string): Promise<ApiResponse<ReadonlyArray<Airport>>> {
-    return transform(this.httpClient.fetch(`/data/destinations/${encodeURIComponent(airport)}`));
+  getDestinations(airport: string, year?: number, summerSchedule?: boolean): Promise<ApiResponse<ReadonlyArray<Airport>>> {
+    const urlParts = [
+      '/data/destinations',
+      encodeURIComponent(airport),
+    ];
+
+    if (year) {
+      urlParts.push(year.toString());
+
+      if (summerSchedule !== undefined) {
+        urlParts.push(summerSchedule ? 'summer' : 'winter');
+      }
+    }
+
+    return transform(this.httpClient.fetch(urlParts.join('/')));
+  }
+
+  getAircraftReport(airport: string, year?: number, summerSchedule?: boolean): Promise<ApiResponse<ReadonlyArray<AircraftReport>>> {
+    const urlParts = [
+      '/data/aircraft',
+      encodeURIComponent(airport),
+    ];
+
+    if (year) {
+      urlParts.push(year.toString());
+
+      if (summerSchedule !== undefined) {
+        urlParts.push(summerSchedule ? 'summer' : 'winter');
+      }
+    }
+
+    return transform(this.httpClient.fetch(urlParts.join('/')));
   }
 
   search(query: string): Promise<ApiResponse<SearchResponse>> {

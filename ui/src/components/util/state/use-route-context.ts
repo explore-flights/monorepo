@@ -57,6 +57,13 @@ const ROUTES = [{
       path: 'airport',
       title: 'Airports',
       breadcrumb: 'Airports',
+      children: [
+        {
+          path: /^.*$/,
+          title: (part) => part,
+          breadcrumb: (part) => part,
+        },
+      ],
     },
     {
       path: 'allegris',

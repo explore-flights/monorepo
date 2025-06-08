@@ -21,7 +21,7 @@ import {
   Link,
   Popover,
   PopoverProps,
-  SpaceBetween, ToggleButton
+  SpaceBetween, Spinner, ToggleButton
 } from '@cloudscape-design/components';
 import { greatCircle } from '@turf/turf';
 import { useConsent } from '../util/state/use-consent';
@@ -43,6 +43,9 @@ function ComponentResize() {
 export interface MaplibreMapProps {
   height: string | number;
   controls?: ReadonlyArray<React.ReactNode>;
+  initialLng?: number;
+  initialLat?: number;
+  loading?: boolean;
 }
 
 export function MaplibreMap(props: React.PropsWithChildren<MaplibreMapProps>) {
@@ -51,6 +54,8 @@ export function MaplibreMap(props: React.PropsWithChildren<MaplibreMapProps>) {
 
   if (!allowOnce && !consentLevels.has(ConsentLevel.VERSATILES)) {
     return <MaplibreMapConsent {...props} onAllowOnceClick={() => setAllowOnce(true)} />;
+  } else if (props.loading) {
+    return <MaplibreMapLoading {...props} />;
   }
 
   return <MaplibreMapInternal {...props} />;
@@ -64,24 +69,45 @@ function MaplibreMapConsent({ height, onAllowOnceClick }: { height: string | num
   }
 
   return (
+    <MaplibreMapOverlay height={height}>
+      <Container
+        header={<Header>VersaTiles Consent</Header>}
+        footer={
+          <SpaceBetween size={'xs'} direction={'horizontal'}>
+            <Button variant={'primary'} onClick={onAllowClick}>Allow &amp; Remember</Button>
+            <Button variant={'normal'} onClick={onAllowOnceClick}>Allow Once</Button>
+          </SpaceBetween>
+        }
+      >
+        <SpaceBetween direction={'vertical'} size={'xs'}>
+          <Box>The map component loads resources from URLs provided by <Link href={'https://versatiles.org/'} external={true}>VersaTiles</Link>.</Box>
+          <Box>Your browser will automatically transfer connection metadata like your IP-Address and User-Agent to VersaTiles.</Box>
+          <Box>By using the map component you accept and allow this from happening. You can always opt-out of this by updating your privacy preferences.</Box>
+        </SpaceBetween>
+      </Container>
+    </MaplibreMapOverlay>
+  );
+}
+
+function MaplibreMapLoading({ height }: { height: string | number }) {
+  return (
+    <MaplibreMapOverlay height={height}>
+      <SpaceBetween size={'m'} direction={'horizontal'} alignItems={'center'}>
+        <Spinner size={'large'} />
+        <Box variant={'span'} fontSize={'heading-xl'}>Loading ...</Box>
+      </SpaceBetween>
+    </MaplibreMapOverlay>
+  );
+}
+
+function MaplibreMapOverlay({ height, children }: React.PropsWithChildren<{ height: string | number }>) {
+  return (
     <div className={classes['consent']} style={{ height: height, width: 'auto' }}>
       <div className={classes['consent-container']}>
         <div className={classes['consent-content']}>
           <Grid gridDefinition={[{ colspan: { default: 12, xs: 10, s: 8 }, offset: { default: 0, xs: 1, s: 2 } }]}>
-            <Container
-              header={<Header>VersaTiles Consent</Header>}
-              footer={
-                <SpaceBetween size={'xs'} direction={'horizontal'}>
-                  <Button variant={'primary'} onClick={onAllowClick}>Allow &amp; Remember</Button>
-                  <Button variant={'normal'} onClick={onAllowOnceClick}>Allow Once</Button>
-                </SpaceBetween>
-              }
-            >
-              <SpaceBetween direction={'vertical'} size={'xs'}>
-                <Box>The map component loads resources from URLs provided by <Link href={'https://versatiles.org/'} external={true}>VersaTiles</Link>.</Box>
-                <Box>Your browser will automatically transfer connection metadata like your IP-Address and User-Agent to VersaTiles.</Box>
-                <Box>By using the map component you accept and allow this from happening. You can always opt-out of this by updating your privacy preferences.</Box>
-              </SpaceBetween>
+            <Container>
+              {children}
             </Container>
           </Grid>
         </div>
@@ -90,7 +116,7 @@ function MaplibreMapConsent({ height, onAllowOnceClick }: { height: string | num
   );
 }
 
-function MaplibreMapInternal({ children, height, controls }: React.PropsWithChildren<MaplibreMapProps>) {
+function MaplibreMapInternal({ children, height, controls, initialLat, initialLng }: React.PropsWithChildren<MaplibreMapProps>) {
   const [preferences] = usePreferences();
   const [projection, setProjection] = useState<'globe' | 'mercator'>('mercator');
   const mapStyle = useMemo(() => {
@@ -107,8 +133,8 @@ function MaplibreMapInternal({ children, height, controls }: React.PropsWithChil
     <Map
       style={{ height: height }}
       initialViewState={{
-        longitude: 0.0,
-        latitude: 0.0,
+        longitude: initialLng ?? 0.0,
+        latitude: initialLat ?? 0.0,
         zoom: 3,
       }}
       projection={projection}

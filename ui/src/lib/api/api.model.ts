@@ -310,3 +310,8 @@ export interface Notification {
   header?: string;
   content?: string;
 }
+
+export interface AircraftReport {
+  aircraft: Aircraft;
+  flightsAndDuration: ReadonlyArray<[number, number]>;
+}

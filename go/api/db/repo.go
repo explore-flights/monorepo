@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xsql"
@@ -480,7 +481,7 @@ func (fr *FlightRepo) FlightSchedulesLatestRaw(ctx context.Context, filter Condi
 	result := make(map[FlightNumber][]FlightScheduleItem)
 	variantIds := make(common.Set[uuid.UUID])
 	err = func() error {
-		filter, params := filter.Apply()
+		filter, params := filter.Condition()
 		rows, err := conn.QueryContext(
 			ctx,
 			fmt.Sprintf(
@@ -627,7 +628,7 @@ ORDER BY created_at ASC
 
 func (fr *FlightRepo) flightVariants(ctx context.Context, conn *sql.Conn, variantIds common.Set[uuid.UUID]) (map[uuid.UUID]FlightScheduleVariant, error) {
 	variantIds = maps.Clone(variantIds)
-	placeholders, params := buildParams(maps.Keys(variantIds))
+	filter, params := NewInCondition("id", maps.Keys(variantIds)).Condition()
 	rows, err := conn.QueryContext(
 		ctx,
 		strings.Replace(`
@@ -648,8 +649,8 @@ SELECT
     aircraft_registration,
     code_shares
 FROM flight_variants
-WHERE id IN (:flightVariantIds)
-			`, ":flightVariantIds", placeholders, 1),
+WHERE :filter
+			`, ":filter", filter, 1),
 		params...,
 	)
 	if err != nil {
@@ -781,13 +782,58 @@ AND day_utc = ?
 	return flights, rows.Err()
 }
 
-func buildParams[T any](values iter.Seq[T]) (string, []any) {
-	placeholders := make([]string, 0)
-	params := make([]any, 0)
-	for v := range values {
-		placeholders = append(placeholders, "?")
-		params = append(params, v)
+func (fr *FlightRepo) Report(ctx context.Context, selectFields []SelectExpression, filter Condition, groupBy []ValueExpression, scanner func(rows *sql.Rows) error) error {
+	if len(selectFields) < 1 {
+		return errors.New("at least one select field required")
 	}
 
-	return strings.Join(placeholders, ","), params
+	var params []any
+	var selectStrs []string
+	var filterStr string
+	var groupByStrs []string
+
+	for _, selectField := range selectFields {
+		selectStr, selectParams := selectField.Select()
+		selectStrs = append(selectStrs, selectStr)
+		params = append(params, selectParams...)
+	}
+
+	if filter != nil {
+		var filterParams []any
+		filterStr, filterParams = filter.Condition()
+		params = append(params, filterParams...)
+	}
+
+	for _, groupByExpr := range groupBy {
+		groupByStr, groupByParams := groupByExpr.Value()
+		groupByStrs = append(groupByStrs, groupByStr)
+		params = append(params, groupByParams...)
+	}
+
+	query := "SELECT " + strings.Join(selectStrs, ",") + " FROM report"
+	if filterStr != "" {
+		query += " WHERE " + filterStr
+	}
+
+	if len(groupByStrs) > 0 {
+		query += " GROUP BY " + strings.Join(groupByStrs, ",")
+	}
+
+	conn, err := fr.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	rows, err := conn.QueryContext(ctx, query, params...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	if err = scanner(rows); err != nil {
+		return err
+	}
+
+	return rows.Err()
 }

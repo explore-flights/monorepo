@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/api/business/connections"
+	"github.com/explore-flights/monorepo/go/api/business/report"
 	"github.com/explore-flights/monorepo/go/api/business/schedulesearch"
 	"github.com/explore-flights/monorepo/go/api/business/seatmap"
 	"github.com/explore-flights/monorepo/go/api/config"
@@ -53,14 +54,8 @@ func main() {
 	defer database.Close()
 
 	fr := db.NewFlightRepo(database)
-	rr := db.NewReportRepo(database)
-	repo := struct {
-		*db.FlightRepo
-		*db.ReportRepo
-	}{fr, rr}
-
-	connSearch := connections.NewSearch(repo)
-	sshHandler := web.NewScheduleSearchHandler(repo, schedulesearch.NewSearch(repo))
+	connSearch := connections.NewSearch(fr)
+	sshHandler := web.NewScheduleSearchHandler(fr, schedulesearch.NewSearch(fr))
 
 	e := echo.New()
 	e.Use(
@@ -77,7 +72,7 @@ func main() {
 	{
 		group := e.Group("/api")
 
-		connWebHandler := web.NewConnectionsHandler(repo, connSearch)
+		connWebHandler := web.NewConnectionsHandler(fr, connSearch)
 		group.POST("/connections/json", connWebHandler.ConnectionsJSON)
 		group.GET("/connections/json/:payload", connWebHandler.ConnectionsJSON)
 		group.POST("/connections/png", connWebHandler.ConnectionsPNG)
@@ -85,7 +80,7 @@ func main() {
 		group.POST("/connections/share", connWebHandler.ConnectionsShareCreate)
 		group.GET("/connections/share/:payload", connWebHandler.ConnectionsShareHTML)
 
-		searchHandler := web.NewSearchHandler(repo)
+		searchHandler := web.NewSearchHandler(fr)
 		group.GET("/search", searchHandler.Search)
 
 		group.GET("/schedule/search", sshHandler.Query)
@@ -108,7 +103,7 @@ func main() {
 	{
 		group := e.Group("/data")
 
-		dh := web.NewDataHandler(repo, seatmap.NewSearch(s3c, bucket, repo, lhc))
+		dh := web.NewDataHandler(fr, seatmap.NewSearch(s3c, bucket, fr, lhc))
 		group.GET("/airlines.json", dh.Airlines)
 		group.GET("/airports.json", dh.Airports)
 		group.GET("/aircraft.json", dh.Aircraft)
@@ -128,8 +123,13 @@ func main() {
 		group.GET("/:fn/:departureDate/:departureAirport/feed.rss", dh.LegacyFlightScheduleVersionsRSSFeed)
 		group.GET("/:fn/:departureDate/:departureAirport/feed.atom", dh.LegacyFlightScheduleVersionsAtomFeed)
 
-		reportHandler := web.NewReportHandler(repo)
+		reportHandler := web.NewReportHandler(fr, report.NewSearch(fr))
 		group.GET("/destinations/:airport", reportHandler.Destinations)
+		group.GET("/destinations/:airport/:year", reportHandler.Destinations)
+		group.GET("/destinations/:airport/:year/:schedule", reportHandler.Destinations)
+		group.GET("/aircraft/:airport", reportHandler.Aircraft)
+		group.GET("/aircraft/:airport/:year", reportHandler.Aircraft)
+		group.GET("/aircraft/:airport/:year/:schedule", reportHandler.Aircraft)
 
 		sitemapHandler := web.NewSitemapHandler(fr)
 		group.GET("/sitemap.xml", sitemapHandler.SitemapIndex)

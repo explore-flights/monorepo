@@ -4,7 +4,7 @@ import { ApiError, expectSuccess } from '../../../lib/api/api';
 import { DateTime } from 'luxon';
 import {
   Aircraft,
-  AircraftId,
+  AircraftId, AircraftReport,
   Airline,
   AirlineId,
   Airport,
@@ -283,15 +283,28 @@ export function useSearch(query: string, enabled: boolean) {
   });
 }
 
-export function useDestinations(airport: string) {
+export function useDestinations(airport: string, year?: number, summerSchedule?: boolean) {
   const { apiClient } = useHttpClient();
   return useQuery({
-    queryKey: ['destinations', airport],
+    queryKey: ['destinations', airport, year, summerSchedule],
     queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getDestinations(airport));
+      const { body } = expectSuccess(await apiClient.getDestinations(airport, year, summerSchedule));
       return body;
     },
     retry: 5,
     initialData: [] satisfies ReadonlyArray<Airport>,
+  });
+}
+
+export function useAircraftReport(airport: string, year?: number, summerSchedule?: boolean) {
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['aircraft_report', airport, year, summerSchedule],
+    queryFn: async () => {
+      const { body } = expectSuccess(await apiClient.getAircraftReport(airport, year, summerSchedule));
+      return body;
+    },
+    retry: 5,
+    initialData: [] satisfies ReadonlyArray<AircraftReport>,
   });
 }
