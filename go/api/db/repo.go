@@ -293,7 +293,7 @@ FROM (
 			    WHEN UPPER(CONCAT(airl.iata_code, fn.number, fn.suffix)) GLOB ? THEN 7
 				WHEN icao.icao_code IS NOT NULL AND UPPER(CONCAT(icao.icao_code, fn.number, fn.suffix)) GLOB ? THEN 8
 			    WHEN airl.name IS NOT NULL AND UPPER(CONCAT(airl.name, fn.number, fn.suffix)) GLOB ? THEN 9
-				ELSE 10
+				ELSE 100
 			END
 		) AS priority
 	FROM flight_numbers fn
@@ -303,7 +303,7 @@ FROM (
 	ON fn.airline_id = icao.airline_id
 	GROUP BY fn.airline_id, fn.number, fn.suffix
 ) sub
-WHERE ? OR sub.priority < 7
+WHERE ? OR sub.priority < 100
 ORDER BY sub.priority, sub.airline_id ASC, sub.number ASC, sub.suffix ASC
 LIMIT ?
 `,
