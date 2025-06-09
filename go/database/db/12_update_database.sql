@@ -377,33 +377,16 @@ GROUP BY
 -- drop lh_all_flights
 DROP TABLE lh_all_flights ;
 
--- prepare new airlines
-CREATE TABLE temp_new_airlines AS
-SELECT
-    UUID() AS id,
-    fresh.airline AS iata_code
-FROM lh_all_flights_deduped fresh
-LEFT JOIN airline_identifiers aid
-ON aid.issuer = 'iata'
-AND fresh.airline = aid.identifier
-WHERE aid.issuer IS NULL
-GROUP BY fresh.airline ;
-
 -- insert new airlines
 -- id:new_airlines
 INSERT INTO airlines
-(id, name)
-SELECT id, NULL
-FROM temp_new_airlines ;
-
--- insert airline identifiers
-INSERT INTO airline_identifiers
-(issuer, identifier, airline_id)
-SELECT 'iata', iata_code, id
-FROM temp_new_airlines ;
-
--- drop temp_new_airlines
-DROP TABLE temp_new_airlines ;
+(id, lh_api_id, iata_code, name)
+SELECT UUID(), airline, airline, NULL
+FROM (
+    SELECT DISTINCT fresh.airline
+    FROM lh_all_flights_deduped fresh
+    WHERE NOT EXISTS( FROM airlines airl WHERE airl.lh_api_id = fresh.airline )
+) ;
 
 -- prepare new airports
 CREATE TABLE temp_new_airports AS
@@ -469,10 +452,10 @@ DROP TABLE temp_new_aircraft ;
 CREATE TABLE lh_all_flights_with_ids AS
 SELECT
     fresh.createdAt,
-    mrktg_airl_id.airline_id AS airlineId,
+    mrktg_airl.id AS airlineId,
     fresh.flightNumber,
     fresh.suffix,
-    op_airl_id.airline_id AS operatingAirlineId,
+    op_airl.id AS operatingAirlineId,
     fresh.operatingFlightNumber,
     fresh.operatingSuffix,
     dep_airp_id.airport_id AS departureAirportId,
@@ -497,12 +480,10 @@ AND fresh.operatingFlightNumber = opdata.operatingFlightNumber
 AND fresh.operatingSuffix = opdata.operatingSuffix
 AND fresh.origin = opdata.origin
 AND fresh.departureDateLocal = opdata.departureDateLocal
-LEFT JOIN airline_identifiers mrktg_airl_id -- marketing airline id
-ON mrktg_airl_id.issuer = 'iata'
-AND fresh.airline = mrktg_airl_id.identifier
-LEFT JOIN airline_identifiers op_airl_id -- operating airline id
-ON op_airl_id.issuer = 'iata'
-AND fresh.operatingAirline = op_airl_id.identifier
+LEFT JOIN airlines mrktg_airl -- marketing airline
+ON mrktg_airl.lh_api_id = fresh.airline
+LEFT JOIN airlines op_airl -- operating airline
+ON op_airl.lh_api_id = fresh.airline
 LEFT JOIN airport_identifiers dep_airp_id -- departure airport id
 ON dep_airp_id.issuer = 'iata'
 AND fresh.origin = dep_airp_id.identifier

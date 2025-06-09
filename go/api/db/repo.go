@@ -114,8 +114,8 @@ func (fr *FlightRepo) airlinesInternal() (map[uuid.UUID]Airline, error) {
 SELECT
     id,
     name,
-    ( SELECT identifier FROM airline_identifiers WHERE issuer = 'iata' AND airline_id = id ),
-    ( SELECT identifier FROM airline_identifiers WHERE issuer = 'icao' AND airline_id = id )
+    iata_code,
+    ( SELECT icao_code FROM airline_icao_codes WHERE airline_id = id LIMIT 1 )
 FROM airlines
 `,
 	)
@@ -284,26 +284,32 @@ FROM (
 		fn.suffix,
 		MIN(
 			CASE
-				WHEN aid.identifier IS NOT NULL AND UPPER(CONCAT(aid.identifier, fn.number, fn.suffix)) = ? THEN 1
-			    WHEN airl.name IS NOT NULL AND UPPER(CONCAT(airl.name, fn.number, fn.suffix)) = ? THEN 2
-				WHEN aid.identifier IS NOT NULL AND STARTS_WITH(UPPER(CONCAT(aid.identifier, fn.number, fn.suffix)), ?) THEN 3
-			    WHEN airl.name IS NOT NULL AND STARTS_WITH(UPPER(CONCAT(airl.name, fn.number, fn.suffix)), ?) THEN 4
-				WHEN aid.identifier IS NOT NULL AND UPPER(CONCAT(aid.identifier, fn.number, fn.suffix)) GLOB ? THEN 5
-			    WHEN airl.name IS NOT NULL AND UPPER(CONCAT(airl.name, fn.number, fn.suffix)) GLOB ? THEN 6
-				ELSE 7
+			    WHEN UPPER(CONCAT(airl.iata_code, fn.number, fn.suffix)) = ? THEN 1
+				WHEN icao.icao_code IS NOT NULL AND UPPER(CONCAT(icao.icao_code, fn.number, fn.suffix)) = ? THEN 2
+			    WHEN airl.name IS NOT NULL AND UPPER(CONCAT(airl.name, fn.number, fn.suffix)) = ? THEN 3
+			    WHEN STARTS_WITH(UPPER(CONCAT(airl.iata_code, fn.number, fn.suffix)), ?) THEN 4
+				WHEN icao.icao_code IS NOT NULL AND STARTS_WITH(UPPER(CONCAT(icao.icao_code, fn.number, fn.suffix)), ?) THEN 5
+			    WHEN airl.name IS NOT NULL AND STARTS_WITH(UPPER(CONCAT(airl.name, fn.number, fn.suffix)), ?) THEN 6
+			    WHEN UPPER(CONCAT(airl.iata_code, fn.number, fn.suffix)) GLOB ? THEN 7
+				WHEN icao.icao_code IS NOT NULL AND UPPER(CONCAT(icao.icao_code, fn.number, fn.suffix)) GLOB ? THEN 8
+			    WHEN airl.name IS NOT NULL AND UPPER(CONCAT(airl.name, fn.number, fn.suffix)) GLOB ? THEN 9
+				ELSE 10
 			END
 		) AS priority
 	FROM flight_numbers fn
 	INNER JOIN airlines airl
 	ON fn.airline_id = airl.id
-	LEFT JOIN airline_identifiers aid
-	ON fn.airline_id = aid.airline_id
+	LEFT JOIN airline_icao_codes icao
+	ON fn.airline_id = icao.airline_id
 	GROUP BY fn.airline_id, fn.number, fn.suffix
 ) sub
 WHERE ? OR sub.priority < 7
 ORDER BY sub.priority, sub.airline_id ASC, sub.number ASC, sub.suffix ASC
 LIMIT ?
 `,
+		query,
+		query,
+		query,
 		query,
 		query,
 		query,

@@ -1,16 +1,21 @@
 -- region airlines
 CREATE TABLE IF NOT EXISTS airlines (
     id UUID NOT NULL,
+    lh_api_id TEXT NOT NULL,
+    iata_code TEXT NOT NULL,
     name TEXT,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    UNIQUE (lh_api_id),
+    UNIQUE (iata_code),
+    CHECK ( LENGTH(iata_code) = 2 )
 ) ;
 
-CREATE TABLE IF NOT EXISTS airline_identifiers (
-    issuer TEXT NOT NULL,
-    identifier TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS airline_icao_codes (
+    icao_code TEXT NOT NULL,
     airline_id UUID NOT NULL,
-    PRIMARY KEY (issuer, identifier),
-    FOREIGN KEY (airline_id) REFERENCES airlines (id)
+    PRIMARY KEY (icao_code),
+    FOREIGN KEY (airline_id) REFERENCES airlines (id),
+    CHECK ( LENGTH(icao_code) = 3 )
 ) ;
 -- endregion
 -- region airports

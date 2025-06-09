@@ -182,8 +182,8 @@ func (u *updater) createAndUploadBaseDataDb(ctx context.Context, conn *sql.Conn,
 		{
 			Name: "delete unused basedata",
 			Script: `
-DELETE FROM airline_identifiers aid
-WHERE NOT EXISTS ( FROM flight_numbers fn WHERE fn.airline_id = aid.airline_id ) ;
+DELETE FROM airline_icao_codes icao
+WHERE NOT EXISTS ( FROM flight_numbers fn WHERE fn.airline_id = icao.airline_id ) ;
 
 DELETE FROM airlines al
 WHERE NOT EXISTS ( FROM flight_numbers fn WHERE fn.airline_id = al.id ) ;
