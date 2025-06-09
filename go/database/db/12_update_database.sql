@@ -673,6 +673,7 @@ WHERE LENGTH(LIST_FILTER(
 -- assert: harden_codeshares == 0
 
 -- insert new flight variants
+-- id:new_flight_variants
 INSERT INTO flight_variants (
     id,
     operating_airline_id,
