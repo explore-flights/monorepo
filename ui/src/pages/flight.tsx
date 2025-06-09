@@ -151,6 +151,7 @@ interface FlightScheduleSummary {
   aircraftConfigurationVersions: ReadonlyArray<string>;
   operatedAs: ReadonlyArray<[Airline, FlightNumber]>,
   codeShares: ReadonlyArray<[Airline, FlightNumber]>,
+  relatedFlightNumbers: ReadonlyArray<[Airline, FlightNumber]>;
   years: ReadonlyArray<number>,
 }
 
@@ -227,11 +228,7 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
               },
               {
                 label: 'Number',
-                value: `${flightSchedules.flightNumber.number}`,
-              },
-              {
-                label: 'Suffix',
-                value: flightSchedules.flightNumber.suffix || <Popover content={'This schedule has no suffix'} dismissButton={false}><StatusIndicator type={'info'}>None</StatusIndicator></Popover>,
+                value: `${flightSchedules.flightNumber.number}${flightSchedules.flightNumber.suffix ?? ''}`,
               },
               {
                 label: 'Operated As',
@@ -240,6 +237,10 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
               {
                 label: 'Codeshares',
                 value: <FlightNumberList flightNumbers={summary.codeShares} exclude={flightSchedules.flightNumber} rel={'alternate'} />,
+              },
+              {
+                label: 'Related',
+                value: <FlightNumberList flightNumbers={summary.relatedFlightNumbers} exclude={flightSchedules.flightNumber} rel={'alternate'} />,
               },
               {
                 label: 'Links',
@@ -957,6 +958,14 @@ function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFligh
   }
 
   flights.sort((a, b) => flightDepartureTime(a).toMillis() - flightDepartureTime(b).toMillis());
+  operatedAs.sort(compareFlightNumbers);
+  codeShares.sort(compareFlightNumbers);
+
+  const relatedFlightNumbers = flightSchedules.relatedFlightNumbers.map((fn) => {
+    const airline = flightSchedules.airlines[fn.airlineId];
+    return [airline, fn] as [Airline, FlightNumber];
+  });
+  relatedFlightNumbers.sort(compareFlightNumbers);
 
   return {
     summary: {
@@ -967,6 +976,7 @@ function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFligh
       aircraftConfigurationVersions: aircraftConfigurationVersions,
       operatedAs: operatedAs,
       codeShares: codeShares,
+      relatedFlightNumbers: relatedFlightNumbers,
       years: years,
     },
     flights: flights,

@@ -32,6 +32,7 @@ type dataHandlerRepo interface {
 	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
 	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
 	Aircraft(ctx context.Context) (map[uuid.UUID]db.Aircraft, error)
+	RelatedFlightNumbers(ctx context.Context, fn db.FlightNumber, version time.Time) (common.Set[db.FlightNumber], error)
 	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
 	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber, departureAirport uuid.UUID, departureDate xtime.LocalDate) (db.FlightScheduleVersions, error)
 }
@@ -112,6 +113,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 	}
 
 	var flightSchedules db.FlightSchedules
+	var relatedFlightNumbers common.Set[db.FlightNumber]
 	var airlines map[uuid.UUID]db.Airline
 	var airports map[uuid.UUID]db.Airport
 	var aircraft map[uuid.UUID]db.Aircraft
@@ -122,6 +124,12 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 		g.Go(func() error {
 			var err error
 			flightSchedules, err = dh.repo.FlightSchedules(ctx, fn, version)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			relatedFlightNumbers, err = dh.repo.RelatedFlightNumbers(ctx, fn, version)
 			return err
 		})
 
@@ -149,12 +157,13 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 	}
 
 	fs := model.FlightSchedules{
-		FlightNumber: model.FlightNumberFromDb(fn),
-		Items:        make([]model.FlightScheduleItem, 0, len(flightSchedules.Items)),
-		Variants:     make(map[model.UUID]model.FlightScheduleVariant, len(flightSchedules.Variants)),
-		Airlines:     make(map[model.UUID]model.Airline),
-		Airports:     make(map[model.UUID]model.Airport),
-		Aircraft:     make(map[model.UUID]model.Aircraft),
+		FlightNumber:         model.FlightNumberFromDb(fn),
+		RelatedFlightNumbers: make([]model.FlightNumber, 0, len(relatedFlightNumbers)),
+		Items:                make([]model.FlightScheduleItem, 0, len(flightSchedules.Items)),
+		Variants:             make(map[model.UUID]model.FlightScheduleVariant, len(flightSchedules.Variants)),
+		Airlines:             make(map[model.UUID]model.Airline),
+		Airports:             make(map[model.UUID]model.Airport),
+		Aircraft:             make(map[model.UUID]model.Aircraft),
 	}
 	referencedAirlines := make(common.Set[uuid.UUID])
 	referencedAirports := make(common.Set[uuid.UUID])
@@ -177,6 +186,11 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 		referencedAirlines.Add(variant.OperatedAs.AirlineId)
 		referencedAirports.Add(variant.ArrivalAirportId)
 		referencedAircraft.Add(variant.AircraftId)
+	}
+
+	for relFn := range relatedFlightNumbers {
+		referencedAirlines.Add(relFn.AirlineId)
+		fs.RelatedFlightNumbers = append(fs.RelatedFlightNumbers, model.FlightNumberFromDb(relFn))
 	}
 
 	for airlineId := range referencedAirlines {

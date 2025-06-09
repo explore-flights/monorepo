@@ -92,7 +92,7 @@ export class ApiClient {
       suffix = `/${version.toUTC().toISO()}`;
     }
 
-    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}${suffix}?v=3`));
+    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}${suffix}?v=4`));
   }
 
   getFlightScheduleVersions(flightNumber: string, departureAirport: string, departureDateLocal: string): Promise<ApiResponse<FlightScheduleVersions>> {

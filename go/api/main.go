@@ -119,10 +119,12 @@ func main() {
 		group.GET("/allegris/feed.rss", sshHandler.AllegrisRSSFeed)
 		group.GET("/allegris/feed.atom", sshHandler.AllegrisAtomFeed)
 
-		// deprecated feed endpoints
+		// region deprecated feed endpoints
 		group.GET("/:fn/:departureDate/:departureAirport/feed.rss", dh.LegacyFlightScheduleVersionsRSSFeed)
 		group.GET("/:fn/:departureDate/:departureAirport/feed.atom", dh.LegacyFlightScheduleVersionsAtomFeed)
+		// endregion
 
+		// region reports
 		reportHandler := web.NewReportHandler(fr, report.NewSearch(fr))
 		group.GET("/destinations/:airport", reportHandler.Destinations)
 		group.GET("/destinations/:airport/:year", reportHandler.Destinations)
@@ -130,6 +132,7 @@ func main() {
 		group.GET("/aircraft/:airport", reportHandler.Aircraft)
 		group.GET("/aircraft/:airport/:year", reportHandler.Aircraft)
 		group.GET("/aircraft/:airport/:year/:schedule", reportHandler.Aircraft)
+		// endregion
 
 		sitemapHandler := web.NewSitemapHandler(fr)
 		group.GET("/sitemap.xml", sitemapHandler.SitemapIndex)

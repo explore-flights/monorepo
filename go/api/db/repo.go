@@ -393,6 +393,73 @@ ORDER BY fn.airline_id ASC, fn.number ASC, fn.suffix ASC
 	}
 }
 
+func (fr *FlightRepo) RelatedFlightNumbers(ctx context.Context, fn FlightNumber, version time.Time) (common.Set[FlightNumber], error) {
+	conn, err := fr.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	flightNumberCondition := make(OrCondition, 0)
+	flightNumberCondition = append(flightNumberCondition, BaseCondition{
+		Filter: `( number = ? AND number_mod_10 = (? % 10) AND suffix != ? )`,
+		Params: []any{fn.Number, fn.Number, fn.Suffix},
+	})
+
+	if fn.Number%2 == 0 {
+		flightNumberCondition = append(flightNumberCondition, BaseCondition{
+			Filter: `( number = ? AND number_mod_10 = (? % 10) )`,
+			Params: []any{fn.Number + 1, fn.Number + 1},
+		})
+	} else {
+		flightNumberCondition = append(flightNumberCondition, BaseCondition{
+			Filter: `( number = ? AND number_mod_10 = (? % 10) )`,
+			Params: []any{fn.Number - 1, fn.Number - 1},
+		})
+	}
+
+	filter, params := AndCondition{
+		BaseCondition{
+			Filter: `created_at <= CAST(? AS TIMESTAMPTZ)`,
+			Params: []any{version.Format(time.RFC3339)},
+		},
+		BaseCondition{
+			Filter: `airline_id = ?`,
+			Params: []any{fn.AirlineId},
+		},
+		flightNumberCondition,
+	}.Condition()
+	rows, err := conn.QueryContext(
+		ctx,
+		strings.Replace(
+			`
+SELECT DISTINCT airline_id, number, suffix
+FROM flight_variant_history
+WHERE :filter
+`,
+			":filter",
+			filter,
+			1,
+		),
+		params...,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(common.Set[FlightNumber])
+	for rows.Next() {
+		var flightNumber FlightNumber
+		if err = rows.Scan(&flightNumber.AirlineId, &flightNumber.Number, &flightNumber.Suffix); err != nil {
+			return nil, err
+		}
+
+		result.Add(flightNumber)
+	}
+
+	return result, rows.Err()
+}
+
 func (fr *FlightRepo) FlightSchedules(ctx context.Context, fn FlightNumber, version time.Time) (FlightSchedules, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {

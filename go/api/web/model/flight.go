@@ -7,12 +7,13 @@ import (
 )
 
 type FlightSchedules struct {
-	FlightNumber FlightNumber                   `json:"flightNumber"`
-	Items        []FlightScheduleItem           `json:"items"`
-	Variants     map[UUID]FlightScheduleVariant `json:"variants"`
-	Airlines     map[UUID]Airline               `json:"airlines"`
-	Airports     map[UUID]Airport               `json:"airports"`
-	Aircraft     map[UUID]Aircraft              `json:"aircraft"`
+	FlightNumber         FlightNumber                   `json:"flightNumber"`
+	RelatedFlightNumbers []FlightNumber                 `json:"relatedFlightNumbers"`
+	Items                []FlightScheduleItem           `json:"items"`
+	Variants             map[UUID]FlightScheduleVariant `json:"variants"`
+	Airlines             map[UUID]Airline               `json:"airlines"`
+	Airports             map[UUID]Airport               `json:"airports"`
+	Aircraft             map[UUID]Aircraft              `json:"aircraft"`
 }
 
 type FlightScheduleItem struct {
