@@ -466,7 +466,7 @@ AND fresh.departureDateLocal = opdata.departureDateLocal
 LEFT JOIN airlines mrktg_airl -- marketing airline
 ON mrktg_airl.lh_api_id = fresh.airline
 LEFT JOIN airlines op_airl -- operating airline
-ON op_airl.lh_api_id = fresh.airline
+ON op_airl.lh_api_id = fresh.operatingAirline
 LEFT JOIN airports dep_airp -- departure airport
 ON dep_airp.lh_api_id = opdata.origin
 LEFT JOIN airports arr_airp -- arrival airport
