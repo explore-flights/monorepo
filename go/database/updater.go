@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/database/business"
@@ -147,7 +148,12 @@ func (u *updater) runUpdateDatabase(ctx context.Context, t time.Time, conn *sql.
 		fmt.Printf("rows: %+v\n", rows)
 
 		if updateSummaryBucket != "" && updateSummaryKey != "" {
-			if err := adapt.S3PutJson(ctx, u.s3c, updateSummaryBucket, updateSummaryKey, rows); err != nil {
+			jsonBytes, err := json.MarshalIndent(rows, "", "\t")
+			if err != nil {
+				return err
+			}
+
+			if err := adapt.S3PutRaw(ctx, u.s3c, updateSummaryBucket, updateSummaryKey, jsonBytes); err != nil {
 				return fmt.Errorf("failed to upload update summary: %w", err)
 			}
 		}

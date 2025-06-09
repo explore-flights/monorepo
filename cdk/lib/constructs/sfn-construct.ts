@@ -205,7 +205,8 @@ export class SfnConstruct extends Construct {
                   props.dataBucket.arnForObjects(DATABASE_UPDATE_SUMMARY_KEY),
                 ],
                 resultSelector: {
-                  'body': JsonPath.stringToJson(JsonPath.stringAt('$.Body')),
+                  // discard everything but Body
+                  'Body': JsonPath.stringAt('$.Body'),
                 },
                 resultPath: '$.updateSummary',
               }))
@@ -230,7 +231,7 @@ export class SfnConstruct extends Construct {
           'FlightSchedules Cron {} succeeded:\nQueried:\n```json\n{}\n```\nUpdate Summary:\n```json\n{}\n```',
           JsonPath.stringAt('$.time'),
           JsonPath.jsonToString(JsonPath.objectAt('$.loadScheduleRanges.completed')),
-          JsonPath.jsonToString(JsonPath.objectAt('$.updateSummary.body')),
+          JsonPath.stringAt('$.updateSummary.Body'),
         ),
       ))
       .next(new Succeed(this, 'Success'));
