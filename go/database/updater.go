@@ -188,9 +188,6 @@ WHERE NOT EXISTS ( FROM flight_numbers fn WHERE fn.airline_id = icao.airline_id 
 DELETE FROM airlines al
 WHERE NOT EXISTS ( FROM flight_numbers fn WHERE fn.airline_id = al.id ) ;
 
-DELETE FROM airport_identifiers aid
-WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.departure_airport_id = aid.airport_id OR fv.arrival_airport_id = aid.airport_id ) ;
-
 DELETE FROM airports ap
 WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.departure_airport_id = ap.id OR fv.arrival_airport_id = ap.id ) ;
 

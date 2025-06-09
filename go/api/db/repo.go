@@ -162,8 +162,8 @@ SELECT
     lat,
     timezone,
     name,
-    ( SELECT identifier FROM airport_identifiers WHERE issuer = 'iata' AND airport_id = id ),
-    ( SELECT identifier FROM airport_identifiers WHERE issuer = 'icao' AND airport_id = id )
+    iata_code,
+    icao_code
 FROM airports
 `,
 	)
