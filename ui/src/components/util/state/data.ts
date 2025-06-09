@@ -32,10 +32,7 @@ export function useAirlines() {
 
       for (const airline of airlines) {
         lookupById.set(airline.id, airline);
-
-        if (airline.iataCode) {
-          lookupByIata.set(airline.iataCode, airline);
-        }
+        lookupByIata.set(airline.iataCode, airline);
 
         if (airline.icaoCode) {
           lookupByIcao.set(airline.icaoCode, airline);
@@ -78,10 +75,7 @@ export function useAirports() {
 
       for (const airport of airports) {
         lookupById.set(airport.id, airport);
-
-        if (airport.iataCode) {
-          lookupByIata.set(airport.iataCode, airport);
-        }
+        lookupByIata.set(airport.iataCode, airport);
 
         if (airport.icaoCode) {
           lookupByIcao.set(airport.icaoCode, airport);

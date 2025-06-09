@@ -115,7 +115,7 @@ function useAirportOptions(airports: ReadonlyArray<Airport>): [ReadonlyArray<Com
       }
 
       const option = {
-        label: airport.iataCode ?? airport.icaoCode ?? airport.name ?? airport.id,
+        label: airport.iataCode,
         description: airport.name,
         tags: tags,
         value: airport.id,

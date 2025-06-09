@@ -77,7 +77,7 @@ function toMarkersAndLines(
             renderWithPortal: true,
             content: <AirportPopoverContent node={node} />,
           }}
-        >{node.airport.iataCode ?? node.airport.icaoCode ?? node.airport.id}</PopupMarker>
+        >{node.airport.iataCode}</PopupMarker>
       ),
     );
   }

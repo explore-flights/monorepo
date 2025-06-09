@@ -128,19 +128,12 @@ function TopNavigationSearch() {
         const tags: Array<string> = [];
 
         if (airline) {
-          if (airline.iataCode) {
-            valuePrefix = airline.iataCode;
-            labelPrefix = airline.iataCode;
-          } else if (airline.icaoCode) {
-            valuePrefix = airline.icaoCode;
-            labelPrefix = airline.icaoCode;
-          } else {
-            labelPrefix = airline.name;
-          }
+          valuePrefix = airline.iataCode;
+          labelPrefix = airline.iataCode;
 
           tags.push(`${airline.name} ${flightNumber.number}${flightNumber.suffix ?? ''}`);
 
-          if (airline.iataCode && airline.icaoCode) {
+          if (airline.icaoCode) {
             tags.push(`${airline.icaoCode}${flightNumber.number}${flightNumber.suffix ?? ''}`);
           }
         }

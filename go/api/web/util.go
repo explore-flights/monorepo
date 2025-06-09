@@ -71,7 +71,7 @@ func (util) parseAirport(ctx context.Context, raw string, airportsFn func(contex
 		}
 
 		for _, airport := range airports {
-			if (airport.IataCode.Valid && airport.IataCode.String == raw) || (airport.IcaoCode.Valid && airport.IcaoCode.String == raw) {
+			if airport.IataCode == raw || (airport.IcaoCode.Valid && airport.IcaoCode.String == raw) {
 				return airport.Id, nil
 			}
 		}

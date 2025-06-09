@@ -390,7 +390,7 @@ func (h *ScheduleSearchHandler) queryAllegris(ctx context.Context) (model.Flight
 		}
 
 		for _, airline := range airlines {
-			if airline.IataCode.Valid && airline.IataCode.String == "LH" {
+			if airline.IataCode == "LH" {
 				lhAirlineId = airline.Id
 				break
 			}

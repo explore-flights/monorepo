@@ -262,7 +262,7 @@ function AirportMarker({ airport, onClick, onRemoveClick, indexes, connectable, 
 
   let content = (
     <Button variant={connectable ? 'normal' : 'primary'} onClick={onClick} disabled={disabled}>
-      {badge}{airport.iataCode ?? airport.icaoCode ?? airport.name}
+      {badge}{airport.iataCode}
     </Button>
   );
 
@@ -307,7 +307,7 @@ function buildBreadcrumbItems(airports: ReadonlyArray<Airport>) {
     }
 
     items.push({
-      text: (airport.iataCode ?? airport.icaoCode ?? airport.id) + suffix,
+      text: (airport.iataCode) + suffix,
       href: '#',
       airport: airport,
       index: i,

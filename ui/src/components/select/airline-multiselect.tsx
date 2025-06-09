@@ -18,16 +18,14 @@ export function AirlineMultiselect({ selectedAirlineIds, disabled, onChange, pla
 
     for (const airline of data.airlines) {
       const tags: Array<string> = [];
-      if (airline.iataCode) {
-        tags.push(airline.iataCode);
-      }
+      tags.push(airline.iataCode);
 
       if (airline.icaoCode) {
         tags.push(airline.icaoCode);
       }
 
       const option = {
-        label: airline.name ?? airline.iataCode ?? airline.icaoCode ?? airline.id,
+        label: airline.name ?? airline.iataCode,
         tags: tags,
         value: airline.id,
       } satisfies MultiselectProps.Option;

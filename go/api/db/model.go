@@ -12,13 +12,15 @@ import (
 
 type Airline struct {
 	Id       uuid.UUID
-	Name     sql.NullString
-	IataCode sql.NullString
+	IataCode string
 	IcaoCode sql.NullString
+	Name     sql.NullString
 }
 
 type Airport struct {
 	Id           uuid.UUID
+	IataCode     string
+	IcaoCode     sql.NullString
 	IataAreaCode sql.NullString
 	CountryCode  sql.NullString
 	CityCode     sql.NullString
@@ -27,8 +29,6 @@ type Airport struct {
 	Lat          sql.NullFloat64
 	Timezone     sql.NullString
 	Name         sql.NullString
-	IataCode     sql.NullString
-	IcaoCode     sql.NullString
 }
 
 type Aircraft struct {

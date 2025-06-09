@@ -24,7 +24,7 @@ func (pctx *predicateContext) globMatchAirline(airlineId uuid.UUID, pattern stri
 		return false
 	}
 
-	return (airline.IataCode.Valid && pctx.globMatch(airline.IataCode.String, pattern)) ||
+	return pctx.globMatch(airline.IataCode, pattern) ||
 		(airline.IcaoCode.Valid && pctx.globMatch(airline.IcaoCode.String, pattern))
 }
 
@@ -34,7 +34,7 @@ func (pctx *predicateContext) globMatchAirport(airportId uuid.UUID, pattern stri
 		return false
 	}
 
-	return (airport.IataCode.Valid && pctx.globMatch(airport.IataCode.String, pattern)) ||
+	return pctx.globMatch(airport.IataCode, pattern) ||
 		(airport.IcaoCode.Valid && pctx.globMatch(airport.IcaoCode.String, pattern))
 }
 
@@ -56,7 +56,7 @@ func (pctx *predicateContext) anyMatchFlightNumber(f *Flight, predicate func(fn 
 		return false
 	}
 
-	if airline.IataCode.Valid && predicate(fmt.Sprintf("%s%d%s", airline.IataCode.String, f.Number, f.Suffix)) {
+	if predicate(fmt.Sprintf("%s%d%s", airline.IataCode, f.Number, f.Suffix)) {
 		return true
 	}
 

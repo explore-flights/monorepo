@@ -18,17 +18,17 @@ func FlightNumberFromDb(fn db.FlightNumber) FlightNumber {
 
 type Airline struct {
 	Id       UUID   `json:"id"`
-	Name     string `json:"name"`
-	IataCode string `json:"iataCode,omitempty"`
+	IataCode string `json:"iataCode"`
 	IcaoCode string `json:"icaoCode,omitempty"`
+	Name     string `json:"name"`
 }
 
 func AirlineFromDb(airline db.Airline) Airline {
 	return Airline{
 		Id:       UUID(airline.Id),
-		Name:     airline.Name.String,
-		IataCode: airline.IataCode.String,
+		IataCode: airline.IataCode,
 		IcaoCode: airline.IcaoCode.String,
+		Name:     airline.Name.String,
 	}
 }
 
@@ -39,6 +39,8 @@ type GeoLocation struct {
 
 type Airport struct {
 	Id           UUID         `json:"id"`
+	IataCode     string       `json:"iataCode"`
+	IcaoCode     string       `json:"icaoCode,omitempty"`
 	IataAreaCode string       `json:"iataAreaCode,omitempty"`
 	CountryCode  string       `json:"countryCode,omitempty"`
 	CityCode     string       `json:"cityCode,omitempty"`
@@ -46,8 +48,6 @@ type Airport struct {
 	Location     *GeoLocation `json:"location,omitempty"`
 	Timezone     string       `json:"timezone,omitempty"`
 	Name         string       `json:"name,omitempty"`
-	IataCode     string       `json:"iataCode,omitempty"`
-	IcaoCode     string       `json:"icaoCode,omitempty"`
 }
 
 func AirportFromDb(airport db.Airport) Airport {
@@ -61,6 +61,8 @@ func AirportFromDb(airport db.Airport) Airport {
 
 	return Airport{
 		Id:           UUID(airport.Id),
+		IataCode:     airport.IataCode,
+		IcaoCode:     airport.IcaoCode.String,
 		IataAreaCode: airport.IataAreaCode.String,
 		CountryCode:  airport.CountryCode.String,
 		CityCode:     airport.CityCode.String,
@@ -68,8 +70,6 @@ func AirportFromDb(airport db.Airport) Airport {
 		Location:     location,
 		Timezone:     airport.Timezone.String,
 		Name:         airport.Name.String,
-		IataCode:     airport.IataCode.String,
-		IcaoCode:     airport.IcaoCode.String,
 	}
 }
 

@@ -113,9 +113,9 @@ func (fr *FlightRepo) airlinesInternal() (map[uuid.UUID]Airline, error) {
 		`
 SELECT
     id,
-    name,
     iata_code,
-    ( SELECT icao_code FROM airline_icao_codes WHERE airline_id = id LIMIT 1 )
+    ( SELECT icao_code FROM airline_icao_codes WHERE airline_id = id LIMIT 1 ),
+    name
 FROM airlines
 `,
 	)
@@ -127,7 +127,7 @@ FROM airlines
 	airlines := make(map[uuid.UUID]Airline)
 	for rows.Next() {
 		var airline Airline
-		if err = rows.Scan(&airline.Id, &airline.Name, &airline.IataCode, &airline.IcaoCode); err != nil {
+		if err = rows.Scan(&airline.Id, &airline.IataCode, &airline.IcaoCode, &airline.Name); err != nil {
 			return nil, err
 		}
 
@@ -154,6 +154,8 @@ func (fr *FlightRepo) airportsInternal() (map[uuid.UUID]Airport, error) {
 		`
 SELECT
     id,
+    iata_code,
+    icao_code,
     iata_area_code,
     country_code,
     city_code,
@@ -161,9 +163,7 @@ SELECT
     lng,
     lat,
     timezone,
-    name,
-    iata_code,
-    icao_code
+    name
 FROM airports
 `,
 	)
@@ -177,6 +177,8 @@ FROM airports
 		var airport Airport
 		err = rows.Scan(
 			&airport.Id,
+			&airport.IataCode,
+			&airport.IcaoCode,
 			&airport.IataAreaCode,
 			&airport.CountryCode,
 			&airport.CityCode,
@@ -185,8 +187,6 @@ FROM airports
 			&airport.Lat,
 			&airport.Timezone,
 			&airport.Name,
-			&airport.IataCode,
-			&airport.IcaoCode,
 		)
 		if err != nil {
 			return nil, err

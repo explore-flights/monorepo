@@ -739,7 +739,7 @@ func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.Fl
 		}
 
 		for _, airline := range airlines {
-			if airline.IataCode.Valid && airline.IataCode.String == airlineIata {
+			if airline.IataCode == airlineIata {
 				return db.FlightNumber{
 					AirlineId: airline.Id,
 					Number:    number,

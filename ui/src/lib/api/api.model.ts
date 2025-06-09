@@ -24,6 +24,8 @@ export interface AuthInfo {}
 export type AirportId = Branded<string, 'AirportId'>;
 export interface Airport {
   id: AirportId;
+  iataCode: string;
+  icaoCode?: string;
   iataAreaCode?: string;
   countryCode?: string;
   cityCode?: string;
@@ -34,16 +36,14 @@ export interface Airport {
   }
   timezone?: string;
   name?: string;
-  iataCode?: string;
-  icaoCode?: string;
 }
 
 export type AirlineId = Branded<string, 'AirlineId'>;
 export interface Airline {
   id: AirlineId;
-  name: string;
-  iataCode?: string;
+  iataCode: string;
   icaoCode?: string;
+  name: string;
 }
 
 export type AircraftId = Branded<string, 'AircraftId'>;

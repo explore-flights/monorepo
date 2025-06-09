@@ -216,9 +216,7 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
                 value: useMemo(() => {
                   const airline = flightSchedules.airlines[flightSchedules.flightNumber.airlineId];
                   const codes: Array<string> = [];
-                  if (airline.iataCode) {
-                    codes.push(airline.iataCode);
-                  }
+                  codes.push(airline.iataCode);
 
                   if (airline.icaoCode) {
                     codes.push(airline.icaoCode);
@@ -298,7 +296,7 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
               {
                 id: 'departure_airport',
                 header: 'Departure Airport',
-                cell: useCallback((v: FlightTableItem) => <AirportText code={v.departureAirport.iataCode ?? v.departureAirport.icaoCode ?? v.departureAirport.id} airport={v.departureAirport} />, []),
+                cell: useCallback((v: FlightTableItem) => <AirportText code={v.departureAirport.iataCode} airport={v.departureAirport} />, []),
                 sortingComparator: useCallback((a: FlightTableItem, b: FlightTableItem) => compareAirports(a.departureAirport, b.departureAirport), []),
               },
               {
@@ -306,7 +304,7 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
                 header: 'Arrival Airport',
                 cell: useCallback((v: FlightTableItem) => {
                   return v.type === 'scheduled'
-                    ? <AirportText code={v.arrivalAirport.iataCode ?? v.arrivalAirport.icaoCode ?? v.arrivalAirport.id} airport={v.arrivalAirport} />
+                    ? <AirportText code={v.arrivalAirport.iataCode} airport={v.arrivalAirport} />
                     : '';
                 }, []),
                 sortingComparator: useCallback((a: FlightTableItem, b: FlightTableItem) => {
@@ -404,7 +402,7 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
                 id: 'actions',
                 header: 'Actions',
                 cell: useCallback((v: FlightTableItem) => {
-                  const airportRef = v.departureAirport.iataCode ?? v.departureAirport.icaoCode ?? v.departureAirport.id;
+                  const airportRef = v.departureAirport.iataCode;
                   const historyLink = `/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(airportRef)}/${encodeURIComponent(v.departureDateLocal)}`;
                   
                   return <RouterInlineLink to={historyLink} target={'_blank'}>History</RouterInlineLink>;
@@ -617,8 +615,8 @@ function TableFilter({ query, setQuery, summary }: TableFilterProps) {
       filteringOptions={[
         ...(summary.aircraft.map(([v]) => ({ propertyKey: 'aircraft_id', value: v.id, label: v.equipCode ?? v.name ?? v.iataCode ?? v.icaoCode ?? v.id }))),
         ...(summary.aircraftConfigurationVersions.map((v) => ({ propertyKey: 'aircraft_configuration_version', value: v, label: aircraftConfigurationVersionToName(v) ?? v }))),
-        ...(summary.departureAirports.map((v) => ({ propertyKey: 'departure_airport_id', value: v.id, label: v.iataCode ?? v.icaoCode ?? v.name ?? v.id }))),
-        ...(summary.arrivalAirports.map((v) => ({ propertyKey: 'arrival_airport_id', value: v.id, label: v.iataCode ?? v.icaoCode ?? v.name ?? v.id }))),
+        ...(summary.departureAirports.map((v) => ({ propertyKey: 'departure_airport_id', value: v.id, label: v.iataCode }))),
+        ...(summary.arrivalAirports.map((v) => ({ propertyKey: 'arrival_airport_id', value: v.id, label: v.iataCode }))),
         ...(([1, 2, 3, 4, 5, 6, 7] satisfies Array<WeekdayNumbers>).map((v) => ({ propertyKey: 'operating_day', value: v.toString(10), label: weekdayNumberToName(v) }))),
         ...(summary.years.map((v) => ({ propertyKey: 'year', value: v.toString(10), label: v.toString(10) }))),
         {
@@ -795,7 +793,7 @@ function SeatMapModal({ flight, onDismiss }: { flight?: ScheduledFlight, onDismi
 }
 
 function SeatMapModalContent({ flight }: { flight: ScheduledFlight }) {
-  if (!(flight.departureAirport.iataCode && flight.arrivalAirport.iataCode && flight.aircraft.iataCode)) {
+  if (!flight.aircraft.iataCode) {
     return <StatusIndicator type={'info'}>Seat Map can not be displayed for this flight</StatusIndicator>;
   }
 
@@ -1019,11 +1017,9 @@ function compareFlightNumbersPlain(v1: FlightNumber, v2: FlightNumber) {
 function compareAirports(v1: Airport, v2: Airport) {
   if (v1.icaoCode && v2.icaoCode) {
     return v1.icaoCode.localeCompare(v2.icaoCode);
-  } else if (v1.iataCode && v2.iataCode) {
-    return v1.iataCode.localeCompare(v2.iataCode);
   }
 
-  return v1.id.localeCompare(v2.id);
+  return v1.iataCode.localeCompare(v2.iataCode);
 }
 
 function compareAircraft(v1: Aircraft, v2: Aircraft) {
@@ -1119,7 +1115,7 @@ function evaluateTokenSingle(flight: FlightTableItem, propertyKey: string, opera
       break;
 
     case 'departure_airport':
-      cmpResult = flight.departureAirport.iataCode?.localeCompare(filterValue) ?? 1;
+      cmpResult = flight.departureAirport.iataCode.localeCompare(filterValue) ?? 1;
       break;
 
     case 'arrival_airport_id':
@@ -1129,7 +1125,7 @@ function evaluateTokenSingle(flight: FlightTableItem, propertyKey: string, opera
       break;
 
     case 'arrival_airport':
-      cmpResult = flight.arrivalAirport?.iataCode?.localeCompare(filterValue) ?? 1;
+      cmpResult = flight.arrivalAirport?.iataCode.localeCompare(filterValue) ?? 1;
       break;
 
     case 'operating_day':

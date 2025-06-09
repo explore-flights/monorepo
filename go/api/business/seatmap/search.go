@@ -98,10 +98,6 @@ func (s *Search) loadSeatMap(ctx context.Context, fn db.FlightNumber, departureA
 		arrivalAirport = airports[variant.ArrivalAirportId]
 	}
 
-	if !airline.IataCode.Valid || !departureAirport.IataCode.Valid || !arrivalAirport.IataCode.Valid {
-		return SeatMap{}, ErrNotFound
-	}
-
 	rawSeatMaps := make(map[lufthansa.RequestCabinClass]lufthansa.SeatAvailability)
 	cabinClasses := []lufthansa.RequestCabinClass{
 		lufthansa.RequestCabinClassEco,
@@ -149,12 +145,12 @@ func (s *Search) loadSeatMapInternal(ctx context.Context, fn db.FlightNumber, ai
 	sm, err = s.loadSeatMapFromLH(
 		ctx,
 		common.FlightNumber{
-			Airline: common.AirlineIdentifier(airline.IataCode.String),
+			Airline: common.AirlineIdentifier(airline.IataCode),
 			Number:  fn.Number,
 			Suffix:  fn.Suffix,
 		},
-		departureAirport.IataCode.String,
-		arrivalAirport.IataCode.String,
+		departureAirport.IataCode,
+		arrivalAirport.IataCode,
 		departureDateLocal,
 		cabinClass,
 	)

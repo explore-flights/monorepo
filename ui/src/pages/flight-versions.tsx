@@ -98,8 +98,8 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
   const feedBaseLink = useMemo(() => {
     const airline = flightVersions.airlines[flightVersions.flightNumber.airlineId];
     const airport = flightVersions.airports[flightVersions.departureAirportId];
-    const flightNumber = `${airline.iataCode ?? airline.icaoCode ?? (airline.id + '-')}${flightVersions.flightNumber.number}${flightVersions.flightNumber.suffix ?? ''}`;
-    const airportId = airport.iataCode ?? airport.icaoCode ?? airport.id;
+    const flightNumber = `${airline.iataCode}${flightVersions.flightNumber.number}${flightVersions.flightNumber.suffix ?? ''}`;
+    const airportId = airport.iataCode;
 
     return `/data/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(airportId)}/${encodeURIComponent(flightVersions.departureDateLocal)}`;
   }, [flightVersions]);
@@ -129,9 +129,7 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
                 value: useMemo(() => {
                   const airline = flightVersions.airlines[flightVersions.flightNumber.airlineId];
                   const codes: Array<string> = [];
-                  if (airline.iataCode) {
-                    codes.push(airline.iataCode);
-                  }
+                  codes.push(airline.iataCode);
 
                   if (airline.icaoCode) {
                     codes.push(airline.icaoCode);
@@ -153,9 +151,7 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
                 value: useMemo(() => {
                   const airport = flightVersions.airports[flightVersions.departureAirportId];
                   const codes: Array<string> = [];
-                  if (airport.iataCode) {
-                    codes.push(airport.iataCode);
-                  }
+                  codes.push(airport.iataCode);
 
                   if (airport.icaoCode) {
                     codes.push(airport.icaoCode);
@@ -172,26 +168,20 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
                 label: 'Links',
                 value: useMemo(() => {
                   const airline = flightVersions.airlines[flightVersions.flightNumber.airlineId];
-                  if (!airline.iataCode && !airline.icaoCode) {
-                    return '';
-                  }
-
                   const airport = flightVersions.airports[flightVersions.departureAirportId];
-                  const flighteraLink = `https://www.flightera.net/en/flight_details/${airport.name ?? 'X'}/${airline.iataCode ?? airline.icaoCode}${flightVersions.flightNumber.number}${flightVersions.flightNumber.suffix ?? ''}/${airport.icaoCode ?? airport.iataCode ?? 'X'}/${flightVersions.departureDateLocal}`;
+                  const flighteraLink = `https://www.flightera.net/en/flight_details/${airport.name ?? 'X'}/${airline.iataCode}${flightVersions.flightNumber.number}${flightVersions.flightNumber.suffix ?? ''}/${airport.icaoCode ?? airport.iataCode}/${flightVersions.departureDateLocal}`;
 
                   let flightStatsLink: string | null = null;
-                  if (airline.iataCode) {
-                    const parts = flightVersions.departureDateLocal.split('-', 3);
-                    if (parts.length === 3) {
-                      flightStatsLink = `https://www.flightstats.com/v2/flight-tracker/${airline.iataCode}/${flightVersions.flightNumber.number}${flightVersions.flightNumber.suffix ?? ''}`;
+                  const parts = flightVersions.departureDateLocal.split('-', 3);
+                  if (parts.length === 3) {
+                    flightStatsLink = `https://www.flightstats.com/v2/flight-tracker/${airline.iataCode}/${flightVersions.flightNumber.number}${flightVersions.flightNumber.suffix ?? ''}`;
 
-                      const query = new URLSearchParams();
-                      query.set('year', parts[0]);
-                      query.set('month', parts[1]);
-                      query.set('date', parts[2]);
+                    const query = new URLSearchParams();
+                    query.set('year', parts[0]);
+                    query.set('month', parts[1]);
+                    query.set('date', parts[2]);
 
-                      flightStatsLink += `?${query.toString()}`;
-                    }
+                    flightStatsLink += `?${query.toString()}`;
                   }
 
                   return (

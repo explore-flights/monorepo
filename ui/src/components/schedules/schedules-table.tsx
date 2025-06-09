@@ -136,13 +136,13 @@ function buildColumnDefinitions(flightLinkQuery?: (item: ScheduleTableItem) => U
     {
       id: 'departure_airport',
       header: 'Departure Airport',
-      cell: (v) => <AirportText code={v.departureAirport.iataCode ?? v.departureAirport.icaoCode ?? v.departureAirport.id} airport={v.departureAirport} />,
+      cell: (v) => <AirportText code={v.departureAirport.iataCode} airport={v.departureAirport} />,
       sortingComparator: (a, b) => a.departureAirport.id.localeCompare(b.departureAirport.id),
     },
     {
       id: 'arrival_airport',
       header: 'Arrival Airport',
-      cell: (v) => <AirportText code={v.arrivalAirport.iataCode ?? v.arrivalAirport.icaoCode ?? v.arrivalAirport.id} airport={v.arrivalAirport} />,
+      cell: (v) => <AirportText code={v.arrivalAirport.iataCode} airport={v.arrivalAirport} />,
       sortingComparator: (a, b) => a.arrivalAirport.id.localeCompare(b.arrivalAirport.id),
     },
     {

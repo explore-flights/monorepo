@@ -101,13 +101,7 @@ func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, map[uuid.
 
 func (sh *SearchHandler) flightNumberString(airlines map[uuid.UUID]db.Airline, fn model.FlightNumber) string {
 	if airline, ok := airlines[uuid.UUID(fn.AirlineId)]; ok {
-		if airline.IataCode.Valid {
-			return fmt.Sprintf("%s%d%s", airline.IataCode.String, fn.Number, fn.Suffix)
-		}
-
-		if airline.IcaoCode.Valid {
-			return fmt.Sprintf("%s%d%s", airline.IcaoCode.String, fn.Number, fn.Suffix)
-		}
+		return fmt.Sprintf("%s%d%s", airline.IataCode, fn.Number, fn.Suffix)
 	}
 
 	return fmt.Sprintf("%s-%d%s", fn.AirlineId, fn.Number, fn.Suffix)

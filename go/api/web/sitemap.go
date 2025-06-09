@@ -143,11 +143,7 @@ func (sh *SitemapHandler) buildSitemapURL(baseURL string, airlineId uuid.UUID) s
 func (sh *SitemapHandler) buildFlightURL(baseURL string, airlines map[uuid.UUID]db.Airline, fn db.FlightNumber) string {
 	var prefix string
 	if airline, ok := airlines[fn.AirlineId]; ok {
-		if airline.IataCode.Valid {
-			prefix = airline.IataCode.String
-		} else if airline.IcaoCode.Valid {
-			prefix = airline.IcaoCode.String
-		}
+		prefix = airline.IataCode
 	} else {
 		prefix = model.UUID(fn.AirlineId).String() + "-"
 	}

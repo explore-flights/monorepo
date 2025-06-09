@@ -2,7 +2,6 @@ package web
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	_ "embed"
 	"encoding/base64"
@@ -181,13 +180,13 @@ func (ch *ConnectionsHandler) ConnectionsShareHTML(c echo.Context) error {
 
 	for _, o := range req.Origins {
 		if airport, ok := airports[uuid.UUID(o)]; ok {
-			origins = append(origins, cmp.Or(airport.IataCode.String, airport.IcaoCode.String, airport.Name.String))
+			origins = append(origins, airport.IataCode)
 		}
 	}
 
 	for _, d := range req.Destinations {
 		if airport, ok := airports[uuid.UUID(d)]; ok {
-			destinations = append(destinations, cmp.Or(airport.IataCode.String, airport.IcaoCode.String, airport.Name.String))
+			destinations = append(destinations, airport.IataCode)
 		}
 	}
 
@@ -484,41 +483,7 @@ func (ch *ConnectionsHandler) buildGraph(parent *connections.Flight, airlines ma
 }
 
 func (ch *ConnectionsHandler) buildNodeLabel(f *connections.Flight, airline db.Airline, departureAirport, arrivalAirport db.Airport, aircraft db.Aircraft) string {
-	var fnStr string
-	{
-		var fnPrefix string
-		if airline.IataCode.Valid {
-			fnPrefix = airline.IataCode.String
-		} else if airline.IcaoCode.Valid {
-			fnPrefix = airline.IcaoCode.String
-		} else {
-			fnPrefix = model.UUID(airline.Id).String() + "-"
-		}
-
-		fnStr = fmt.Sprintf("%s%d%s", fnPrefix, f.Number, f.Suffix)
-	}
-
-	var depAirportStr string
-	if departureAirport.IataCode.Valid {
-		depAirportStr = departureAirport.IataCode.String
-	} else if departureAirport.IcaoCode.Valid {
-		depAirportStr = departureAirport.IcaoCode.String
-	} else if departureAirport.Name.Valid {
-		depAirportStr = departureAirport.Name.String
-	} else {
-		depAirportStr = departureAirport.Id.String()
-	}
-
-	var arrivalAirportStr string
-	if arrivalAirport.IataCode.Valid {
-		arrivalAirportStr = arrivalAirport.IataCode.String
-	} else if arrivalAirport.IcaoCode.Valid {
-		arrivalAirportStr = arrivalAirport.IcaoCode.String
-	} else if arrivalAirport.Name.Valid {
-		arrivalAirportStr = arrivalAirport.Name.String
-	} else {
-		arrivalAirportStr = model.UUID(arrivalAirport.Id).String()
-	}
+	fnStr := fmt.Sprintf("%s%d%s", airline.IataCode, f.Number, f.Suffix)
 
 	var aircraftStr string
 	if aircraft.EquipCode.Valid {
@@ -533,7 +498,7 @@ func (ch *ConnectionsHandler) buildNodeLabel(f *connections.Flight, airline db.A
 		aircraftStr = model.UUID(aircraft.Id).String()
 	}
 
-	return fmt.Sprintf("%s\n%s\u2014%s\n%s", fnStr, depAirportStr, arrivalAirportStr, aircraftStr)
+	return fmt.Sprintf("%s\n%s\u2014%s\n%s", fnStr, departureAirport.IataCode, arrivalAirport.IataCode, aircraftStr)
 }
 
 func (ch *ConnectionsHandler) mapAirports(base []model.UUID) []uuid.UUID {
@@ -558,8 +523,9 @@ func (ch *ConnectionsHandler) mapAirportsFromPB(airports map[uuid.UUID]db.Airpor
 
 		// old protobuf messages: convert from iata code
 		for _, airport := range airports {
-			if airport.IataCode.Valid && airport.IataCode.String == v {
+			if airport.IataCode == v {
 				result = append(result, model.UUID(airport.Id))
+				break
 			}
 		}
 	}
