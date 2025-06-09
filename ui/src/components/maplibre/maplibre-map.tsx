@@ -92,10 +92,12 @@ function MaplibreMapConsent({ height, onAllowOnceClick }: { height: string | num
 function MaplibreMapLoading({ height }: { height: string | number }) {
   return (
     <MaplibreMapOverlay height={height}>
-      <SpaceBetween size={'m'} direction={'horizontal'} alignItems={'center'}>
-        <Spinner size={'large'} />
-        <Box variant={'span'} fontSize={'heading-xl'}>Loading ...</Box>
-      </SpaceBetween>
+      <Container>
+        <SpaceBetween size={'m'} direction={'horizontal'} alignItems={'center'}>
+          <Spinner size={'large'} />
+          <Box variant={'span'} fontSize={'heading-xl'}>Loading ...</Box>
+        </SpaceBetween>
+      </Container>
     </MaplibreMapOverlay>
   );
 }
@@ -106,9 +108,7 @@ function MaplibreMapOverlay({ height, children }: React.PropsWithChildren<{ heig
       <div className={classes['consent-container']}>
         <div className={classes['consent-content']}>
           <Grid gridDefinition={[{ colspan: { default: 12, xs: 10, s: 8 }, offset: { default: 0, xs: 1, s: 2 } }]}>
-            <Container>
-              {children}
-            </Container>
+            {children}
           </Grid>
         </div>
       </div>
