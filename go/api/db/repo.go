@@ -400,48 +400,56 @@ func (fr *FlightRepo) RelatedFlightNumbers(ctx context.Context, fn FlightNumber,
 	}
 	defer conn.Close()
 
-	flightNumberCondition := make(OrCondition, 0)
-	flightNumberCondition = append(flightNumberCondition, BaseCondition{
-		Filter: `( number = ? AND number_mod_10 = (? % 10) AND suffix != ? )`,
-		Params: []any{fn.Number, fn.Number, fn.Suffix},
-	})
-
-	if fn.Number%2 == 0 {
-		flightNumberCondition = append(flightNumberCondition, BaseCondition{
-			Filter: `( number = ? AND number_mod_10 = (? % 10) )`,
-			Params: []any{fn.Number + 1, fn.Number + 1},
-		})
-	} else {
-		flightNumberCondition = append(flightNumberCondition, BaseCondition{
-			Filter: `( number = ? AND number_mod_10 = (? % 10) )`,
-			Params: []any{fn.Number - 1, fn.Number - 1},
-		})
-	}
-
-	filter, params := AndCondition{
-		BaseCondition{
-			Filter: `created_at <= CAST(? AS TIMESTAMPTZ)`,
-			Params: []any{version.Format(time.RFC3339)},
-		},
-		BaseCondition{
-			Filter: `airline_id = ?`,
-			Params: []any{fn.AirlineId},
-		},
-		flightNumberCondition,
-	}.Condition()
 	rows, err := conn.QueryContext(
 		ctx,
-		strings.Replace(
-			`
-SELECT DISTINCT airline_id, number, suffix
-FROM flight_variant_history
-WHERE :filter
+		`
+WITH filtered_flight_variant_history AS (
+    SELECT *
+	FROM flight_variant_history
+	WHERE airline_id = ?
+	AND number_mod_10 IN ((? % 10), (? % 10), (? % 10))
+	AND created_at <= CAST(? AS TIMESTAMPTZ)
+), self_flight_variant_history AS (
+	SELECT *
+	FROM filtered_flight_variant_history
+	WHERE number = ?
+	AND suffix = ?
+), related_flight_variant_history AS (
+	SELECT *
+	FROM filtered_flight_variant_history
+	WHERE (
+	    ( number = ? AND suffix != ? )
+	    OR number = ?
+	    OR number = ?
+	)
+)
+SELECT DISTINCT rel_fvh.airline_id, rel_fvh.number, rel_fvh.suffix
+FROM related_flight_variant_history rel_fvh
+INNER JOIN flight_variants rel_fv
+ON rel_fvh.flight_variant_id = rel_fv.id
+INNER JOIN (
+	SELECT DISTINCT fvh.departure_airport_id, fv.arrival_airport_id
+	FROM self_flight_variant_history fvh
+	INNER JOIN flight_variants fv
+	ON fvh.flight_variant_id = fv.id
+) self
+ON (
+	( rel_fvh.departure_airport_id = self.departure_airport_id AND rel_fv.arrival_airport_id = self.arrival_airport_id )
+	OR
+	( rel_fvh.departure_airport_id = self.arrival_airport_id AND rel_fv.arrival_airport_id = self.departure_airport_id )
+)
 `,
-			":filter",
-			filter,
-			1,
-		),
-		params...,
+		fn.AirlineId,
+		fn.Number,
+		fn.Number+1,
+		fn.Number-1,
+		version.Format(time.RFC3339),
+		fn.Number,
+		fn.Suffix,
+		fn.Number,
+		fn.Suffix,
+		fn.Number+1,
+		fn.Number-1,
 	)
 	if err != nil {
 		return nil, err
