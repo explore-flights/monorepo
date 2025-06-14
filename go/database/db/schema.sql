@@ -74,9 +74,9 @@ CREATE TABLE IF NOT EXISTS aircraft (
     -- FOREIGN KEY (aircraft_family_id) REFERENCES aircraft_families (id),
     -- both null allowed to support fresh unmapped inserts
     CHECK ( aircraft_type_id IS NULL OR aircraft_family_id IS NULL ),
-    -- if set, the IDs should be the same in both tables
-    CHECK ( aircraft_type_id IS NULL OR aircraft_type_id = id ),
-    CHECK ( aircraft_family_id IS NULL OR aircraft_type_id = id )
+    -- if set, the IDs should be the same in both tables (cast workaround: https://github.com/duckdb/duckdb/issues/17757)
+    CHECK ( aircraft_type_id IS NULL OR CAST(aircraft_type_id AS TEXT) = CAST(id AS TEXT) ),
+    CHECK ( aircraft_family_id IS NULL OR CAST(aircraft_type_id AS TEXT) = CAST(id AS TEXT) )
 ) ;
 
 CREATE TABLE IF NOT EXISTS aircraft_lh_mapping (
