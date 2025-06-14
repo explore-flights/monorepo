@@ -486,12 +486,10 @@ func (ch *ConnectionsHandler) buildNodeLabel(f *connections.Flight, airline db.A
 	fnStr := fmt.Sprintf("%s%d%s", airline.IataCode, f.Number, f.Suffix)
 
 	var aircraftStr string
-	if aircraft.EquipCode.Valid {
-		aircraftStr = aircraft.EquipCode.String
+	if aircraft.IcaoCode.Valid {
+		aircraftStr = aircraft.IcaoCode.String
 	} else if aircraft.IataCode.Valid {
 		aircraftStr = aircraft.IataCode.String
-	} else if aircraft.IcaoCode.Valid {
-		aircraftStr = aircraft.IcaoCode.String
 	} else if aircraft.Name.Valid {
 		aircraftStr = aircraft.Name.String
 	} else {

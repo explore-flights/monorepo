@@ -46,7 +46,6 @@ func (pctx *predicateContext) globMatchAircraft(aircraftId uuid.UUID, pattern st
 
 	return (aircraft.IataCode.Valid && pctx.globMatch(aircraft.IataCode.String, pattern)) ||
 		(aircraft.IcaoCode.Valid && pctx.globMatch(aircraft.IcaoCode.String, pattern)) ||
-		(aircraft.EquipCode.Valid && pctx.globMatch(aircraft.EquipCode.String, pattern)) ||
 		(aircraft.Name.Valid && pctx.globMatch(aircraft.Name.String, pattern))
 }
 

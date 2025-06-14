@@ -214,11 +214,15 @@ func (fr *FlightRepo) aircraftInternal() (map[uuid.UUID]Aircraft, error) {
 		ctx,
 		`
 SELECT
-    id,
-    equip_code,
-    name,
-    ( SELECT identifier FROM aircraft_identifiers WHERE issuer = 'iata' AND aircraft_id = id ),
-    ( SELECT identifier FROM aircraft_identifiers WHERE issuer = 'icao' AND aircraft_id = id ),
+    ac.id,
+    act.iata_code,
+    act.icao_code,
+    act.wtc,
+    act.engine_count,
+    act.engine_type,
+    act.name,
+    acf.id,
+    acf.name,
     COALESCE(
     	(
 			SELECT ARRAY_AGG({'airline_id': sub.operating_airline_id, 'configurations': sub.aircraft_configuration_versions})
@@ -227,13 +231,18 @@ SELECT
 					fv.operating_airline_id,
 					COALESCE(ARRAY_AGG(DISTINCT fv.aircraft_configuration_version), []) AS aircraft_configuration_versions
 				FROM flight_variants fv
-				WHERE fv.aircraft_id = aircraft.id
+				WHERE fv.aircraft_id = ac.id
 				GROUP BY fv.operating_airline_id
 			) sub
 		),
     	[]
     )
-FROM aircraft
+FROM aircraft ac
+LEFT JOIN aircraft_types act
+ON ac.aircraft_type_id = act.id
+LEFT JOIN aircraft_families acf
+ON ac.aircraft_family_id = acf.id
+OR act.aircraft_family_id = acf.id
 `,
 	)
 	if err != nil {
@@ -245,7 +254,7 @@ FROM aircraft
 	for rows.Next() {
 		var ac Aircraft
 		var configurationsRaw xsql.SQLArray[aircraftConfigurationsAdapter, *aircraftConfigurationsAdapter]
-		if err = rows.Scan(&ac.Id, &ac.EquipCode, &ac.Name, &ac.IataCode, &ac.IcaoCode, &configurationsRaw); err != nil {
+		if err = rows.Scan(&ac.Id, &ac.IataCode, &ac.IcaoCode, &ac.Wtc, &ac.EngineCount, &ac.EngineType, &ac.Name, &ac.FamilyId, &ac.FamilyName, &configurationsRaw); err != nil {
 			return nil, err
 		}
 

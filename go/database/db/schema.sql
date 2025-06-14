@@ -41,18 +41,48 @@ CREATE TABLE IF NOT EXISTS airports (
 ) ;
 -- endregion
 -- region aircraft
-CREATE TABLE IF NOT EXISTS aircraft (
+CREATE TABLE IF NOT EXISTS aircraft_families (
     id UUID NOT NULL,
-    equip_code TEXT,
-    name TEXT,
+    name TEXT NOT NULL,
     PRIMARY KEY (id)
 ) ;
 
-CREATE TABLE IF NOT EXISTS aircraft_identifiers (
-    issuer TEXT NOT NULL,
-    identifier TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS aircraft_types (
+    id UUID NOT NULL,
+    aircraft_family_id UUID,
+    iata_code TEXT NOT NULL,
+    icao_code TEXT,
+    wtc TEXT,
+    engine_count USMALLINT,
+    engine_type TEXT,
+    name TEXT NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE (iata_code),
+    -- icao codes are not unique (i.e. icao B744 = iata [744, 74B, 74E, 74J])
+    FOREIGN KEY (aircraft_family_id) REFERENCES aircraft_families (id),
+    CHECK ( LENGTH(iata_code) = 3 ),
+    CHECK ( icao_code IS NULL OR ( LENGTH(icao_code) >= 2 AND LENGTH(icao_code) <= 4 ) )
+) ;
+
+CREATE TABLE IF NOT EXISTS aircraft (
+    id UUID NOT NULL,
+    aircraft_type_id UUID,
+    aircraft_family_id UUID,
+    PRIMARY KEY (id),
+    -- not yet supported (COPY fails): https://github.com/duckdb/duckdb/issues/16785
+    -- FOREIGN KEY (aircraft_type_id) REFERENCES aircraft_types (id),
+    -- FOREIGN KEY (aircraft_family_id) REFERENCES aircraft_families (id),
+    -- both null allowed to support fresh unmapped inserts
+    CHECK ( aircraft_type_id IS NULL OR aircraft_family_id IS NULL ),
+    -- if set, the IDs should be the same in both tables
+    CHECK ( aircraft_type_id IS NULL OR aircraft_type_id = id ),
+    CHECK ( aircraft_family_id IS NULL OR aircraft_type_id = id )
+) ;
+
+CREATE TABLE IF NOT EXISTS aircraft_lh_mapping (
+    lh_api_id TEXT NOT NULL,
     aircraft_id UUID NOT NULL,
-    PRIMARY KEY (issuer, identifier),
+    PRIMARY KEY (lh_api_id),
     FOREIGN KEY (aircraft_id) REFERENCES aircraft (id)
 ) ;
 -- endregion

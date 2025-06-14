@@ -1,6 +1,9 @@
 package model
 
-import "github.com/explore-flights/monorepo/go/api/db"
+import (
+	"cmp"
+	"github.com/explore-flights/monorepo/go/api/db"
+)
 
 type FlightNumber struct {
 	AirlineId UUID   `json:"airlineId"`
@@ -75,10 +78,9 @@ func AirportFromDb(airport db.Airport) Airport {
 
 type Aircraft struct {
 	Id             UUID              `json:"id"`
-	EquipCode      string            `json:"equipCode,omitempty"`
-	Name           string            `json:"name,omitempty"`
 	IataCode       string            `json:"iataCode,omitempty"`
 	IcaoCode       string            `json:"icaoCode,omitempty"`
+	Name           string            `json:"name,omitempty"`
 	Configurations map[UUID][]string `json:"configurations"`
 }
 
@@ -90,8 +92,7 @@ func AircraftFromDb(ac db.Aircraft) Aircraft {
 
 	return Aircraft{
 		Id:             UUID(ac.Id),
-		EquipCode:      ac.EquipCode.String,
-		Name:           ac.Name.String,
+		Name:           cmp.Or(ac.Name.String, ac.FamilyName.String),
 		IataCode:       ac.IataCode.String,
 		IcaoCode:       ac.IcaoCode.String,
 		Configurations: configurations,

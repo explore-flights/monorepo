@@ -33,10 +33,14 @@ type Airport struct {
 
 type Aircraft struct {
 	Id             uuid.UUID
-	EquipCode      sql.NullString
-	Name           sql.NullString
 	IataCode       sql.NullString
 	IcaoCode       sql.NullString
+	Wtc            sql.NullString
+	EngineCount    sql.NullInt16
+	EngineType     sql.NullString
+	Name           sql.NullString
+	FamilyId       sql.Null[uuid.UUID]
+	FamilyName     sql.NullString
 	Configurations map[uuid.UUID][]string
 }
 

@@ -314,7 +314,7 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 			return aircraftId.String()
 		}
 
-		return cmp.Or(aircraft.Name, aircraft.EquipCode, aircraft.IataCode, aircraft.IcaoCode, aircraft.Id.String())
+		return cmp.Or(aircraft.Name, aircraft.IcaoCode, aircraft.IataCode, aircraft.Id.String())
 	}
 
 	aircraftAndConfigurationVersionName := func(aircraftId model.UUID, v string) string {

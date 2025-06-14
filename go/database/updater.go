@@ -180,6 +180,10 @@ func (u *updater) createAndUploadBaseDataDb(ctx context.Context, conn *sql.Conn,
 			Script: fmt.Sprintf(`USE %s`, tmpDbName),
 		},
 		{
+			Name:   "drop aircraft lh mapping",
+			Script: `DROP TABLE aircraft_lh_mapping`,
+		},
+		{
 			Name: "delete unused basedata",
 			Script: `
 DELETE FROM airline_icao_codes icao
@@ -191,11 +195,15 @@ WHERE NOT EXISTS ( FROM flight_numbers fn WHERE fn.airline_id = al.id ) ;
 DELETE FROM airports ap
 WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.departure_airport_id = ap.id OR fv.arrival_airport_id = ap.id ) ;
 
-DELETE FROM aircraft_identifiers aid
-WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = aid.aircraft_id ) ;
-
 DELETE FROM aircraft ac
 WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = ac.id ) ;
+
+DELETE FROM aircraft_types act
+WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_type_id = act.id ) ;
+
+DELETE FROM aircraft_families acf
+WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_family_id = acf.id )
+AND NOT EXISTS ( FROM aircraft_types act WHERE act.aircraft_family_id = acf.id ) ;
 `,
 		},
 		{

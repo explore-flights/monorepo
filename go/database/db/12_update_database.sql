@@ -404,30 +404,27 @@ FROM (
 
 -- prepare new aircraft
 CREATE TABLE temp_new_aircraft AS
-SELECT
-    UUID() AS id,
-    fresh.aircraftType AS iata_code
-FROM lh_operating_flight_data fresh
-LEFT JOIN aircraft_identifiers aid
-ON aid.issuer = 'iata'
-AND fresh.aircraftType = aid.identifier
-WHERE aid.issuer IS NULL
-GROUP BY fresh.aircraftType ;
+SELECT UUID() AS id, aircraftType AS lh_api_id
+FROM (
+    SELECT DISTINCT fresh.aircraftType
+    FROM lh_operating_flight_data fresh
+    WHERE NOT EXISTS( FROM aircraft_lh_mapping ac WHERE ac.lh_api_id = fresh.aircraftType )
+) ;
 
--- insert aircraft ids
+-- insert new aircraft
 -- id:new_aircraft
 INSERT INTO aircraft
-(id, equip_code, name)
+(id, aircraft_type_id, aircraft_family_id)
 SELECT id, NULL, NULL
 FROM temp_new_aircraft ;
 
--- insert aircraft identifiers
-INSERT INTO aircraft_identifiers
-(issuer, identifier, aircraft_id)
-SELECT 'iata', iata_code, id
+-- insert new dummy mappings
+INSERT INTO aircraft_lh_mapping
+(lh_api_id, aircraft_id)
+SELECT lh_api_id, id
 FROM temp_new_aircraft ;
 
--- drop temp_new_aircraft
+-- drop temp aircraft table
 DROP TABLE temp_new_aircraft ;
 
 -- create all flights with ids
@@ -445,7 +442,7 @@ SELECT
     arr_airp.id AS arrivalAirportId,
     fresh.serviceType,
     opdata.aircraftOwner,
-    airc_id.aircraft_id AS aircraftId,
+    airc.aircraft_id AS aircraftId,
     opdata.aircraftConfigurationVersion,
     opdata.aircraftRegistration,
     opdata.departureDateLocal,
@@ -471,9 +468,8 @@ LEFT JOIN airports dep_airp -- departure airport
 ON dep_airp.lh_api_id = opdata.origin
 LEFT JOIN airports arr_airp -- arrival airport
 ON arr_airp.lh_api_id = opdata.destination
-LEFT JOIN aircraft_identifiers airc_id -- aircraft id
-ON airc_id.issuer = 'iata'
-AND opdata.aircraftType = airc_id.identifier ;
+LEFT JOIN aircraft_lh_mapping airc -- aircraft
+ON airc.lh_api_id = opdata.aircraftType ;
 
 -- assert: lh_all_flights_with_ids == lh_all_flights_deduped
 
