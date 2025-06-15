@@ -6,23 +6,27 @@ import {
   ConnectionFlightResponse,
   AirlineId, Airline, AircraftId, Aircraft, AirportId,
 } from '../../lib/api/api.model';
-import { MaplibreMap, PopupMarker, SmartLine } from '../maplibre/maplibre-map';
+import { FitBounds, MaplibreMap, PopupMarker, SmartLine } from '../maplibre/maplibre-map';
 import { DateTime } from 'luxon';
 import { ColumnLayout, KeyValuePairs, KeyValuePairsProps } from '@cloudscape-design/components';
 import { FlightLink } from '../common/flight-link';
 import { airportToString, flightNumberToString } from '../../lib/util/flight';
+import { bbox, featureCollection, point } from '@turf/turf';
+import { Feature, Point } from 'geojson';
+import { LngLatBoundsLike } from 'maplibre-gl';
 
 export interface ConnectionsMapProps {
   connections: ConnectionsResponse;
 }
 
 export function ConnectionsMap({ connections }: ConnectionsMapProps) {
-  const [markers, lines] = useMemo(() => buildMarkersAndLines(connections), [connections]);
+  const [markers, lines, bounds] = useMemo(() => buildMarkersAndLines(connections), [connections]);
 
   return (
     <MaplibreMap height={'80vh'}>
       {...markers}
       {...lines}
+      <FitBounds bounds={bounds} options={{ padding: 100 }} />
     </MaplibreMap>
   );
 }
@@ -40,20 +44,30 @@ interface AirportNode {
   outgoingFlights: Array<ParsedFlight>;
 }
 
-function buildMarkersAndLines(connections: ConnectionsResponse): [ReadonlyArray<React.ReactNode>, ReadonlyArray<React.ReactNode>] {
+function buildMarkersAndLines(connections: ConnectionsResponse): [ReadonlyArray<React.ReactNode>, ReadonlyArray<React.ReactNode>, LngLatBoundsLike] {
   const airportNodes = new Map<AirportId, AirportNode>();
   processConnections(connections.connections, connections.flights, connections.airlines, connections.airports, connections.aircraft, airportNodes);
 
   const markers = new Map<string, React.ReactNode>();
   const lines = new Map<string, React.ReactNode>();
+  const points: Array<Feature<Point, any>> = [];
 
   for (const node of airportNodes.values()) {
-    toMarkersAndLines(node, markers, lines);
+    toMarkersAndLines(node, markers, lines, points);
+  }
+
+  const bounds = bbox(featureCollection(points));
+  let lngLatBounds: [number, number, number, number];
+  if (bounds.length === 4) {
+    lngLatBounds = bounds;
+  } else {
+    lngLatBounds = [bounds[0], bounds[1], bounds[3], bounds[4]];
   }
 
   return [
     Array.from(markers.values()),
     Array.from(lines.values()),
+    lngLatBounds,
   ];
 }
 
@@ -61,9 +75,15 @@ function toMarkersAndLines(
   node: AirportNode,
   markers: Map<string, React.ReactNode>,
   lines: Map<string, React.ReactNode>,
+  points: Array<Feature<Point, any>>,
 ) {
 
   if (!markers.has(node.airport.id)) {
+    points.push(point([
+      node.airport.location?.lng ?? 0.0,
+      node.airport.location?.lat ?? 0.0,
+    ]));
+
     markers.set(
       node.airport.id,
       (

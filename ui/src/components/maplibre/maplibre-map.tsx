@@ -30,6 +30,7 @@ import { usePreferences } from '../util/state/use-preferences';
 import { ColorScheme } from '../../lib/preferences.model';
 import { LineLayerSpecification } from '@maplibre/maplibre-gl-style-spec';
 import { colorful } from '@versatiles/style';
+import { FitBoundsOptions, LngLatBoundsLike } from 'maplibre-gl';
 
 function ComponentResize() {
   const map = useMap();
@@ -163,6 +164,15 @@ function GlobeTransition({ projection, setProjection }: { projection: 'globe' | 
       pressedIconName={'map'}
     ></ToggleButton>
   );
+}
+
+export function FitBounds({ bounds, options }: { bounds: LngLatBoundsLike, options?: FitBoundsOptions }) {
+  const map = useMap();
+  useEffect(() => {
+    map.current?.fitBounds(bounds, options);
+  }, [map.current, bounds, options]);
+
+  return null;
 }
 
 export interface PopupMarkerProps extends MarkerProps {
