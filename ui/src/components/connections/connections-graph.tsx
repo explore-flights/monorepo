@@ -25,7 +25,7 @@ import '@xyflow/react/dist/style.css';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import Dagre from '@dagrejs/dagre';
 import { DateTime } from 'luxon';
-import { Box, Popover, SpaceBetween } from '@cloudscape-design/components';
+import { Box, Popover } from '@cloudscape-design/components';
 import { KeyValuePairs, ValueWithLabel } from '../common/key-value-pairs';
 import { airportToString, flightNumberToString } from '../../lib/util/flight';
 import { BulletSeperator, Join } from '../common/join';
@@ -80,7 +80,7 @@ function ConnectionsGraphInternal({ connections }: ConnectionsGraphProps) {
   const { fitView } = useReactFlow();
   const getLayoutedElements = useCallback((nodes: ReadonlyArray<Node<NodeData>>, edges: ReadonlyArray<Edge<EdgeData>>) => {
     const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
-    g.setGraph({ rankdir: 'LR', ranksep: 250 });
+    g.setGraph({ rankdir: 'LR', ranksep: 300, nodesep: 120 });
 
     edges.forEach((edge) => g.setEdge(edge.source, edge.target));
     nodes.forEach((node) => g.setNode(node.id, node as Dagre.Label));
@@ -148,8 +148,7 @@ function FlightNode({ data }: NodeProps<Node<FlightNodeData>>) {
 
   return (
     <>
-      <SpaceBetween size={'xxl'} direction={'vertical'}>
-        <Handle type="target" position={Position.Left} />
+      <Box variant={'div'} padding={{horizontal: 's' }}>
         <Popover header={flightNumberFull} size={'large'} content={<FlightPopoverContent flight={flight} airline={airline} departureAirport={departureAirport} arrivalAirport={arrivalAirport} aircraft={aircraft} airlineById={airlineById} />} fixedWidth={true} renderWithPortal={true}>
           <Box textAlign={'center'}>
             <Box>{flightNumberFull}</Box>
@@ -157,8 +156,10 @@ function FlightNode({ data }: NodeProps<Node<FlightNodeData>>) {
             <Box>{duration.toHuman({ unitDisplay: 'short' })}</Box>
           </Box>
         </Popover>
-        <Handle type="source" position={Position.Right} />
-      </SpaceBetween>
+      </Box>
+
+      <Handle type="target" position={Position.Left} />
+      <Handle type="source" position={Position.Right} />
     </>
   )
 }
@@ -227,8 +228,6 @@ function buildGraph(
         id: connection.flightId,
         type: 'flight',
         position: { x: 0, y: 0 },
-        width: 137,
-        height: 103,
         data: {
           type: 'flight',
           flight: flight,
