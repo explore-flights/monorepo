@@ -267,9 +267,14 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
               id: 'aircraft',
               header: 'Aircraft',
               cell: useCallback((v: TableItem) => {
-                return v.type === 'scheduled'
-                  ? <WrapChanged changed={v.aircraft}>{v.aircraft[0].equipCode}</WrapChanged>
-                  : '';
+                if (v.type !== 'scheduled') {
+                  return '';
+                }
+
+                const ac = v.aircraft[0];
+                return (
+                  <WrapChanged changed={v.aircraft}>{ac.name ?? ac.icaoCode ?? ac.iataCode ?? ac.id}</WrapChanged>
+                );
               }, []),
             },
             {
