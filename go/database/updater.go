@@ -203,7 +203,8 @@ WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_type_id = act.id ) ;
 
 DELETE FROM aircraft_families acf
 WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_family_id = acf.id )
-AND NOT EXISTS ( FROM aircraft_types act WHERE act.aircraft_family_id = acf.id ) ;
+AND NOT EXISTS ( FROM aircraft_types act WHERE act.aircraft_family_id = acf.id )
+AND NOT EXISTS ( FROM aircraft_families parent WHERE parent.id = acf.parent_id ) ;
 `,
 		},
 		{

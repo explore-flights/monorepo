@@ -43,8 +43,13 @@ CREATE TABLE IF NOT EXISTS airports (
 -- region aircraft
 CREATE TABLE IF NOT EXISTS aircraft_families (
     id UUID NOT NULL,
+    parent_id UUID,
+    iata_code TEXT,
     name TEXT NOT NULL,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    -- not yet supported (COPY fails): https://github.com/duckdb/duckdb/issues/16785
+    -- FOREIGN KEY (parent_id) REFERENCES aircraft_families (id),
+    CHECK ( iata_code IS NULL OR LENGTH(iata_code) = 3 )
 ) ;
 
 CREATE TABLE IF NOT EXISTS aircraft_types (
@@ -76,7 +81,7 @@ CREATE TABLE IF NOT EXISTS aircraft (
     CHECK ( aircraft_type_id IS NULL OR aircraft_family_id IS NULL ),
     -- if set, the IDs should be the same in both tables (cast workaround: https://github.com/duckdb/duckdb/issues/17757)
     CHECK ( aircraft_type_id IS NULL OR CAST(aircraft_type_id AS TEXT) = CAST(id AS TEXT) ),
-    CHECK ( aircraft_family_id IS NULL OR CAST(aircraft_type_id AS TEXT) = CAST(id AS TEXT) )
+    CHECK ( aircraft_family_id IS NULL OR CAST(aircraft_family_id AS TEXT) = CAST(id AS TEXT) )
 ) ;
 
 CREATE TABLE IF NOT EXISTS aircraft_lh_mapping (
