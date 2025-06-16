@@ -37,6 +37,10 @@ func NewInCondition[T any](field string, values iter.Seq[T]) InCondition {
 }
 
 func (c InCondition) Condition() (string, []any) {
+	if len(c.Rhs) == 0 {
+		return "FALSE", nil
+	}
+
 	lhs, params := c.Lhs.Value()
 
 	rhsValues := make([]string, len(c.Rhs))
