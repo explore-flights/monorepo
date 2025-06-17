@@ -15,6 +15,12 @@ type BaseCondition struct {
 	Params []any
 }
 
+func NewIsNullCondition(field string) BaseCondition {
+	return BaseCondition{
+		Filter: fmt.Sprintf("%s IS NULL", field),
+	}
+}
+
 func (c BaseCondition) Condition() (string, []any) {
 	return c.Filter, c.Params
 }
@@ -65,7 +71,7 @@ func (c AndCondition) Condition() (string, []any) {
 
 	for _, cond := range c {
 		subFilter, subParams := cond.Condition()
-		filters = append(filters, subFilter)
+		filters = append(filters, fmt.Sprintf("( %s )", subFilter))
 		params = append(params, subParams...)
 	}
 
@@ -84,7 +90,7 @@ func (c OrCondition) Condition() (string, []any) {
 
 	for _, cond := range c {
 		subFilter, subParams := cond.Condition()
-		filters = append(filters, subFilter)
+		filters = append(filters, fmt.Sprintf("( %s )", subFilter))
 		params = append(params, subParams...)
 	}
 

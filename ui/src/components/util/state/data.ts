@@ -8,7 +8,7 @@ import {
   Airline,
   AirlineId,
   Airport,
-  AirportId,
+  AirportId, FlightScheduleUpdates,
   QuerySchedulesRequest, QuerySchedulesResponseV2,
   SearchResponse
 } from '../../../lib/api/api.model';
@@ -300,5 +300,39 @@ export function useAircraftReport(airport: string, year?: number, summerSchedule
     },
     retry: 5,
     initialData: [] satisfies ReadonlyArray<AircraftReport>,
+  });
+}
+
+export function useVersions() {
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['versions'],
+    queryFn: async () => {
+      const { body } = expectSuccess(await apiClient.getVersions());
+      return body;
+    },
+    retry: 5,
+    staleTime: 1000 * 60 * 60,
+  });
+}
+
+export function useUpdatesForVersion(version: string, active: boolean) {
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['version', version, active],
+    queryFn: async () => {
+      if (!active) {
+        return {
+          updates: [],
+          airlines: {},
+          airports: {},
+        } satisfies FlightScheduleUpdates;
+      }
+
+      const { body } = expectSuccess(await apiClient.getUpdatesForVersion(version));
+      return body;
+    },
+    retry: 5,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }

@@ -479,56 +479,5 @@ func (h *ScheduleSearchHandler) queryInternal(ctx context.Context, condition sch
 		}
 	}
 
-	fs := model.FlightSchedulesMany{
-		Schedules: make([]model.FlightScheduleNumberAndItems, 0, len(dbResult.Schedules)),
-		Variants:  make(map[model.UUID]model.FlightScheduleVariant, len(dbResult.Variants)),
-		Airlines:  make(map[model.UUID]model.Airline),
-		Airports:  make(map[model.UUID]model.Airport),
-		Aircraft:  make(map[model.UUID]model.Aircraft),
-	}
-	referencedAirlines := make(common.Set[uuid.UUID])
-	referencedAirports := make(common.Set[uuid.UUID])
-	referencedAircraft := make(common.Set[uuid.UUID])
-
-	for fn, items := range dbResult.Schedules {
-		fsNumberAndItems := model.FlightScheduleNumberAndItems{
-			FlightNumber: model.FlightNumberFromDb(fn),
-			Items:        make([]model.FlightScheduleItem, 0, len(items)),
-		}
-
-		referencedAirlines.Add(fn.AirlineId)
-
-		for _, item := range items {
-			fsNumberAndItems.Items = append(fsNumberAndItems.Items, model.FlightScheduleItemFromDb(item))
-			referencedAirports.Add(item.DepartureAirportId)
-		}
-
-		fs.Schedules = append(fs.Schedules, fsNumberAndItems)
-	}
-
-	for variantId, variant := range dbResult.Variants {
-		fs.Variants[model.UUID(variantId)] = model.FlightScheduleVariantFromDb(variant)
-
-		for cs := range variant.CodeShares {
-			referencedAirlines.Add(cs.AirlineId)
-		}
-
-		referencedAirlines.Add(variant.OperatedAs.AirlineId)
-		referencedAirports.Add(variant.ArrivalAirportId)
-		referencedAircraft.Add(variant.AircraftId)
-	}
-
-	for airlineId := range referencedAirlines {
-		fs.Airlines[model.UUID(airlineId)] = model.AirlineFromDb(airlines[airlineId])
-	}
-
-	for airportId := range referencedAirports {
-		fs.Airports[model.UUID(airportId)] = model.AirportFromDb(airports[airportId])
-	}
-
-	for aircraftId := range referencedAircraft {
-		fs.Aircraft[model.UUID(aircraftId)] = model.AircraftFromDb(aircraft[aircraftId])
-	}
-
-	return fs, nil
+	return model.FlightSchedulesManyFromDb(dbResult, airlines, airports, aircraft), nil
 }

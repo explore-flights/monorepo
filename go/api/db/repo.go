@@ -562,6 +562,15 @@ ORDER BY departure_date_local ASC
 }
 
 func (fr *FlightRepo) FlightSchedulesLatestRaw(ctx context.Context, filter Condition) (FlightSchedulesMany, error) {
+	var combinedFilter Condition = NewIsNullCondition("fvh.replaced_at")
+	if filter != nil {
+		combinedFilter = AndCondition{combinedFilter, filter}
+	}
+
+	return fr.flightSchedulesRaw(ctx, combinedFilter)
+}
+
+func (fr *FlightRepo) flightSchedulesRaw(ctx context.Context, filter Condition) (FlightSchedulesMany, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return FlightSchedulesMany{}, err
@@ -571,7 +580,15 @@ func (fr *FlightRepo) FlightSchedulesLatestRaw(ctx context.Context, filter Condi
 	result := make(map[FlightNumber][]FlightScheduleItem)
 	variantIds := make(common.Set[uuid.UUID])
 	err = func() error {
-		filter, params := filter.Condition()
+		var filterStr string
+		var params []any
+
+		if filter == nil {
+			filterStr = `TRUE`
+		} else {
+			filterStr, params = filter.Condition()
+		}
+
 		rows, err := conn.QueryContext(
 			ctx,
 			fmt.Sprintf(
@@ -587,7 +604,7 @@ SELECT
 FROM flight_variant_history fvh
 LEFT JOIN flight_variants fv
 ON fvh.flight_variant_id = fv.id
-WHERE fvh.replaced_at IS NULL AND ( %s )
+WHERE %s
 GROUP BY
 	fvh.airline_id,
 	fvh.number,
@@ -600,7 +617,7 @@ ORDER BY
 	fvh.suffix ASC,
 	fvh.departure_date_local ASC
 `,
-				filter,
+				filterStr,
 			),
 			params...,
 		)
@@ -870,6 +887,83 @@ AND day_utc = ?
 	}
 
 	return flights, rows.Err()
+}
+
+func (fr *FlightRepo) Versions(ctx context.Context) ([]time.Time, error) {
+	conn, err := fr.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	rows, err := conn.QueryContext(ctx, `SELECT DISTINCT created_at FROM flight_variant_history`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	versions := make([]time.Time, 0)
+	for rows.Next() {
+		var t time.Time
+		if err = rows.Scan(&t); err != nil {
+			return nil, err
+		}
+
+		versions = append(versions, t)
+	}
+
+	return versions, rows.Err()
+}
+
+func (fr *FlightRepo) UpdatesForVersion(ctx context.Context, version time.Time) ([]FlightScheduleUpdate, error) {
+	conn, err := fr.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	rows, err := conn.QueryContext(
+		ctx,
+		`
+SELECT DISTINCT
+    base.airline_id,
+    base.number,
+    base.suffix,
+    base.departure_date_local,
+    base.departure_airport_id,
+    base.flight_variant_id
+FROM flight_variant_history base
+WHERE base.created_at >= ?
+AND base.created_at <= ?
+AND EXISTS(
+    FROM flight_variant_history prev
+	WHERE base.airline_id = prev.airline_id
+	AND base.number = prev.number
+	AND base.suffix = prev.suffix
+	AND base.departure_date_local = prev.departure_date_local
+	AND base.departure_airport_id = prev.departure_airport_id
+	AND base.created_at = prev.replaced_at
+)
+`,
+		version.Format(time.RFC3339),
+		version.Format(time.RFC3339),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	updates := make([]FlightScheduleUpdate, 0)
+	for rows.Next() {
+		var update FlightScheduleUpdate
+		if err := rows.Scan(&update.AirlineId, &update.Number, &update.Suffix, &update.DepartureDateLocal, &update.DepartureAirportId, &update.FlightVariantId); err != nil {
+			return nil, err
+		}
+
+		updates = append(updates, update)
+	}
+
+	return updates, rows.Err()
 }
 
 func (fr *FlightRepo) Report(ctx context.Context, selectFields []SelectExpression, filter Condition, groupBy []ValueExpression, scanner func(rows *sql.Rows) error) error {

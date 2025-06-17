@@ -107,6 +107,8 @@ func main() {
 		group.GET("/airlines.json", dh.Airlines)
 		group.GET("/airports.json", dh.Airports)
 		group.GET("/aircraft.json", dh.Aircraft)
+		group.GET("/versions.json", dh.Versions)
+		group.GET("/version/:version", dh.Version)
 		group.GET("/flight/:fn", dh.FlightSchedule)
 		group.GET("/flight/:fn/:version", dh.FlightSchedule)
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal", dh.FlightScheduleVersions)

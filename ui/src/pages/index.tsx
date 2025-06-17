@@ -16,6 +16,7 @@ import { FlightSearch } from './tools/flight-search';
 import { FlightVersionsView } from './flight-versions';
 import { Airports } from './airports';
 import { AirportPage } from './airport';
+import { Updates } from './updates';
 
 // region router
 const router = createBrowserRouter([
@@ -60,6 +61,10 @@ const router = createBrowserRouter([
       {
         path: 'allegris',
         element: <Allegris />,
+      },
+      {
+        path: 'updates',
+        element: <Updates />,
       },
       {
         path: 'tools/flight-search',

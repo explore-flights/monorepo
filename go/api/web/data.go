@@ -35,6 +35,8 @@ type dataHandlerRepo interface {
 	RelatedFlightNumbers(ctx context.Context, fn db.FlightNumber, version time.Time) (common.Set[db.FlightNumber], error)
 	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
 	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber, departureAirport uuid.UUID, departureDate xtime.LocalDate) (db.FlightScheduleVersions, error)
+	Versions(ctx context.Context) ([]time.Time, error)
+	UpdatesForVersion(ctx context.Context, version time.Time) ([]db.FlightScheduleUpdate, error)
 }
 
 type DataHandler struct {
@@ -714,6 +716,62 @@ func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, de
 	}
 
 	return fs, nil
+}
+
+func (dh *DataHandler) Versions(c echo.Context) error {
+	versions, err := dh.repo.Versions(c.Request().Context())
+	if err != nil {
+		return NewHTTPError(http.StatusInternalServerError, WithCause(err))
+	}
+
+	slices.SortFunc(versions, func(a, b time.Time) int {
+		// latest first
+		return b.Compare(a)
+	})
+
+	return c.JSON(http.StatusOK, versions)
+}
+
+func (dh *DataHandler) Version(c echo.Context) error {
+	versionRaw := c.Param("version")
+	version, err := time.Parse(time.RFC3339, versionRaw)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithMessage("Invalid version format"), WithCause(err))
+	}
+
+	var dbResult []db.FlightScheduleUpdate
+	var airlines map[uuid.UUID]db.Airline
+	var airports map[uuid.UUID]db.Airport
+
+	{
+		g, ctx := errgroup.WithContext(c.Request().Context())
+
+		g.Go(func() error {
+			var err error
+			dbResult, err = dh.repo.UpdatesForVersion(c.Request().Context(), version)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			airlines, err = dh.repo.Airlines(ctx)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			airports, err = dh.repo.Airports(ctx)
+			return err
+		})
+
+		if err := g.Wait(); err != nil {
+			return NewHTTPError(http.StatusInternalServerError, WithCause(err))
+		}
+	}
+
+	addExpirationHeaders(c, time.Now(), time.Hour*24*3)
+
+	return c.JSON(http.StatusOK, model.FlightScheduleUpdatesFromDb(dbResult, airlines, airports))
 }
 
 func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.FlightNumber, error) {

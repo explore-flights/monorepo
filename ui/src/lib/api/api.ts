@@ -18,7 +18,7 @@ import {
   FlightSchedules,
   FlightScheduleVersions,
   QuerySchedulesResponseV2,
-  AircraftReport
+  AircraftReport, FlightScheduleUpdates
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -213,6 +213,14 @@ export class ApiClient {
     }
 
     return transform(this.httpClient.fetch(urlParts.join('/')));
+  }
+
+  getVersions(): Promise<ApiResponse<ReadonlyArray<string>>> {
+    return transform(this.httpClient.fetch('/data/versions.json'));
+  }
+
+  getUpdatesForVersion(version: string): Promise<ApiResponse<FlightScheduleUpdates>> {
+    return transform(this.httpClient.fetch(`/data/version/${version}`));
   }
 
   search(query: string): Promise<ApiResponse<SearchResponse>> {

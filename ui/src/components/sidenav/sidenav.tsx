@@ -19,6 +19,11 @@ export function SideNav() {
           text: 'Allegris',
           href: useHref('/allegris'),
         },
+        {
+          type: 'link',
+          text: 'Updates',
+          href: useHref('/updates'),
+        },
         { type: 'divider' },
         {
           type: 'section-group',

@@ -187,6 +187,19 @@ export interface FlightNumberAndScheduleItems {
   items: ReadonlyArray<FlightScheduleItem>;
 }
 
+export interface FlightScheduleUpdates {
+  updates: ReadonlyArray<FlightScheduleUpdate>;
+  airlines: Record<AirlineId, Airline>;
+  airports: Record<AirportId, Airport>;
+}
+
+export interface FlightScheduleUpdate {
+  flightNumber: FlightNumber;
+  departureDateLocal: string;
+  departureAirportId: AirportId;
+  isRemoved: boolean;
+}
+
 export interface SeatMap {
   cabinClasses: ReadonlyArray<CabinClass>;
   decks: ReadonlyArray<SeatMapDeck>;

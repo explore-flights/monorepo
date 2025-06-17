@@ -134,3 +134,10 @@ type FlightScheduleVersion struct {
 	Version         time.Time
 	FlightVariantId sql.Null[uuid.UUID]
 }
+
+type FlightScheduleUpdate struct {
+	FlightNumber
+	DepartureDateLocal xtime.LocalDate
+	DepartureAirportId uuid.UUID
+	FlightVariantId    sql.Null[uuid.UUID]
+}

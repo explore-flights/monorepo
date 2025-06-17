@@ -71,6 +71,11 @@ const ROUTES = [{
       breadcrumb: 'Allegris',
     },
     {
+      path: 'updates',
+      title: 'Updates',
+      breadcrumb: 'Updates',
+    },
+    {
       path: 'tools',
       children: [
         {
