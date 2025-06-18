@@ -729,6 +729,8 @@ func (dh *DataHandler) Versions(c echo.Context) error {
 		return b.Compare(a)
 	})
 
+	addExpirationHeaders(c, time.Now(), time.Hour*3)
+
 	return c.JSON(http.StatusOK, versions)
 }
 
