@@ -37,24 +37,19 @@ jobs:
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
-      - name: 'Setup go'
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.24.3' # keep in sync with build
-          cache-dependency-path: 'go/api/go.sum'
       - name: 'Test'
         working-directory: 'go/api'
         run: 'go test ./...'
       - name: 'Build'
         uses: explore-flights/libduckdb/.github/actions/build_go_provided@main
         with:
-          release: 'v1.3.0-v2+parquet.json.icu.httpfs.aws'
+          release: 'v1.3.1-v1+parquet.json.icu.httpfs.aws'
           file: 'libduckdb_bundle-arm64-linux.a'
           platform: 'linux/arm64'
           image_arch: 'aarch64'
           go_os: 'linux'
           go_arch: 'arm64'
-          go_version: '1.24.3'
+          go_version: '1.24.4'
           go_build_tags: 'lambda'
           go_build_relative_dir: 'go/api'
           go_build_output_file: 'go/api/bootstrap'
