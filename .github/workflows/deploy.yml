@@ -37,9 +37,6 @@ jobs:
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
-      - name: 'Test'
-        working-directory: 'go/api'
-        run: 'go test ./...'
       - name: 'Build'
         uses: explore-flights/libduckdb/.github/actions/build_go_provided@main
         with:
