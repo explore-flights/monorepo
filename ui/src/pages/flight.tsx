@@ -483,7 +483,7 @@ function AircraftStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) 
     }
 
     return builder.series(([aircraft, configuration]) => ({
-      title: `${aircraft.name ?? aircraft.equipCode ?? aircraft.iataCode ?? aircraft.icaoCode ?? aircraft.id} (${aircraftConfigurationVersionToName(configuration) ?? configuration})`,
+      title: `${aircraft.name ?? aircraft.icaoCode ?? aircraft.iataCode ?? aircraft.id} (${aircraftConfigurationVersionToName(configuration) ?? configuration})`,
     }), true, true);
   }, [flights]);
 
@@ -614,7 +614,7 @@ function TableFilter({ query, setQuery, summary }: TableFilterProps) {
       query={query}
       onChange={(e) => setQuery(e.detail)}
       filteringOptions={[
-        ...(summary.aircraft.map(([v]) => ({ propertyKey: 'aircraft_id', value: v.id, label: v.equipCode ?? v.name ?? v.iataCode ?? v.icaoCode ?? v.id }))),
+        ...(summary.aircraft.map(([v]) => ({ propertyKey: 'aircraft_id', value: v.id, label: v.icaoCode ?? v.name ?? v.iataCode ?? v.id }))),
         ...(summary.aircraftConfigurationVersions.map((v) => ({ propertyKey: 'aircraft_configuration_version', value: v, label: aircraftConfigurationVersionToName(v) ?? v }))),
         ...(summary.departureAirports.map((v) => ({ propertyKey: 'departure_airport_id', value: v.id, label: v.iataCode }))),
         ...(summary.arrivalAirports.map((v) => ({ propertyKey: 'arrival_airport_id', value: v.id, label: v.iataCode }))),
@@ -1037,8 +1037,6 @@ function compareAircraft(v1: Aircraft, v2: Aircraft) {
     return v1.icaoCode.localeCompare(v2.icaoCode);
   } else if (v1.iataCode && v2.iataCode) {
     return v1.iataCode.localeCompare(v2.iataCode);
-  } else if (v1.equipCode && v2.equipCode) {
-    return v1.equipCode.localeCompare(v2.equipCode);
   }
 
   return v1.id.localeCompare(v2.id);

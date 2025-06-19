@@ -4,6 +4,7 @@ import (
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/gofrs/uuid/v5"
+	"maps"
 )
 
 type FlightSchedulesMany struct {
@@ -62,9 +63,7 @@ func FlightSchedulesManyFromDb(dbResult db.FlightSchedulesMany, airlines map[uui
 		fs.Airports[UUID(airportId)] = AirportFromDb(airports[airportId])
 	}
 
-	for aircraftId := range referencedAircraft {
-		fs.Aircraft[UUID(aircraftId)] = AircraftFromDb(aircraft[aircraftId])
-	}
+	AddReferencedAircraft(maps.Keys(referencedAircraft), aircraft, fs.Aircraft)
 
 	return fs
 }

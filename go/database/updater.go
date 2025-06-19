@@ -195,16 +195,61 @@ WHERE NOT EXISTS ( FROM flight_numbers fn WHERE fn.airline_id = al.id ) ;
 DELETE FROM airports ap
 WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.departure_airport_id = ap.id OR fv.arrival_airport_id = ap.id ) ;
 
+-- delete unused aircraft types
 DELETE FROM aircraft ac
-WHERE NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = ac.id ) ;
+WHERE ac.aircraft_type_id IS NOT NULL
+AND NOT EXISTS ( FROM flight_variants fv WHERE fv.aircraft_id = ac.aircraft_type_id ) ;
 
 DELETE FROM aircraft_types act
 WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_type_id = act.id ) ;
 
+-- delete orphaned aircraft families (1)
+DELETE FROM aircraft ac
+WHERE ac.aircraft_family_id IS NOT NULL
+AND NOT EXISTS ( FROM aircraft_types act WHERE act.aircraft_family_id = ac.aircraft_family_id )
+AND NOT EXISTS ( FROM aircraft_families acf WHERE acf.parent_id = ac.aircraft_family_id ) ;
+
 DELETE FROM aircraft_families acf
-WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_family_id = acf.id )
-AND NOT EXISTS ( FROM aircraft_types act WHERE act.aircraft_family_id = acf.id )
-AND NOT EXISTS ( FROM aircraft_families parent WHERE parent.id = acf.parent_id ) ;
+WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_family_id = acf.id ) ;
+
+-- delete orphaned aircraft families (2)
+DELETE FROM aircraft ac
+WHERE ac.aircraft_family_id IS NOT NULL
+AND NOT EXISTS ( FROM aircraft_types act WHERE act.aircraft_family_id = ac.aircraft_family_id )
+AND NOT EXISTS ( FROM aircraft_families acf WHERE acf.parent_id = ac.aircraft_family_id ) ;
+
+DELETE FROM aircraft_families acf
+WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_family_id = acf.id ) ;
+
+-- delete orphaned aircraft families (3)
+DELETE FROM aircraft ac
+WHERE ac.aircraft_family_id IS NOT NULL
+AND NOT EXISTS ( FROM aircraft_types act WHERE act.aircraft_family_id = ac.aircraft_family_id )
+AND NOT EXISTS ( FROM aircraft_families acf WHERE acf.parent_id = ac.aircraft_family_id ) ;
+
+DELETE FROM aircraft_families acf
+WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_family_id = acf.id ) ;
+
+-- delete orphaned aircraft families (4)
+DELETE FROM aircraft ac
+WHERE ac.aircraft_family_id IS NOT NULL
+AND NOT EXISTS ( FROM aircraft_types act WHERE act.aircraft_family_id = ac.aircraft_family_id )
+AND NOT EXISTS ( FROM aircraft_families acf WHERE acf.parent_id = ac.aircraft_family_id ) ;
+
+DELETE FROM aircraft_families acf
+WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_family_id = acf.id ) ;
+
+-- delete orphaned aircraft families (5)
+-- id:last_orphaned_family_deletion
+DELETE FROM aircraft ac
+WHERE ac.aircraft_family_id IS NOT NULL
+AND NOT EXISTS ( FROM aircraft_types act WHERE act.aircraft_family_id = ac.aircraft_family_id )
+AND NOT EXISTS ( FROM aircraft_families acf WHERE acf.parent_id = ac.aircraft_family_id ) ;
+
+DELETE FROM aircraft_families acf
+WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_family_id = acf.id ) ;
+
+-- assert: last_orphaned_family_deletion == 0
 `,
 		},
 		{

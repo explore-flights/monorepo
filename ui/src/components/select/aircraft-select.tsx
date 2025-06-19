@@ -12,7 +12,7 @@ export interface AircraftSelectProps {
 
 export function AircraftSelect({ selectedAircraftId, disabled, onChange, placeholder }: AircraftSelectProps) {
   const { data, isLoading: loading } = useAircrafts();
-  const [options, optionByAircraftId] = useAircraftOptions(data.aircraft);
+  const [options, optionByAircraftId] = useAircraftOptions(data.lookupById);
 
   const selectedOption = useMemo(() => {
     if (!selectedAircraftId) {
@@ -46,7 +46,7 @@ export interface AircraftMultiselectProps {
 
 export function AircraftMultiselect({ selectedAircraftIds, rawSelectedAircraft, disabled, onChange, placeholder }: AircraftMultiselectProps) {
   const { data, isLoading: loading } = useAircrafts();
-  const [options, optionByAircraftId] = useAircraftOptions(data.aircraft);
+  const [options, optionByAircraftId] = useAircraftOptions(data.lookupById);
 
   const selectedOptions = useMemo(() => {
     const result: Array<MultiselectProps.Option> = [];
@@ -87,21 +87,14 @@ export function AircraftMultiselect({ selectedAircraftIds, rawSelectedAircraft, 
 
 type CommonOption = SelectProps.Option & MultiselectProps.Option;
 type CommonOptionGroup = SelectProps.OptionGroup & MultiselectProps.OptionGroup;
-function useAircraftOptions(aircraft: ReadonlyArray<Aircraft>): [ReadonlyArray<CommonOption | CommonOptionGroup>, Record<AircraftId, CommonOption>] {
+function useAircraftOptions(aircraftLookupById: Map<AircraftId, Aircraft>): [ReadonlyArray<CommonOption | CommonOptionGroup>, Record<AircraftId, CommonOption>] {
   return useMemo(() => {
     const optionByAircraftId: Record<AircraftId, CommonOption> = {};
-    const otherOptions: Array<CommonOption> = [];
-    const groups: ReadonlyArray<{ name: string, options: Array<CommonOption> }> = [
-      { name: 'Airbus', options: [] },
-      { name: 'Boeing', options: [] },
-      { name: 'Embraer', options: [] },
-      { name: 'BAE Systems', options: [] },
-      { name: 'Antonov', options: [] },
-      { name: 'Bombardier', options: [] },
-      { name: 'Tupolev', options: [] },
-    ];
+    const groupOptions: Array<CommonOptionGroup> = [];
+    const orphanOptions: Array<CommonOption> = [];
 
-    for (const ac of aircraft) {
+    const [aircraftByTopmostFamily, orphans] = groupByTopmostFamily(aircraftLookupById);
+    const buildAircraftOption = (ac: Aircraft): CommonOption => {
       const tags: Array<string> = [];
       if (ac.iataCode) {
         tags.push(ac.iataCode);
@@ -111,41 +104,85 @@ function useAircraftOptions(aircraft: ReadonlyArray<Aircraft>): [ReadonlyArray<C
         tags.push(ac.icaoCode);
       }
 
-      const option = {
-        label: ac.name ?? ac.equipCode ?? ac.iataCode ?? ac.icaoCode ?? ac.id,
-        description: ac.equipCode,
+      let suffix = '';
+      if (ac.type === 'family') {
+        suffix = ' (family, not further specified)';
+      }
+
+      return {
+        label: (ac.name ?? ac.icaoCode ?? ac.iataCode ?? ac.id) + suffix,
+        description: ac.icaoCode,
         tags: tags,
         value: ac.id,
       } satisfies CommonOption;
+    };
 
-      let addedToGroup = false;
-      for (const group of groups) {
-        if (ac.name?.toLowerCase().includes(group.name.toLowerCase())) {
-          group.options.push(option);
-          addedToGroup = true;
-          break;
-        }
+    for (const [familyId, aircraft] of aircraftByTopmostFamily.entries()) {
+      const family = aircraftLookupById.get(familyId)!;
+      const options: Array<CommonOption> = [];
+
+      if (Object.keys(family.configurations).length > 0) {
+        const option = buildAircraftOption(family);
+        options.push(option);
+        optionByAircraftId[family.id] = option;
       }
 
-      if (!addedToGroup) {
-        otherOptions.push(option);
+      for (const ac of aircraft) {
+        const option = buildAircraftOption(ac);
+        options.push(option);
+        optionByAircraftId[ac.id] = option;
       }
 
+      groupOptions.push({
+        label: family.name,
+        options: options,
+      } satisfies CommonOptionGroup);
+    }
+
+    for (const ac of orphans) {
+      const option = buildAircraftOption(ac);
+      orphanOptions.push(option);
       optionByAircraftId[ac.id] = option;
     }
 
-    const options: Array<CommonOption | CommonOptionGroup> = [];
-    for (const group of groups) {
-      if (group.options.length > 0) {
-        options.push({
-          label: group.name,
-          options: group.options,
-        });
-      }
-    }
+    // sort by group size descending
+    groupOptions.sort((a: CommonOptionGroup, b: CommonOptionGroup) => {
+      return b.options.length - a.options.length;
+    });
 
-    options.push(...otherOptions);
+    const options: Array<CommonOption | CommonOptionGroup> = [
+      ...groupOptions,
+      ...orphanOptions,
+    ];
 
     return [options, optionByAircraftId];
-  }, [aircraft]);
+  }, [aircraftLookupById]);
+}
+
+function groupByTopmostFamily(aircraftLookupById: Map<AircraftId, Aircraft>): [Map<AircraftId, ReadonlyArray<Aircraft>>, ReadonlyArray<Aircraft>] {
+  const result = new Map<AircraftId, Array<Aircraft>>();
+  const unmapped: Array<Aircraft> = [];
+
+  for (const ac of aircraftLookupById.values()) {
+    if (Object.keys(ac.configurations).length > 0) {
+      let curr = ac;
+      while (curr.parentFamilyId) {
+        curr = aircraftLookupById.get(curr.parentFamilyId)!;
+      }
+
+      if (curr !== ac) {
+        let items = result.get(curr.id);
+        if (!items) {
+          items = [];
+          result.set(curr.id, items);
+        }
+
+        items.push(ac);
+      } else {
+        unmapped.push(ac);
+      }
+    }
+  }
+
+  return [result, unmapped] as const;
 }

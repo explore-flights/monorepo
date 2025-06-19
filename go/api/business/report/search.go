@@ -72,17 +72,17 @@ func (s *Search) AircraftReport(ctx context.Context, cond *Condition) (map[uuid.
 	return reportsByAircraftId, s.repo.Report(
 		ctx,
 		[]db.SelectExpression{
-			db.LiteralValueExpression("aircraft_id"),
-			db.LiteralValueExpression("duration_seconds_5m_trunc"),
+			db.LiteralValueExpression("COALESCE(acf.id, act.id)"),
+			db.LiteralValueExpression("r.duration_seconds_5m_trunc"),
 			db.AggregationValueExpression{
 				Function: "SUM",
-				Expr:     db.LiteralValueExpression("count"),
+				Expr:     db.LiteralValueExpression("r.count"),
 			},
 		},
 		s.withIsOperating(cond).cond,
 		[]db.ValueExpression{
-			db.LiteralValueExpression("aircraft_id"),
-			db.LiteralValueExpression("duration_seconds_5m_trunc"),
+			db.LiteralValueExpression("COALESCE(acf.id, act.id)"),
+			db.LiteralValueExpression("r.duration_seconds_5m_trunc"),
 		},
 		scanner,
 	)

@@ -83,7 +83,7 @@ export class ApiClient {
   }
 
   getAircraft(): Promise<ApiResponse<ReadonlyArray<Aircraft>>> {
-    return transform(this.httpClient.fetch('/data/aircraft.json?v=1'));
+    return transform(this.httpClient.fetch('/data/aircraft.json?v=2'));
   }
 
   getFlightSchedule(flightNumber: string, version?: DateTime<true>): Promise<ApiResponse<FlightSchedules>> {

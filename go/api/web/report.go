@@ -119,6 +119,10 @@ func (rh *ReportHandler) Aircraft(c echo.Context) error {
 			return a[0] - b[0]
 		})
 
+		if _, ok := aircraft[aircraftId]; !ok {
+			println(aircraftId.String())
+		}
+
 		result = append(result, model.AircraftReport{
 			Aircraft:           model.AircraftFromDb(aircraft[aircraftId]),
 			FlightsAndDuration: flightsAndDuration,

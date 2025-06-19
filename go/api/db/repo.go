@@ -215,14 +215,18 @@ func (fr *FlightRepo) aircraftInternal() (map[uuid.UUID]Aircraft, error) {
 		`
 SELECT
     ac.id,
-    act.iata_code,
+    COALESCE(act.aircraft_family_id, acf.parent_id),
+    COALESCE(act.iata_code, acf.iata_code),
     act.icao_code,
     act.wtc,
     act.engine_count,
     act.engine_type,
-    act.name,
-    acf.id,
-    acf.name,
+    COALESCE(act.name, acf.name),
+    CASE
+    	WHEN ac.aircraft_type_id IS NOT NULL THEN 'aircraft'
+        WHEN ac.aircraft_family_id IS NOT NULL THEN 'family'
+        ELSE 'unmapped'
+    END,
     COALESCE(
     	(
 			SELECT ARRAY_AGG({'airline_id': sub.operating_airline_id, 'configurations': sub.aircraft_configuration_versions})
@@ -242,7 +246,6 @@ LEFT JOIN aircraft_types act
 ON ac.aircraft_type_id = act.id
 LEFT JOIN aircraft_families acf
 ON ac.aircraft_family_id = acf.id
-OR act.aircraft_family_id = acf.id
 `,
 	)
 	if err != nil {
@@ -254,7 +257,19 @@ OR act.aircraft_family_id = acf.id
 	for rows.Next() {
 		var ac Aircraft
 		var configurationsRaw xsql.SQLArray[aircraftConfigurationsAdapter, *aircraftConfigurationsAdapter]
-		if err = rows.Scan(&ac.Id, &ac.IataCode, &ac.IcaoCode, &ac.Wtc, &ac.EngineCount, &ac.EngineType, &ac.Name, &ac.FamilyId, &ac.FamilyName, &configurationsRaw); err != nil {
+		err = rows.Scan(
+			&ac.Id,
+			&ac.ParentFamilyId,
+			&ac.IataCode,
+			&ac.IcaoCode,
+			&ac.Wtc,
+			&ac.EngineCount,
+			&ac.EngineType,
+			&ac.Name,
+			&ac.Type,
+			&configurationsRaw,
+		)
+		if err != nil {
 			return nil, err
 		}
 
@@ -994,7 +1009,16 @@ func (fr *FlightRepo) Report(ctx context.Context, selectFields []SelectExpressio
 		params = append(params, groupByParams...)
 	}
 
-	query := "SELECT " + strings.Join(selectStrs, ",") + " FROM report"
+	query := "SELECT " + strings.Join(selectStrs, ",") + `
+FROM report r
+INNER JOIN aircraft ac
+ON r.aircraft_id = ac.id
+LEFT JOIN aircraft_types act
+ON ac.aircraft_type_id = act.id
+LEFT JOIN aircraft_families acf
+ON ac.aircraft_family_id = acf.id
+OR act.aircraft_family_id = acf.id
+`
 	if filterStr != "" {
 		query += " WHERE " + filterStr
 	}

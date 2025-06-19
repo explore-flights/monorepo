@@ -47,14 +47,36 @@ export interface Airline {
 }
 
 export type AircraftId = Branded<string, 'AircraftId'>;
-export interface Aircraft {
+export interface AircraftBase {
+  type: 'aircraft' | 'family' | 'unmapped';
   id: AircraftId;
-  equipCode?: string;
-  name?: string;
+  parentFamilyId?: AircraftId;
   iataCode?: string;
   icaoCode?: string;
+  name?: string;
   configurations: Record<AirlineId, ReadonlyArray<string>>;
 }
+
+export interface AircraftType extends AircraftBase {
+  type: 'aircraft';
+  iataCode: string;
+  name: string;
+}
+
+export interface AircraftFamily extends AircraftBase {
+  type: 'family';
+  icaoCode: undefined;
+}
+
+export interface AircraftUnmapped extends AircraftBase {
+  type: 'unmapped';
+  parentFamilyId: undefined;
+  iataCode: undefined;
+  icaoCode: undefined;
+  name: undefined;
+}
+
+export type Aircraft = AircraftType | AircraftFamily | AircraftUnmapped;
 
 export interface FlightNumber {
   airlineId: AirlineId;

@@ -143,7 +143,7 @@ function AircraftReportChart({ reports, loading }: { reports: ReadonlyArray<Airc
     }
 
     return builder.series((ac) => ({
-      title: ac.name ?? ac.equipCode ?? ac.iataCode ?? ac.icaoCode ?? ac.id,
+      title: ac.name ?? ac.icaoCode ?? ac.iataCode ?? ac.id,
     }), false, true);
   }, [reports]);
 

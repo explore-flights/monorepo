@@ -165,7 +165,7 @@ function FlightNode({ data }: NodeProps<Node<FlightNodeData>>) {
 }
 
 function FlightPopoverContent({ flight, airline, departureAirport, arrivalAirport, aircraft, airlineById }: { flight: ConnectionFlightResponse, airline: Airline, departureAirport: Airport, arrivalAirport: Airport, aircraft: Aircraft, airlineById: Record<AirlineId, Airline> }) {
-  let aircraftStr = aircraft.equipCode ?? aircraft.iataCode ?? aircraft.icaoCode ?? aircraft.id;
+  let aircraftStr = aircraft.icaoCode ?? aircraft.iataCode ?? aircraft.id;
   if (aircraft.name) {
     aircraftStr += ` (${aircraft.name})`;
   }

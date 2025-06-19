@@ -171,7 +171,7 @@ function buildColumnDefinitions(flightLinkQuery?: (item: ScheduleTableItem) => U
           return <></>;
         }
 
-        return <AircraftText code={v.aircraft.equipCode ?? v.aircraft.iataCode ?? v.aircraft.icaoCode ?? v.aircraft.id} aircraft={v.aircraft} />;
+        return <AircraftText code={v.aircraft.icaoCode ?? v.aircraft.iataCode ?? v.aircraft.id} aircraft={v.aircraft} />;
       },
       sortingComparator: (a, b) => {
         const aircraftA = a.type === 'child' ? a.aircraft.id : '';

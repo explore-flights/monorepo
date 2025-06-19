@@ -15,6 +15,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"golang.org/x/sync/errgroup"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -203,9 +204,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 		fs.Airports[model.UUID(airportId)] = model.AirportFromDb(airports[airportId])
 	}
 
-	for aircraftId := range referencedAircraft {
-		fs.Aircraft[model.UUID(aircraftId)] = model.AircraftFromDb(aircraft[aircraftId])
-	}
+	model.AddReferencedAircraft(maps.Keys(referencedAircraft), aircraft, fs.Aircraft)
 
 	addExpirationHeaders(c, time.Now(), time.Hour)
 	return c.JSON(http.StatusOK, fs)
@@ -316,12 +315,12 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 			return aircraftId.String()
 		}
 
-		return cmp.Or(aircraft.Name, aircraft.IcaoCode, aircraft.IataCode, aircraft.Id.String())
+		return cmp.Or(aircraft.Name(), aircraft.IcaoCode, aircraft.IataCode(), aircraft.Id.String())
 	}
 
 	aircraftAndConfigurationVersionName := func(aircraftId model.UUID, v string) string {
 		configName := v
-		if aircraft, ok := fs.Aircraft[aircraftId]; ok && aircraft.IataCode == "359" {
+		if aircraft, ok := fs.Aircraft[aircraftId]; ok && aircraft.IataCode() == "359" {
 			switch v {
 			case "C38E24M201":
 				configName = "Allegris (no first)"
@@ -711,9 +710,7 @@ func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, de
 		fs.Airports[model.UUID(airportId)] = model.AirportFromDb(airports[airportId])
 	}
 
-	for aircraftId := range referencedAircraft {
-		fs.Aircraft[model.UUID(aircraftId)] = model.AircraftFromDb(aircraft[aircraftId])
-	}
+	model.AddReferencedAircraft(maps.Keys(referencedAircraft), aircraft, fs.Aircraft)
 
 	return fs, nil
 }

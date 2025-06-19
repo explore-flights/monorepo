@@ -31,16 +31,24 @@ type Airport struct {
 	Name         sql.NullString
 }
 
+type AircraftType string
+
+const (
+	AircraftTypeAircraft AircraftType = "aircraft"
+	AircraftTypeFamily   AircraftType = "family"
+	AircraftTypeUnmapped AircraftType = "unmapped"
+)
+
 type Aircraft struct {
 	Id             uuid.UUID
+	ParentFamilyId sql.Null[uuid.UUID]
 	IataCode       sql.NullString
 	IcaoCode       sql.NullString
 	Wtc            sql.NullString
 	EngineCount    sql.NullInt16
 	EngineType     sql.NullString
 	Name           sql.NullString
-	FamilyId       sql.Null[uuid.UUID]
-	FamilyName     sql.NullString
+	Type           AircraftType
 	Configurations map[uuid.UUID][]string
 }
 

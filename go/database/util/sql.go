@@ -17,6 +17,10 @@ import (
 type UpdateSequence []UpdateScript
 
 func (us UpdateSequence) Run(ctx context.Context, conn *sql.Conn, rows map[string]int64) error {
+	if rows == nil {
+		rows = make(map[string]int64)
+	}
+
 	for _, script := range us {
 		if err := script.Run(ctx, conn, rows); err != nil {
 			return err
@@ -159,7 +163,7 @@ func (uq UpdateQuery) Run(ctx context.Context, conn *sql.Conn, rows map[string]i
 	}
 
 	rowsAffected, _ = r.RowsAffected()
-	if rows != nil && uq.identifier != "" {
+	if uq.identifier != "" {
 		rows[uq.identifier] = rowsAffected
 	}
 

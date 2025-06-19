@@ -19,6 +19,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"html/template"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"path"
@@ -323,9 +324,7 @@ func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns [
 		r.Airports[model.UUID(id)] = model.AirportFromDb(airports[id])
 	}
 
-	for id := range aircraft {
-		r.Aircraft[model.UUID(id)] = model.AircraftFromDb(aircraft[id])
-	}
+	model.AddReferencedAircraft(maps.Keys(referencedAircraft), aircraft, r.Aircraft)
 
 	return r, nil
 }
