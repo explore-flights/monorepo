@@ -56,12 +56,17 @@ function buildMarkersAndLines(connections: ConnectionsResponse): [ReadonlyArray<
     toMarkersAndLines(node, markers, lines, points);
   }
 
-  const bounds = bbox(featureCollection(points));
   let lngLatBounds: [number, number, number, number];
-  if (bounds.length === 4) {
-    lngLatBounds = bounds;
+  if (points.length > 0) {
+    const bounds = bbox(featureCollection(points));
+
+    if (bounds.length === 4) {
+      lngLatBounds = bounds;
+    } else {
+      lngLatBounds = [bounds[0], bounds[1], bounds[3], bounds[4]];
+    }
   } else {
-    lngLatBounds = [bounds[0], bounds[1], bounds[3], bounds[4]];
+    lngLatBounds = [120, 60, 120, 60];
   }
 
   return [
