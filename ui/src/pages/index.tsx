@@ -17,6 +17,7 @@ import { FlightVersionsView } from './flight-versions';
 import { Airports } from './airports';
 import { AirportPage } from './airport';
 import { Updates } from './updates';
+import { TechAirports } from './tech-airports';
 
 // region router
 const router = createBrowserRouter([
@@ -53,6 +54,10 @@ const router = createBrowserRouter([
       {
         path: 'airport',
         element: <Airports />,
+      },
+      {
+        path: 'techairportsanypercent',
+        element: <TechAirports />,
       },
       {
         path: 'airport/:id',

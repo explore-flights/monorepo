@@ -290,6 +290,22 @@ export function useDestinations(airport: string, year?: number, summerSchedule?:
   });
 }
 
+export function useDestinationsNoInitial(airport?: string, year?: number, summerSchedule?: boolean) {
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['destinations_no_initial', airport, year, summerSchedule],
+    queryFn: async () => {
+      if (!airport) {
+        return [] satisfies ReadonlyArray<Airport>;
+      }
+
+      const { body } = expectSuccess(await apiClient.getDestinations(airport, year, summerSchedule));
+      return body;
+    },
+    retry: 5,
+  });
+}
+
 export function useAircraftReport(airport: string, year?: number, summerSchedule?: boolean) {
   const { apiClient } = useHttpClient();
   return useQuery({
