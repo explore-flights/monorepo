@@ -66,7 +66,7 @@ function buildMarkersAndLines(connections: ConnectionsResponse): [ReadonlyArray<
       lngLatBounds = [bounds[0], bounds[1], bounds[3], bounds[4]];
     }
   } else {
-    lngLatBounds = [120, 60, 120, 60];
+    lngLatBounds = [-120, -60, 120, 60];
   }
 
   return [
