@@ -18,7 +18,7 @@ import {
   FlightSchedules,
   FlightScheduleVersions,
   QuerySchedulesResponseV2,
-  AircraftReport, FlightScheduleUpdates
+  AircraftReport, FlightScheduleUpdates, DestinationReport
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -181,7 +181,7 @@ export class ApiClient {
     return transform(this.httpClient.fetch(`/api/schedule/search?${params.toString()}`));
   }
 
-  getDestinations(airport: string, year?: number, summerSchedule?: boolean): Promise<ApiResponse<ReadonlyArray<Airport>>> {
+  getDestinations(airport: string, year?: number, summerSchedule?: boolean): Promise<ApiResponse<ReadonlyArray<DestinationReport>>> {
     const urlParts = [
       '/data/destinations',
       encodeURIComponent(airport),
@@ -195,7 +195,8 @@ export class ApiClient {
       }
     }
 
-    return transform(this.httpClient.fetch(urlParts.join('/')));
+    const url = urlParts.join('/');
+    return transform(this.httpClient.fetch(`${url}?v=1`));
   }
 
   getAircraftReport(airport: string, year?: number, summerSchedule?: boolean): Promise<ApiResponse<ReadonlyArray<AircraftReport>>> {

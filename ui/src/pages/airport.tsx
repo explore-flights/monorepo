@@ -11,7 +11,7 @@ import {
 import React, { useCallback, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAircraftReport, useAirports, useDestinations } from '../components/util/state/data';
-import { Aircraft, AircraftReport, Airport, AirportId } from '../lib/api/api.model';
+import { Aircraft, AircraftReport, Airport, AirportId, DestinationReport } from '../lib/api/api.model';
 import { Duration } from 'luxon';
 import { LineSeriesBuilder } from '../lib/charts/builder';
 import { MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
@@ -85,7 +85,7 @@ export function AirportPage() {
   );
 }
 
-function DestinationsMap({ airport, destinations, loading }: { airport?: Airport, destinations: ReadonlyArray<Airport>, loading: boolean }) {
+function DestinationsMap({ airport, destinations, loading }: { airport?: Airport, destinations: ReadonlyArray<DestinationReport>, loading: boolean }) {
   const nodes = useMemo(() => {
     const nodes: Array<React.ReactNode> = [];
     if (!airport || !airport.location || destinations.length < 1) {
@@ -100,14 +100,15 @@ function DestinationsMap({ airport, destinations, loading }: { airport?: Airport
     );
 
     for (const destination of destinations) {
-      if (!destination.location) {
+      const destinationAirport = destination.airport;
+      if (!destinationAirport.location) {
         continue;
       }
 
-      nodes.push(<SmartLine src={[srcLocation.lng, srcLocation.lat]} dst={[destination.location.lng, destination.location.lat]} />);
+      nodes.push(<SmartLine src={[srcLocation.lng, srcLocation.lat]} dst={[destinationAirport.location.lng, destinationAirport.location.lat]} />);
       nodes.push(
-        <Marker latitude={destination.location.lat} longitude={destination.location.lng}>
-          <Button variant={'normal'} disabled={true}>{airportToString(destination)}</Button>
+        <Marker latitude={destinationAirport.location.lat} longitude={destinationAirport.location.lng}>
+          <Button variant={'normal'} disabled={true}>{airportToString(destinationAirport)}</Button>
         </Marker>
       );
     }

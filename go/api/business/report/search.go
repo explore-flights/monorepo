@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/gofrs/uuid/v5"
+	"time"
 )
 
 type searchRepo interface {
@@ -19,16 +20,17 @@ func NewSearch(repo searchRepo) *Search {
 	return &Search{repo}
 }
 
-func (s *Search) Destinations(ctx context.Context, airportId uuid.UUID, cond *Condition) ([]uuid.UUID, error) {
-	destinationAirportIds := make([]uuid.UUID, 0)
+func (s *Search) Destinations(ctx context.Context, airportId uuid.UUID, cond *Condition) (map[uuid.UUID]time.Duration, error) {
+	destinations := make(map[uuid.UUID]time.Duration)
 	scanner := func(rows *sql.Rows) error {
 		for rows.Next() {
 			var destinationAirportId uuid.UUID
-			if err := rows.Scan(&destinationAirportId); err != nil {
+			var minDurationSeconds int64
+			if err := rows.Scan(&destinationAirportId, &minDurationSeconds); err != nil {
 				return err
 			}
 
-			destinationAirportIds = append(destinationAirportIds, destinationAirportId)
+			destinations[destinationAirportId] = time.Duration(minDurationSeconds) * time.Second
 		}
 
 		return nil
@@ -42,13 +44,19 @@ func (s *Search) Destinations(ctx context.Context, airportId uuid.UUID, cond *Co
 		)
 	}
 
-	return destinationAirportIds, s.repo.Report(
+	return destinations, s.repo.Report(
 		ctx,
 		[]db.SelectExpression{
-			db.DistinctValueExpression{db.LiteralValueExpression("arrival_airport_id")},
+			db.LiteralValueExpression("arrival_airport_id"),
+			db.AggregationValueExpression{
+				Function: "MIN",
+				Expr:     db.LiteralValueExpression("min_duration_seconds"),
+			},
 		},
 		fullCond.cond,
-		nil,
+		[]db.ValueExpression{
+			db.LiteralValueExpression("arrival_airport_id"),
+		},
 		scanner,
 	)
 }

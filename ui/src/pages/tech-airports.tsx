@@ -4,18 +4,19 @@ import {
   Alert,
   Badge,
   Box,
-  Button,
+  Button, ColumnLayout,
   Container,
   ContentLayout,
-  Header, Modal, Popover, SpaceBetween, StatusIndicator
+  Header, Modal, Popover, SpaceBetween, StatusIndicator, Toggle
 } from '@cloudscape-design/components';
 import { distance } from '@turf/turf';
 import { MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
 import { Marker } from 'react-map-gl/maplibre';
-import { Airport, AirportId } from '../lib/api/api.model';
+import { Airport, AirportId, DestinationReport } from '../lib/api/api.model';
 import { WithRequired } from '@tanstack/react-query';
 import { CodeView } from '@cloudscape-design/code-view';
 import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
+import { Duration } from 'luxon';
 
 const TECH_AIRPORTS: ReadonlyArray<string> = [
   'TLS',
@@ -34,15 +35,15 @@ export function TechAirports() {
     return TECH_AIRPORTS.map((iata) => lookupByIata.get(iata)).filter(v => !!v);
   }, [lookupByIata]);
 
-  const [selectedAirports, setSelectedAirports] = useState<ReadonlyArray<Airport>>([]);
+  const [selectedDestinations, setSelectedDestinations] = useState<ReadonlyArray<DestinationReport>>([]);
 
-  const addAirport = useCallback((airport: Airport) => {
-    setSelectedAirports((prev) => [...prev, airport]);
+  const addDestination = useCallback((destination: DestinationReport) => {
+    setSelectedDestinations((prev) => [...prev, destination]);
   }, []);
 
-  const removeAirport = useCallback((airport: Airport) => {
-    setSelectedAirports((prev) => {
-      let idx = prev.findLastIndex((v) => v.id === airport.id);
+  const removeDestination = useCallback((destination: DestinationReport) => {
+    setSelectedDestinations((prev) => {
+      let idx = prev.findLastIndex((v) => v.airport.id === destination.airport.id);
       if (idx === -1) {
         return prev;
       }
@@ -51,31 +52,14 @@ export function TechAirports() {
     });
   }, []);
 
-  const resetAirports = useCallback(() => {
-    setSelectedAirports([]);
+  const resetDestinations = useCallback(() => {
+    setSelectedDestinations([]);
   }, []);
 
-  const lastAirportId = selectedAirports.length > 0 ? selectedAirports[selectedAirports.length - 1].id : undefined;
+  const lastAirportId = selectedDestinations.length > 0 ? selectedDestinations[selectedDestinations.length - 1].airport.id : undefined;
   const rawLastAirportDestinations = useDestinationsNoInitial(lastAirportId).data;
   const lastAirportDestinations = rawLastAirportDestinations ?? [];
   const lastAirportDestinationsPending = !rawLastAirportDestinations;
-
-  const markersAndLines = useMemo(() => {
-    if (selectedAirports.length > 0) {
-      return (
-        <SelectedAirportsMarkers
-          airports={selectedAirports}
-          tailConnections={lastAirportDestinations}
-          addAirport={addAirport}
-          removeAirport={removeAirport}
-        />
-      );
-    }
-
-    return (
-      <AllAirportsMarkers airports={airports} onAirportClick={addAirport} />
-    );
-  }, [airports, selectedAirports, lastAirportDestinations, addAirport, removeAirport]);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalState, setModalState] = useState<{ title: string, content: React.ReactNode, }>({ title: '', content: '' });
@@ -84,10 +68,10 @@ export function TechAirports() {
       return;
     }
 
-    const distance = totalDistance(selectedAirports);
+    const [distance, duration] = totalDistanceAndDuration(selectedDestinations);
     const isDone = requiredAirports.length > 0 && (() => {
       for (const airport of requiredAirports) {
-        if (selectedAirports.findIndex((v) => v.id === airport.id) === -1) {
+        if (selectedDestinations.findIndex((v) => v.airport.id === airport.id) === -1) {
           return false;
         }
       }
@@ -99,46 +83,40 @@ export function TechAirports() {
       const seen = new Set<AirportId>();
       let doubleVisits = 0;
 
-      for (const airport of selectedAirports) {
-        if (seen.has(airport.id)) {
+      for (const dest of selectedDestinations) {
+        if (seen.has(dest.airport.id)) {
           doubleVisits++;
         }
 
-        seen.add(airport.id);
+        seen.add(dest.airport.id);
       }
 
       return doubleVisits;
     })();
 
-    const score = distance * Math.exp(doubleVisits * 0.2);
-
     if (isDone) {
       setModalState({
         title: 'Task complete!',
         content: (
-          <Alert type={'success'}>
-            <Box>Total Distance: {distance.toFixed(2)} mi</Box>
-            <Box>Airports visited: {selectedAirports.length}</Box>
-            <Box>Double visits: {doubleVisits}</Box>
-            <Box>Score (lower is better): {score.toFixed(0)}</Box>
-          </Alert>
+          <SuccessDisplay distance={distance} duration={duration} totalAirports={selectedDestinations.length} doubleVisits={doubleVisits} />
         ),
       });
       setModalVisible(true);
-    } else if (selectedAirports.length > 0 && lastAirportDestinations.length < 1) {
+    } else if (selectedDestinations.length > 0 && lastAirportDestinations.length < 1) {
       setModalState({
         title: 'Game over!',
         content: (
           <Alert type={'error'}>
             <Box>Total Distance: {distance.toFixed(2)} mi</Box>
-            <Box>Airports visited: {selectedAirports.length}</Box>
+            <Box>Total Duration: {duration.rescale().toHuman({ listStyle: 'narrow', unitDisplay: 'narrow' })}</Box>
+            <Box>Airports visited: {selectedDestinations.length}</Box>
             <Box>Double visits: {doubleVisits}</Box>
           </Alert>
         ),
       });
       setModalVisible(true);
     }
-  }, [requiredAirports, selectedAirports, lastAirportDestinations, lastAirportDestinationsPending]);
+  }, [requiredAirports, selectedDestinations, lastAirportDestinations, lastAirportDestinationsPending]);
 
   return (
     <ContentLayout header={<Header variant={'h1'}>Tech Airports Any%</Header>}>
@@ -147,26 +125,38 @@ export function TechAirports() {
         controls={[
           (
             <Container>
-              <Box>{totalDistance(selectedAirports).toFixed(2)} mi</Box>
+              <TotalDistance selectedDestinations={selectedDestinations} />
             </Container>
           ),
           (
             <Container>
-              <AirportChecklist requiredAirports={requiredAirports} selectedAirports={selectedAirports} />
+              <AirportChecklist requiredAirports={requiredAirports} selectedDestinations={selectedDestinations} />
             </Container>
           ),
           (
-            <Button onClick={resetAirports} disabled={selectedAirports.length < 1}>Reset</Button>
+            <Button onClick={resetDestinations} disabled={selectedDestinations.length < 1}>Reset</Button>
           ),
         ]}
       >
-        {markersAndLines}
+        {
+          selectedDestinations.length > 0
+            ? (
+              <SelectedAirportsMarkers
+                destinations={selectedDestinations}
+                tailConnections={lastAirportDestinations}
+                addDestination={addDestination}
+                removeDestination={removeDestination}
+              />
+            )
+            : <AllAirportsMarkers airports={airports} onAirportClick={(airport) => addDestination({ airport: airport, minDurationSeconds: 0 })} />
+        }
       </MaplibreMap>
+
       <Modal
         header={modalState.title}
         visible={modalVisible}
         size={'medium'}
-        footer={<Button onClick={() => { resetAirports(); setModalVisible(false); }} disabled={selectedAirports.length < 1}>Reset</Button>}
+        footer={<Button onClick={() => { resetDestinations(); setModalVisible(false); }} disabled={selectedDestinations.length < 1}>Reset</Button>}
         onDismiss={() => setModalVisible(false)}
       >
         {modalState.content}
@@ -207,16 +197,16 @@ function AllAirportsMarkers({ airports, onAirportClick }: { airports: ReadonlyAr
 }
 
 interface SelectedAirportProps {
-  airports: ReadonlyArray<Airport>;
-  addAirport: (airport: Airport) => void;
-  removeAirport: (airport: Airport) => void;
+  destinations: ReadonlyArray<DestinationReport>;
+  addDestination: (destination: DestinationReport) => void;
+  removeDestination: (destination: DestinationReport) => void;
 }
 
-function SelectedAirportsMarkers({ airports, tailConnections, addAirport, removeAirport }: SelectedAirportProps & { tailConnections: ReadonlyArray<Airport> }) {
+function SelectedAirportsMarkers({ destinations, tailConnections, addDestination, removeDestination }: SelectedAirportProps & { tailConnections: ReadonlyArray<DestinationReport> }) {
   const nodes = useMemo(() => {
     const indexesByAirportId: Map<AirportId, Array<number>> = new Map();
-    for (let i = 0; i < airports.length; i++) {
-      const airportId = airports[i].id;
+    for (let i = 0; i < destinations.length; i++) {
+      const airportId = destinations[i].airport.id;
       let indexes = indexesByAirportId.get(airportId);
       if (!indexes) {
         indexes = [];
@@ -230,8 +220,9 @@ function SelectedAirportsMarkers({ airports, tailConnections, addAirport, remove
     let previousAirportId: AirportId | null = null;
     let previousAirportLocation: [number, number] | null = null;
 
-    for (let i = 0; i < airports.length; i++) {
-      const _airport = airports[i];
+    for (let i = 0; i < destinations.length; i++) {
+      const destination = destinations[i];
+      const _airport = destination.airport;
       if (!_airport.location) {
         continue;
       }
@@ -241,15 +232,15 @@ function SelectedAirportsMarkers({ airports, tailConnections, addAirport, remove
 
       // add the marker for the last index only
       if (i === indexes[indexes.length - 1]) {
-        const isTail = i >= airports.length - 1;
-        const hasTailConnection = tailConnections.findIndex((v) => v.id === airport.id) !== -1;
+        const isTail = i >= destinations.length - 1;
+        const hasTailConnection = tailConnections.findIndex((v) => v.airport.id === airport.id) !== -1;
 
         if (isTail || !hasTailConnection) {
           nodes.push(
             <AirportMarker
               airport={airport}
               onClick={() => {}}
-              onRemoveClick={() => removeAirport(airport)}
+              onRemoveClick={() => removeDestination(destination)}
               indexes={indexes}
               connectable={false}
               removable={isTail}
@@ -269,7 +260,8 @@ function SelectedAirportsMarkers({ airports, tailConnections, addAirport, remove
 
     if (previousAirportLocation != null) {
       for (let i = 0; i < tailConnections.length; i++) {
-        const _airport = tailConnections[i];
+        const destination = tailConnections[i];
+        const _airport = destination.airport;
         if (!_airport.location || _airport.id === previousAirportId) {
           continue;
         }
@@ -280,7 +272,7 @@ function SelectedAirportsMarkers({ airports, tailConnections, addAirport, remove
         nodes.push(
           <AirportMarker
             airport={airport}
-            onClick={() => addAirport(airport)}
+            onClick={() => addDestination(destination)}
             onRemoveClick={() => {}}
             indexes={indexes}
             connectable={true}
@@ -294,7 +286,7 @@ function SelectedAirportsMarkers({ airports, tailConnections, addAirport, remove
     }
 
     return nodes;
-  }, [airports, tailConnections, addAirport, removeAirport]);
+  }, [destinations, tailConnections, addDestination, removeDestination]);
 
   return (
     <>{...nodes}</>
@@ -335,11 +327,71 @@ function AirportMarker({ airport, onClick, onRemoveClick, indexes, connectable, 
   );
 }
 
-function AirportChecklist({ requiredAirports, selectedAirports }: { requiredAirports: ReadonlyArray<Airport>, selectedAirports: ReadonlyArray<Airport> }) {
+function SuccessDisplay({ distance, duration, totalAirports, doubleVisits }: { distance: number, duration: Duration<true>, totalAirports: number, doubleVisits: number }) {
+  const [scoreCalc, setScoreCalc] = useState({
+    distance: true,
+    duration: false,
+    totalAirportsPenalty: false,
+    doubleVisitPenalty: false,
+  });
+
+  const score = useMemo(() => {
+    let score = 0.0;
+    if (scoreCalc.distance) {
+      score += distance;
+    }
+
+    if (scoreCalc.duration) {
+      score += duration.toMillis() / 10000;
+    }
+
+    if (scoreCalc.totalAirportsPenalty) {
+      score *= Math.exp(totalAirports * 0.05);
+    }
+
+    if (scoreCalc.doubleVisitPenalty) {
+      score *= Math.exp(doubleVisits * 0.2);
+    }
+
+    if (score === 0.0) {
+      score = Number.MAX_SAFE_INTEGER;
+    }
+
+    return score;
+  }, [distance, duration, totalAirports, doubleVisits, scoreCalc]);
+
+  return (
+    <ColumnLayout columns={1}>
+      <ColumnLayout columns={2}>
+        <Toggle checked={scoreCalc.distance} onChange={(e) => setScoreCalc((prev) => ({ ...prev, distance: e.detail.checked }))}>Distance</Toggle>
+        <Toggle checked={scoreCalc.duration} onChange={(e) => setScoreCalc((prev) => ({ ...prev, duration: e.detail.checked }))}>Duration</Toggle>
+        <Toggle checked={scoreCalc.totalAirportsPenalty} onChange={(e) => setScoreCalc((prev) => ({ ...prev, totalAirportsPenalty: e.detail.checked }))}>Total Airports Penalty</Toggle>
+        <Toggle checked={scoreCalc.doubleVisitPenalty} onChange={(e) => setScoreCalc((prev) => ({ ...prev, doubleVisitPenalty: e.detail.checked }))}>Double Visit Penalty</Toggle>
+      </ColumnLayout>
+
+      <Alert type={'success'}>
+        <Box>Total Distance: {distance.toFixed(2)} mi</Box>
+        <Box>Total Duration: {duration.rescale().toHuman({ listStyle: 'narrow', unitDisplay: 'narrow' })}</Box>
+        <Box>Airports visited: {totalAirports}</Box>
+        <Box>Double visits: {doubleVisits}</Box>
+        <Box>Score (lower is better): {score.toFixed(0)}</Box>
+      </Alert>
+    </ColumnLayout>
+  );
+}
+
+function TotalDistance({ selectedDestinations }: { selectedDestinations: ReadonlyArray<DestinationReport> }) {
+  const [distance, duration] = totalDistanceAndDuration(selectedDestinations);
+  return (
+    <Box>{distance.toFixed(2)} mi / {duration.rescale().toHuman({ listStyle: 'narrow', unitDisplay: 'narrow' })}</Box>
+  );
+}
+
+function AirportChecklist({ requiredAirports, selectedDestinations }: { requiredAirports: ReadonlyArray<Airport>, selectedDestinations: ReadonlyArray<DestinationReport> }) {
   const nodes = useMemo(() => {
     const nodes: Array<React.ReactNode> = [];
     for (const airport of requiredAirports) {
-      const visited = selectedAirports.findIndex((v) => v.id === airport.id) !== -1;
+      const visited = selectedDestinations.findIndex((v) => v.airport.id === airport.id) !== -1;
       nodes.push(
         <Popover content={<CodeView highlight={jsonHighlight} content={JSON.stringify(airport, null, '\t')} />} dismissButton={false}>
           <StatusIndicator type={visited ? 'success' : 'error'}>{airport.iataCode}</StatusIndicator>
@@ -348,7 +400,7 @@ function AirportChecklist({ requiredAirports, selectedAirports }: { requiredAirp
     }
 
     return nodes;
-  }, [requiredAirports, selectedAirports]);
+  }, [requiredAirports, selectedDestinations]);
 
   return (
     <SpaceBetween size={'m'} direction={'horizontal'}>
@@ -357,18 +409,21 @@ function AirportChecklist({ requiredAirports, selectedAirports }: { requiredAirp
   );
 }
 
-function totalDistance(airports: ReadonlyArray<Airport>): number {
+function totalDistanceAndDuration(destinations: ReadonlyArray<DestinationReport>): [number, Duration<true>] {
   let previousAirportLocation: [number, number] | null = null;
   let totalDistance = 0.0;
+  let totalDuration = Duration.fromMillis(0);
 
-  for (const airport of airports) {
-    const location = [airport.location?.lng ?? 0.0, airport.location?.lat ?? 0.0] satisfies [number, number];
+  for (const dest of destinations) {
+    const location = [dest.airport.location?.lng ?? 0.0, dest.airport.location?.lat ?? 0.0] satisfies [number, number];
     if (previousAirportLocation != null) {
       totalDistance += distance(previousAirportLocation, location, { units: 'miles' });
     }
 
+    totalDuration = totalDuration.plus(Duration.fromMillis(dest.minDurationSeconds * 1000));
+
     previousAirportLocation = location;
   }
 
-  return totalDistance;
+  return [totalDistance, totalDuration] as const;
 }

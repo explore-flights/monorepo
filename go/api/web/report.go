@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"time"
 )
 
 type reportHandlerRepo interface {
@@ -42,13 +43,13 @@ func (rh *ReportHandler) Destinations(c echo.Context) error {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
-	var destinationAirportIds []uuid.UUID
+	var destinations map[uuid.UUID]time.Duration
 	var airports map[uuid.UUID]db.Airport
 
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		destinationAirportIds, err = rh.search.Destinations(gCtx, airportId, cond)
+		destinations, err = rh.search.Destinations(gCtx, airportId, cond)
 		return err
 	})
 
@@ -62,9 +63,12 @@ func (rh *ReportHandler) Destinations(c echo.Context) error {
 		return err
 	}
 
-	result := make([]model.Airport, 0, len(destinationAirportIds))
-	for _, id := range destinationAirportIds {
-		result = append(result, model.AirportFromDb(airports[id]))
+	result := make([]model.DestinationReport, 0, len(destinations))
+	for id, minDuration := range destinations {
+		result = append(result, model.DestinationReport{
+			Airport:            model.AirportFromDb(airports[id]),
+			MinDurationSeconds: int(minDuration.Seconds()),
+		})
 	}
 
 	return c.JSON(http.StatusOK, result)

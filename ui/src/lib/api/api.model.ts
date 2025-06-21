@@ -351,3 +351,8 @@ export interface AircraftReport {
   aircraft: Aircraft;
   flightsAndDuration: ReadonlyArray<[number, number]>;
 }
+
+export interface DestinationReport {
+  airport: Airport;
+  minDurationSeconds: number;
+}

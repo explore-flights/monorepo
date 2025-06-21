@@ -8,7 +8,7 @@ import {
   Airline,
   AirlineId,
   Airport,
-  AirportId, FlightScheduleUpdates,
+  AirportId, DestinationReport, FlightScheduleUpdates,
   QuerySchedulesRequest, QuerySchedulesResponseV2,
   SearchResponse
 } from '../../../lib/api/api.model';
@@ -286,7 +286,7 @@ export function useDestinations(airport: string, year?: number, summerSchedule?:
       return body;
     },
     retry: 5,
-    initialData: [] satisfies ReadonlyArray<Airport>,
+    initialData: [] satisfies ReadonlyArray<DestinationReport>,
   });
 }
 
@@ -296,7 +296,7 @@ export function useDestinationsNoInitial(airport?: string, year?: number, summer
     queryKey: ['destinations_no_initial', airport, year, summerSchedule],
     queryFn: async () => {
       if (!airport) {
-        return [] satisfies ReadonlyArray<Airport>;
+        return [] satisfies ReadonlyArray<DestinationReport>;
       }
 
       const { body } = expectSuccess(await apiClient.getDestinations(airport, year, summerSchedule));
