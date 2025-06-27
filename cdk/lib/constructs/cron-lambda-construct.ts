@@ -79,6 +79,7 @@ export class CronLambdaConstruct extends Construct {
       props.dataBucket.grantRead(fn, 'processed/basedata.db');
       props.parquetBucket.grantRead(fn, 'variants.parquet');
       props.parquetBucket.grantRead(fn, 'report.parquet');
+      props.parquetBucket.grantRead(fn, 'connections.parquet');
 
       fn.addToRolePolicy(new PolicyStatement({
         effect: Effect.ALLOW,
