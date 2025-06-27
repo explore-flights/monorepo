@@ -356,3 +356,10 @@ export interface DestinationReport {
   airport: Airport;
   minDurationSeconds: number;
 }
+
+export interface ConnectionGameChallenge {
+  seed: string;
+  offset: number;
+  departureAirportId: AirportId;
+  arrivalAirportId: AirportId;
+}

@@ -36,6 +36,7 @@ func (u *updater) UpdateDatabase(
 	parquetBucket,
 	variantsKey,
 	reportKey,
+	connectionsKey,
 	historyPrefix,
 	latestPrefix,
 	inputBucket,
@@ -85,6 +86,12 @@ func (u *updater) UpdateDatabase(
 
 			if err := util.RunTimed("export report", func() error {
 				return u.exportReport(ctx, conn, parquetBucket, reportKey)
+			}); err != nil {
+				return err
+			}
+
+			if err := util.RunTimed("export connections", func() error {
+				return u.exportConnections(ctx, conn, parquetBucket, connectionsKey)
 			}); err != nil {
 				return err
 			}
@@ -386,6 +393,79 @@ COPY (
 		{
 			Name:   "drop macros",
 			Script: `DROP MACRO is_summer_schedule; DROP MACRO last_weekday_of_month; DROP MACRO last_day_of_month;`,
+		},
+		{
+			Name:   "reset threads",
+			Script: setThreads,
+		},
+	}
+
+	return sequence.Run(ctx, conn, nil)
+}
+
+func (u *updater) exportConnections(ctx context.Context, conn *sql.Conn, bucket, key string) error {
+	exportUri := u.buildParquetFileUri(bucket, key)
+	sequence := util.UpdateSequence{
+		{
+			Name:   "use working db",
+			Script: fmt.Sprintf(`USE %s`, workingDbName),
+		},
+		{
+			Name:   "single thread",
+			Script: "SET threads TO 1",
+		},
+		{
+			Name: "export connections",
+			Script: fmt.Sprintf(
+				`
+CREATE TABLE airport_connections AS
+SELECT DISTINCT departure_airport_id, arrival_airport_id
+FROM flight_variants ;
+
+CREATE TABLE airport_connections_full AS
+WITH RECURSIVE reachable_airports(departure_airport_id, arrival_airport_id, via, len) USING KEY (departure_airport_id, arrival_airport_id) AS (
+	SELECT
+		departure_airport_id,
+		arrival_airport_id,
+		arrival_airport_id AS via,
+		CAST(1 AS DOUBLE) AS len
+	FROM airport_connections
+	
+	UNION
+	
+	(
+		SELECT
+			ac.departure_airport_id,
+			r.arrival_airport_id,
+			r.departure_airport_id AS via,
+			r.len + 1 AS len
+		FROM reachable_airports r
+		JOIN airport_connections ac
+		ON ac.arrival_airport_id = r.departure_airport_id
+		AND ac.departure_airport_id != r.arrival_airport_id
+		LEFT JOIN recurring.reachable_airports AS rec
+		ON rec.departure_airport_id = ac.departure_airport_id
+		AND rec.arrival_airport_id = r.arrival_airport_id
+		WHERE (r.len + 1) < COALESCE(rec.len, CAST('Infinity' AS DOUBLE))
+	)
+)
+SELECT departure_airport_id, arrival_airport_id, MIN(len) AS min_flights
+FROM reachable_airports
+GROUP BY departure_airport_id, arrival_airport_id ;
+
+SET threads TO 1 ;
+
+COPY airport_connections_full TO '%s' (
+	FORMAT parquet,
+	COMPRESSION gzip,
+	OVERWRITE_OR_IGNORE
+) ;
+
+DROP TABLE airport_connections_full ;
+DROP TABLE airport_connections ;
+`,
+				exportUri,
+			),
 		},
 		{
 			Name:   "reset threads",

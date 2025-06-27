@@ -352,3 +352,16 @@ export function useUpdatesForVersion(version: string, active: boolean) {
     staleTime: Number.POSITIVE_INFINITY,
   });
 }
+
+export function useConnectionGameChallenge(offset?: number) {
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['game', 'connection', offset],
+    queryFn: async () => {
+      const { body } = expectSuccess(await apiClient.getConnectionGame(offset));
+      return body;
+    },
+    retry: 5,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}

@@ -18,6 +18,8 @@ import (
 	"time"
 )
 
+var ErrNotFound = errors.New("not found")
+
 type aircraftConfigurationsAdapter struct {
 	AirlineId      uuid.UUID
 	Configurations xsql.SQLArray[xsql.String, *xsql.String]
@@ -1044,4 +1046,49 @@ OR act.aircraft_family_id = acf.id
 	}
 
 	return rows.Err()
+}
+
+func (fr *FlightRepo) FindConnection(ctx context.Context, minFlights, maxFlights, offset int, seed string) ([2]uuid.UUID, error) {
+	conn, err := fr.db.Conn(ctx)
+	if err != nil {
+		return [2]uuid.UUID{}, err
+	}
+	defer conn.Close()
+
+	rows, err := conn.QueryContext(
+		ctx,
+		`
+SELECT departure_airport_id, arrival_airport_id
+FROM connections
+WHERE min_flights >= ?
+AND min_flights <= ?
+ORDER BY (
+    GREATEST(MD5_NUMBER(CONCAT(departure_airport_id, arrival_airport_id)), MD5_NUMBER(?))
+    -
+    LEAST(MD5_NUMBER(CONCAT(departure_airport_id, arrival_airport_id)), MD5_NUMBER(?))
+)
+OFFSET ?
+LIMIT 1
+`,
+		minFlights,
+		maxFlights,
+		seed,
+		seed,
+		offset,
+	)
+	if err != nil {
+		return [2]uuid.UUID{}, err
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return [2]uuid.UUID{}, fmt.Errorf("no connection found: %w", ErrNotFound)
+	}
+
+	var connection [2]uuid.UUID
+	if err = rows.Scan(&connection[0], &connection[1]); err != nil {
+		return [2]uuid.UUID{}, err
+	}
+
+	return connection, rows.Err()
 }

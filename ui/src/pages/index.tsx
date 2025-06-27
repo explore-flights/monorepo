@@ -17,7 +17,8 @@ import { FlightVersionsView } from './flight-versions';
 import { Airports } from './airports';
 import { AirportPage } from './airport';
 import { Updates } from './updates';
-import { TechAirports } from './tech-airports';
+import { TechAirports } from './game/tech-airports';
+import { DailyAirports } from './game/daily-airports';
 
 // region router
 const router = createBrowserRouter([
@@ -56,8 +57,12 @@ const router = createBrowserRouter([
         element: <Airports />,
       },
       {
-        path: 'techairportsanypercent',
+        path: 'game/techairportsanypercent',
         element: <TechAirports />,
+      },
+      {
+        path: 'game/dailyairports',
+        element: <DailyAirports />,
       },
       {
         path: 'airport/:id',

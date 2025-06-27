@@ -154,6 +154,7 @@ func (a *accessor) Database() (*db.Database, error) {
 		"/opt/data/basedata.db",
 		"/opt/data/variants.parquet",
 		"/opt/data/report.parquet",
+		"/opt/data/connections.parquet",
 		fmt.Sprintf("s3://%s/history", parquetBucketName),
 		fmt.Sprintf("s3://%s/latest", parquetBucketName),
 	), nil

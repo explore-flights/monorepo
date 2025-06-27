@@ -18,7 +18,7 @@ import {
   FlightSchedules,
   FlightScheduleVersions,
   QuerySchedulesResponseV2,
-  AircraftReport, FlightScheduleUpdates, DestinationReport
+  AircraftReport, FlightScheduleUpdates, DestinationReport, ConnectionGameChallenge
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -259,6 +259,15 @@ export class ApiClient {
       200,
       502,
     );
+  }
+
+  getConnectionGame(offset?: number): Promise<ApiResponse<ConnectionGameChallenge>> {
+    let url = '/api/game/connection';
+    if (offset !== undefined) {
+      url += `?offset=${offset}`;
+    }
+
+    return transform(this.httpClient.fetch(url));
   }
 
   logout(): Promise<ApiResponse<unknown>> {

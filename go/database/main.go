@@ -22,6 +22,7 @@ func main() {
 		parquetBucket       string
 		variantsKey         string
 		reportKey           string
+		connectionsKey      string
 		historyPrefix       string
 		latestPrefix        string
 		inputBucket         string
@@ -39,6 +40,7 @@ func main() {
 	fs.StringVar(&parquetBucket, "parquet-bucket", "", "")
 	fs.StringVar(&variantsKey, "variants-key", "", "")
 	fs.StringVar(&reportKey, "report-key", "", "")
+	fs.StringVar(&connectionsKey, "connections-key", "", "")
 	fs.StringVar(&historyPrefix, "history-prefix", "", "")
 	fs.StringVar(&latestPrefix, "latest-prefix", "", "")
 	fs.StringVar(&inputBucket, "input-bucket", "", "")
@@ -64,6 +66,7 @@ func main() {
 		parquetBucket == "" ||
 		variantsKey == "" ||
 		reportKey == "" ||
+		connectionsKey == "" ||
 		historyPrefix == "" ||
 		latestPrefix == "" ||
 		(!skipUpdateDatabase && (inputBucket == "" || inputKey == "")) {
@@ -95,6 +98,7 @@ func main() {
 		parquetBucket,
 		variantsKey,
 		reportKey,
+		connectionsKey,
 		historyPrefix,
 		latestPrefix,
 		inputBucket,

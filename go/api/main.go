@@ -85,6 +85,9 @@ func main() {
 
 		group.GET("/schedule/search", sshHandler.Query)
 
+		gameHandler := web.NewGameHandler(fr)
+		group.GET("/game/connection", gameHandler.ConnectionGame)
+
 		notificationHandler := web.NewNotificationHandler(config.Config.VersionTxtPath())
 		group.GET("/notifications", notificationHandler.Notifications)
 	}

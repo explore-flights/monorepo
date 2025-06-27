@@ -97,6 +97,7 @@ func (a accessor) Database() (*db.Database, error) {
 		filepath.Join(localS3BasePath, dataBucketFolder, "processed", "basedata.db"),
 		filepath.Join(localS3BasePath, parquetBucketFolder, "variants.parquet"),
 		filepath.Join(localS3BasePath, parquetBucketFolder, "report.parquet"),
+		filepath.Join(localS3BasePath, parquetBucketFolder, "connections.parquet"),
 		filepath.Join(localS3BasePath, parquetBucketFolder, "history"),
 		filepath.Join(localS3BasePath, parquetBucketFolder, "latest"),
 	), nil

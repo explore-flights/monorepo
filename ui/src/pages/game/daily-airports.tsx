@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useAirports, useDestinationsNoInitial } from '../components/util/state/data';
+import {
+  useAirports,
+  useConnectionGameChallenge,
+  useDestinationsNoInitial,
+} from '../../components/util/state/data';
 import {
   Alert,
   Badge,
@@ -7,35 +11,59 @@ import {
   Button, ColumnLayout,
   Container,
   ContentLayout,
-  Header, Modal, Popover, SpaceBetween, StatusIndicator, Toggle
+  Header, Modal, Popover, SpaceBetween, Spinner, Toggle
 } from '@cloudscape-design/components';
 import { distance } from '@turf/turf';
-import { MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
+import { MaplibreMap, SmartLine } from '../../components/maplibre/maplibre-map';
 import { Marker } from 'react-map-gl/maplibre';
-import { Airport, AirportId, DestinationReport } from '../lib/api/api.model';
+import { Airport, AirportId, DestinationReport } from '../../lib/api/api.model';
 import { WithRequired } from '@tanstack/react-query';
 import { CodeView } from '@cloudscape-design/code-view';
 import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
 import { Duration } from 'luxon';
 
-const TECH_AIRPORTS: ReadonlyArray<string> = [
-  'TLS',
-  'AES',
-  'SVG',
-  'NAT',
-  'SSH',
-  'SHA',
-  'AMD',
-];
+export function DailyAirports() {
+  const { lookupById } = useAirports().data;
+  const [offset, setOffset] = useState(0);
+  const connectionGameChallengeQuery = useConnectionGameChallenge(offset);
+  const challenge = useMemo<[Airport, Airport, string, number] | null>(() => {
+    if (connectionGameChallengeQuery.isLoading || !connectionGameChallengeQuery.data) {
+      return null;
+    }
 
-export function TechAirports() {
-  const { airports, lookupByIata } = useAirports().data;
+    const { departureAirportId, arrivalAirportId, seed, offset } = connectionGameChallengeQuery.data;
+    const departureAirport = lookupById.get(departureAirportId);
+    const arrivalAirport = lookupById.get(arrivalAirportId);
 
-  const requiredAirports = useMemo<ReadonlyArray<Airport>>(() => {
-    return TECH_AIRPORTS.map((iata) => lookupByIata.get(iata)).filter(v => !!v);
-  }, [lookupByIata]);
+    if (!departureAirport || !arrivalAirport) {
+      return null;
+    }
 
-  const [selectedDestinations, setSelectedDestinations] = useState<ReadonlyArray<DestinationReport>>([]);
+    return [departureAirport, arrivalAirport, seed, offset] as const;
+  }, [lookupById, connectionGameChallengeQuery.data, connectionGameChallengeQuery.isLoading]);
+
+  const loadNext = useCallback(() => {
+    setOffset((prev) => prev + 1);
+  }, []);
+
+  return (
+    <ContentLayout header={<Header variant={'h1'}>Daily Airports</Header>}>
+      {
+        challenge
+          ? <DailyAirportsGame seed={challenge[2]} offset={challenge[3]} departureAirport={challenge[0]} arrivalAirport={challenge[1]} loadNext={loadNext} />
+          : <Spinner size={'large'} />
+      }
+    </ContentLayout>
+  );
+}
+
+function DailyAirportsGame({ seed, offset, departureAirport, arrivalAirport, loadNext }: { seed: string, offset: number, departureAirport: Airport, arrivalAirport: Airport, loadNext: () => void }) {
+  const firstDestinationReport = useMemo<DestinationReport>(() => ({
+    airport: departureAirport,
+    minDurationSeconds: 0,
+  }), [departureAirport]);
+
+  const [selectedDestinations, setSelectedDestinations] = useState<ReadonlyArray<DestinationReport>>([firstDestinationReport]);
 
   const addDestination = useCallback((destination: DestinationReport) => {
     setSelectedDestinations((prev) => [...prev, destination]);
@@ -44,7 +72,7 @@ export function TechAirports() {
   const removeDestination = useCallback((destination: DestinationReport) => {
     setSelectedDestinations((prev) => {
       let idx = prev.findLastIndex((v) => v.airport.id === destination.airport.id);
-      if (idx === -1) {
+      if (idx === -1 || idx === 0) {
         return prev;
       }
 
@@ -53,31 +81,23 @@ export function TechAirports() {
   }, []);
 
   const resetDestinations = useCallback(() => {
-    setSelectedDestinations([]);
-  }, []);
+    setSelectedDestinations([firstDestinationReport]);
+  }, [firstDestinationReport]);
 
-  const lastAirportId = selectedDestinations.length > 0 ? selectedDestinations[selectedDestinations.length - 1].airport.id : undefined;
-  const rawLastAirportDestinations = useDestinationsNoInitial(lastAirportId).data;
-  const lastAirportDestinations = rawLastAirportDestinations ?? [];
-  const lastAirportDestinationsPending = !rawLastAirportDestinations;
+  const lastAirportId = selectedDestinations[selectedDestinations.length - 1].airport.id;
+  const lastAirportDestinationsQuery = useDestinationsNoInitial(lastAirportId);
+  const lastAirportDestinations = lastAirportDestinationsQuery.data ?? [];
+  const lastAirportDestinationsLoading = lastAirportDestinationsQuery.isLoading;
 
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalState, setModalState] = useState<{ title: string, content: React.ReactNode, }>({ title: '', content: '' });
+  const [modalState, setModalState] = useState<{ title: string, content: React.ReactNode, showNext: boolean }>({ title: '', content: '', showNext: false });
   useEffect(() => {
-    if (lastAirportDestinationsPending) {
+    if (lastAirportDestinationsLoading) {
       return;
     }
 
     const [distance, duration] = totalDistanceAndDuration(selectedDestinations);
-    const isDone = requiredAirports.length > 0 && (() => {
-      for (const airport of requiredAirports) {
-        if (selectedDestinations.findIndex((v) => v.airport.id === airport.id) === -1) {
-          return false;
-        }
-      }
-
-      return true;
-    })();
+    const isDone = selectedDestinations.findIndex((v) => v.airport.id === arrivalAirport.id) !== -1;
 
     const doubleVisits = (() => {
       const seen = new Set<AirportId>();
@@ -98,30 +118,42 @@ export function TechAirports() {
       setModalState({
         title: 'Task complete!',
         content: (
-          <SuccessDisplay distance={distance} duration={duration} totalAirports={selectedDestinations.length} doubleVisits={doubleVisits} />
+          <SuccessDisplay
+            distance={distance}
+            duration={duration}
+            totalAirports={selectedDestinations.length}
+            doubleVisits={doubleVisits}
+            seed={seed}
+            offset={offset}
+          />
         ),
+        showNext: true,
       });
       setModalVisible(true);
-    } else if (selectedDestinations.length > 0 && lastAirportDestinations.length < 1) {
+    } else if (selectedDestinations.length > 1 && lastAirportDestinations.length < 1) {
       setModalState({
         title: 'Game over!',
         content: (
           <Alert type={'error'}>
+            <Box>GameID: {seed}/{offset}</Box>
             <Box>Total Distance: {distance.toFixed(2)} mi</Box>
             <Box>Total Duration: {duration.rescale().toHuman({ listStyle: 'narrow', unitDisplay: 'narrow' })}</Box>
             <Box>Airports visited: {selectedDestinations.length}</Box>
             <Box>Double visits: {doubleVisits}</Box>
           </Alert>
         ),
+        showNext: false,
       });
       setModalVisible(true);
     }
-  }, [requiredAirports, selectedDestinations, lastAirportDestinations, lastAirportDestinationsPending]);
+  }, [seed, offset, arrivalAirport, selectedDestinations, lastAirportDestinations, lastAirportDestinationsLoading]);
 
   return (
-    <ContentLayout header={<Header variant={'h1'}>Tech Airports Any%</Header>}>
+    <>
       <MaplibreMap
         height={'80vh'}
+        initialLat={departureAirport.location?.lat ?? 0.0}
+        initialLng={departureAirport.location?.lng ?? 0.0}
         controls={[
           (
             <Container>
@@ -130,69 +162,39 @@ export function TechAirports() {
           ),
           (
             <Container>
-              <AirportChecklist requiredAirports={requiredAirports} selectedDestinations={selectedDestinations} />
+              <ArrivalAirport arrivalAirport={arrivalAirport} />
             </Container>
           ),
           (
-            <Button onClick={resetDestinations} disabled={selectedDestinations.length < 1}>Reset</Button>
+            <Button onClick={resetDestinations} disabled={selectedDestinations.length < 2}>Reset</Button>
           ),
         ]}
       >
-        {
-          selectedDestinations.length > 0
-            ? (
-              <SelectedAirportsMarkers
-                destinations={selectedDestinations}
-                tailConnections={lastAirportDestinations}
-                addDestination={addDestination}
-                removeDestination={removeDestination}
-              />
-            )
-            : <AllAirportsMarkers airports={airports} onAirportClick={(airport) => addDestination({ airport: airport, minDurationSeconds: 0 })} />
-        }
+        <SelectedAirportsMarkers
+          destinations={selectedDestinations}
+          tailConnections={lastAirportDestinations}
+          addDestination={addDestination}
+          removeDestination={removeDestination}
+        />
       </MaplibreMap>
 
       <Modal
         header={modalState.title}
         visible={modalVisible}
         size={'medium'}
-        footer={<Button onClick={() => { resetDestinations(); setModalVisible(false); }} disabled={selectedDestinations.length < 1}>Reset</Button>}
+        footer={
+          <Box float={'right'}>
+            <SpaceBetween size={'xs'} direction={'horizontal'}>
+              <Button onClick={() => { resetDestinations(); setModalVisible(false); }} disabled={selectedDestinations.length < 1}>Reset</Button>
+              <Button variant={'primary'} onClick={() => { loadNext(); setModalVisible(false); }} disabled={!modalState.showNext}>Next Game</Button>
+            </SpaceBetween>
+          </Box>
+        }
         onDismiss={() => setModalVisible(false)}
       >
         {modalState.content}
       </Modal>
-    </ContentLayout>
-  );
-}
-
-function AllAirportsMarkers({ airports, onAirportClick }: { airports: ReadonlyArray<Airport>, onAirportClick: (airport: Airport) => void }) {
-  const nodes = useMemo(() => {
-    const nodes: Array<React.ReactNode> = [];
-    for (let i = 0; i < airports.length; i++) {
-      const _airport = airports[i];
-      if (!_airport.location) {
-        continue;
-      }
-
-      const airport = { ..._airport, location: _airport.location };
-      nodes.push(
-        <AirportMarker
-          airport={airport}
-          onClick={() => onAirportClick(airport)}
-          onRemoveClick={() => {}}
-          indexes={[]}
-          connectable={true}
-          removable={false}
-          disabled={false}
-        />
-      );
-    }
-
-    return nodes;
-  },  [airports, onAirportClick]);
-
-  return (
-    <>{...nodes}</>
+    </>
   );
 }
 
@@ -243,7 +245,7 @@ function SelectedAirportsMarkers({ destinations, tailConnections, addDestination
               onRemoveClick={() => removeDestination(destination)}
               indexes={indexes}
               connectable={false}
-              removable={isTail}
+              removable={i > 0 && isTail}
               disabled={!isTail}
             />
           );
@@ -327,7 +329,7 @@ function AirportMarker({ airport, onClick, onRemoveClick, indexes, connectable, 
   );
 }
 
-function SuccessDisplay({ distance, duration, totalAirports, doubleVisits }: { distance: number, duration: Duration<true>, totalAirports: number, doubleVisits: number }) {
+function SuccessDisplay({ distance, duration, totalAirports, doubleVisits, seed, offset }: { distance: number, duration: Duration<true>, totalAirports: number, doubleVisits: number, seed: string, offset: number }) {
   const [scoreCalc, setScoreCalc] = useState({
     distance: true,
     duration: false,
@@ -370,6 +372,7 @@ function SuccessDisplay({ distance, duration, totalAirports, doubleVisits }: { d
       </ColumnLayout>
 
       <Alert type={'success'}>
+        <Box>GameID: {seed}/{offset}</Box>
         <Box>Total Distance: {distance.toFixed(2)} mi</Box>
         <Box>Total Duration: {duration.rescale().toHuman({ listStyle: 'narrow', unitDisplay: 'narrow' })}</Box>
         <Box>Airports visited: {totalAirports}</Box>
@@ -387,24 +390,13 @@ function TotalDistance({ selectedDestinations }: { selectedDestinations: Readonl
   );
 }
 
-function AirportChecklist({ requiredAirports, selectedDestinations }: { requiredAirports: ReadonlyArray<Airport>, selectedDestinations: ReadonlyArray<DestinationReport> }) {
-  const nodes = useMemo(() => {
-    const nodes: Array<React.ReactNode> = [];
-    for (const airport of requiredAirports) {
-      const visited = selectedDestinations.findIndex((v) => v.airport.id === airport.id) !== -1;
-      nodes.push(
-        <Popover content={<CodeView highlight={jsonHighlight} content={JSON.stringify(airport, null, '\t')} />} dismissButton={false}>
-          <StatusIndicator type={visited ? 'success' : 'error'}>{airport.iataCode}</StatusIndicator>
-        </Popover>
-      );
-    }
-
-    return nodes;
-  }, [requiredAirports, selectedDestinations]);
-
+function ArrivalAirport({ arrivalAirport }: { arrivalAirport: Airport }) {
   return (
-    <SpaceBetween size={'m'} direction={'horizontal'}>
-      {...nodes}
+    <SpaceBetween size={'xxs'} direction={'horizontal'}>
+      <Box>Find a connection to:</Box>
+      <Popover content={<CodeView highlight={jsonHighlight} content={JSON.stringify(arrivalAirport, null, '\t')} />} dismissButton={false}>
+        <Box variant={'samp'}>{arrivalAirport.iataCode}</Box>
+      </Popover>
     </SpaceBetween>
   );
 }
