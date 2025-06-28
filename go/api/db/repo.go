@@ -1048,7 +1048,7 @@ OR act.aircraft_family_id = acf.id
 	return rows.Err()
 }
 
-func (fr *FlightRepo) FindConnection(ctx context.Context, minFlights, maxFlights, offset int, seed string) ([2]uuid.UUID, error) {
+func (fr *FlightRepo) FindConnection(ctx context.Context, minFlights, maxFlights int, seed string) ([2]uuid.UUID, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return [2]uuid.UUID{}, err
@@ -1067,14 +1067,12 @@ ORDER BY (
     -
     LEAST(MD5_NUMBER(CONCAT(departure_airport_id, arrival_airport_id)), MD5_NUMBER(?))
 )
-OFFSET ?
 LIMIT 1
 `,
 		minFlights,
 		maxFlights,
 		seed,
 		seed,
-		offset,
 	)
 	if err != nil {
 		return [2]uuid.UUID{}, err

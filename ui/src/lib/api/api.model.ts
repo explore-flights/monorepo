@@ -359,7 +359,6 @@ export interface DestinationReport {
 
 export interface ConnectionGameChallenge {
   seed: string;
-  offset: number;
   departureAirportId: AirportId;
   arrivalAirportId: AirportId;
 }

@@ -1,37 +1,148 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  useAirports,
-  useConnectionGameChallenge,
-  useDestinationsNoInitial,
-} from '../../components/util/state/data';
+import { useAirports, useConnectionGameChallenge, useDestinationsNoInitial } from '../../components/util/state/data';
 import {
   Alert,
   Badge,
   Box,
-  Button, ColumnLayout,
+  Button,
+  ColumnLayout,
   Container,
-  ContentLayout,
-  Header, Modal, Popover, SpaceBetween, Spinner, Toggle
+  ContentLayout, CopyToClipboard,
+  Form,
+  FormField,
+  Header,
+  Input,
+  Modal,
+  Popover,
+  Slider,
+  SpaceBetween,
+  Spinner,
+  Toggle
 } from '@cloudscape-design/components';
 import { distance } from '@turf/turf';
 import { MaplibreMap, SmartLine } from '../../components/maplibre/maplibre-map';
 import { Marker } from 'react-map-gl/maplibre';
-import { Airport, AirportId, DestinationReport } from '../../lib/api/api.model';
+import { Airport, AirportId, DestinationReport, isJsonObject, JsonType } from '../../lib/api/api.model';
 import { WithRequired } from '@tanstack/react-query';
 import { CodeView } from '@cloudscape-design/code-view';
 import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
-import { Duration } from 'luxon';
+import { DateTime, Duration } from 'luxon';
+import { useDependentState } from '../../components/util/state/use-dependent-state';
+import { ConsentLevel } from '../../lib/consent.model';
+import { useSearchParams } from 'react-router-dom';
+import { useBrowserStore } from '../../components/util/state/use-browser-store';
+
+interface GameParams {
+  seed: string;
+  minFlights: number;
+  maxFlights: number;
+}
+
+function parseGameParams(todayUTC: string, search: URLSearchParams, storage: string | null): GameParams {
+  const gameParams = {
+    seed: `${todayUTC}/0`,
+    minFlights: 5,
+    maxFlights: 10,
+  } satisfies GameParams;
+
+  if (search.has('seed')) {
+    gameParams.seed = search.get('seed')!;
+  }
+
+  if (search.has('minFlights')) {
+    const minFlights = Number.parseInt(search.get('minFlights')!);
+    if (!Number.isNaN(minFlights)) {
+      gameParams.minFlights = minFlights;
+    }
+  }
+
+  if (search.has('maxFlights')) {
+    const maxFlights = Number.parseInt(search.get('maxFlights')!);
+    if (!Number.isNaN(maxFlights)) {
+      gameParams.maxFlights = maxFlights;
+    }
+  }
+
+  if (storage) {
+    const json = JSON.parse(storage) as JsonType;
+    if (isJsonObject(json)) {
+      if (typeof json['seed'] === 'string' && !search.has('seed') && json['seed'].startsWith(todayUTC)) {
+        gameParams.seed = json['seed'];
+      }
+
+      if (typeof json['minFlights'] === 'number' && !search.has('minFlights')) {
+        gameParams.minFlights = json['minFlights'];
+      }
+
+      if (typeof json['maxFlights'] === 'number' && !search.has('maxFlights')) {
+        gameParams.maxFlights = json['maxFlights'];
+      }
+    }
+  }
+
+  return gameParams;
+}
+
+function useGameParams() {
+  const todayUTC = useMemo(() => DateTime.now().toUTC().toISODate(), []);
+  const [searchParams] = useSearchParams();
+  const [gameParamsRaw, setGameParamsRaw] = useBrowserStore(ConsentLevel.FUNCTIONALITY, 'DailyAirports');
+  const [gameParams, setGameParamsInternal] = useState(parseGameParams(todayUTC, searchParams, gameParamsRaw));
+
+  useEffect(() => {
+    setGameParamsInternal(parseGameParams(todayUTC, searchParams, gameParamsRaw));
+  }, [todayUTC, searchParams, gameParamsRaw]);
+
+  function setGameParams(params: GameParams) {
+    setGameParamsRaw(JSON.stringify(params));
+  }
+
+  return [gameParams, setGameParams] as const;
+}
 
 export function DailyAirports() {
   const { lookupById } = useAirports().data;
-  const [offset, setOffset] = useState(0);
-  const connectionGameChallengeQuery = useConnectionGameChallenge(offset);
-  const challenge = useMemo<[Airport, Airport, string, number] | null>(() => {
+
+  const [gameParams, setGameParams] = useGameParams();
+  const [tempGameParams, setTempGameParams] = useDependentState(gameParams);
+
+  const loadNext = useCallback(() => {
+    const prev = gameParams;
+    const newGameParams = (() => {
+      const seed = prev.seed;
+      const idx = seed.lastIndexOf('/');
+      if (idx === -1) {
+        return {
+          ...prev,
+          seed: `${seed}/0`,
+        };
+      }
+
+      const seedPrefix = seed.substring(0, idx);
+      const offset = Number.parseInt(seed.substring(idx + 1));
+      if (Number.isNaN(offset)) {
+        return {
+          ...prev,
+          seed: `${seedPrefix}/0`,
+        };
+      }
+
+      return {
+        ...prev,
+        seed: `${seedPrefix}/${offset + 1}`,
+      };
+    })();
+
+    setGameParams(newGameParams);
+  }, [gameParams]);
+
+  const connectionGameChallengeQuery = useConnectionGameChallenge(gameParams.seed, gameParams.minFlights, Math.max(gameParams.minFlights, gameParams.maxFlights));
+  const challenge = useMemo<[Airport, Airport] | null>(() => {
     if (connectionGameChallengeQuery.isLoading || !connectionGameChallengeQuery.data) {
       return null;
     }
 
-    const { departureAirportId, arrivalAirportId, seed, offset } = connectionGameChallengeQuery.data;
+    const { departureAirportId, arrivalAirportId } = connectionGameChallengeQuery.data;
     const departureAirport = lookupById.get(departureAirportId);
     const arrivalAirport = lookupById.get(arrivalAirportId);
 
@@ -39,25 +150,60 @@ export function DailyAirports() {
       return null;
     }
 
-    return [departureAirport, arrivalAirport, seed, offset] as const;
+    return [departureAirport, arrivalAirport] as const;
   }, [lookupById, connectionGameChallengeQuery.data, connectionGameChallengeQuery.isLoading]);
 
-  const loadNext = useCallback(() => {
-    setOffset((prev) => prev + 1);
-  }, []);
+  const isLoading = !challenge;
+  const isFormChanged = gameParams.seed !== tempGameParams.seed || gameParams.minFlights !== tempGameParams.minFlights || gameParams.maxFlights !== tempGameParams.maxFlights;
 
   return (
     <ContentLayout header={<Header variant={'h1'}>Daily Airports</Header>}>
-      {
-        challenge
-          ? <DailyAirportsGame seed={challenge[2]} offset={challenge[3]} departureAirport={challenge[0]} arrivalAirport={challenge[1]} loadNext={loadNext} />
-          : <Spinner size={'large'} />
-      }
+      <Container variant={'stacked'}>
+        <Form actions={<Button variant={'primary'} disabled={isLoading || !isFormChanged} onClick={() => setGameParams(tempGameParams)}>Load</Button>}>
+          <ColumnLayout columns={3}>
+            <FormField label={'Seed'}>
+              <Input
+                type={'text'}
+                value={tempGameParams.seed}
+                disabled={isLoading}
+                onChange={(e) => setTempGameParams((prev) => ({ ...prev, seed: e.detail.value }))}
+              />
+            </FormField>
+
+            <FormField label={'Min Flights'}>
+              <Slider
+                min={1}
+                max={10}
+                value={tempGameParams.minFlights}
+                disabled={isLoading}
+                onChange={(e) => setTempGameParams((prev) => ({ ...prev, minFlights: e.detail.value }))}
+              />
+            </FormField>
+
+            <FormField label={'Max Flights'}>
+              <Slider
+                min={tempGameParams.minFlights}
+                max={10}
+                value={Math.max(tempGameParams.minFlights, tempGameParams.maxFlights)}
+                disabled={isLoading}
+                onChange={(e) => setTempGameParams((prev) => ({ ...prev, maxFlights: e.detail.value }))}
+              />
+            </FormField>
+          </ColumnLayout>
+        </Form>
+      </Container>
+      <Container variant={'stacked'}>
+        {
+          challenge
+            ? <DailyAirportsGame gameParams={gameParams} departureAirport={challenge[0]} arrivalAirport={challenge[1]} loadNext={loadNext} />
+            : <Spinner size={'large'} />
+        }
+      </Container>
     </ContentLayout>
   );
 }
 
-function DailyAirportsGame({ seed, offset, departureAirport, arrivalAirport, loadNext }: { seed: string, offset: number, departureAirport: Airport, arrivalAirport: Airport, loadNext: () => void }) {
+function DailyAirportsGame({ gameParams, departureAirport, arrivalAirport, loadNext }: { gameParams: GameParams, departureAirport: Airport, arrivalAirport: Airport, loadNext: () => void }) {
   const firstDestinationReport = useMemo<DestinationReport>(() => ({
     airport: departureAirport,
     minDurationSeconds: 0,
@@ -99,32 +245,16 @@ function DailyAirportsGame({ seed, offset, departureAirport, arrivalAirport, loa
     const [distance, duration] = totalDistanceAndDuration(selectedDestinations);
     const isDone = selectedDestinations.findIndex((v) => v.airport.id === arrivalAirport.id) !== -1;
 
-    const doubleVisits = (() => {
-      const seen = new Set<AirportId>();
-      let doubleVisits = 0;
-
-      for (const dest of selectedDestinations) {
-        if (seen.has(dest.airport.id)) {
-          doubleVisits++;
-        }
-
-        seen.add(dest.airport.id);
-      }
-
-      return doubleVisits;
-    })();
-
     if (isDone) {
       setModalState({
         title: 'Task complete!',
         content: (
           <SuccessDisplay
+            selectedDestinations={selectedDestinations}
             distance={distance}
             duration={duration}
             totalAirports={selectedDestinations.length}
-            doubleVisits={doubleVisits}
-            seed={seed}
-            offset={offset}
+            gameParams={gameParams}
           />
         ),
         showNext: true,
@@ -135,18 +265,17 @@ function DailyAirportsGame({ seed, offset, departureAirport, arrivalAirport, loa
         title: 'Game over!',
         content: (
           <Alert type={'error'}>
-            <Box>GameID: {seed}/{offset}</Box>
+            <Box>Seed: {gameParams.seed}</Box>
             <Box>Total Distance: {distance.toFixed(2)} mi</Box>
             <Box>Total Duration: {duration.rescale().toHuman({ listStyle: 'narrow', unitDisplay: 'narrow' })}</Box>
             <Box>Airports visited: {selectedDestinations.length}</Box>
-            <Box>Double visits: {doubleVisits}</Box>
           </Alert>
         ),
         showNext: false,
       });
       setModalVisible(true);
     }
-  }, [seed, offset, arrivalAirport, selectedDestinations, lastAirportDestinations, lastAirportDestinationsLoading]);
+  }, [gameParams, arrivalAirport, selectedDestinations, lastAirportDestinations, lastAirportDestinationsLoading]);
 
   return (
     <>
@@ -329,12 +458,11 @@ function AirportMarker({ airport, onClick, onRemoveClick, indexes, connectable, 
   );
 }
 
-function SuccessDisplay({ distance, duration, totalAirports, doubleVisits, seed, offset }: { distance: number, duration: Duration<true>, totalAirports: number, doubleVisits: number, seed: string, offset: number }) {
+function SuccessDisplay({ selectedDestinations, distance, duration, totalAirports, gameParams }: { selectedDestinations: ReadonlyArray<DestinationReport>, distance: number, duration: Duration<true>, totalAirports: number, gameParams: GameParams }) {
   const [scoreCalc, setScoreCalc] = useState({
     distance: true,
     duration: false,
     totalAirportsPenalty: false,
-    doubleVisitPenalty: false,
   });
 
   const score = useMemo(() => {
@@ -351,32 +479,54 @@ function SuccessDisplay({ distance, duration, totalAirports, doubleVisits, seed,
       score *= Math.exp(totalAirports * 0.05);
     }
 
-    if (scoreCalc.doubleVisitPenalty) {
-      score *= Math.exp(doubleVisits * 0.2);
-    }
-
     if (score === 0.0) {
       score = Number.MAX_SAFE_INTEGER;
     }
 
     return score;
-  }, [distance, duration, totalAirports, doubleVisits, scoreCalc]);
+  }, [distance, duration, totalAirports, scoreCalc]);
+
+  const urlParams = new URLSearchParams();
+  urlParams.set('seed', gameParams.seed);
+  urlParams.set('minFlights', gameParams.minFlights.toString());
+  urlParams.set('maxFlights', gameParams.maxFlights.toString());
+
+  const copyLines = [
+    `Distance: \`${distance.toFixed(2)} mi\``,
+    `Duration: \`${duration.rescale().toHuman({ listStyle: 'narrow', unitDisplay: 'narrow' })}\``,
+    `Total Airports: \`${totalAirports}\``,
+    '',
+    `My Route: ||${selectedDestinations.map((v) => v.airport.iataCode).join(' - ')}||`,
+    `Seed: \`${gameParams.seed}\``,
+    `Min Flights: \`${gameParams.minFlights}\``,
+    `Max Flights: \`${gameParams.maxFlights}\``,
+    '',
+    `Play now on https://explore.flights/game/dailyairports?${urlParams}`,
+  ];
 
   return (
     <ColumnLayout columns={1}>
-      <ColumnLayout columns={2}>
+      <ColumnLayout columns={3}>
         <Toggle checked={scoreCalc.distance} onChange={(e) => setScoreCalc((prev) => ({ ...prev, distance: e.detail.checked }))}>Distance</Toggle>
         <Toggle checked={scoreCalc.duration} onChange={(e) => setScoreCalc((prev) => ({ ...prev, duration: e.detail.checked }))}>Duration</Toggle>
         <Toggle checked={scoreCalc.totalAirportsPenalty} onChange={(e) => setScoreCalc((prev) => ({ ...prev, totalAirportsPenalty: e.detail.checked }))}>Total Airports Penalty</Toggle>
-        <Toggle checked={scoreCalc.doubleVisitPenalty} onChange={(e) => setScoreCalc((prev) => ({ ...prev, doubleVisitPenalty: e.detail.checked }))}>Double Visit Penalty</Toggle>
       </ColumnLayout>
 
-      <Alert type={'success'}>
-        <Box>GameID: {seed}/{offset}</Box>
+      <Alert
+        type={'success'}
+        action={
+          <CopyToClipboard
+            copyButtonText={'Copy'}
+            copySuccessText={'Copied!'}
+            copyErrorText={'Failed to copy'}
+            textToCopy={copyLines.join('\n')}
+          />
+        }
+      >
+        <Box>GameID: {gameParams.seed}</Box>
         <Box>Total Distance: {distance.toFixed(2)} mi</Box>
         <Box>Total Duration: {duration.rescale().toHuman({ listStyle: 'narrow', unitDisplay: 'narrow' })}</Box>
         <Box>Airports visited: {totalAirports}</Box>
-        <Box>Double visits: {doubleVisits}</Box>
         <Box>Score (lower is better): {score.toFixed(0)}</Box>
       </Alert>
     </ColumnLayout>

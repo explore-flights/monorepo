@@ -353,12 +353,12 @@ export function useUpdatesForVersion(version: string, active: boolean) {
   });
 }
 
-export function useConnectionGameChallenge(offset?: number) {
+export function useConnectionGameChallenge(seed?: string, minFlights?: number, maxFlights?: number) {
   const { apiClient } = useHttpClient();
   return useQuery({
-    queryKey: ['game', 'connection', offset],
+    queryKey: ['game', 'connection', seed, minFlights, maxFlights],
     queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getConnectionGame(offset));
+      const { body } = expectSuccess(await apiClient.getConnectionGame(seed, minFlights, maxFlights));
       return body;
     },
     retry: 5,

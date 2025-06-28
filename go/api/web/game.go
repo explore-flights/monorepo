@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common/xtime"
@@ -15,7 +16,7 @@ import (
 )
 
 type gameHandlerRepo interface {
-	FindConnection(ctx context.Context, minFlights, maxFlights, offset int, seed string) ([2]uuid.UUID, error)
+	FindConnection(ctx context.Context, minFlights, maxFlights int, seed string) ([2]uuid.UUID, error)
 }
 
 type GameHandler struct {
@@ -29,15 +30,33 @@ func NewGameHandler(repo gameHandlerRepo) *GameHandler {
 }
 
 func (gh *GameHandler) ConnectionGame(c echo.Context) error {
-	offset := 0
-	if offsetRaw := c.QueryParam("offset"); offsetRaw != "" {
-		if v, err := strconv.ParseInt(offsetRaw, 10, 64); err == nil && v >= 0 {
-			offset = int(v)
+	minFlights := 4
+	maxFlights := math.MaxInt32
+
+	if minFlightsRaw := c.QueryParam("minFlights"); minFlightsRaw != "" {
+		v, err := strconv.Atoi(minFlightsRaw)
+		if err != nil || v < 1 {
+			return NewHTTPError(http.StatusBadRequest, WithCause(err))
 		}
+
+		minFlights = v
 	}
 
-	seed := xtime.NewLocalDate(time.Now().UTC()).String()
-	todaysConnections, err := gh.repo.FindConnection(c.Request().Context(), 4, math.MaxInt, offset, seed)
+	if maxFlightsRaw := c.QueryParam("maxFlights"); maxFlightsRaw != "" {
+		v, err := strconv.Atoi(maxFlightsRaw)
+		if err != nil || v < 1 {
+			return NewHTTPError(http.StatusBadRequest, WithCause(err))
+		}
+
+		maxFlights = v
+	}
+
+	var seed string
+	if seed = c.QueryParam("seed"); seed == "" {
+		seed = fmt.Sprintf("%s/%d", xtime.NewLocalDate(time.Now().UTC()).String(), 0)
+	}
+
+	todaysConnections, err := gh.repo.FindConnection(c.Request().Context(), minFlights, maxFlights, seed)
 	if err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, db.ErrNotFound) {
@@ -49,7 +68,6 @@ func (gh *GameHandler) ConnectionGame(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, model.ConnectionGameChallenge{
 		Seed:               seed,
-		Offset:             offset,
 		DepartureAirportId: model.UUID(todaysConnections[0]),
 		ArrivalAirportId:   model.UUID(todaysConnections[1]),
 	})

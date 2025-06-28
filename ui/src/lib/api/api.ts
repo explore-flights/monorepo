@@ -261,10 +261,23 @@ export class ApiClient {
     );
   }
 
-  getConnectionGame(offset?: number): Promise<ApiResponse<ConnectionGameChallenge>> {
+  getConnectionGame(seed?: string, minFlights?: number, maxFlights?: number): Promise<ApiResponse<ConnectionGameChallenge>> {
+    const query = new URLSearchParams();
+    if (seed !== undefined) {
+      query.set('seed', seed);
+    }
+
+    if (minFlights !== undefined) {
+      query.set('minFlights', minFlights.toString());
+    }
+
+    if (maxFlights !== undefined) {
+      query.set('maxFlights', maxFlights.toString());
+    }
+
     let url = '/api/game/connection';
-    if (offset !== undefined) {
-      url += `?offset=${offset}`;
+    if (query.size > 0) {
+      url += `?${query.toString()}`;
     }
 
     return transform(this.httpClient.fetch(url));
