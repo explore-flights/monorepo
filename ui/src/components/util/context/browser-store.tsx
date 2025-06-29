@@ -3,17 +3,7 @@ import React, {
 } from 'react';
 import { BrowserStore } from '../../../lib/store/browser-store';
 
-class ConsentOverrideBrowserStore extends BrowserStore {
-  constructor(storage: Storage, ignoreClose: boolean, private readonly _hasConsent: boolean) {
-    super(storage, ignoreClose);
-  }
-
-  override hasConsent(): boolean {
-    return this._hasConsent;
-  }
-}
-
-const DEFAULT = new ConsentOverrideBrowserStore(window.sessionStorage, true, true);
+const DEFAULT = new BrowserStore(window.localStorage, true);
 const BrowserStoreContext = createContext<BrowserStore>(DEFAULT);
 
 export function BrowserStoreProvider({ storage, children }: React.PropsWithChildren<{ storage: Storage; }>) {

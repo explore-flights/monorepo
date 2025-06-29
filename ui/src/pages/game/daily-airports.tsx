@@ -7,11 +7,14 @@ import {
   Button,
   ColumnLayout,
   Container,
-  ContentLayout, CopyToClipboard,
+  ContentLayout,
+  CopyToClipboard,
   Form,
   FormField,
   Header,
+  IconProps,
   Input,
+  KeyValuePairs,
   Modal,
   Popover,
   Slider,
@@ -21,16 +24,14 @@ import {
 } from '@cloudscape-design/components';
 import { distance } from '@turf/turf';
 import { MaplibreMap, SmartLine } from '../../components/maplibre/maplibre-map';
-import { Marker } from 'react-map-gl/maplibre';
+import { Marker, useMap } from 'react-map-gl/maplibre';
 import { Airport, AirportId, DestinationReport, isJsonObject, JsonType } from '../../lib/api/api.model';
 import { WithRequired } from '@tanstack/react-query';
-import { CodeView } from '@cloudscape-design/code-view';
-import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
 import { DateTime, Duration } from 'luxon';
 import { useDependentState } from '../../components/util/state/use-dependent-state';
 import { ConsentLevel } from '../../lib/consent.model';
 import { useSearchParams } from 'react-router-dom';
-import { useBrowserStore } from '../../components/util/state/use-browser-store';
+import { useBrowserStore } from '../../components/util/context/browser-store';
 
 interface GameParams {
   seed: string;
@@ -38,12 +39,8 @@ interface GameParams {
   maxFlights: number;
 }
 
-function parseGameParams(todayUTC: string, search: URLSearchParams, storage: string | null): GameParams {
-  const gameParams = {
-    seed: `${todayUTC}/0`,
-    minFlights: 5,
-    maxFlights: 10,
-  } satisfies GameParams;
+function gameParamsFromSearch(search: URLSearchParams): Partial<GameParams> {
+  const gameParams: Partial<GameParams> = {};
 
   if (search.has('seed')) {
     gameParams.seed = search.get('seed')!;
@@ -63,18 +60,23 @@ function parseGameParams(todayUTC: string, search: URLSearchParams, storage: str
     }
   }
 
+  return gameParams;
+}
+
+function gameParamsFromStorage(todayUTC: string, storage: string | null): Partial<GameParams> {
+  const gameParams: Partial<GameParams> = {};
   if (storage) {
     const json = JSON.parse(storage) as JsonType;
     if (isJsonObject(json)) {
-      if (typeof json['seed'] === 'string' && !search.has('seed') && json['seed'].startsWith(todayUTC)) {
+      if (typeof json['seed'] === 'string' && json['seed'].startsWith(todayUTC + '/')) {
         gameParams.seed = json['seed'];
       }
 
-      if (typeof json['minFlights'] === 'number' && !search.has('minFlights')) {
+      if (typeof json['minFlights'] === 'number') {
         gameParams.minFlights = json['minFlights'];
       }
 
-      if (typeof json['maxFlights'] === 'number' && !search.has('maxFlights')) {
+      if (typeof json['maxFlights'] === 'number') {
         gameParams.maxFlights = json['maxFlights'];
       }
     }
@@ -84,17 +86,30 @@ function parseGameParams(todayUTC: string, search: URLSearchParams, storage: str
 }
 
 function useGameParams() {
+  const STORAGE_CONSENT = ConsentLevel.FUNCTIONALITY;
+  const STORAGE_KEY = 'DailyAirports';
   const todayUTC = useMemo(() => DateTime.now().toUTC().toISODate(), []);
-  const [searchParams] = useSearchParams();
-  const [gameParamsRaw, setGameParamsRaw] = useBrowserStore(ConsentLevel.FUNCTIONALITY, 'DailyAirports');
-  const [gameParams, setGameParamsInternal] = useState(parseGameParams(todayUTC, searchParams, gameParamsRaw));
+  const defaultGameParams = useMemo(() => ({
+    seed: `${todayUTC}/0`,
+    minFlights: 5,
+    maxFlights: 10,
+  } satisfies GameParams), [todayUTC]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const store = useBrowserStore();
+  const [gameParams, setGameParamsInternal] = useState({
+    ...defaultGameParams,
+    ...gameParamsFromStorage(todayUTC, store.get(STORAGE_CONSENT, STORAGE_KEY)),
+    ...gameParamsFromSearch(searchParams),
+  } satisfies GameParams);
 
   useEffect(() => {
-    setGameParamsInternal(parseGameParams(todayUTC, searchParams, gameParamsRaw));
-  }, [todayUTC, searchParams, gameParamsRaw]);
+    setSearchParams(new URLSearchParams());
+  }, []);
 
   function setGameParams(params: GameParams) {
-    setGameParamsRaw(JSON.stringify(params));
+    setGameParamsInternal(params);
+    store.set(STORAGE_CONSENT, STORAGE_KEY, JSON.stringify(params));
   }
 
   return [gameParams, setGameParams] as const;
@@ -106,38 +121,34 @@ export function DailyAirports() {
   const [gameParams, setGameParams] = useGameParams();
   const [tempGameParams, setTempGameParams] = useDependentState(gameParams);
 
-  const loadNext = useCallback(() => {
-    const prev = gameParams;
-    const newGameParams = (() => {
-      const seed = prev.seed;
-      const idx = seed.lastIndexOf('/');
-      if (idx === -1) {
-        return {
-          ...prev,
-          seed: `${seed}/0`,
-        };
-      }
+  function loadNext() {
+    const seed = gameParams.seed;
+    const idx = seed.lastIndexOf('/');
+    if (idx === -1) {
+      setGameParams({
+        ...gameParams,
+        seed: `${seed}/0`,
+      });
+      return;
+    }
 
-      const seedPrefix = seed.substring(0, idx);
-      const offset = Number.parseInt(seed.substring(idx + 1));
-      if (Number.isNaN(offset)) {
-        return {
-          ...prev,
-          seed: `${seedPrefix}/0`,
-        };
-      }
+    const seedPrefix = seed.substring(0, idx);
+    const offset = Number.parseInt(seed.substring(idx + 1));
+    if (Number.isNaN(offset)) {
+      setGameParams({
+        ...gameParams,
+        seed: `${seedPrefix}/0`,
+      });
+    }
 
-      return {
-        ...prev,
-        seed: `${seedPrefix}/${offset + 1}`,
-      };
-    })();
-
-    setGameParams(newGameParams);
-  }, [gameParams]);
+    setGameParams({
+      ...gameParams,
+      seed: `${seedPrefix}/${offset + 1}`,
+    });
+  }
 
   const connectionGameChallengeQuery = useConnectionGameChallenge(gameParams.seed, gameParams.minFlights, Math.max(gameParams.minFlights, gameParams.maxFlights));
-  const challenge = useMemo<[Airport, Airport] | null>(() => {
+  const challenge = useMemo<[WithRequired<Airport, 'location'>, WithRequired<Airport, 'location'>] | null>(() => {
     if (connectionGameChallengeQuery.isLoading || !connectionGameChallengeQuery.data) {
       return null;
     }
@@ -146,11 +157,11 @@ export function DailyAirports() {
     const departureAirport = lookupById.get(departureAirportId);
     const arrivalAirport = lookupById.get(arrivalAirportId);
 
-    if (!departureAirport || !arrivalAirport) {
+    if (!departureAirport || !arrivalAirport || !departureAirport.location || !arrivalAirport.location) {
       return null;
     }
 
-    return [departureAirport, arrivalAirport] as const;
+    return [{ ...departureAirport, location: departureAirport.location }, { ...arrivalAirport, location: arrivalAirport.location }] as const;
   }, [lookupById, connectionGameChallengeQuery.data, connectionGameChallengeQuery.isLoading]);
 
   const isLoading = !challenge;
@@ -203,7 +214,11 @@ export function DailyAirports() {
   );
 }
 
-function DailyAirportsGame({ gameParams, departureAirport, arrivalAirport, loadNext }: { gameParams: GameParams, departureAirport: Airport, arrivalAirport: Airport, loadNext: () => void }) {
+function DailyAirportsGame({ gameParams, departureAirport, arrivalAirport, loadNext }: { gameParams: GameParams, departureAirport: WithRequired<Airport, 'location'>, arrivalAirport: WithRequired<Airport, 'location'>, loadNext: () => void }) {
+  if (!departureAirport.location || !arrivalAirport.location) {
+    throw new Error('invalid airports');
+  }
+
   const firstDestinationReport = useMemo<DestinationReport>(() => ({
     airport: departureAirport,
     minDurationSeconds: 0,
@@ -300,11 +315,31 @@ function DailyAirportsGame({ gameParams, departureAirport, arrivalAirport, loadN
         ]}
       >
         <SelectedAirportsMarkers
+          searchForAirportId={arrivalAirport.id}
           destinations={selectedDestinations}
           tailConnections={lastAirportDestinations}
           addDestination={addDestination}
           removeDestination={removeDestination}
         />
+
+        {
+          lastAirportDestinations.findIndex((v) => v.airport.id === arrivalAirport.id) === -1
+          && arrivalAirport.location
+          && lastAirportId !== arrivalAirport.id
+            ? (
+              <AirportMarker
+                iconName={'search'}
+                airport={arrivalAirport}
+                onClick={() => {}}
+                onRemoveClick={() => {}}
+                indexes={[]}
+                connectable={false}
+                removable={false}
+                disabled={true}
+              />
+            )
+            : null
+        }
       </MaplibreMap>
 
       <Modal
@@ -328,12 +363,13 @@ function DailyAirportsGame({ gameParams, departureAirport, arrivalAirport, loadN
 }
 
 interface SelectedAirportProps {
+  searchForAirportId: AirportId;
   destinations: ReadonlyArray<DestinationReport>;
   addDestination: (destination: DestinationReport) => void;
   removeDestination: (destination: DestinationReport) => void;
 }
 
-function SelectedAirportsMarkers({ destinations, tailConnections, addDestination, removeDestination }: SelectedAirportProps & { tailConnections: ReadonlyArray<DestinationReport> }) {
+function SelectedAirportsMarkers({ searchForAirportId, destinations, tailConnections, addDestination, removeDestination }: SelectedAirportProps & { tailConnections: ReadonlyArray<DestinationReport> }) {
   const nodes = useMemo(() => {
     const indexesByAirportId: Map<AirportId, Array<number>> = new Map();
     for (let i = 0; i < destinations.length; i++) {
@@ -402,6 +438,7 @@ function SelectedAirportsMarkers({ destinations, tailConnections, addDestination
 
         nodes.push(
           <AirportMarker
+            iconName={airport.id === searchForAirportId ? 'search' : undefined}
             airport={airport}
             onClick={() => addDestination(destination)}
             onRemoveClick={() => {}}
@@ -424,7 +461,7 @@ function SelectedAirportsMarkers({ destinations, tailConnections, addDestination
   );
 }
 
-function AirportMarker({ airport, onClick, onRemoveClick, indexes, connectable, removable, disabled }: { airport: WithRequired<Airport, 'location'>, onClick: () => void, onRemoveClick: () => void, indexes: ReadonlyArray<number>, connectable: boolean, removable: boolean, disabled: boolean }) {
+function AirportMarker({ iconName, airport, onClick, onRemoveClick, indexes, connectable, removable, disabled }: { iconName?: IconProps.Name, airport: WithRequired<Airport, 'location'>, onClick: () => void, onRemoveClick: () => void, indexes: ReadonlyArray<number>, connectable: boolean, removable: boolean, disabled: boolean }) {
   let badge: React.ReactNode | null = null;
   if (indexes.length > 0) {
     const text = indexes.map((v) => v + 1).join(',');
@@ -437,7 +474,7 @@ function AirportMarker({ airport, onClick, onRemoveClick, indexes, connectable, 
   }
 
   let content = (
-    <Button variant={connectable ? 'normal' : 'primary'} onClick={onClick} disabled={disabled}>
+    <Button iconName={iconName} variant={connectable ? 'normal' : 'primary'} onClick={onClick} disabled={disabled}>
       {badge}{airport.iataCode}
     </Button>
   );
@@ -465,25 +502,33 @@ function SuccessDisplay({ selectedDestinations, distance, duration, totalAirport
     totalAirportsPenalty: false,
   });
 
-  const score = useMemo(() => {
+  const [score, scoreAllSettings] = useMemo(() => {
     let score = 0.0;
+    let scoreAllSettings = 0.0;
+
     if (scoreCalc.distance) {
       score += distance;
     }
+
+    scoreAllSettings += distance;
 
     if (scoreCalc.duration) {
       score += duration.toMillis() / 10000;
     }
 
+    scoreAllSettings += duration.toMillis() / 10000;
+
     if (scoreCalc.totalAirportsPenalty) {
       score *= Math.exp(totalAirports * 0.05);
     }
+
+    scoreAllSettings *= Math.exp(totalAirports * 0.05);
 
     if (score === 0.0) {
       score = Number.MAX_SAFE_INTEGER;
     }
 
-    return score;
+    return [score, scoreAllSettings] as const;
   }, [distance, duration, totalAirports, scoreCalc]);
 
   const urlParams = new URLSearchParams();
@@ -495,13 +540,17 @@ function SuccessDisplay({ selectedDestinations, distance, duration, totalAirport
     `Distance: \`${distance.toFixed(2)} mi\``,
     `Duration: \`${duration.rescale().toHuman({ listStyle: 'narrow', unitDisplay: 'narrow' })}\``,
     `Total Airports: \`${totalAirports}\``,
+    `Score (lower is better): ${scoreAllSettings.toFixed(0)}`,
     '',
-    `My Route: ||${selectedDestinations.map((v) => v.airport.iataCode).join(' - ')}||`,
+    'Settings:',
     `Seed: \`${gameParams.seed}\``,
     `Min Flights: \`${gameParams.minFlights}\``,
     `Max Flights: \`${gameParams.maxFlights}\``,
     '',
-    `Play now on https://explore.flights/game/dailyairports?${urlParams}`,
+    `My Route: ||${selectedDestinations.map((v) => v.airport.iataCode).join(' - ')}||`,
+    '',
+    `Play this game now on https://explore.flights/game/dailyairports?${urlParams}`,
+    `or start yourself on https://explore.flights/game/dailyairports`,
   ];
 
   return (
@@ -540,11 +589,62 @@ function TotalDistance({ selectedDestinations }: { selectedDestinations: Readonl
   );
 }
 
-function ArrivalAirport({ arrivalAirport }: { arrivalAirport: Airport }) {
+function ArrivalAirport({ arrivalAirport }: { arrivalAirport: WithRequired<Airport, 'location'> }) {
+  const map = useMap().current;
+  function showOnMap() {
+    if (!map) {
+      return;
+    }
+
+    const loc = arrivalAirport.location;
+    map.fitBounds([loc.lng, loc.lat, loc.lng, loc.lat], { zoom: 10 });
+  }
+
   return (
     <SpaceBetween size={'xxs'} direction={'horizontal'}>
       <Box>Find a connection to:</Box>
-      <Popover content={<CodeView highlight={jsonHighlight} content={JSON.stringify(arrivalAirport, null, '\t')} />} dismissButton={false}>
+      <Popover
+        size={'large'}
+        content={
+          <ColumnLayout columns={1}>
+            <KeyValuePairs
+              columns={2}
+              items={[
+                {
+                  label: 'Name',
+                  value: arrivalAirport.name ?? '',
+                },
+                {
+                  label: 'Timezone',
+                  value: arrivalAirport.timezone ?? '',
+                },
+                {
+                  label: 'IATA',
+                  value: arrivalAirport.iataCode,
+                },
+                {
+                  label: 'ICAO',
+                  value: arrivalAirport.icaoCode ?? 'no icao code',
+                },
+                {
+                  label: 'Country Code',
+                  value: arrivalAirport.countryCode ?? '',
+                },
+                {
+                  label: 'City Code',
+                  value: arrivalAirport.cityCode ?? '',
+                },
+                {
+                  label: 'Type',
+                  value: arrivalAirport.type ?? '',
+                },
+              ]}
+            />
+            <Button onClick={showOnMap}>Show on map</Button>
+          </ColumnLayout>
+        }
+        dismissButton={false}
+      >
         <Box variant={'samp'}>{arrivalAirport.iataCode}</Box>
       </Popover>
     </SpaceBetween>
