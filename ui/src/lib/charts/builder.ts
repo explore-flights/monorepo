@@ -101,7 +101,7 @@ export class LineSeriesBuilder<ID extends Primitive, T extends ChartDataTypes, D
       uniqueXValues = uniqueXValues.toSorted(compare<T>);
     }
 
-    const series = this.dataAndSeriesById.values().map(([d, series]) => {
+    const series = Array.from(this.dataAndSeriesById.values()).map(([d, series]) => {
       let data: Array<LineSeriesDatum<T>>;
       if (fillMissingX) {
         data = [];
@@ -124,7 +124,7 @@ export class LineSeriesBuilder<ID extends Primitive, T extends ChartDataTypes, D
         data: data as ReadonlyArray<LineSeriesDatum<T>>,
         ...finalizer(d),
       } as LineSeries<T>;
-    }).toArray();
+    });
 
     return [series, this.xDomain ?? undefined, this.yDomain ?? undefined];
   }
@@ -165,10 +165,10 @@ export class PieChartDataBuilder<ID extends Primitive, D = ID> {
   }
 
   public data(finalizer: (data: D) => RemainingPieChartDatum): ReadonlyArray<PieChartProps.Datum> {
-    return this.dataAndValueById.values().map(([d, value]) => ({
+    return Array.from(this.dataAndValueById.values()).map(([d, value]) => ({
       value: value,
       ...finalizer(d),
-    })).toArray();
+    }));
   }
 }
 
