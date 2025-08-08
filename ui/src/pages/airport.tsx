@@ -13,7 +13,7 @@ import { useParams } from 'react-router-dom';
 import { useAircraftReport, useAirports, useDestinations } from '../components/util/state/data';
 import { Aircraft, AircraftReport, Airport, AirportId, DestinationReport } from '../lib/api/api.model';
 import { Duration } from 'luxon';
-import { LineSeriesBuilder } from '../lib/charts/builder';
+import { LineSeries, SeriesBuilder } from '../lib/charts/builder';
 import { MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
 import { airportToString } from '../lib/util/flight';
 import { Marker } from 'react-map-gl/maplibre';
@@ -129,7 +129,7 @@ function AircraftReportChart({ reports, loading }: { reports: ReadonlyArray<Airc
   }, []);
 
   const [series, xDomain, yDomain] = useMemo(() => {
-    const builder = new LineSeriesBuilder<string, number, Aircraft>(undefined, (ac) => ac.id);
+    const builder = new SeriesBuilder<string, LineSeries<number>, Aircraft>('line', undefined, (ac) => ac.id);
 
     for (const report of reports) {
       for (const [duration, flights] of report.flightsAndDuration) {
