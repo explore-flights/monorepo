@@ -48,6 +48,10 @@ import {
   ThresholdSeries, BarSeries
 } from '../lib/charts/builder';
 import { RouterInlineLink } from '../components/common/router-link';
+import { FitBounds, MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
+import { Marker } from 'react-map-gl/maplibre';
+import { Feature, Point } from 'geojson';
+import { bbox, featureCollection, point } from '@turf/turf';
 
 export function FlightView() {
   const { id } = useParams();
@@ -262,6 +266,7 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
         </Container>
 
         <>
+          <Map flights={filteredFlights} />
           <Stats flights={filteredFlights} />
           <Table
             items={items}
@@ -422,6 +427,74 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
 
       <SeatMapModal flight={seatMapFlight} onDismiss={() => setSeatMapFlight(undefined)} />
     </ContentLayout>
+  );
+}
+
+function Map({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
+  const [markers, lines, bounds] = useMemo(() => {
+    const markers: Array<React.ReactNode> = [];
+    const lines: Array<React.ReactNode> = [];
+    const points: Array<Feature<Point, any>> = [];
+    const addedAirports = new Set<AirportId>();
+    const addedRoutes = new Set<string>();
+
+    for (const flight of flights) {
+      if (flight.type !== 'scheduled' || !flight.departureAirport.location || !flight.arrivalAirport.location) {
+        continue;
+      }
+
+      const departureAirport = { ...flight.departureAirport, location: flight.departureAirport.location };
+      const arrivalAirport = { ...flight.arrivalAirport, location: flight.arrivalAirport.location };
+
+      for (const airport of [{ ...departureAirport }, { ...arrivalAirport }]) {
+        if (!addedAirports.has(airport.id)) {
+          addedAirports.add(airport.id);
+
+          markers.push(
+            <Marker latitude={airport.location.lat} longitude={airport.location.lng}>
+              <Button variant={'normal'} disabled={true}>{airportToString(airport)}</Button>
+            </Marker>
+          );
+
+          points.push(point([airport.location.lng, airport.location.lat]));
+        }
+      }
+
+      const routeId = `${departureAirport.id}/${arrivalAirport.id}`;
+      if (!addedRoutes.has(routeId)) {
+        addedRoutes.add(routeId);
+
+        lines.push(
+          <SmartLine
+            src={[departureAirport.location.lng, departureAirport.location.lat]}
+            dst={[arrivalAirport.location.lng, arrivalAirport.location.lat]}
+          />
+        );
+      }
+    }
+
+    let lngLatBounds: [number, number, number, number] | null = null;
+    if (points.length > 0) {
+      const bounds = bbox(featureCollection(points));
+
+      if (bounds.length === 4) {
+        lngLatBounds = bounds;
+      } else {
+        lngLatBounds = [bounds[0], bounds[1], bounds[3], bounds[4]];
+      }
+    }
+
+    return [markers, lines, lngLatBounds];
+  }, [flights]);
+
+  return (
+    <ExpandableSection variant={'stacked'} headerText={'Map'} headerInfo={<Box variant={'small'}>Table filters applied</Box>} defaultExpanded={true}>
+      <MaplibreMap height={'50vh'}>
+        {...markers}
+        {...lines}
+        {bounds && <FitBounds bounds={bounds} options={{ padding: 100 }} />}
+      </MaplibreMap>
+    </ExpandableSection>
   );
 }
 
