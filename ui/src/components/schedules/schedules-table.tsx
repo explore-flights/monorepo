@@ -1,5 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { Box, Header, Pagination, Table, TableProps } from '@cloudscape-design/components';
+import {
+  Box, Calendar, DateInput, FormField,
+  Header,
+  Pagination,
+  PropertyFilter,
+  PropertyFilterProps,
+  Table,
+  TableProps
+} from '@cloudscape-design/components';
 import {
   Aircraft, Airline,
   Airport,
@@ -7,10 +15,15 @@ import {
   FlightScheduleVariant,
   QuerySchedulesResponseV2
 } from '../../lib/api/api.model';
-import { useCollection } from '@cloudscape-design/collection-hooks';
+import {
+  PropertyFilterOperator,
+  PropertyFilterOperatorExtended,
+  useCollection
+} from '@cloudscape-design/collection-hooks';
 import { FlightLink } from '../common/flight-link';
 import { AircraftConfigurationVersionText, AircraftText, AirportText } from '../common/text';
 import { flightNumberToString } from '../../lib/util/flight';
+import { DateTime, FixedOffsetZone } from 'luxon';
 
 type OperatingRange = [string, string, number];
 
@@ -34,6 +47,7 @@ export interface ScheduleTableChildItem extends ScheduleTableBaseItem {
   readonly aircraftConfigurationVersion: string;
   readonly item: FlightScheduleItem;
   readonly variant: FlightScheduleVariant;
+  readonly departureTime: DateTime<true>;
 }
 
 export type ScheduleTableItem = ScheduleTableParentItem | ScheduleTableChildItem;
@@ -46,9 +60,20 @@ export interface SchedulesTableProps extends Omit<TableProps<ScheduleTableItem>,
 }
 
 export function SchedulesTable({ title, result, flightLinkQuery, columnDefinitions: providedColumnDefinitions, ...tableProps }: SchedulesTableProps) {
+  const [filterQuery, setFilterQuery] = useState<PropertyFilterProps.Query>({
+    operation: 'and',
+    tokens: [
+      {
+        propertyKey: 'departure_time',
+        value: DateTime.now().toFormat('yyyy-MM-dd'),
+        operator: '>=',
+      },
+    ],
+  });
+
   const transformedItems = useMemo(
-    () => result ? transformSchedules(result) : [],
-    [result],
+    () => result ? transformSchedules(result, filterQuery) : [],
+    [result, filterQuery],
   );
 
   const columnDefinitions = useMemo(() => {
@@ -78,8 +103,9 @@ export function SchedulesTable({ title, result, flightLinkQuery, columnDefinitio
       empty={<Box>No flights found</Box>}
       {...tableProps}
       {...collectionProps}
-      filter={<Header counter={`(${transformedItems.length})`}>{title}</Header>}
+      header={<Header counter={`(${transformedItems.length})`}>{title}</Header>}
       pagination={<Pagination {...paginationProps}  />}
+      filter={<SchedulesTableFilter query={filterQuery} setQuery={setFilterQuery} />}
       columnDefinitions={columnDefinitions}
       items={items}
       expandableRows={{
@@ -110,6 +136,42 @@ export function SchedulesTable({ title, result, flightLinkQuery, columnDefinitio
           });
         },
       }}
+    />
+  );
+}
+
+function SchedulesTableFilter({ query, setQuery }: { query: PropertyFilterProps.Query, setQuery: (query: PropertyFilterProps.Query) => void }) {
+  function buildDateOperator(op: PropertyFilterOperator): PropertyFilterOperatorExtended<string> {
+    return {
+      operator: op,
+      form: ({ value, onChange }) => (
+        <div className={'date-form'}>
+          <FormField>
+            <DateInput
+              value={value ?? ''}
+              onChange={(event) => onChange(event.detail.value)}
+              placeholder={'YYYY-MM-DD'}
+            />
+          </FormField>
+          <Calendar value={value ?? ''} onChange={(event) => onChange(event.detail.value)} />
+        </div>
+      ),
+      format: (v) => v,
+    } satisfies PropertyFilterOperatorExtended<string>;
+  }
+
+  return (
+    <PropertyFilter
+      query={query}
+      onChange={(e) => setQuery(e.detail)}
+      filteringProperties={[
+        {
+          key: 'departure_time',
+          operators: ['=', '>=', '>', '<=', '<'].map((op) => buildDateOperator(op)),
+          propertyLabel: 'Departure Time',
+          groupValuesLabel: 'Departure Time values',
+        },
+      ]}
     />
   );
 }
@@ -200,7 +262,7 @@ function buildColumnDefinitions(flightLinkQuery?: (item: ScheduleTableItem) => U
   ];
 }
 
-function transformSchedules(result: QuerySchedulesResponseV2): ReadonlyArray<ScheduleTableItem> {
+function transformSchedules(result: QuerySchedulesResponseV2, filterQuery: PropertyFilterProps.Query): ReadonlyArray<ScheduleTableItem> {
   const items: Array<ScheduleTableParentItem> = [];
 
   for (const schedule of result.schedules) {
@@ -216,11 +278,17 @@ function transformSchedules(result: QuerySchedulesResponseV2): ReadonlyArray<Sch
       }
 
       const variant = result.variants[item.flightVariantId];
+      const departureZone = FixedOffsetZone.instance(variant.departureUtcOffsetSeconds / 60);
+      const departureTime = DateTime.fromISO(`${item.departureDateLocal}T${variant.departureTimeLocal}.000`).setZone(departureZone, { keepLocalTime: true });
       const airline = result.airlines[schedule.flightNumber.airlineId];
       const departureAirport = result.airports[item.departureAirportId];
       const arrivalAirport = result.airports[variant.arrivalAirportId];
       const aircraft = result.aircraft[variant.aircraftId];
       const parentIdentifier = `${departureAirport.id}-${arrivalAirport.id}`;
+
+      if (!departureTime.isValid) {
+        continue;
+      }
 
       let parent = parents.get(parentIdentifier);
       if (!parent) {
@@ -252,11 +320,127 @@ function transformSchedules(result: QuerySchedulesResponseV2): ReadonlyArray<Sch
         schedule: schedule,
         item: item,
         variant: variant,
+        departureTime: departureTime,
       });
     }
   }
 
-  return items;
+  return evaluateFilterQuery(items, filterQuery);
+}
+
+function evaluateFilterQuery(items: ReadonlyArray<ScheduleTableItem>, query: PropertyFilterProps.Query): ReadonlyArray<ScheduleTableItem> {
+  interface MutableParent extends ScheduleTableParentItem {
+    children: Array<ScheduleTableChildItem>;
+  }
+
+  if (query.tokens.length < 1) {
+    return items;
+  }
+
+  return items.flatMap((v) => {
+    const result: Array<ScheduleTableItem> = [];
+
+    if (v.type === 'parent') {
+      const filteredParent: MutableParent = {
+        type: 'parent',
+        departureAirport: v.departureAirport,
+        arrivalAirport: v.arrivalAirport,
+        operatingRange: ['', '', 0],
+        children: [],
+        airline: v.airline,
+        schedule: v.schedule,
+      };
+
+      for (const child of v.children) {
+        if (evaluateFilter(child, query)) {
+          filteredParent.children.push(child);
+          expandOperatingRange(filteredParent.operatingRange, child.operatingRange);
+        }
+      }
+
+      if (filteredParent.children.length > 0) {
+        result.push(filteredParent);
+      }
+    } else if (evaluateFilter(v, query)) {
+      result.push(v);
+    }
+
+    return result;
+  });
+}
+
+function evaluateFilter(item: ScheduleTableChildItem, query: PropertyFilterProps.Query): boolean {
+  if (query.tokens.length < 1) {
+    return true;
+  }
+
+  for (const token of query.tokens) {
+    const result = evaluateToken(item, token);
+    if (query.operation === 'and' && !result) {
+      return false;
+    } else if (query.operation === 'or' && result) {
+      return true;
+    }
+  }
+
+  return query.operation === 'and';
+}
+
+function evaluateToken(item: ScheduleTableChildItem, token: PropertyFilterProps.Token): boolean {
+  if (!token.propertyKey) {
+    return false;
+  }
+
+  if (Array.isArray(token.value)) {
+    const values = token.value as Array<string>;
+    const ifMatch = token.operator === '=';
+
+    for (const value of values) {
+      if (evaluateTokenSingle(item, token.propertyKey, '=', value)) {
+        return ifMatch;
+      }
+    }
+
+    return !ifMatch;
+  } else {
+    return evaluateTokenSingle(item, token.propertyKey, token.operator, `${token.value}`);
+  }
+}
+
+function evaluateTokenSingle(item: ScheduleTableChildItem, propertyKey: string, operator: string, filterValue: string) {
+  let cmpResult = 0;
+
+  switch (propertyKey) {
+    case 'departure_time':
+      cmpResult = item.departureTime.toFormat('yyyy-MM-dd').localeCompare(filterValue);
+      break;
+  }
+
+  if (Number.isNaN(cmpResult)) {
+    return operator !== '!=';
+  }
+
+  switch (operator) {
+    case '<':
+      return cmpResult < 0;
+
+    case '<=':
+      return cmpResult <= 0;
+
+    case '=':
+      return cmpResult === 0;
+
+    case '>':
+      return cmpResult > 0;
+
+    case '>=':
+      return cmpResult >= 0;
+
+    case '!=':
+      return cmpResult !== 0;
+  }
+
+  return false;
 }
 
 function buildOperatingRange(date: string): OperatingRange {
