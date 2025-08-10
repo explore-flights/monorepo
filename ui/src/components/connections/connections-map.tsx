@@ -6,14 +6,16 @@ import {
   ConnectionFlightResponse,
   AirlineId, Airline, AircraftId, Aircraft, AirportId,
 } from '../../lib/api/api.model';
-import { FitBounds, MaplibreMap, PopupMarker, SmartLine } from '../maplibre/maplibre-map';
+import { FitBounds, MaplibreMap, SmartLine } from '../maplibre/maplibre-map';
 import { DateTime } from 'luxon';
-import { ColumnLayout, KeyValuePairs, KeyValuePairsProps } from '@cloudscape-design/components';
+import { BadgeProps, ColumnLayout, KeyValuePairs, KeyValuePairsProps, Popover } from '@cloudscape-design/components';
 import { FlightLink } from '../common/flight-link';
 import { airportToString, flightNumberToString } from '../../lib/util/flight';
 import { bbox, featureCollection, point } from '@turf/turf';
 import { Feature, Point } from 'geojson';
 import { LngLatBoundsLike } from 'maplibre-gl';
+import { AirportInlineText } from '../common/text';
+import { Marker } from 'react-map-gl/maplibre';
 
 export interface ConnectionsMapProps {
   connections: ConnectionsResponse;
@@ -89,20 +91,23 @@ function toMarkersAndLines(
       node.airport.location?.lat ?? 0.0,
     ]));
 
+    let badgeColor: BadgeProps['color'];
+    if (node.outgoingFlights.length < 1) {
+      badgeColor = 'green'; // destination
+    } else if (node.incomingFlights.length < 1) {
+      badgeColor = 'blue'; // start
+    } else {
+      badgeColor = 'grey'; // connection
+    }
+
     markers.set(
       node.airport.id,
       (
-        <PopupMarker
-          longitude={node.airport.location?.lng ?? 0.0}
-          latitude={node.airport.location?.lat ?? 0.0}
-          button={{}}
-          popover={{
-            size: 'medium',
-            header: node.airport.name,
-            renderWithPortal: true,
-            content: <AirportPopoverContent node={node} />,
-          }}
-        >{node.airport.iataCode}</PopupMarker>
+        <Marker longitude={node.airport.location?.lng ?? 0.0} latitude={node.airport.location?.lat ?? 0.0}>
+          <Popover content={<AirportPopoverContent node={node} />} renderWithPortal={true}>
+            <AirportInlineText airport={node.airport} badgeColor={badgeColor} noPopover={true} />
+          </Popover>
+        </Marker>
       ),
     );
   }

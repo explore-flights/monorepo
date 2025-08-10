@@ -5,8 +5,6 @@ import {
   FullscreenControl,
   Layer,
   Map,
-  Marker,
-  MarkerProps,
   ScaleControl,
   Source,
   useMap
@@ -14,13 +12,10 @@ import {
 import {
   Box,
   Button,
-  ButtonProps,
   Container,
   Grid,
   Header,
   Link,
-  Popover,
-  PopoverProps,
   SpaceBetween, Spinner, ToggleButton
 } from '@cloudscape-design/components';
 import { greatCircle } from '@turf/turf';
@@ -185,21 +180,6 @@ export function FitBounds({ bounds, options }: { bounds: LngLatBoundsLike, optio
   }, [map.current, bounds, options]);
 
   return null;
-}
-
-export interface PopupMarkerProps extends MarkerProps {
-  button: ButtonProps;
-  popover: Omit<PopoverProps, 'triggerType'>;
-}
-
-export function PopupMarker({ children, button, popover, ...markerProps }: React.PropsWithChildren<PopupMarkerProps>) {
-  return (
-    <Marker {...markerProps}>
-      <Popover {...popover} triggerType={'custom'}>
-        <Button {...button}>{children}</Button>
-      </Popover>
-    </Marker>
-  );
 }
 
 export function SmartLine({ src, dst, dashed }: { src: [number, number], dst: [number, number], dashed?: boolean }) {

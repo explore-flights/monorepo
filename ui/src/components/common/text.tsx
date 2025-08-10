@@ -171,7 +171,7 @@ export function AircraftConfigurationVersionText({ value, popoverContent }: { va
 
 function SampText({ text }: { text: string }) {
   return (
-    <Box variant={'samp'}>{text}</Box>
+    <Box variant={'samp'} color={'inherit'}>{text}</Box>
   );
 }
 
