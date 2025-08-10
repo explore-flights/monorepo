@@ -39,7 +39,7 @@ import { ApiError } from '../lib/api/api';
 import { FlightNumberList, InternalFlightLink } from '../components/common/flight-link';
 import { SeatMapView } from '../components/seatmap/seatmap';
 import { aircraftConfigurationVersionToName } from '../lib/consts';
-import { AircraftConfigurationVersionText, AirportText } from '../components/common/text';
+import { AircraftConfigurationVersionText, AirportInlineText } from '../components/common/text';
 import { airportToString, flightNumberToString } from '../lib/util/flight';
 import {
   SeriesBuilder,
@@ -307,7 +307,7 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
               {
                 id: 'departure_airport',
                 header: 'Departure Airport',
-                cell: useCallback((v: FlightTableItem) => <AirportText code={v.departureAirport.iataCode} airport={v.departureAirport} />, []),
+                cell: useCallback((v: FlightTableItem) => <AirportInlineText airport={v.departureAirport} />, []),
                 sortingComparator: useCallback((a: FlightTableItem, b: FlightTableItem) => compareAirports(a.departureAirport, b.departureAirport), []),
               },
               {
@@ -315,7 +315,7 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
                 header: 'Arrival Airport',
                 cell: useCallback((v: FlightTableItem) => {
                   return v.type === 'scheduled'
-                    ? <AirportText code={v.arrivalAirport.iataCode} airport={v.arrivalAirport} />
+                    ? <AirportInlineText airport={v.arrivalAirport} />
                     : '';
                 }, []),
                 sortingComparator: useCallback((a: FlightTableItem, b: FlightTableItem) => {
@@ -452,7 +452,7 @@ function Map({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
 
           markers.push(
             <Marker latitude={airport.location.lat} longitude={airport.location.lng}>
-              <Button variant={'normal'} disabled={true}>{airportToString(airport)}</Button>
+              <AirportInlineText airport={airport} badgeColor={'green'} renderWithPortal={true} />
             </Marker>
           );
 
@@ -540,7 +540,7 @@ function RouteStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
     }
 
     return builder.data(([a1, a2]) => ({
-      title: `${airportToString(a1)} - ${airportToString(a2)}`,
+      title: `${airportToString(a1)} \u2014 ${airportToString(a2)}`,
     }));
   }, [flights]);
 
@@ -613,7 +613,7 @@ function DurationStat({ now, flights }: { now: DateTime<true>, flights: Readonly
     }
 
     const [series, xDomain, yDomain] = builder.series(([a1, a2]) => ({
-      title: `${airportToString(a1)} - ${airportToString(a2)}`,
+      title: `${airportToString(a1)} \u2014 ${airportToString(a2)}`,
       valueFormatter: (v, _) => durationFormatter(v),
     }), false, true);
 

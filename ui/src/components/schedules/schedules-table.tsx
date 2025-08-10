@@ -21,7 +21,7 @@ import {
   useCollection
 } from '@cloudscape-design/collection-hooks';
 import { FlightLink } from '../common/flight-link';
-import { AircraftConfigurationVersionText, AircraftText, AirportText } from '../common/text';
+import { AircraftConfigurationVersionText, AircraftText, AirportInlineText } from '../common/text';
 import { flightNumberToString } from '../../lib/util/flight';
 import { DateTime, FixedOffsetZone } from 'luxon';
 
@@ -198,13 +198,13 @@ function buildColumnDefinitions(flightLinkQuery?: (item: ScheduleTableItem) => U
     {
       id: 'departure_airport',
       header: 'Departure Airport',
-      cell: (v) => <AirportText code={v.departureAirport.iataCode} airport={v.departureAirport} />,
+      cell: (v) => <AirportInlineText airport={v.departureAirport} />,
       sortingComparator: (a, b) => a.departureAirport.id.localeCompare(b.departureAirport.id),
     },
     {
       id: 'arrival_airport',
       header: 'Arrival Airport',
-      cell: (v) => <AirportText code={v.arrivalAirport.iataCode} airport={v.arrivalAirport} />,
+      cell: (v) => <AirportInlineText airport={v.arrivalAirport} />,
       sortingComparator: (a, b) => a.arrivalAirport.id.localeCompare(b.arrivalAirport.id),
     },
     {

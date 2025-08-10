@@ -10,10 +10,11 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useCollection } from '@cloudscape-design/collection-hooks';
 import { Header, Pagination, Popover, Table } from '@cloudscape-design/components';
 import { DateTime } from 'luxon';
-import { airportToString, flightNumberToString } from '../../lib/util/flight';
+import { flightNumberToString } from '../../lib/util/flight';
 import { withDepartureAirportIdFilter, withDepartureDateFilter } from '../../pages/flight';
 import { FlightLink } from '../common/flight-link';
 import { BulletSeperator, Join } from '../common/join';
+import { AirportInlineText } from '../common/text';
 
 interface ConnectionsTableBaseItem {
   readonly flightNumber?: [Airline, FlightNumber];
@@ -102,7 +103,7 @@ export function ConnectionsTable({ connections }: ConnectionsTableProps) {
         {
           id: 'departure_airport',
           header: 'Departure Airport',
-          cell: (v) => airportToString(v.departureAirport),
+          cell: (v) => <AirportInlineText airport={v.departureAirport} />,
           sortingField: 'departureAirport',
         },
         {
@@ -114,7 +115,7 @@ export function ConnectionsTable({ connections }: ConnectionsTableProps) {
         {
           id: 'arrival_airport',
           header: 'Arrival Airport',
-          cell: (v) => airportToString(v.arrivalAirport),
+          cell: (v) => <AirportInlineText airport={v.departureAirport} />,
           sortingField: 'arrivalAirport',
         },
         {

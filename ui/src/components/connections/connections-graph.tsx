@@ -32,6 +32,7 @@ import { BulletSeperator, Join } from '../common/join';
 import { FlightLink } from '../common/flight-link';
 import { usePreferences } from '../util/state/use-preferences';
 import { ColorScheme } from '../../lib/preferences.model';
+import { AirportInlineText, AirportLongText } from '../common/text';
 
 type FlightNodeData = {
   readonly type: 'flight';
@@ -152,7 +153,11 @@ function FlightNode({ data }: NodeProps<Node<FlightNodeData>>) {
         <Popover header={flightNumberFull} size={'large'} content={<FlightPopoverContent flight={flight} airline={airline} departureAirport={departureAirport} arrivalAirport={arrivalAirport} aircraft={aircraft} airlineById={airlineById} />} fixedWidth={true} renderWithPortal={true}>
           <Box textAlign={'center'}>
             <Box>{flightNumberFull}</Box>
-            <Box>{`${airportToString(departureAirport)} \u2014 ${airportToString(arrivalAirport)}`}</Box>
+            <Box>
+              <AirportInlineText airport={departureAirport} noPopover={true} />
+              {' \u2014 '}
+              <AirportInlineText airport={arrivalAirport} noPopover={true} />
+            </Box>
             <Box>{duration.toHuman({ unitDisplay: 'short' })}</Box>
           </Box>
         </Popover>
@@ -173,9 +178,9 @@ function FlightPopoverContent({ flight, airline, departureAirport, arrivalAirpor
   return (
     <KeyValuePairs columns={2}>
       <ValueWithLabel label={'Flight Number'}><FlightLink flightNumber={flightNumberToString(flight.flightNumber, airline)} target={'_blank'} /></ValueWithLabel>
-      <ValueWithLabel label={'Departure Airport'}>{airportToString(departureAirport)}</ValueWithLabel>
+      <ValueWithLabel label={'Departure Airport'}><AirportLongText airport={departureAirport} noPopover={true} /></ValueWithLabel>
       <ValueWithLabel label={'Departure Time'}>{DateTime.fromISO(flight.departureTime, { setZone: true }).toLocaleString(DateTime.DATETIME_FULL)}</ValueWithLabel>
-      <ValueWithLabel label={'Arrival Airport'}>{airportToString(arrivalAirport)}</ValueWithLabel>
+      <ValueWithLabel label={'Arrival Airport'}><AirportLongText airport={arrivalAirport} noPopover={true} /></ValueWithLabel>
       <ValueWithLabel label={'Arrival Time'}>{DateTime.fromISO(flight.arrivalTime, { setZone: true }).toLocaleString(DateTime.DATETIME_FULL)}</ValueWithLabel>
       <ValueWithLabel label={'Aircraft'}>{aircraftStr}</ValueWithLabel>
       <ValueWithLabel label={'Aircraft Owner'}>{flight.aircraftOwner}</ValueWithLabel>

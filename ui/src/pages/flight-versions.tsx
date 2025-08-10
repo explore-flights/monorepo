@@ -22,6 +22,7 @@ import { ErrorNotificationContent } from '../components/util/context/app-control
 import { airportToString, flightNumberToString } from '../lib/util/flight';
 import { DateTime, Duration, FixedOffsetZone } from 'luxon';
 import { FlightNumberList } from '../components/common/flight-link';
+import { AirportInlineText, AirportLongText } from '../components/common/text';
 
 export function FlightVersionsView() {
   const { id, departureAirport, departureDateLocal } = useParams();
@@ -148,17 +149,7 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
               },
               {
                 label: 'Departure Airport',
-                value: useMemo(() => {
-                  const airport = flightVersions.airports[flightVersions.departureAirportId];
-                  const codes: Array<string> = [];
-                  codes.push(airport.iataCode);
-
-                  if (airport.icaoCode) {
-                    codes.push(airport.icaoCode);
-                  }
-
-                  return `${airport.name ?? airport.id} (${codes.join('/')})`;
-                }, [flightVersions]),
+                value: <AirportLongText airport={flightVersions.airports[flightVersions.departureAirportId]} />,
               },
               {
                 label: 'Departure Date (Local)',
@@ -223,7 +214,7 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
               header: 'Arrival Airport',
               cell: useCallback((v: TableItem) => {
                 return v.type === 'scheduled'
-                  ? <WrapChanged changed={v.arrivalAirport}>{airportToString(v.arrivalAirport[0])}</WrapChanged>
+                  ? <WrapChanged changed={v.arrivalAirport}><AirportInlineText airport={v.arrivalAirport[0]} /></WrapChanged>
                   : '';
               }, []),
             },

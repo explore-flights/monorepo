@@ -46,7 +46,13 @@ export interface MaplibreMapProps {
   controls?: ReadonlyArray<React.ReactNode>;
   initialLng?: number;
   initialLat?: number;
+  initialZoom?: number;
   loading?: boolean;
+  displayControls?: {
+    fullscreen: boolean;
+    scale: boolean;
+    globeTransition: boolean;
+  };
 }
 
 export function MaplibreMap(props: React.PropsWithChildren<MaplibreMapProps>) {
@@ -60,6 +66,12 @@ export function MaplibreMap(props: React.PropsWithChildren<MaplibreMapProps>) {
   }
 
   return <MaplibreMapInternal {...props} />;
+}
+
+export function MaplibreMapInline(props: React.PropsWithChildren<Omit<MaplibreMapProps, 'height'>>) {
+  return (
+    <MaplibreMap height={'200px'} displayControls={{ fullscreen: true, scale: false, globeTransition: false }} {...props} />
+  );
 }
 
 function MaplibreMapConsent({ height, onAllowOnceClick }: { height: string | number, onAllowOnceClick: () => void }) {
@@ -105,7 +117,7 @@ function MaplibreMapLoading({ height }: { height: string | number }) {
 
 function MaplibreMapOverlay({ height, children }: React.PropsWithChildren<{ height: string | number }>) {
   return (
-    <div className={classes['consent']} style={{ height: height, width: 'auto' }}>
+    <div className={classes['consent']} style={{ minHeight: height, width: 'auto' }}>
       <div className={classes['consent-container']}>
         <div className={classes['consent-content']}>
           <Grid gridDefinition={[{ colspan: { default: 12, xs: 10, s: 8 }, offset: { default: 0, xs: 1, s: 2 } }]}>
@@ -117,7 +129,7 @@ function MaplibreMapOverlay({ height, children }: React.PropsWithChildren<{ heig
   );
 }
 
-function MaplibreMapInternal({ children, height, controls, initialLat, initialLng }: React.PropsWithChildren<MaplibreMapProps>) {
+function MaplibreMapInternal({ children, height, controls, initialLat, initialLng, initialZoom, displayControls }: React.PropsWithChildren<MaplibreMapProps>) {
   const [preferences] = usePreferences();
   const [projection, setProjection] = useState<'globe' | 'mercator'>('mercator');
   const mapStyle = useMemo(() => {
@@ -136,7 +148,7 @@ function MaplibreMapInternal({ children, height, controls, initialLat, initialLn
       initialViewState={{
         longitude: initialLng ?? 0.0,
         latitude: initialLat ?? 0.0,
-        zoom: 3,
+        zoom: initialZoom ?? 3,
       }}
       projection={projection}
       mapStyle={mapStyle}
@@ -144,12 +156,12 @@ function MaplibreMapInternal({ children, height, controls, initialLat, initialLn
       <ComponentResize />
       <div style={{ float: 'left', marginTop: '10px', marginLeft: '10px' }}>
         <SpaceBetween size={'m'} direction={'horizontal'} alignItems={'center'}>
-          <GlobeTransition projection={projection} setProjection={setProjection} />
+          {(displayControls?.globeTransition ?? true) && <GlobeTransition projection={projection} setProjection={setProjection} />}
           {...(controls ?? [])}
         </SpaceBetween>
       </div>
-      <FullscreenControl />
-      <ScaleControl />
+      {(displayControls?.fullscreen ?? true) && <FullscreenControl />}
+      {(displayControls?.scale ?? true) && <ScaleControl />}
       {children}
     </Map>
   );
