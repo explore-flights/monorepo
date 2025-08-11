@@ -18,7 +18,8 @@ SELECT
                 LIST_DISTINCT(MAP_KEYS(acc) || MAP_KEYS(e)),
                 lambda k: {k: k, v: LIST_DISTINCT(COALESCE(acc[k], []) || COALESCE(e[k], []))}
             )
-        )
+        ),
+        MAP {}
     ) AS dataElements,
     origin,
     destination,
