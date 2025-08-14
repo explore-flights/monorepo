@@ -60,8 +60,8 @@ export class SfnConstruct extends Construct {
             'params': {
               'prepareDailyCron': {
                 'time': JsonPath.stringAt('$.time'),
-                'offset': -1,
-                'total': 30 * 12,
+                'offset': -2,
+                'total': (30 * 12) + 2,
               },
             },
           }),
