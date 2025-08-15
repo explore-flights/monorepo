@@ -932,7 +932,9 @@ func (fr *FlightRepo) Versions(ctx context.Context) ([]time.Time, error) {
 	return versions, rows.Err()
 }
 
-func (fr *FlightRepo) UpdatesForVersion(ctx context.Context, version time.Time) ([]FlightScheduleUpdate, error) {
+func (fr *FlightRepo) UpdatesForVersion(ctx context.Context, version time.Time, page int) ([]FlightScheduleUpdate, error) {
+	const limit = 10_000
+
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -961,9 +963,20 @@ AND EXISTS(
 	AND base.departure_airport_id = prev.departure_airport_id
 	AND base.created_at = prev.replaced_at
 )
+ORDER BY
+    base.airline_id,
+    base.number,
+    base.suffix,
+    base.departure_date_local,
+    base.departure_airport_id,
+    base.flight_variant_id
+LIMIT ?
+OFFSET ?
 `,
 		version.Format(time.RFC3339),
 		version.Format(time.RFC3339),
+		limit,
+		limit*page,
 	)
 	if err != nil {
 		return nil, err

@@ -220,8 +220,54 @@ export class ApiClient {
     return transform(this.httpClient.fetch('/data/versions.json'));
   }
 
-  getUpdatesForVersion(version: string): Promise<ApiResponse<FlightScheduleUpdates>> {
-    return transform(this.httpClient.fetch(`/data/version/${version}`));
+  async getUpdatesForVersion(version: string): Promise<ApiResponse<FlightScheduleUpdates>> {
+    let page = 0;
+    let exhausted = false;
+    let lastHeaders = EMPTY_HEADERS;
+    let result: FlightScheduleUpdates = {
+      updates: [],
+      airlines: {},
+      airports: {},
+    };
+
+    while (!exhausted) {
+      const resp = await transform(
+        this.httpClient.fetch(`/data/version/${version}/${page++}`),
+        (status, body) => {
+          if (status === 204) {
+            return null;
+          }
+
+          return JSON.parse(body) as FlightScheduleUpdates;
+        },
+        200,
+        204
+      );
+
+      lastHeaders = resp.headers;
+
+      if (resp.kind !== KindSuccess) {
+        return resp;
+      }
+
+      if (resp.body !== null) {
+        result = {
+          updates: [...result.updates, ...resp.body.updates],
+          airlines: {...result.airlines, ...resp.body.airlines},
+          airports: {...result.airports, ...resp.body.airports},
+        };
+      } else {
+        exhausted = true;
+      }
+    }
+
+    return {
+      kind: KindSuccess,
+      status: 200,
+      headers: lastHeaders,
+      body: result,
+      error: undefined,
+    } satisfies SuccessResponse<FlightScheduleUpdates>;
   }
 
   search(query: string): Promise<ApiResponse<SearchResponse>> {

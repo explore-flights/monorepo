@@ -37,7 +37,7 @@ type dataHandlerRepo interface {
 	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
 	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber, departureAirport uuid.UUID, departureDate xtime.LocalDate) (db.FlightScheduleVersions, error)
 	Versions(ctx context.Context) ([]time.Time, error)
-	UpdatesForVersion(ctx context.Context, version time.Time) ([]db.FlightScheduleUpdate, error)
+	UpdatesForVersion(ctx context.Context, version time.Time, page int) ([]db.FlightScheduleUpdate, error)
 }
 
 type DataHandler struct {
@@ -733,9 +733,15 @@ func (dh *DataHandler) Versions(c echo.Context) error {
 
 func (dh *DataHandler) Version(c echo.Context) error {
 	versionRaw := c.Param("version")
+	pageRaw := c.Param("page")
 	version, err := time.Parse(time.RFC3339, versionRaw)
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithMessage("Invalid version format"), WithCause(err))
+	}
+
+	page, err := strconv.Atoi(pageRaw)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithMessage("Invalid page format"), WithCause(err))
 	}
 
 	var dbResult []db.FlightScheduleUpdate
@@ -747,7 +753,7 @@ func (dh *DataHandler) Version(c echo.Context) error {
 
 		g.Go(func() error {
 			var err error
-			dbResult, err = dh.repo.UpdatesForVersion(c.Request().Context(), version)
+			dbResult, err = dh.repo.UpdatesForVersion(c.Request().Context(), version, page)
 			return err
 		})
 
@@ -769,6 +775,10 @@ func (dh *DataHandler) Version(c echo.Context) error {
 	}
 
 	addExpirationHeaders(c, time.Now(), time.Hour*24*3)
+
+	if len(dbResult) < 1 {
+		return c.NoContent(http.StatusNoContent)
+	}
 
 	return c.JSON(http.StatusOK, model.FlightScheduleUpdatesFromDb(dbResult, airlines, airports))
 }
