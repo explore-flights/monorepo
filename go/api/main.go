@@ -4,6 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/explore-flights/monorepo/go/api/business/connections"
 	"github.com/explore-flights/monorepo/go/api/business/report"
 	"github.com/explore-flights/monorepo/go/api/business/schedulesearch"
@@ -13,12 +20,6 @@ import (
 	"github.com/explore-flights/monorepo/go/api/web"
 	lwamw "github.com/its-felix/aws-lwa-go-middleware"
 	"github.com/labstack/echo/v4"
-	"log"
-	"log/slog"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 func main() {
@@ -121,8 +122,9 @@ func main() {
 		group.GET("/schedule/allegris", sshHandler.Allegris)
 		group.GET("/schedule/allegris/feed.rss", sshHandler.AllegrisRSSFeed)
 		group.GET("/schedule/allegris/feed.atom", sshHandler.AllegrisAtomFeed)
-		group.GET("/allegris/feed.rss", sshHandler.AllegrisRSSFeed)
-		group.GET("/allegris/feed.atom", sshHandler.AllegrisAtomFeed)
+		group.GET("/schedule/swiss350", sshHandler.SwissA350)
+		group.GET("/schedule/swiss350/feed.rss", sshHandler.SwissA350RSSFeed)
+		group.GET("/schedule/swiss350/feed.atom", sshHandler.SwissA350AtomFeed)
 
 		// region deprecated feed endpoints
 		group.GET("/:fn/:departureDate/:departureAirport/feed.rss", dh.LegacyFlightScheduleVersionsRSSFeed)

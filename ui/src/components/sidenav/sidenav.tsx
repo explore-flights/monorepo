@@ -21,6 +21,11 @@ export function SideNav() {
         },
         {
           type: 'link',
+          text: 'Swiss A350',
+          href: useHref('/swiss350'),
+        },
+        {
+          type: 'link',
           text: 'Updates',
           href: useHref('/updates'),
         },

@@ -11,7 +11,6 @@ import { PrivacyPolicy } from './privacy-policy';
 import { Links } from './tools/links';
 import { FlightView } from './flight';
 import { FlightSelect } from './flight-select';
-import { Allegris } from './allegris';
 import { FlightSearch } from './tools/flight-search';
 import { FlightVersionsView } from './flight-versions';
 import { Airports } from './airports';
@@ -19,6 +18,7 @@ import { AirportPage } from './airport';
 import { Updates } from './updates';
 import { TechAirports } from './game/tech-airports';
 import { DailyAirports } from './game/daily-airports';
+import { Allegris, SwissA350 } from './special_aircraft';
 
 // region router
 const router = createBrowserRouter([
@@ -71,6 +71,10 @@ const router = createBrowserRouter([
       {
         path: 'allegris',
         element: <Allegris />,
+      },
+      {
+        path: 'swiss350',
+        element: <SwissA350 />,
       },
       {
         path: 'updates',

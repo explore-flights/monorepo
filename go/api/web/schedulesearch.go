@@ -4,6 +4,13 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"slices"
+	"strings"
+	"time"
+
 	"github.com/explore-flights/monorepo/go/api/business/schedulesearch"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web/model"
@@ -13,12 +20,6 @@ import (
 	"github.com/gorilla/feeds"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/sync/errgroup"
-	"io"
-	"net/http"
-	"net/url"
-	"slices"
-	"strings"
-	"time"
 )
 
 type scheduleSearchHandlerRepo interface {
@@ -189,6 +190,54 @@ func (h *ScheduleSearchHandler) allegrisFeed(c echo.Context, contentType string,
 		return err
 	}
 
+	return h.specialAircraftFeed(
+		c,
+		result,
+		"https://explore.flights/allegris",
+		"Lufthansa Allegris Flights",
+		"Allegris",
+		contentType,
+		writer,
+	)
+}
+
+func (h *ScheduleSearchHandler) SwissA350(c echo.Context) error {
+	ctx := c.Request().Context()
+	result, err := h.querySwissA350(ctx)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, result)
+}
+
+func (h *ScheduleSearchHandler) SwissA350RSSFeed(c echo.Context) error {
+	return h.swissA350Feed(c, "application/rss+xml", (*feeds.Feed).WriteRss)
+}
+
+func (h *ScheduleSearchHandler) SwissA350AtomFeed(c echo.Context) error {
+	return h.swissA350Feed(c, "application/atom+xml", (*feeds.Feed).WriteAtom)
+}
+
+func (h *ScheduleSearchHandler) swissA350Feed(c echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
+	ctx := c.Request().Context()
+	result, err := h.querySwissA350(ctx)
+	if err != nil {
+		return err
+	}
+
+	return h.specialAircraftFeed(
+		c,
+		result,
+		"https://explore.flights/swiss350",
+		"Swiss A350 Flights",
+		"Swiss A350",
+		contentType,
+		writer,
+	)
+}
+
+func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model.FlightSchedulesMany, feedId, feedTitle, shortName, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
 	fnName := func(fn model.FlightNumber) string {
 		var airlinePrefix string
 		if airline, ok := result.Airlines[fn.AirlineId]; ok {
@@ -213,7 +262,6 @@ func (h *ScheduleSearchHandler) allegrisFeed(c echo.Context, contentType string,
 		return fmt.Sprintf("%s - %s", airportName(departureAirportId), airportName(arrivalAirportId))
 	}
 
-	feedId := "https://explore.flights/allegris"
 	baseLink := &feeds.Link{
 		Href: feedId,
 		Rel:  "alternate",
@@ -222,7 +270,7 @@ func (h *ScheduleSearchHandler) allegrisFeed(c echo.Context, contentType string,
 
 	feed := &feeds.Feed{
 		Id:      feedId,
-		Title:   "Lufthansa Allegris Flights",
+		Title:   feedTitle,
 		Link:    baseLink,
 		Created: common.ProjectCreationTime(),
 		Updated: common.ProjectCreationTime(),
@@ -338,13 +386,14 @@ func (h *ScheduleSearchHandler) allegrisFeed(c echo.Context, contentType string,
 							Rel:  "alternate",
 							Type: "text/html",
 						},
-						Title: fmt.Sprintf("Flight %s operates on Allegris", fnStr),
+						Title: fmt.Sprintf("Flight %s operates on %s", fnStr, shortName),
 						Content: strings.TrimSpace(fmt.Sprintf(
 							`
-Flight %s operates on Allegris (%s)
+Flight %s operates on %s (%s)
 From %s until %s for a total of %d flights
 `,
 							fnStr,
+							shortName,
 							routeName(departureAirportId, arrivalAirportId),
 							entry.MinDepartureDateLocal.String(),
 							entry.MaxDepartureDateLocal.String(),
@@ -422,6 +471,53 @@ func (h *ScheduleSearchHandler) queryAllegris(ctx context.Context) (model.Flight
 				schedulesearch.WithAircraftConfigurationVersion("C38E24M201"),
 				schedulesearch.WithAircraftConfigurationVersion("F4C38E24M201"),
 			),
+		),
+	)
+	if err != nil {
+		return model.FlightSchedulesMany{}, err
+	}
+
+	return result, nil
+}
+
+func (h *ScheduleSearchHandler) querySwissA350(ctx context.Context) (model.FlightSchedulesMany, error) {
+	var lxAirlineId uuid.UUID
+	var a350900AircraftId uuid.UUID
+	{
+		airlines, err := h.repo.Airlines(ctx)
+		if err != nil {
+			return model.FlightSchedulesMany{}, err
+		}
+
+		for _, airline := range airlines {
+			if airline.IataCode == "LX" {
+				lxAirlineId = airline.Id
+				break
+			}
+		}
+
+		aircraft, err := h.repo.Aircraft(ctx)
+		if err != nil {
+			return model.FlightSchedulesMany{}, err
+		}
+
+		for _, ac := range aircraft {
+			if ac.IataCode.Valid && ac.IataCode.String == "359" {
+				a350900AircraftId = ac.Id
+				break
+			}
+		}
+	}
+
+	if lxAirlineId.IsNil() || a350900AircraftId.IsNil() {
+		return model.FlightSchedulesMany{}, NewHTTPError(http.StatusInternalServerError)
+	}
+
+	result, err := h.queryInternal(
+		ctx,
+		schedulesearch.WithAll(
+			schedulesearch.WithAirlines(lxAirlineId),
+			schedulesearch.WithAircraftId(a350900AircraftId),
 		),
 	)
 	if err != nil {

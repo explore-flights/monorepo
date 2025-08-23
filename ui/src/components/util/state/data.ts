@@ -227,6 +227,26 @@ export function useAllegrisSchedules() {
   });
 }
 
+export function useSwissA350Schedules() {
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['schedule', 'swiss350'],
+    queryFn: async () => {
+      const { body } = expectSuccess(await apiClient.getSwissA350Schedules());
+      return body;
+    },
+    retry: (count, e) => {
+      if (count > 3) {
+        return false;
+      } else if (e instanceof ApiError && (e.response.status === 400 || e.response.status === 404)) {
+        return false;
+      }
+
+      return true;
+    },
+  });
+}
+
 export function useQueryFlightSchedules(req: QuerySchedulesRequest) {
   const { apiClient } = useHttpClient();
   return useQuery({

@@ -139,6 +139,10 @@ export class ApiClient {
     return transform(this.httpClient.fetch('/data/schedule/allegris'));
   }
 
+  getSwissA350Schedules(): Promise<ApiResponse<QuerySchedulesResponseV2>> {
+    return transform(this.httpClient.fetch('/data/schedule/swiss350'));
+  }
+
   queryFlightSchedules(req: QuerySchedulesRequest): Promise<ApiResponse<QuerySchedulesResponseV2>> {
     const params = new URLSearchParams();
 

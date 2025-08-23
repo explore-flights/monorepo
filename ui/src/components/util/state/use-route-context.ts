@@ -71,6 +71,11 @@ const ROUTES = [{
       breadcrumb: 'Allegris',
     },
     {
+      path: 'swiss350',
+      title: 'Swiss A350',
+      breadcrumb: 'Swiss A350',
+    },
+    {
       path: 'updates',
       title: 'Updates',
       breadcrumb: 'Updates',
