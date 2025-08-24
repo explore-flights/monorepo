@@ -114,6 +114,7 @@ export class ApiLambdaConstruct extends Construct {
     props.dataBucket.grantRead(this.lambda, 'raw/ourairports_data/regions.csv');
     props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/airports.json');
     props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/aircraft.json');
+    props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/flightschedules_history/*.tar.gz');
     props.dataBucket.grantReadWrite(this.lambda, 'tmp/seatmap/*');
 
     props.parquetBucket.grantRead(this.lambda);

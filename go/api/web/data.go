@@ -5,15 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/explore-flights/monorepo/go/api/business/seatmap"
-	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/explore-flights/monorepo/go/api/web/model"
-	"github.com/explore-flights/monorepo/go/common"
-	"github.com/explore-flights/monorepo/go/common/xtime"
-	"github.com/gofrs/uuid/v5"
-	"github.com/gorilla/feeds"
-	"github.com/labstack/echo/v4"
-	"golang.org/x/sync/errgroup"
 	"io"
 	"maps"
 	"net/http"
@@ -23,6 +14,17 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/explore-flights/monorepo/go/api/business/raw"
+	"github.com/explore-flights/monorepo/go/api/business/seatmap"
+	"github.com/explore-flights/monorepo/go/api/db"
+	"github.com/explore-flights/monorepo/go/api/web/model"
+	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/xtime"
+	"github.com/gofrs/uuid/v5"
+	"github.com/gorilla/feeds"
+	"github.com/labstack/echo/v4"
+	"golang.org/x/sync/errgroup"
 )
 
 var iataFlightNumberRgx = regexp.MustCompile("^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$")
@@ -41,14 +43,16 @@ type dataHandlerRepo interface {
 }
 
 type DataHandler struct {
-	repo     dataHandlerRepo
-	smSearch *seatmap.Search
+	repo      dataHandlerRepo
+	smSearch  *seatmap.Search
+	rawSearch *raw.Search
 }
 
-func NewDataHandler(repo dataHandlerRepo, smSearch *seatmap.Search) *DataHandler {
+func NewDataHandler(repo dataHandlerRepo, smSearch *seatmap.Search, rawSearch *raw.Search) *DataHandler {
 	return &DataHandler{
-		repo:     repo,
-		smSearch: smSearch,
+		repo:      repo,
+		smSearch:  smSearch,
+		rawSearch: rawSearch,
 	}
 }
 
@@ -223,6 +227,46 @@ func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
 
 	addExpirationHeaders(c, time.Now(), time.Hour)
 	return c.JSON(http.StatusOK, fs)
+}
+
+func (dh *DataHandler) FlightScheduleVersionRaw(c echo.Context) error {
+	ctx := c.Request().Context()
+	fnRaw := c.Param("fn")
+	versionRaw := c.Param("version")
+	departureAirportRaw := c.Param("departureAirport")
+	departureDateLocalRaw := c.Param("departureDateLocal")
+
+	fn, airline, err := dh.parseAndResolveFlightNumber(ctx, fnRaw)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err))
+	}
+
+	version, err := time.Parse(time.RFC3339, versionRaw)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err))
+	}
+
+	airport, err := dh.parseAndResolveAirport(ctx, departureAirportRaw)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err))
+	}
+
+	departureDateLocal, err := xtime.ParseLocalDate(departureDateLocalRaw)
+	if departureDateLocal, err = xtime.ParseLocalDate(departureDateLocalRaw); err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err))
+	}
+
+	schedules, err := dh.rawSearch.Search(ctx, version, fmt.Sprintf("%s%d%s", airline.IataCode, fn.Number, fn.Suffix), departureDateLocal, airport.IataCode)
+	if err != nil {
+		return NewHTTPError(http.StatusInternalServerError, WithCause(err))
+	}
+
+	if len(schedules) < 1 {
+		return NewHTTPError(http.StatusNotFound)
+	}
+
+	addExpirationHeaders(c, time.Now(), time.Hour*24)
+	return c.JSON(http.StatusOK, schedules)
 }
 
 func (dh *DataHandler) SeatMap(c echo.Context) error {
@@ -851,6 +895,42 @@ func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.Fl
 	return db.FlightNumber{}, fmt.Errorf("invalid FlightNumber: %q", raw)
 }
 
+func (dh *DataHandler) parseAndResolveFlightNumber(ctx context.Context, raw string) (db.FlightNumber, db.Airline, error) {
+	fn, err := dh.parseFlightNumber(ctx, raw)
+	if err != nil {
+		return db.FlightNumber{}, db.Airline{}, err
+	}
+
+	airlines, err := dh.repo.Airlines(ctx)
+	if err != nil {
+		return db.FlightNumber{}, db.Airline{}, err
+	}
+
+	if airline, ok := airlines[fn.AirlineId]; ok {
+		return fn, airline, nil
+	}
+
+	return db.FlightNumber{}, db.Airline{}, fmt.Errorf("airline not found: %q", fn.AirlineId)
+}
+
 func (dh *DataHandler) parseAirport(ctx context.Context, raw string) (uuid.UUID, error) {
 	return util{}.parseAirport(ctx, raw, dh.repo.Airports)
+}
+
+func (dh *DataHandler) parseAndResolveAirport(ctx context.Context, raw string) (db.Airport, error) {
+	airportId, err := util{}.parseAirport(ctx, raw, dh.repo.Airports)
+	if err != nil {
+		return db.Airport{}, err
+	}
+
+	airports, err := dh.repo.Airports(ctx)
+	if err != nil {
+		return db.Airport{}, err
+	}
+
+	if airport, ok := airports[airportId]; ok {
+		return airport, nil
+	}
+
+	return db.Airport{}, fmt.Errorf("airport not found: %q", raw)
 }

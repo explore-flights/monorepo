@@ -23,6 +23,7 @@ import { airportToString, flightNumberToString } from '../lib/util/flight';
 import { DateTime, Duration, FixedOffsetZone } from 'luxon';
 import { FlightNumberList } from '../components/common/flight-link';
 import { AirportInlineText, AirportLongText } from '../components/common/text';
+import { RouterInlineLink } from '../components/common/router-link';
 
 export function FlightVersionsView() {
   const { id, departureAirport, departureDateLocal } = useParams();
@@ -105,7 +106,9 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
     return `/data/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(airportId)}/${encodeURIComponent(flightVersions.departureDateLocal)}`;
   }, [flightVersions]);
 
-
+  const airline = flightVersions.airlines[flightVersions.flightNumber.airlineId];
+  const flightNumber = `${airline.iataCode}${flightVersions.flightNumber.number}${flightVersions.flightNumber.suffix ?? ''}`;
+  const departureAirportIata = flightVersions.airports[flightVersions.departureAirportId].iataCode;
 
   return (
     <ContentLayout header={
@@ -285,6 +288,23 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
                   ? <WrapChanged changed={v.codeShares}><FlightNumberList flightNumbers={v.codeShares[0].toSorted(compareFlightNumbers)} rel={'alternate nofollow'} /></WrapChanged>
                   : '';
               }, []),
+            },
+            {
+              id: 'actions',
+              header: 'Actions',
+              cell: useCallback((v: TableItem) => {
+                if (v.type !== 'scheduled') {
+                  return '';
+                }
+                
+                return (
+                  <RouterInlineLink
+                    to={`/data/flight/${encodeURIComponent(flightNumber)}/${v.version.toUTC().toISO()}/${encodeURIComponent(departureAirportIata)}/${encodeURIComponent(flightVersions.departureDateLocal)}/raw.json`}
+                    target={'_blank'}
+                    rel={'nofollow'}
+                  >Raw</RouterInlineLink>
+                );
+              }, [flightNumber, departureAirportIata, flightVersions.departureDateLocal]),
             },
           ]}
         />

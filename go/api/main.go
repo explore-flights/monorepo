@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/explore-flights/monorepo/go/api/business/connections"
+	"github.com/explore-flights/monorepo/go/api/business/raw"
 	"github.com/explore-flights/monorepo/go/api/business/report"
 	"github.com/explore-flights/monorepo/go/api/business/schedulesearch"
 	"github.com/explore-flights/monorepo/go/api/business/seatmap"
@@ -107,7 +108,7 @@ func main() {
 	{
 		group := e.Group("/data")
 
-		dh := web.NewDataHandler(fr, seatmap.NewSearch(s3c, bucket, fr, lhc))
+		dh := web.NewDataHandler(fr, seatmap.NewSearch(s3c, bucket, fr, lhc), raw.NewSearch(s3c, bucket))
 		group.GET("/airlines.json", dh.Airlines)
 		group.GET("/airports.json", dh.Airports)
 		group.GET("/aircraft.json", dh.Aircraft)
@@ -118,6 +119,7 @@ func main() {
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal", dh.FlightScheduleVersions)
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal/feed.rss", dh.FlightScheduleVersionsRSSFeed)
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal/feed.atom", dh.FlightScheduleVersionsAtomFeed)
+		group.GET("/flight/:fn/:version/:departureAirport/:departureDateLocal/raw.json", dh.FlightScheduleVersionRaw)
 		group.GET("/flight/:fn/seatmap/:departureAirport/:departureDateLocal", dh.SeatMap)
 		group.GET("/schedule/allegris", sshHandler.Allegris)
 		group.GET("/schedule/allegris/feed.rss", sshHandler.AllegrisRSSFeed)
