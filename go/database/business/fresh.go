@@ -3,7 +3,9 @@ package business
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -37,8 +39,8 @@ func (f *Fresh) GenerateFreshDatabase(ctx context.Context, startAt time.Time, ba
 		baseDataKey,
 		finalBucket,
 		finalKey,
-		func(ctx context.Context, conn *sql.Conn, historyPath string) error {
-			return f.runUpdates(ctx, conn, startAt, historyBucket, historyPrefix, historyPath)
+		func(ctx context.Context, conn *sql.Conn, tmpDbPath, historyPath string) error {
+			return f.runUpdates(ctx, conn, tmpDbPath, startAt, historyBucket, historyPrefix, historyPath)
 		},
 	)
 }
@@ -50,13 +52,13 @@ func (f *Fresh) UpdateDatabase(ctx context.Context, initialDataBucket, initialDa
 		initialDataKey,
 		finalBucket,
 		finalKey,
-		func(ctx context.Context, conn *sql.Conn, historyPath string) error {
+		func(ctx context.Context, conn *sql.Conn, tmpDbPath, historyPath string) error {
 			return f.runUpdate(ctx, conn, t, historyBucket, historyFileKey, historyPath)
 		},
 	)
 }
 
-func (f *Fresh) updateDatabase(ctx context.Context, initialDataBucket, initialDataKey, finalBucket, finalKey string, updateFn func(ctx context.Context, conn *sql.Conn, historyPath string) error) error {
+func (f *Fresh) updateDatabase(ctx context.Context, initialDataBucket, initialDataKey, finalBucket, finalKey string, updateFn func(ctx context.Context, conn *sql.Conn, tmpDbPath, historyPath string) error) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -78,7 +80,7 @@ func (f *Fresh) updateDatabase(ctx context.Context, initialDataBucket, initialDa
 
 		if err := util.WithDatabase(ctx, ddbHomePath, tmpDbPath, "tmp_db", 16, func(conn *sql.Conn) error {
 			if err := util.RunTimed("run updates", func() error {
-				return updateFn(ctx, conn, historyPath)
+				return updateFn(ctx, conn, tmpDbPath, historyPath)
 			}); err != nil {
 				return err
 			}
@@ -109,7 +111,7 @@ func (f *Fresh) updateDatabase(ctx context.Context, initialDataBucket, initialDa
 	return nil
 }
 
-func (f *Fresh) runUpdates(ctx context.Context, conn *sql.Conn, startAt time.Time, historyBucket, historyPrefix, historyPath string) error {
+func (f *Fresh) runUpdates(ctx context.Context, conn *sql.Conn, tmpDbPath string, startAt time.Time, historyBucket, historyPrefix, historyPath string) error {
 	if err := (util.UpdateScript{Name: "Init Schema", Script: db.Schema}.Run(ctx, conn, nil)); err != nil {
 		return fmt.Errorf("failed to init schema: %w", err)
 	}
@@ -151,15 +153,26 @@ func (f *Fresh) runUpdates(ctx context.Context, conn *sql.Conn, startAt time.Tim
 		return a.V1.Compare(b.V1)
 	})
 
-	for i, element := range elements {
-		if err := util.RunTimed(fmt.Sprintf("running update for %q (%s) (%d/%d)", element.V2, element.V1, i+1, len(elements)), func() error {
-			return f.runUpdate(ctx, conn, element.V1, historyBucket, element.V2, historyPath)
-		}); err != nil {
-			return fmt.Errorf("failed to run update for key %q (%v): %w", element.V2, element.V2, err)
-		}
-	}
+	return util.WithTempDir(func(checkpointDir string) error {
+		for i, element := range elements {
+			if err := util.RunTimed(fmt.Sprintf("running update for %q (%s) (%d/%d)", element.V2, element.V1, i+1, len(elements)), func() error {
+				return f.runUpdate(ctx, conn, element.V1, historyBucket, element.V2, historyPath)
+			}); err != nil {
+				return fmt.Errorf("failed to run update for key %q (%v): %w", element.V2, element.V2, err)
+			}
 
-	return nil
+			if i%20 == 0 {
+				err := f.checkpoint(tmpDbPath, checkpointDir)
+				if err != nil {
+					return fmt.Errorf("failed to checkpoint : %w", err)
+				}
+
+				fmt.Printf("saved checkpoint in dir %q\n", checkpointDir)
+			}
+		}
+
+		return nil
+	})
 }
 
 func (f *Fresh) runUpdate(ctx context.Context, conn *sql.Conn, t time.Time, historyBucket, historyKey, historyPath string) error {
@@ -175,4 +188,57 @@ func (f *Fresh) runUpdate(ctx context.Context, conn *sql.Conn, t time.Time, hist
 
 func (f *Fresh) downloadHistory(ctx context.Context, historyBucket, historyKey, historyPath string) error {
 	return util.DownloadAndUpackGzippedTar(ctx, f.S3CHistory, historyBucket, historyKey, historyPath)
+}
+
+func (f *Fresh) checkpoint(tmpDbPath, checkpointDir string) error {
+	if err := func() error {
+		src, err := os.Open(tmpDbPath)
+		if err != nil {
+			return err
+		}
+		defer src.Close()
+
+		dst, err := os.Create(filepath.Join(checkpointDir, "checkpoint.db"))
+		if err != nil {
+			return err
+		}
+		defer dst.Close()
+
+		if _, err := io.Copy(dst, src); err != nil {
+			return err
+		}
+
+		return nil
+	}(); err != nil {
+		return err
+	}
+
+	if err := func() error {
+		src, err := os.Open(tmpDbPath + ".wal")
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				_ = os.Remove(filepath.Join(checkpointDir, "checkpoint.db.wal"))
+				return nil
+			}
+
+			return err
+		}
+		defer src.Close()
+
+		dst, err := os.Create(filepath.Join(checkpointDir, "checkpoint.db.wal"))
+		if err != nil {
+			return err
+		}
+		defer dst.Close()
+
+		if _, err := io.Copy(dst, src); err != nil {
+			return err
+		}
+
+		return nil
+	}(); err != nil {
+		return err
+	}
+
+	return nil
 }
