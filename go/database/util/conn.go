@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"path/filepath"
+
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/marcboeker/go-duckdb/v2"
-	"path/filepath"
 )
 
 func WithDatabase(ctx context.Context, ddbHomePath, tmpDbPath, tmpDbName string, threadCount int, fn func(conn *sql.Conn) error) error {
@@ -67,6 +68,10 @@ func dbInit(ctx context.Context, ddbHomePath, tmpDbPath, tmpDbName string, threa
 			},
 			{
 				`SET partitioned_write_flush_threshold = 10000`,
+				[]driver.NamedValue{},
+			},
+			{
+				`SET TimeZone = 'UTC'`,
 				[]driver.NamedValue{},
 			},
 			{

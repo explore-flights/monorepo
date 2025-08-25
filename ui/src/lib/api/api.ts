@@ -83,7 +83,7 @@ export class ApiClient {
   }
 
   getAircraft(): Promise<ApiResponse<ReadonlyArray<Aircraft>>> {
-    return transform(this.httpClient.fetch('/data/aircraft.json?v=2'));
+    return transform(this.httpClient.fetch('/data/aircraft.json?v=3'));
   }
 
   getFlightSchedule(flightNumber: string, version?: DateTime<true>): Promise<ApiResponse<FlightSchedules>> {
@@ -92,11 +92,11 @@ export class ApiClient {
       suffix = `/${version.toUTC().toISO()}`;
     }
 
-    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}${suffix}?v=4`));
+    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}${suffix}?v=5`));
   }
 
   getFlightScheduleVersions(flightNumber: string, departureAirport: string, departureDateLocal: string): Promise<ApiResponse<FlightScheduleVersions>> {
-    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(departureAirport)}/${encodeURIComponent(departureDateLocal)}?v=2`));
+    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(departureAirport)}/${encodeURIComponent(departureDateLocal)}?v=3`));
   }
 
   getConnections(req: ConnectionsSearchRequest): Promise<ApiResponse<ConnectionsSearchResponse>> {

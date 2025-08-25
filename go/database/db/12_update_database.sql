@@ -26,14 +26,17 @@ SELECT
     COALESCE(serviceType, '') AS serviceType,
     COALESCE(aircraftOwner, '') AS aircraftOwner,
     aircraftType,
-    COALESCE(aircraftConfigurationVersion, '') AS aircraftConfigurationVersion,
-    COALESCE(registration, '') AS registration,
+    COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '[F]([0-9]+)', 1) AS USMALLINT), 0) AS seatsFirst,
+    COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '[C|J]([0-9]+)', 1) AS USMALLINT), 0) AS seatsBusiness,
+    COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '[E|R|U|PY]([0-9]+)', 1) AS USMALLINT), 0) AS seatsPremium,
+    COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '[M|Y]([0-9]+)', 1) AS USMALLINT), 0) AS seatsEconomy,
     CAST(STRPTIME(periodOfOperationUTC.startDate, '%d%b%y') + TO_DAYS(aircraftDepartureTimeDateDiffUTC) + TO_MINUTES(aircraftDepartureTimeUTC) + TO_MINUTES(aircraftDepartureTimeVariation) AS DATE) AS departureDateLocal,
     CAST(STRPTIME(periodOfOperationUTC.startDate, '%d%b%y') + TO_DAYS(aircraftDepartureTimeDateDiffUTC) + TO_MINUTES(aircraftDepartureTimeUTC) + TO_MINUTES(aircraftDepartureTimeVariation) AS TIME) AS departureTimeLocal,
     aircraftDepartureTimeVariation * 60 AS departureUTCOffsetSeconds,
     CAST(STRPTIME(periodOfOperationUTC.startDate, '%d%b%y') + TO_DAYS(aircraftArrivalTimeDateDiffUTC) + TO_MINUTES(aircraftArrivalTimeUTC) + TO_MINUTES(aircraftArrivalTimeVariation) AS DATE) AS arrivalDateLocal,
     CAST(STRPTIME(periodOfOperationUTC.startDate, '%d%b%y') + TO_DAYS(aircraftArrivalTimeDateDiffUTC) + TO_MINUTES(aircraftArrivalTimeUTC) + TO_MINUTES(aircraftArrivalTimeVariation) AS TIME) AS arrivalTimeLocal,
-    aircraftArrivalTimeVariation * 60 AS arrivalUTCOffsetSeconds
+    aircraftArrivalTimeVariation * 60 AS arrivalUTCOffsetSeconds,
+    op AS isOp
 FROM (
     SELECT
         filename,
@@ -51,8 +54,33 @@ FROM (
 
 -- assert: lh_flight_schedules_flattened > lh_flight_schedules_raw
 
+-- id:temp_sanity_check_seat_numbers
+CREATE TABLE temp_sanity_check_seat_numbers AS
+SELECT sub.seatCode
+FROM (
+    SELECT UNNEST(REGEXP_EXTRACT_ALL(SPLIT_PART(leg.aircraftConfigurationVersion, 'VV', 1), '([A-Z]+)[0-9]+', 1)) AS seatCode
+    FROM (
+        SELECT UNNEST(legs) AS leg
+        FROM lh_flight_schedules_raw
+    )
+) sub
+WHERE seatCode NOT IN ('F', 'C', 'J', 'E', 'R', 'U', 'PY', 'M', 'Y') ;
+
+-- assert: temp_sanity_check_seat_numbers == 0
+
 -- drop lh_flight_schedules_raw
 DROP TABLE lh_flight_schedules_raw ;
+
+-- drop temp_sanity_check_seat_numbers
+DROP TABLE temp_sanity_check_seat_numbers ;
+
+-- update seat counts
+UPDATE lh_flight_schedules_flattened
+SET
+    seatsFirst = IF(seatsFirst = 99 OR seatsFirst >= 800, 999, seatsFirst),
+    seatsBusiness = IF(seatsBusiness = 99 OR seatsBusiness >= 800, 999, seatsBusiness),
+    seatsPremium = IF(seatsPremium = 99 OR seatsPremium >= 800, 999, seatsPremium),
+    seatsEconomy = IF(seatsEconomy = 99 OR seatsEconomy >= 800, 999, seatsEconomy) ;
 
 -- create queried dates table
 -- id:queried_dates
@@ -73,8 +101,10 @@ CREATE TABLE lh_all_flights (
     serviceType TEXT NOT NULL,
     aircraftOwner TEXT NOT NULL,
     aircraftType TEXT NOT NULL,
-    aircraftConfigurationVersion TEXT NOT NULL,
-    aircraftRegistration TEXT NOT NULL,
+    seatsFirst UINTEGER,
+    seatsBusiness UINTEGER,
+    seatsPremium UINTEGER,
+    seatsEconomy UINTEGER,
     departureDateLocal DATE NOT NULL,
     departureTimeLocal TIME NOT NULL,
     departureUTCOffsetSeconds INT NOT NULL,
@@ -83,8 +113,7 @@ CREATE TABLE lh_all_flights (
     arrivalUTCOffsetSeconds INT NOT NULL,
     queryDate DATE NOT NULL,
     codeSharesRaw TEXT[] NOT NULL,
-    priority INT NOT NULL,
-    isDerived BOOL NOT NULL
+    priority INT NOT NULL
 ) ;
 
 -- insert base flights
@@ -101,8 +130,10 @@ INSERT INTO lh_all_flights (
     serviceType,
     aircraftOwner,
     aircraftType,
-    aircraftConfigurationVersion,
-    aircraftRegistration,
+    seatsFirst,
+    seatsBusiness,
+    seatsPremium,
+    seatsEconomy,
     departureDateLocal,
     departureTimeLocal,
     departureUTCOffsetSeconds,
@@ -111,8 +142,7 @@ INSERT INTO lh_all_flights (
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
-    priority,
-    isDerived
+    priority
 )
 SELECT
     createdAt,
@@ -127,8 +157,10 @@ SELECT
     serviceType,
     aircraftOwner,
     aircraftType,
-    aircraftConfigurationVersion,
-    registration,
+    seatsFirst,
+    seatsBusiness,
+    seatsPremium,
+    seatsEconomy,
     departureDateLocal,
     departureTimeLocal,
     departureUTCOffsetSeconds,
@@ -137,8 +169,7 @@ SELECT
     arrivalUTCOffsetSeconds,
     queryDate,
     LIST_DISTINCT(FLATTEN(LIST_TRANSFORM(COALESCE(dataElements[10], []), lambda v: STRING_SPLIT(v, '/')))),
-    10,
-    FALSE,
+    IF(isOp, 10, 11)
 FROM lh_flight_schedules_flattened
 WHERE dataElements[50] IS NULL OR LENGTH(dataElements[50]) < 1 ;
 
@@ -156,8 +187,10 @@ INSERT INTO lh_all_flights (
     serviceType,
     aircraftOwner,
     aircraftType,
-    aircraftConfigurationVersion,
-    aircraftRegistration,
+    seatsFirst,
+    seatsBusiness,
+    seatsPremium,
+    seatsEconomy,
     departureDateLocal,
     departureTimeLocal,
     departureUTCOffsetSeconds,
@@ -166,8 +199,7 @@ INSERT INTO lh_all_flights (
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
-    priority,
-    isDerived
+    priority
 )
 SELECT
     createdAt,
@@ -182,8 +214,10 @@ SELECT
     serviceType,
     aircraftOwner,
     aircraftType,
-    aircraftConfigurationVersion,
-    registration,
+    seatsFirst,
+    seatsBusiness,
+    seatsPremium,
+    seatsEconomy,
     departureDateLocal,
     departureTimeLocal,
     departureUTCOffsetSeconds,
@@ -192,8 +226,7 @@ SELECT
     arrivalUTCOffsetSeconds,
     queryDate,
     LIST_DISTINCT(FLATTEN(LIST_TRANSFORM(COALESCE(dataElements[10], []), lambda v: STRING_SPLIT(v, '/')))),
-    20,
-    FALSE
+    20
 FROM (
     SELECT
         *,
@@ -216,8 +249,10 @@ INSERT INTO lh_all_flights (
     serviceType,
     aircraftOwner,
     aircraftType,
-    aircraftConfigurationVersion,
-    aircraftRegistration,
+    seatsFirst,
+    seatsBusiness,
+    seatsPremium,
+    seatsEconomy,
     departureDateLocal,
     departureTimeLocal,
     departureUTCOffsetSeconds,
@@ -226,8 +261,7 @@ INSERT INTO lh_all_flights (
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
-    priority,
-    isDerived
+    priority
 )
 SELECT
     createdAt,
@@ -242,8 +276,10 @@ SELECT
     serviceType,
     aircraftOwner,
     aircraftType,
-    aircraftConfigurationVersion,
-    aircraftRegistration,
+    seatsFirst,
+    seatsBusiness,
+    seatsPremium,
+    seatsEconomy,
     departureDateLocal,
     departureTimeLocal,
     departureUTCOffsetSeconds,
@@ -252,8 +288,7 @@ SELECT
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
-    priority + 5,
-    TRUE
+    priority + 5
 FROM (
     SELECT
         *,
@@ -276,8 +311,10 @@ INSERT INTO lh_all_flights (
     serviceType,
     aircraftOwner,
     aircraftType,
-    aircraftConfigurationVersion,
-    aircraftRegistration,
+    seatsFirst,
+    seatsBusiness,
+    seatsPremium,
+    seatsEconomy,
     departureDateLocal,
     departureTimeLocal,
     departureUTCOffsetSeconds,
@@ -286,8 +323,7 @@ INSERT INTO lh_all_flights (
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
-    priority,
-    isDerived
+    priority
 )
 SELECT
     createdAt,
@@ -302,8 +338,10 @@ SELECT
     serviceType,
     aircraftOwner,
     aircraftType,
-    aircraftConfigurationVersion,
-    aircraftRegistration,
+    seatsFirst,
+    seatsBusiness,
+    seatsPremium,
+    seatsEconomy,
     departureDateLocal,
     departureTimeLocal,
     departureUTCOffsetSeconds,
@@ -312,8 +350,7 @@ SELECT
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
-    priority + 5,
-    TRUE
+    priority + 5
 FROM lh_all_flights ;
 
 -- drop lh_flight_schedules_flattened
@@ -330,8 +367,10 @@ SELECT
     FIRST(destination ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS destination,
     FIRST(IF(LENGTH(aircraftOwner) = 2, aircraftOwner, operatingAirline) ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS aircraftOwner,
     FIRST(aircraftType ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS aircraftType,
-    FIRST(aircraftConfigurationVersion ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS aircraftConfigurationVersion,
-    FIRST(aircraftRegistration ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS aircraftRegistration,
+    FIRST(seatsFirst ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS seatsFirst,
+    FIRST(seatsBusiness ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS seatsBusiness,
+    FIRST(seatsPremium ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS seatsPremium,
+    FIRST(seatsEconomy ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS seatsEconomy,
     departureDateLocal,
     FIRST(departureTimeLocal ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS departureTimeLocal,
     FIRST(departureUTCOffsetSeconds ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS departureUTCOffsetSeconds,
@@ -361,8 +400,7 @@ SELECT
     origin,
     departureDateLocal,
     FIRST(serviceType ORDER BY priority ASC, departureTimeLocal DESC) AS serviceType,
-    ARRAY_AGG(DISTINCT queryDate) AS queryDates,
-    BOOL_AND(isDerived) AS isDerived
+    ARRAY_AGG(DISTINCT queryDate) AS queryDates
 FROM lh_all_flights
 GROUP BY
     createdAt,
@@ -444,15 +482,16 @@ SELECT
     fresh.serviceType,
     opdata.aircraftOwner,
     airc.aircraft_id AS aircraftId,
-    opdata.aircraftConfigurationVersion,
-    opdata.aircraftRegistration,
+    opdata.seatsFirst,
+    opdata.seatsBusiness,
+    opdata.seatsPremium,
+    opdata.seatsEconomy,
     opdata.departureDateLocal,
     opdata.departureTimeLocal,
     opdata.departureUTCOffsetSeconds,
     opdata.arrivalUTCOffsetSeconds,
     opdata.durationSeconds,
-    fresh.queryDates,
-    fresh.isDerived
+    fresh.queryDates
 FROM lh_all_flights_deduped fresh
 LEFT JOIN lh_operating_flight_data opdata
 ON fresh.createdAt = opdata.createdAt
@@ -489,15 +528,16 @@ INSERT INTO lh_all_flights_with_ids (
     serviceType,
     aircraftOwner,
     aircraftId,
-    aircraftConfigurationVersion,
-    aircraftRegistration,
+    seatsFirst,
+    seatsBusiness,
+    seatsPremium,
+    seatsEconomy,
     departureDateLocal,
     departureTimeLocal,
     departureUTCOffsetSeconds,
     arrivalUTCOffsetSeconds,
     durationSeconds,
-    queryDates,
-    isDerived
+    queryDates
 )
 WITH non_queried_flight_variant_history AS (
     SELECT fvh.*
@@ -529,15 +569,16 @@ SELECT
     FIRST(fv.service_type),
     FIRST(fresh.aircraftOwner),
     FIRST(fresh.aircraftId),
-    FIRST(fresh.aircraftConfigurationVersion),
-    FIRST(fresh.aircraftRegistration),
+    FIRST(fresh.seatsFirst),
+    FIRST(fresh.seatsBusiness),
+    FIRST(fresh.seatsPremium),
+    FIRST(fresh.seatsEconomy),
     fresh.departureDateLocal,
     FIRST(fresh.departureTimeLocal),
     FIRST(fresh.departureUTCOffsetSeconds),
     FIRST(fresh.arrivalUTCOffsetSeconds),
     FIRST(fresh.durationSeconds),
-    FIRST(fvh.query_dates),
-    FIRST(fvh.is_derived)
+    FIRST(fvh.query_dates)
 FROM non_queried_flight_variant_history fvh
 INNER JOIN flight_variants fv
 ON fvh.flight_variant_id = fv.id
@@ -647,8 +688,10 @@ INSERT INTO flight_variants (
     service_type,
     aircraft_owner,
     aircraft_id,
-    aircraft_configuration_version,
-    aircraft_registration,
+    seats_first,
+    seats_business,
+    seats_premium,
+    seats_economy,
     code_shares_hash,
     code_shares
 )
@@ -666,8 +709,10 @@ SELECT
     fresh.serviceType,
     fresh.aircraftOwner,
     fresh.aircraftId,
-    fresh.aircraftConfigurationVersion,
-    fresh.aircraftRegistration,
+    fresh.seatsFirst,
+    fresh.seatsBusiness,
+    fresh.seatsPremium,
+    fresh.seatsEconomy,
     MD5_NUMBER(TO_JSON(cs.codeShares)),
     cs.codeShares
 FROM lh_all_flights_with_ids fresh
@@ -690,8 +735,10 @@ GROUP BY
     fresh.serviceType,
     fresh.aircraftOwner,
     fresh.aircraftId,
-    fresh.aircraftConfigurationVersion,
-    fresh.aircraftRegistration,
+    fresh.seatsFirst,
+    fresh.seatsBusiness,
+    fresh.seatsPremium,
+    fresh.seatsEconomy,
     cs.codeShares
 ON CONFLICT (
     operating_airline_id,
@@ -706,8 +753,10 @@ ON CONFLICT (
     service_type,
     aircraft_owner,
     aircraft_id,
-    aircraft_configuration_version,
-    aircraft_registration,
+    seats_first,
+    seats_business,
+    seats_premium,
+    seats_economy,
     code_shares_hash
 ) DO NOTHING ;
 
@@ -737,8 +786,10 @@ AND fresh.arrivalUTCOffsetSeconds = fv.arrival_utc_offset_seconds
 AND fresh.serviceType = fv.service_type
 AND fresh.aircraftOwner = fv.aircraft_owner
 AND fresh.aircraftId = fv.aircraft_id
-AND fresh.aircraftConfigurationVersion = fv.aircraft_configuration_version
-AND fresh.aircraftRegistration = fv.aircraft_registration
+AND fresh.seatsFirst = fv.seats_first
+AND fresh.seatsBusiness = fv.seats_business
+AND fresh.seatsPremium = fv.seats_premium
+AND fresh.seatsEconomy = fv.seats_economy
 AND MD5_NUMBER(TO_JSON(cs.codeShares)) = fv.code_shares_hash
 AND cs.codeShares = fv.code_shares ;
 
@@ -749,3 +800,14 @@ DROP TABLE lh_all_flights_with_ids ;
 
 -- drop codeshares
 DROP TABLE lh_operating_codeshares ;
+
+-- id:temp_sanity_check_variant_ids_filled
+CREATE TABLE temp_sanity_check_variant_ids_filled AS
+SELECT 1 AS x
+FROM lh_all_flights_with_variants
+WHERE flightVariantId IS NULL ;
+
+-- assert: temp_sanity_check_variant_ids_filled == 0
+
+-- drop temp_sanity_check_variant_ids_filled
+DROP TABLE temp_sanity_check_variant_ids_filled ;

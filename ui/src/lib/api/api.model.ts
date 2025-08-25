@@ -137,7 +137,6 @@ export interface ConnectionFlightResponse {
   aircraftOwner: string;
   aircraftId: AircraftId;
   aircraftConfiguration: string;
-  aircraftRegistration?: string;
   codeShares: ReadonlyArray<FlightNumber>;
 }
 

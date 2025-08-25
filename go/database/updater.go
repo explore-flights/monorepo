@@ -5,12 +5,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/explore-flights/monorepo/go/common/adapt"
-	"github.com/explore-flights/monorepo/go/database/business"
-	"github.com/explore-flights/monorepo/go/database/util"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/explore-flights/monorepo/go/common/adapt"
+	"github.com/explore-flights/monorepo/go/database/business"
+	"github.com/explore-flights/monorepo/go/database/util"
 )
 
 const (
@@ -357,7 +358,10 @@ COPY (
 		fvh.departure_airport_id,
 		fv.arrival_airport_id,
 		fv.aircraft_id,
-		fv.aircraft_configuration_version,
+		fv.seats_first,
+		fv.seats_business,
+		fv.seats_premium,
+		fv.seats_economy,
 		(fvh.airline_id = fv.operating_airline_id AND fvh.number = fv.operating_number AND fvh.suffix = fv.operating_suffix) AS is_operating,
 		fv.duration_seconds - (fv.duration_seconds %% (60 * 5)) AS duration_seconds_5m_trunc,
 		COUNT(*) AS count,
@@ -378,7 +382,10 @@ COPY (
 		fvh.departure_airport_id,
 		fv.arrival_airport_id,
 		fv.aircraft_id,
-		fv.aircraft_configuration_version,
+		fv.seats_first,
+		fv.seats_business,
+		fv.seats_premium,
+		fv.seats_economy,
 		(fvh.airline_id = fv.operating_airline_id AND fvh.number = fv.operating_number AND fvh.suffix = fv.operating_suffix),
 		fv.duration_seconds - (fv.duration_seconds %% (60 * 5))
 ) TO '%s' (
@@ -573,8 +580,10 @@ COPY (
       fv.service_type,
       fv.aircraft_owner,
       fv.aircraft_id,
-      fv.aircraft_configuration_version,
-      fv.aircraft_registration,
+      fv.seats_first,
+	  fv.seats_business,
+	  fv.seats_premium,
+	  fv.seats_economy,
       fv.code_shares
     FROM latest_active_history fvh
     INNER JOIN flight_variants fv

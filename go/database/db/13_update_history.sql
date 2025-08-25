@@ -34,7 +34,6 @@ INSERT INTO flight_variant_history (
     created_at,
     replaced_at,
     query_dates,
-    is_derived,
     flight_variant_id
 )
 SELECT
@@ -46,7 +45,6 @@ SELECT
     fresh.createdAt,
     NULL,
     fresh.queryDates,
-    fresh.isDerived,
     fresh.flightVariantId
 FROM lh_all_flights_with_variants fresh
 LEFT JOIN flight_variant_history fvh
@@ -69,7 +67,6 @@ INSERT INTO flight_variant_history (
     created_at,
     replaced_at,
     query_dates,
-    is_derived,
     flight_variant_id
 )
 SELECT
@@ -81,7 +78,6 @@ SELECT
     created_at,
     new_replaced_at,
     query_dates,
-    is_derived,
     flight_variant_id
 FROM temp_replaced_history ;
 
@@ -129,7 +125,6 @@ INSERT INTO flight_variant_history (
     created_at,
     replaced_at,
     query_dates,
-    is_derived,
     flight_variant_id
 )
 SELECT
@@ -141,7 +136,6 @@ SELECT
     new_replaced_at,
     NULL,
     query_dates,
-    is_derived,
     NULL -- removed marker
 FROM temp_replaced_history ;
 
@@ -155,7 +149,6 @@ INSERT INTO flight_variant_history (
     created_at,
     replaced_at,
     query_dates,
-    is_derived,
     flight_variant_id
 )
 SELECT
@@ -167,7 +160,6 @@ SELECT
     created_at,
     new_replaced_at,
     query_dates,
-    is_derived,
     flight_variant_id
 FROM temp_replaced_history ;
 

@@ -6,10 +6,11 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"github.com/explore-flights/monorepo/go/common"
-	"github.com/marcboeker/go-duckdb/v2"
 	"os"
 	"path/filepath"
+
+	"github.com/explore-flights/monorepo/go/common"
+	"github.com/marcboeker/go-duckdb/v2"
 )
 
 type Database struct {
@@ -154,6 +155,10 @@ func dbInit(ctx context.Context, conn *sql.Conn, dbWorkPath, baseDbPath, variant
 			nil,
 		},
 		{
+			`SET TimeZone = 'UTC'`,
+			nil,
+		},
+		{
 			`CREATE OR REPLACE SECRET secret ( TYPE s3, PROVIDER credential_chain, REGION 'eu-central-1' )`,
 			nil,
 		},
@@ -171,14 +176,36 @@ func dbInit(ctx context.Context, conn *sql.Conn, dbWorkPath, baseDbPath, variant
 		},
 		{
 			fmt.Sprintf(
-				`CREATE OR REPLACE VIEW flight_variants AS SELECT * FROM read_parquet('%s', hive_partitioning = false)`,
+				`
+CREATE OR REPLACE VIEW flight_variants AS
+SELECT
+	*,
+	CONCAT(
+		IF(seats_first = 0, '', CONCAT('F', seats_first)),
+		IF(seats_business = 0, '', CONCAT('C', seats_business)),
+		IF(seats_premium = 0, '', CONCAT('E', seats_premium)),
+		IF(seats_economy = 0, '', CONCAT('M', seats_economy))
+	) AS aircraft_configuration_version
+FROM read_parquet('%s', hive_partitioning = false)
+`,
 				variantsParquetPath,
 			),
 			nil,
 		},
 		{
 			fmt.Sprintf(
-				`CREATE OR REPLACE VIEW report AS SELECT * FROM read_parquet('%s', hive_partitioning = false)`,
+				`
+CREATE OR REPLACE VIEW report AS
+SELECT
+	*,
+	CONCAT(
+		IF(seats_first = 0, '', CONCAT('F', seats_first)),
+		IF(seats_business = 0, '', CONCAT('C', seats_business)),
+		IF(seats_premium = 0, '', CONCAT('E', seats_premium)),
+		IF(seats_economy = 0, '', CONCAT('M', seats_economy))
+	) AS aircraft_configuration_version
+FROM read_parquet('%s', hive_partitioning = false)
+`,
 				reportParquetPath,
 			),
 			nil,
@@ -199,7 +226,18 @@ func dbInit(ctx context.Context, conn *sql.Conn, dbWorkPath, baseDbPath, variant
 		},
 		{
 			fmt.Sprintf(
-				`CREATE OR REPLACE VIEW flight_variant_history_latest AS SELECT * FROM read_parquet('%s', hive_partitioning = true, hive_types = {'year_utc': USMALLINT, 'month_utc': USMALLINT, 'day_utc': USMALLINT})`,
+				`
+CREATE OR REPLACE VIEW flight_variant_history_latest AS
+SELECT
+	*,
+	CONCAT(
+		IF(seats_first = 0, '', CONCAT('F', seats_first)),
+		IF(seats_business = 0, '', CONCAT('C', seats_business)),
+		IF(seats_premium = 0, '', CONCAT('E', seats_premium)),
+		IF(seats_economy = 0, '', CONCAT('M', seats_economy))
+	) AS aircraft_configuration_version
+FROM read_parquet('%s', hive_partitioning = true, hive_types = {'year_utc': USMALLINT, 'month_utc': USMALLINT, 'day_utc': USMALLINT})
+`,
 				latestParquetPath+"/year_utc=*/month_utc=*/day_utc=*/*.parquet",
 			),
 			nil,

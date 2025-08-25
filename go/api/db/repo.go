@@ -5,17 +5,18 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"iter"
+	"maps"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xsql"
 	"github.com/explore-flights/monorepo/go/common/xsync"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/gofrs/uuid/v5"
 	"golang.org/x/sync/errgroup"
-	"iter"
-	"maps"
-	"strings"
-	"sync"
-	"time"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -769,8 +770,11 @@ SELECT
     service_type,
     aircraft_owner,
     aircraft_id,
+    seats_first,
+    seats_business,
+    seats_premium,
+    seats_economy,
     aircraft_configuration_version,
-    aircraft_registration,
     code_shares
 FROM flight_variants
 WHERE :filter
@@ -799,8 +803,11 @@ WHERE :filter
 			&fsv.ServiceType,
 			&fsv.AircraftOwner,
 			&fsv.AircraftId,
+			&fsv.SeatsFirst,
+			&fsv.SeatsBusiness,
+			&fsv.SeatsPremium,
+			&fsv.SeatsEconomy,
 			&fsv.AircraftConfigurationVersion,
-			&fsv.AircraftRegistration,
 			&codeShares,
 		)
 		if err != nil {
@@ -844,8 +851,11 @@ SELECT
     service_type,
     aircraft_owner,
     aircraft_id,
+    seats_first,
+    seats_business,
+    seats_premium,
+    seats_economy,
     aircraft_configuration_version,
-    aircraft_registration,
     code_shares
 FROM flight_variant_history_latest
 WHERE year_utc = ?
@@ -879,8 +889,11 @@ AND day_utc = ?
 			&f.ServiceType,
 			&f.AircraftOwner,
 			&f.AircraftId,
+			&f.SeatsFirst,
+			&f.SeatsBusiness,
+			&f.SeatsPremium,
+			&f.SeatsEconomy,
 			&f.AircraftConfigurationVersion,
-			&f.AircraftRegistration,
 			&codeShares,
 		)
 		if err != nil {

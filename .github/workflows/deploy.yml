@@ -40,7 +40,7 @@ jobs:
       - name: 'Build'
         uses: explore-flights/libduckdb/.github/actions/build_go_provided@main
         with:
-          release: 'v1.3.1-v1+parquet.json.icu.httpfs.aws'
+          release: 'v1.3.2-v1+parquet.json.icu.httpfs.aws'
           file: 'libduckdb_bundle-arm64-linux.a'
           platform: 'linux/arm64'
           image_arch: 'aarch64'
@@ -50,7 +50,6 @@ jobs:
           go_build_tags: 'lambda'
           go_build_relative_dir: 'go/api'
           go_build_output_file: 'go/api/bootstrap'
-          use_go_cache: 'true'
       - name: 'Store API artifact'
         uses: actions/upload-artifact@v4
         with:

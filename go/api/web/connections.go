@@ -7,6 +7,16 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"html/template"
+	"io"
+	"maps"
+	"net/http"
+	"net/url"
+	"path"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/explore-flights/monorepo/go/api/business/connections"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/pb"
@@ -17,15 +27,6 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/labstack/echo/v4"
 	"google.golang.org/protobuf/proto"
-	"html/template"
-	"io"
-	"maps"
-	"net/http"
-	"net/url"
-	"path"
-	"strconv"
-	"strings"
-	"time"
 )
 
 //go:embed share.gohtml
@@ -366,7 +367,6 @@ func (ch *ConnectionsHandler) buildConnectionsResponse(conns []connections.Conne
 				AircraftOwner:         conn.Flight.AircraftOwner,
 				AircraftId:            model.UUID(conn.Flight.AircraftId),
 				AircraftConfiguration: conn.Flight.AircraftConfigurationVersion,
-				AircraftRegistration:  conn.Flight.AircraftRegistration,
 				CodeShares:            ch.convertCodeShares(conn.Flight.CodeShares, referencedAirlines),
 			}
 		}

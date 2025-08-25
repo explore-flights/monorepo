@@ -32,7 +32,6 @@ interface ConnectionsTableParentItem extends ConnectionsTableBaseItem {
   readonly flightNumber: undefined;
   readonly aircraftOwner: undefined;
   readonly aircraftType: undefined;
-  readonly registration: undefined;
   readonly codeShares: undefined;
   readonly children: ReadonlyArray<ConnectionsTableChildItem>;
 }
@@ -41,7 +40,6 @@ interface ConnectionsTableChildItem extends ConnectionsTableBaseItem {
   readonly flightNumber: [Airline, FlightNumber];
   readonly aircraftOwner: string;
   readonly aircraft: Aircraft;
-  readonly registration?: string;
   readonly codeShares: ReadonlyArray<[Airline, FlightNumber]>;
   readonly children: undefined;
 }
@@ -144,11 +142,6 @@ export function ConnectionsTable({ connections }: ConnectionsTableProps) {
           ),
         },
         {
-          id: 'registration',
-          header: 'Aircraft Registration',
-          cell: (v) => v.registration,
-        },
-        {
           id: 'code_shares',
           header: 'Codeshares',
           cell: (v) => {
@@ -230,7 +223,6 @@ function connectionsToTableItems(
         arrivalAirport: last.arrivalAirport,
         aircraftOwner: undefined,
         aircraftType: undefined,
-        registration: undefined,
         codeShares: undefined,
         children: expanded,
       } satisfies ConnectionsTableParentItem);
@@ -276,7 +268,6 @@ function expandConnections(
         arrivalAirport: arrivalAirport,
         aircraftOwner: flight.aircraftOwner,
         aircraft: ac,
-        registration: flight.aircraftRegistration,
         codeShares: codeShares,
         children: undefined,
       } satisfies ConnectionsTableChildItem;

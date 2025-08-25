@@ -1,11 +1,12 @@
 package model
 
 import (
+	"time"
+
 	"github.com/explore-flights/monorepo/go/api/pb"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"time"
 )
 
 type ConnectionsSearchRequest struct {
@@ -80,7 +81,6 @@ type ConnectionFlightResponse struct {
 	AircraftOwner         string         `json:"aircraftOwner"`
 	AircraftId            UUID           `json:"aircraftId"`
 	AircraftConfiguration string         `json:"aircraftConfiguration"`
-	AircraftRegistration  string         `json:"aircraftRegistration,omitempty"`
 	CodeShares            []FlightNumber `json:"codeShares"`
 }
 

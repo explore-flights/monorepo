@@ -32,8 +32,6 @@ func NewSearch(s3c adapt.S3Getter, bucket string) *Search {
 }
 
 func (s *Search) Search(ctx context.Context, version time.Time, fnRaw string, departureDateLocal xtime.LocalDate, departureAirportIata string) ([]lufthansa.FlightSchedule, error) {
-	println(fmt.Sprintf("raw/LH_Public_Data/flightschedules_history/%s.tar.gz", version.UTC().Format(time.RFC3339)))
-
 	resp, err := s.s3c.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(fmt.Sprintf("raw/LH_Public_Data/flightschedules_history/%s.tar.gz", version.UTC().Format(time.RFC3339))),

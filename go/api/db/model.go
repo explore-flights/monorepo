@@ -3,11 +3,12 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"time"
+
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xsql"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/gofrs/uuid/v5"
-	"time"
 )
 
 type Airline struct {
@@ -94,8 +95,11 @@ type Flight struct {
 	ServiceType                  string
 	AircraftOwner                string
 	AircraftId                   uuid.UUID
+	SeatsFirst                   int
+	SeatsBusiness                int
+	SeatsPremium                 int
+	SeatsEconomy                 int
 	AircraftConfigurationVersion string
-	AircraftRegistration         string
 	CodeShares                   common.Set[FlightNumber]
 }
 
@@ -128,8 +132,11 @@ type FlightScheduleVariant struct {
 	ServiceType                  string
 	AircraftOwner                string
 	AircraftId                   uuid.UUID
+	SeatsFirst                   int
+	SeatsBusiness                int
+	SeatsPremium                 int
+	SeatsEconomy                 int
 	AircraftConfigurationVersion string
-	AircraftRegistration         string
 	CodeShares                   common.Set[FlightNumber]
 }
 

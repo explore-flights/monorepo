@@ -4,17 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/database/db"
 	"github.com/explore-flights/monorepo/go/database/util"
-	"os"
-	"path/filepath"
-	"slices"
-	"strings"
-	"time"
 )
 
 type s3GetAndList interface {
@@ -29,7 +30,7 @@ type Fresh struct {
 	S3CFinal    adapt.S3Putter
 }
 
-func (f *Fresh) GenerateFreshDatabase(ctx context.Context, baseDataBucket, baseDataKey, historyBucket, historyPrefix, finalBucket, finalKey string) error {
+func (f *Fresh) GenerateFreshDatabase(ctx context.Context, startAt time.Time, baseDataBucket, baseDataKey, historyBucket, historyPrefix, finalBucket, finalKey string) error {
 	return f.updateDatabase(
 		ctx,
 		baseDataBucket,
@@ -37,7 +38,7 @@ func (f *Fresh) GenerateFreshDatabase(ctx context.Context, baseDataBucket, baseD
 		finalBucket,
 		finalKey,
 		func(ctx context.Context, conn *sql.Conn, historyPath string) error {
-			return f.runUpdates(ctx, conn, historyBucket, historyPrefix, historyPath)
+			return f.runUpdates(ctx, conn, startAt, historyBucket, historyPrefix, historyPath)
 		},
 	)
 }
@@ -108,7 +109,7 @@ func (f *Fresh) updateDatabase(ctx context.Context, initialDataBucket, initialDa
 	return nil
 }
 
-func (f *Fresh) runUpdates(ctx context.Context, conn *sql.Conn, historyBucket, historyPrefix, historyPath string) error {
+func (f *Fresh) runUpdates(ctx context.Context, conn *sql.Conn, startAt time.Time, historyBucket, historyPrefix, historyPath string) error {
 	if err := (util.UpdateScript{Name: "Init Schema", Script: db.Schema}.Run(ctx, conn, nil)); err != nil {
 		return fmt.Errorf("failed to init schema: %w", err)
 	}
@@ -134,7 +135,9 @@ func (f *Fresh) runUpdates(ctx context.Context, conn *sql.Conn, historyBucket, h
 					return fmt.Errorf("error parsing timestamp for key %q: %w", key, err)
 				}
 
-				elements = append(elements, common.Tuple[time.Time, string]{V1: t, V2: key})
+				if t.Equal(startAt) || t.After(startAt) {
+					elements = append(elements, common.Tuple[time.Time, string]{V1: t, V2: key})
+				}
 			}
 
 			startAfter = resp.NextContinuationToken
@@ -149,7 +152,7 @@ func (f *Fresh) runUpdates(ctx context.Context, conn *sql.Conn, historyBucket, h
 	})
 
 	for i, element := range elements {
-		if err := util.RunTimed(fmt.Sprintf("running update for %s (%d/%d)", element.V1, i+1, len(elements)), func() error {
+		if err := util.RunTimed(fmt.Sprintf("running update for %q (%s) (%d/%d)", element.V2, element.V1, i+1, len(elements)), func() error {
 			return f.runUpdate(ctx, conn, element.V1, historyBucket, element.V2, historyPath)
 		}); err != nil {
 			return fmt.Errorf("failed to run update for key %q (%v): %w", element.V2, element.V2, err)
