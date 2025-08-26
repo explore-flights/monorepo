@@ -15,6 +15,7 @@ import { Airline, AirlineId } from '../../lib/api/api.model';
 
 export default function FlightsHeader() {
   const [showPreferences, setShowPreferences] = useState(false);
+  const navigate = useNavigate();
 
   /*
   const [authInfo, setAuthInfo] = useAuthInfo();
@@ -34,6 +35,16 @@ export default function FlightsHeader() {
    */
 
   const utilities: TopNavigationProps.Utility[] = [
+    {
+      type: 'button',
+      text: 'About',
+      href: '/about',
+      iconName: 'heart',
+      onFollow: (e) => {
+        e.preventDefault();
+        navigate('/about');
+      },
+    },
     {
       type: 'button',
       text: 'GitHub',

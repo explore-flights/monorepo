@@ -15,6 +15,11 @@ const ROUTES = [{
   children: [
     // region general
     {
+      path: 'about',
+      title: 'About',
+      breadcrumb: 'About',
+    },
+    {
       path: 'legal',
       title: 'Legal',
       breadcrumb: 'Legal',

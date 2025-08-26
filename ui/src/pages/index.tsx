@@ -19,6 +19,7 @@ import { Updates } from './updates';
 import { TechAirports } from './game/tech-airports';
 import { DailyAirports } from './game/daily-airports';
 import { Allegris, SwissA350 } from './special_aircraft';
+import { About } from './about';
 
 // region router
 const router = createBrowserRouter([
@@ -32,6 +33,10 @@ const router = createBrowserRouter([
     errorElement: <ErrorPage />,
     children: [
       { index: true, element: <Home /> },
+      {
+        path: 'about',
+        element: <About />,
+      },
       {
         path: 'legal',
         element: <Legal />,
