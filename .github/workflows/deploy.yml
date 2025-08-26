@@ -190,7 +190,7 @@ jobs:
       - name: 'Setup node'
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
       - name: 'Install npm dependencies'
         working-directory: 'cdk'
         run: 'npm install'
@@ -231,7 +231,7 @@ jobs:
       - name: 'Setup node'
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
       - name: 'Install cdk'
         run: 'npm install -g aws-cdk'
       - name: 'Setup QEMU'
