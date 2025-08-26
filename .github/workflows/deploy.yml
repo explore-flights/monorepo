@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 'Setup go'
         uses: actions/setup-go@v5
         with:
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 'Build'
         uses: explore-flights/libduckdb/.github/actions/build_go_provided@main
         with:
@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 'Setup go'
         uses: actions/setup-go@v5
         with:
@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 'Setup node'
         uses: actions/setup-node@v4
         with:
@@ -118,7 +118,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: 'true'
       - name: 'Setup go'
@@ -153,28 +153,28 @@ jobs:
       - build_otel_collector
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 'Download API artifact'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_API }}
           path: .
       - name: 'Prepare API lambda bundle'
         run: '(chmod +x bootstrap && zip -q cdk/api_lambda_bundle.zip bootstrap && rm bootstrap)'
       - name: 'Download cron artifact'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_CRON }}
           path: .
       - name: 'Prepare cron lambda bundle'
         run: '(chmod +x bootstrap && zip -q cdk/cron_lambda_bundle.zip bootstrap && rm bootstrap)'
       - name: 'Download UI artifact'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_UI }}
           path: 'cdk/'
       - name: 'Download otel collector artifact'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_OTEL_COLLECTOR }}
           path: .
@@ -224,7 +224,7 @@ jobs:
       - build_and_synth_cdk
     steps:
       - name: 'Download cdk synth artifact'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_CDK }}
           path: .
