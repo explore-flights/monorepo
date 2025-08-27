@@ -991,6 +991,9 @@ function buildDateOperator(op: PropertyFilterOperator): PropertyFilterOperatorEx
 
 function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFlightSchedule {
   let lastModified = DateTime.fromSeconds(0);
+  if (!lastModified.isValid) {
+    throw new Error('invalid state: DateTime.fromSeconds(0) is invalid');
+  }
 
   const departureAirports: Array<Airport> = [];
   const arrivalAirports: Array<Airport> = [];
@@ -1028,7 +1031,7 @@ function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFligh
       continue;
     }
 
-    lastModified = dateTimeMax(lastModified, version);
+    lastModified = DateTime.max(lastModified, version);
 
     const variant = flightSchedules.variants[item.flightVariantId];
     const arrivalAirport = flightSchedules.airports[variant.arrivalAirportId];
@@ -1120,17 +1123,6 @@ function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFligh
     },
     flights: flights,
   };
-}
-
-function dateTimeMax(first: DateTime<true>, ...values: ReadonlyArray<DateTime<true | false>>): DateTime<true> {
-  let max = first;
-  for (const value of values) {
-    if (value.isValid) {
-      max = DateTime.max<[DateTime<true>, DateTime<true>]>(max, value);
-    }
-  }
-
-  return max;
 }
 
 function compareScheduled(a: FlightTableItem, b: FlightTableItem, cmpFn: (a: ScheduledFlight, b: ScheduledFlight) => number) {

@@ -1,5 +1,6 @@
 import { resolve } from 'path';
 import { defineConfig, ProxyOptions } from 'vite';
+// @ts-ignore
 import react from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
@@ -27,13 +28,6 @@ export default defineConfig({
   publicDir: resolve(__dirname, 'public'),
   envDir: resolve(__dirname),
   plugins: [react()],
-  css: {
-    preprocessorOptions: {
-      scss: {
-        api: 'modern-compiler',
-      },
-    },
-  },
   server: {
     port: 4200,
     proxy: proxyConfig,

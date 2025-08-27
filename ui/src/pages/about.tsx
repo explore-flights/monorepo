@@ -49,12 +49,14 @@ export function About() {
         </Box>
         <Box variant={'p'}>
           The key AWS services in use are:
-          <TextContent>
-            <ul>
-              <li>AWS Lambda, S3 and Cloudfront for serving website itself</li>
-              <li>AWS StepFunctions, Lambda and ECS Fargate for background data updates</li>
-            </ul>
-          </TextContent>
+        </Box>
+        <TextContent>
+          <ul>
+            <li>AWS Lambda, S3 and Cloudfront for serving website itself</li>
+            <li>AWS StepFunctions, Lambda and ECS Fargate for background data updates</li>
+          </ul>
+        </TextContent>
+        <Box variant={'p'}>
           For those interested in the technical details, the entire source code is openly available on <Link href={'https://github.com/explore-flights'} external={true} target={'_blank'}>GitHub</Link>.
         </Box>
         <Box variant={'p'}>
@@ -69,34 +71,32 @@ export function About() {
         <Box variant={'p'}>
           The core of the site is powered by the <Link href={'https://developer.lufthansa.com/'} target={'_blank'} external={true}>public API</Link> provided by Lufthansa,
           which covers all fully integrated Lufthansa Group airlines:
-
-          <TextContent>
-            <ul>
-              <li>Lufthansa (LH)</li>
-              <li>Swiss (LX)</li>
-              <li>Edelweiss (WK)</li>
-              <li>Austrian (OS)</li>
-              <li>Brussels (SN)</li>
-              <li>Discover (4Y)</li>
-              <li>Air Dolomiti (EN)</li>
-            </ul>
-          </TextContent>
-
+        </Box>
+        <TextContent>
+          <ul>
+            <li>Lufthansa (LH)</li>
+            <li>Swiss (LX)</li>
+            <li>Edelweiss (WK)</li>
+            <li>Austrian (OS)</li>
+            <li>Brussels (SN)</li>
+            <li>Discover (4Y)</li>
+            <li>Air Dolomiti (EN)</li>
+          </ul>
+        </TextContent>
+        <Box variant={'p'}>
           Using this data, I can also extrapolate flights that involve codeshares with partner carriers.
           This expands coverage to a total of {airlines.length > 0 ? airlines.length : 48} airlines that are at least partially tracked, including:
-
-          <TextContent>
-            <ul>
-              {
-                airlines
-                  .filter((a) => !['LH', 'LX', 'WK', 'OS', 'SN', '4Y', 'EN'].includes(a.iataCode))
-                  .toSorted((a, b) => a.iataCode.localeCompare(b.iataCode))
-                  .map((a) => <li>{a.name} ({a.iataCode})</li>)
-              }
-            </ul>
-          </TextContent>
         </Box>
-
+        <TextContent>
+          <ul>
+            {
+              airlines
+                .filter((a) => !['LH', 'LX', 'WK', 'OS', 'SN', '4Y', 'EN'].includes(a.iataCode))
+                .toSorted((a, b) => a.iataCode.localeCompare(b.iataCode))
+                .map((a) => <li key={a.id}>{a.name} ({a.iataCode})</li>)
+            }
+          </ul>
+        </TextContent>
         <Box variant={'p'}>
           Flight data is refreshed once per day, covering the entire range from two days in the past up to 360 days into the future.
         </Box>
@@ -106,14 +106,13 @@ export function About() {
         <Box variant={'p'}>
           If you come across incorrect data, have an idea for a new feature, or simply want to share general feedback,
           I’d love to hear from you. You can either:
-
-          <TextContent>
-            <ul>
-              <li>Send me an E-Mail at <Email variant={'span'} /></li>
-              <li>or <Link href={'https://github.com/explore-flights/monorepo/issues/new/choose'} target={'_blank'} external={true}>open an issue on GitHub</Link></li>
-            </ul>
-          </TextContent>
         </Box>
+        <TextContent>
+          <ul>
+            <li>Send me an E-Mail at <Email variant={'span'} /></li>
+            <li>or <Link href={'https://github.com/explore-flights/monorepo/issues/new/choose'} target={'_blank'} external={true}>open an issue on GitHub</Link></li>
+          </ul>
+        </TextContent>
       </Container>
     </ContentLayout>
   );
