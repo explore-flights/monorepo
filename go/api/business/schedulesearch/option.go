@@ -1,10 +1,11 @@
 package schedulesearch
 
 import (
+	"time"
+
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/gofrs/uuid/v5"
-	"time"
 )
 
 type Condition struct {
@@ -57,6 +58,48 @@ func WithAircraftConfigurationVersion(aircraftConfigurationVersion string) Condi
 	return Condition{db.BaseCondition{
 		Filter: "fv.aircraft_configuration_version = ?",
 		Params: []any{aircraftConfigurationVersion},
+	}}
+}
+
+func WithTotalSeats(seats int) Condition {
+	return Condition{db.BaseCondition{
+		Filter: `
+(
+	IF(fv.seats_first = 999, 0, fv.seats_first)
+	+ IF(fv.seats_business = 999, 0, fv.seats_business)
+	+ IF(fv.seats_premium = 999, 0, fv.seats_premium)
+	+ IF(fv.seats_economy = 999, 0, fv.seats_economy)
+) = ?
+`,
+		Params: []any{seats},
+	}}
+}
+
+func WithSeatsFirst(seats int) Condition {
+	return Condition{db.BaseCondition{
+		Filter: "fv.seats_first = ?",
+		Params: []any{seats},
+	}}
+}
+
+func WithSeatsBusiness(seats int) Condition {
+	return Condition{db.BaseCondition{
+		Filter: "fv.seats_business = ?",
+		Params: []any{seats},
+	}}
+}
+
+func WithSeatsPremium(seats int) Condition {
+	return Condition{db.BaseCondition{
+		Filter: "fv.seats_premium = ?",
+		Params: []any{seats},
+	}}
+}
+
+func WithSeatsEconomy(seats int) Condition {
+	return Condition{db.BaseCondition{
+		Filter: "fv.seats_economy = ?",
+		Params: []any{seats},
 	}}
 }
 

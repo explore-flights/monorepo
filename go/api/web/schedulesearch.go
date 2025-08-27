@@ -468,8 +468,8 @@ func (h *ScheduleSearchHandler) queryAllegris(ctx context.Context) (model.Flight
 			schedulesearch.WithAirlines(lhAirlineId),
 			schedulesearch.WithAircraftId(a350900AircraftId),
 			schedulesearch.WithAny(
-				schedulesearch.WithAircraftConfigurationVersion("C38E24M201"),
-				schedulesearch.WithAircraftConfigurationVersion("F4C38E24M201"),
+				schedulesearch.WithTotalSeats(38+24+201),
+				schedulesearch.WithTotalSeats(4+38+24+201),
 			),
 		),
 	)

@@ -23,7 +23,7 @@ import {
 import { AirlineMultiselect } from '../../components/select/airline-multiselect';
 import { AirportSelect } from '../../components/select/airport-select';
 import { AircraftSelect } from '../../components/select/aircraft-select';
-import { AircraftConfigurationVersion } from '../../lib/consts';
+import { aircraftConfigurationVersionToName } from '../../lib/consts';
 import { UseQueryResult } from '@tanstack/react-query';
 import { ErrorNotificationContent, useAppControls } from '../../components/util/context/app-controls';
 import { DateTime } from 'luxon';
@@ -511,14 +511,4 @@ function ResultTable({ title, query }: { title: string, query: UseQueryResult<Qu
       }, [])}
     />
   );
-}
-
-function aircraftConfigurationVersionToName(v: string): string | undefined {
-  return ({
-    [AircraftConfigurationVersion.LH_A350_900_ALLEGRIS]: 'Allegris',
-    [AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST]: 'Allegris with First',
-    [AircraftConfigurationVersion.LH_A350_900_LH_CONFIG]: 'A350-900 LH Config',
-    [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_1]: 'LH/Philippines Config 1',
-    [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_2]: 'LH/Philippines Config 2',
-  })[v] ?? undefined;
 }
