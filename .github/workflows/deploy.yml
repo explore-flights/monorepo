@@ -46,7 +46,7 @@ jobs:
           image_arch: 'aarch64'
           go_os: 'linux'
           go_arch: 'arm64'
-          go_version: '1.24.4'
+          go_version: '1.25.0'
           go_build_tags: 'lambda'
           go_build_relative_dir: 'go/api'
           go_build_output_file: 'go/api/bootstrap'

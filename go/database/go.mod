@@ -1,12 +1,10 @@
 module github.com/explore-flights/monorepo/go/database
 
-go 1.24.0
-
-toolchain go1.24.1
+go 1.25
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.38.1
-	github.com/aws/aws-sdk-go-v2/config v1.31.2
+	github.com/aws/aws-sdk-go-v2/config v1.31.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.1
 	github.com/explore-flights/monorepo/go/common v0.0.0
 	github.com/google/cel-go v0.26.0
@@ -18,7 +16,7 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apache/arrow-go/v18 v18.4.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.0 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.18.6 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.18.7 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.4 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.4 // indirect
@@ -29,7 +27,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.28.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.33.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.34.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.0 // indirect
 	github.com/aws/smithy-go v1.22.5 // indirect
 	github.com/duckdb/duckdb-go-bindings v0.1.17 // indirect
@@ -55,8 +53,8 @@ require (
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/tools v0.36.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250818200422-3122310a409c // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250818200422-3122310a409c // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250826171959-ef028d996bc1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250826171959-ef028d996bc1 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 )
 
