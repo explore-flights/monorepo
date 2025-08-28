@@ -64,7 +64,7 @@ FROM (
         FROM lh_flight_schedules_raw
     )
 ) sub
-WHERE seatCode NOT IN ('F', 'C', 'J', 'E', 'R', 'U', 'PY', 'M', 'Y') ;
+WHERE seatCode NOT IN ('F', 'C', 'J', 'E', 'R', 'U', 'P', 'PY', 'M', 'Y') ;
 
 -- assert: temp_sanity_check_seat_numbers == 0
 
