@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Box, Calendar, DateInput, FormField,
   Header,
@@ -71,7 +71,7 @@ export function SchedulesTable({ title, result, flightLinkQuery, columnDefinitio
     ],
   });
 
-  const transformedItems = useMemo(
+  const transformedItems = useMemo<ReadonlyArray<ScheduleTableItem>>(
     () => result ? transformSchedules(result, filterQuery) : [],
     [result, filterQuery],
   );
@@ -109,13 +109,25 @@ export function SchedulesTable({ title, result, flightLinkQuery, columnDefinitio
       columnDefinitions={columnDefinitions}
       items={items}
       expandableRows={{
-        getItemChildren: (item) => {
+        getItemChildren: useCallback((item: ScheduleTableItem) => {
           if (item.type !== 'parent') {
             return [];
           }
 
-          return item.children;
-        },
+          let children = item.children;
+          let comparator = collectionProps.sortingColumn?.sortingComparator;
+
+          if (comparator) {
+            if (collectionProps.sortingDescending) {
+              const base = comparator;
+              comparator = (a: ScheduleTableItem, b: ScheduleTableItem) => base(b, a);
+            }
+
+            children = children.toSorted(comparator);
+          }
+
+          return children;
+        }, [collectionProps.sortingColumn, collectionProps.sortingDescending]),
         isItemExpandable: (item) => item.type === 'parent',
         expandedItems: expandedItems,
         onExpandableItemToggle: (e) => {
