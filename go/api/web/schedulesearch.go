@@ -432,6 +432,7 @@ From %s until %s for a total of %d flights
 func (h *ScheduleSearchHandler) queryAllegris(ctx context.Context) (model.FlightSchedulesMany, error) {
 	var lhAirlineId uuid.UUID
 	var a350900AircraftId uuid.UUID
+	var b7879AircraftId uuid.UUID
 	{
 		airlines, err := h.repo.Airlines(ctx)
 		if err != nil {
@@ -451,14 +452,23 @@ func (h *ScheduleSearchHandler) queryAllegris(ctx context.Context) (model.Flight
 		}
 
 		for _, ac := range aircraft {
-			if ac.IataCode.Valid && ac.IataCode.String == "359" {
-				a350900AircraftId = ac.Id
+			if ac.IataCode.Valid {
+				switch ac.IataCode.String {
+				case "359":
+					a350900AircraftId = ac.Id
+
+				case "789":
+					b7879AircraftId = ac.Id
+				}
+			}
+
+			if !a350900AircraftId.IsNil() && !b7879AircraftId.IsNil() {
 				break
 			}
 		}
 	}
 
-	if lhAirlineId.IsNil() || a350900AircraftId.IsNil() {
+	if lhAirlineId.IsNil() || a350900AircraftId.IsNil() || b7879AircraftId.IsNil() {
 		return model.FlightSchedulesMany{}, NewHTTPError(http.StatusInternalServerError)
 	}
 
@@ -466,10 +476,19 @@ func (h *ScheduleSearchHandler) queryAllegris(ctx context.Context) (model.Flight
 		ctx,
 		schedulesearch.WithAll(
 			schedulesearch.WithAirlines(lhAirlineId),
-			schedulesearch.WithAircraftId(a350900AircraftId),
 			schedulesearch.WithAny(
-				schedulesearch.WithTotalSeats(38+24+201),
-				schedulesearch.WithTotalSeats(4+38+24+201),
+				schedulesearch.WithAll(
+					schedulesearch.WithAircraftId(a350900AircraftId),
+					schedulesearch.WithAny(
+						schedulesearch.WithTotalSeats(38+24+201),
+						schedulesearch.WithTotalSeats(4+38+24+201),
+					),
+				),
+				schedulesearch.WithAll(
+					schedulesearch.WithAircraftId(b7879AircraftId),
+					schedulesearch.WithSeatsPremium(28),
+					schedulesearch.WithSeatsEconomy(231),
+				),
 			),
 		),
 	)

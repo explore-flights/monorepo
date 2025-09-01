@@ -7,6 +7,8 @@ export const AircraftConfigurationVersion = Object.freeze({
   LH_A350_900_PHILIPINE_1: 'C30E26M262',
   LH_A350_900_PHILIPINE_1_SHORTHAUL: 'C30M288',
   LH_A350_900_PHILIPINE_2: 'C30E24M241',
+
+  LH_787_9_ALLEGRIS_4BC: 'C4E28M231',
 });
 
 export function aircraftConfigurationVersionToName(v: string): string | undefined {
@@ -19,5 +21,6 @@ export function aircraftConfigurationVersionToName(v: string): string | undefine
     [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_1]: 'LH/Philippines Config 1',
     [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_1_SHORTHAUL]: 'LH/Philippines Config 1 (Shorthaul)',
     [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_2]: 'LH/Philippines Config 2',
+    [AircraftConfigurationVersion.LH_787_9_ALLEGRIS_4BC]: 'Allegris (without FC, 4 BC)',
   })[v] ?? undefined;
 }
