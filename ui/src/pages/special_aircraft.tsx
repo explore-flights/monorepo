@@ -11,7 +11,7 @@ import {
   withDepartureAirportIdFilter,
   withDepartureDateRawFilter
 } from './flight';
-import { AircraftConfigurationVersion } from '../lib/consts';
+import { AircraftConfigurationVersion, ALL_ALLEGRIS } from '../lib/consts';
 
 export function Allegris() {
   const query = useAllegrisSchedules();
@@ -22,8 +22,10 @@ export function Allegris() {
       query={query}
       flightLinkQuery={useCallback((v: ScheduleTableItem) => {
         let query = new URLSearchParams();
-        query = withAircraftConfigurationVersionFilter(query, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS);
-        query = withAircraftConfigurationVersionFilter(query, AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST);
+
+        for (const configuration of ALL_ALLEGRIS) {
+          query = withAircraftConfigurationVersionFilter(query, configuration);
+        }
 
         if (v.type === 'child') {
           query = withAircraftIdFilter(query, v.variant.aircraftId);

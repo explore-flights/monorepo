@@ -24,3 +24,10 @@ export function aircraftConfigurationVersionToName(v: string): string | undefine
     [AircraftConfigurationVersion.LH_787_9_ALLEGRIS_4BC]: 'Allegris (without FC, 4 BC)',
   })[v] ?? undefined;
 }
+
+export const ALL_ALLEGRIS = [
+  AircraftConfigurationVersion.LH_A350_900_ALLEGRIS,
+  AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST_AS_BUSINESS,
+  AircraftConfigurationVersion.LH_A350_900_ALLEGRIS_FIRST,
+  AircraftConfigurationVersion.LH_787_9_ALLEGRIS_4BC,
+] as const;
