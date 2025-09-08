@@ -103,7 +103,7 @@ export function LHA340() {
 export function LH747() {
   return (
     <SpecialAircraftPageClientside
-      name={'LH A380'}
+      name={'LH 747'}
       airlineIata={'LH'}
       aircraftIata={['744', '74H', '747']}
     />
