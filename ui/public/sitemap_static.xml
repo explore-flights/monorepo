@@ -19,6 +19,15 @@
         <loc>https://explore.flights/swiss350</loc>
     </url>
     <url>
+        <loc>https://explore.flights/lh380</loc>
+    </url>
+    <url>
+        <loc>https://explore.flights/lh340</loc>
+    </url>
+    <url>
+        <loc>https://explore.flights/lh747</loc>
+    </url>
+    <url>
         <loc>https://explore.flights/tools/links</loc>
     </url>
 </urlset>

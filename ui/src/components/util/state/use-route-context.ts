@@ -81,6 +81,21 @@ const ROUTES = [{
       breadcrumb: 'Swiss A350',
     },
     {
+      path: 'lh380',
+      title: 'Lufthansa A380',
+      breadcrumb: 'LH A380',
+    },
+    {
+      path: 'lh340',
+      title: 'Lufthansa A340',
+      breadcrumb: 'LH A340',
+    },
+    {
+      path: 'lh747',
+      title: 'Lufthansa 747',
+      breadcrumb: 'LH 747',
+    },
+    {
       path: 'updates',
       title: 'Updates',
       breadcrumb: 'Updates',
