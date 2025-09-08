@@ -11,13 +11,7 @@ import {
   SpaceBetween,
   Table
 } from '@cloudscape-design/components';
-import {
-  useAircrafts,
-  useAirlines,
-  useAllegrisSchedules,
-  useQueryFlightSchedules,
-  useSwissA350Schedules
-} from '../components/util/state/data';
+import { useSpecialAircraftSchedules } from '../components/util/state/data';
 import { UseQueryResult } from '@tanstack/react-query';
 import {
   Aircraft,
@@ -26,7 +20,6 @@ import {
   Airport,
   AirportId,
   FlightNumber,
-  QuerySchedulesRequest,
   QuerySchedulesResponseV2
 } from '../lib/api/api.model';
 import { ErrorNotificationContent, useAppControls } from '../components/util/context/app-controls';
@@ -44,7 +37,7 @@ import { useConsent } from '../components/util/state/use-consent';
 import { ConsentLevel } from '../lib/consent.model';
 
 export function Allegris() {
-  const query = useAllegrisSchedules();
+  const query = useSpecialAircraftSchedules('allegris');
   return (
     <SpecialAircraftPage
       name={'Allegris'}
@@ -64,7 +57,7 @@ export function Allegris() {
 }
 
 export function SwissA350() {
-  const query = useSwissA350Schedules();
+  const query = useSpecialAircraftSchedules('swiss350');
   return (
     <SpecialAircraftPage
       name={'Swiss A350'}
@@ -82,62 +75,33 @@ export function SwissA350() {
 
 export function LHA380() {
   return (
-    <SpecialAircraftPageClientside
+    <SpecialAircraftPageBasic
       name={'LH A380'}
-      airlineIata={'LH'}
-      aircraftIata={['388']}
+      identifier={'lh380'}
     />
   );
 }
 
 export function LHA340() {
   return (
-    <SpecialAircraftPageClientside
+    <SpecialAircraftPageBasic
       name={'LH A340'}
-      airlineIata={'LH'}
-      aircraftIata={['343', '346']}
+      identifier={'lh340'}
     />
   );
 }
 
 export function LH747() {
   return (
-    <SpecialAircraftPageClientside
+    <SpecialAircraftPageBasic
       name={'LH 747'}
-      airlineIata={'LH'}
-      aircraftIata={['744', '74H', '747']}
+      identifier={'lh747'}
     />
   );
 }
 
-function SpecialAircraftPageClientside({ name, airlineIata, aircraftIata }: { name: string, airlineIata: string, aircraftIata: ReadonlyArray<string> }) {
-  const airlineId = useAirlines().data.lookupByIata.get(airlineIata)?.id;
-  const aircraftLookupByIata = useAircrafts().data.lookupByIata;
-
-  const request = useMemo(() => {
-    const aircraftIds: Array<AircraftId> = [];
-    for (const iata of aircraftIata) {
-      const ac = aircraftLookupByIata.get(iata);
-      if (ac) {
-        aircraftIds.push(ac.id);
-      }
-    }
-
-    let request: QuerySchedulesRequest;
-    if (airlineId && aircraftIds.length > 0) {
-      request = {
-        airlineId: [airlineId],
-        aircraftId: aircraftIds,
-      };
-    } else {
-      request = {};
-    }
-
-    return request;
-  }, [airlineId, aircraftLookupByIata, aircraftIata]);
-
-  const query = useQueryFlightSchedules(request);
-
+function SpecialAircraftPageBasic({ name, identifier }: { name: string, identifier: string }) {
+  const query = useSpecialAircraftSchedules(identifier);
   return (
     <SpecialAircraftPage
       name={name}

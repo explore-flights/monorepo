@@ -546,6 +546,88 @@ func (h *ScheduleSearchHandler) querySwissA350(ctx context.Context) (model.Fligh
 	return result, nil
 }
 
+func (h *ScheduleSearchHandler) LHA380(c echo.Context) error {
+	ctx := c.Request().Context()
+	result, err := h.querySpecialAircraft(ctx, "LH", common.Set[string]{"388": struct{}{}})
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, result)
+}
+
+func (h *ScheduleSearchHandler) LHA340(c echo.Context) error {
+	ctx := c.Request().Context()
+	result, err := h.querySpecialAircraft(ctx, "LH", common.Set[string]{"343": struct{}{}, "346": struct{}{}})
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, result)
+}
+
+func (h *ScheduleSearchHandler) LH747(c echo.Context) error {
+	ctx := c.Request().Context()
+	result, err := h.querySpecialAircraft(ctx, "LH", common.Set[string]{"747": struct{}{}, "744": struct{}{}, "74H": struct{}{}})
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, result)
+}
+
+func (h *ScheduleSearchHandler) querySpecialAircraft(ctx context.Context, airlineIata string, aircraftIata common.Set[string]) (model.FlightSchedulesMany, error) {
+	var airlineId uuid.UUID
+	var aircraftConditions []schedulesearch.Condition
+	{
+		airlines, err := h.repo.Airlines(ctx)
+		if err != nil {
+			return model.FlightSchedulesMany{}, err
+		}
+
+		for _, airline := range airlines {
+			if airline.IataCode == airlineIata {
+				airlineId = airline.Id
+				break
+			}
+		}
+
+		aircraft, err := h.repo.Aircraft(ctx)
+		if err != nil {
+			return model.FlightSchedulesMany{}, err
+		}
+
+		for _, ac := range aircraft {
+			if ac.IataCode.Valid {
+				if _, ok := aircraftIata[ac.IataCode.String]; ok {
+					aircraftConditions = append(aircraftConditions, schedulesearch.WithAircraftId(ac.Id))
+				}
+
+				if len(aircraftConditions) == len(aircraftIata) {
+					break
+				}
+			}
+		}
+	}
+
+	if airlineId.IsNil() || len(aircraftConditions) < len(aircraftIata) {
+		return model.FlightSchedulesMany{}, NewHTTPError(http.StatusInternalServerError)
+	}
+
+	result, err := h.queryInternal(
+		ctx,
+		schedulesearch.WithAll(
+			schedulesearch.WithAirlines(airlineId),
+			schedulesearch.WithAny(aircraftConditions...),
+		),
+	)
+	if err != nil {
+		return model.FlightSchedulesMany{}, err
+	}
+
+	return result, nil
+}
+
 func (h *ScheduleSearchHandler) queryInternal(ctx context.Context, condition schedulesearch.Condition) (model.FlightSchedulesMany, error) {
 	var dbResult db.FlightSchedulesMany
 	var airlines map[uuid.UUID]db.Airline

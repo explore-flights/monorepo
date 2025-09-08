@@ -127,6 +127,9 @@ func main() {
 		group.GET("/schedule/swiss350", sshHandler.SwissA350)
 		group.GET("/schedule/swiss350/feed.rss", sshHandler.SwissA350RSSFeed)
 		group.GET("/schedule/swiss350/feed.atom", sshHandler.SwissA350AtomFeed)
+		group.GET("/schedule/lh380", sshHandler.LHA380)
+		group.GET("/schedule/lh340", sshHandler.LHA340)
+		group.GET("/schedule/lh747", sshHandler.LH747)
 
 		// region deprecated feed endpoints
 		group.GET("/:fn/:departureDate/:departureAirport/feed.rss", dh.LegacyFlightScheduleVersionsRSSFeed)

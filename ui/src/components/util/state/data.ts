@@ -207,32 +207,12 @@ export function useSeatMap(flightNumber: string, departureAirport: string, depar
   });
 }
 
-export function useAllegrisSchedules() {
+export function useSpecialAircraftSchedules(identifier: string) {
   const { apiClient } = useHttpClient();
   return useQuery({
-    queryKey: ['schedule', 'allegris'],
+    queryKey: ['special_schedule', identifier],
     queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getAllegrisSchedules());
-      return body;
-    },
-    retry: (count, e) => {
-      if (count > 3) {
-        return false;
-      } else if (e instanceof ApiError && (e.response.status === 400 || e.response.status === 404)) {
-        return false;
-      }
-
-      return true;
-    },
-  });
-}
-
-export function useSwissA350Schedules() {
-  const { apiClient } = useHttpClient();
-  return useQuery({
-    queryKey: ['schedule', 'swiss350'],
-    queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getSwissA350Schedules());
+      const { body } = expectSuccess(await apiClient.getSpecialAircraftSchedules(identifier));
       return body;
     },
     retry: (count, e) => {
