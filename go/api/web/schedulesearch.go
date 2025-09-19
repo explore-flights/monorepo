@@ -172,6 +172,8 @@ func (h *ScheduleSearchHandler) Allegris(c echo.Context) error {
 		return err
 	}
 
+	addExpirationHeaders(c, time.Now(), time.Hour)
+
 	return c.JSON(http.StatusOK, result)
 }
 
@@ -207,6 +209,8 @@ func (h *ScheduleSearchHandler) SwissA350(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	addExpirationHeaders(c, time.Now(), time.Hour)
 
 	return c.JSON(http.StatusOK, result)
 }
@@ -553,6 +557,8 @@ func (h *ScheduleSearchHandler) LHA380(c echo.Context) error {
 		return err
 	}
 
+	addExpirationHeaders(c, time.Now(), time.Hour)
+
 	return c.JSON(http.StatusOK, result)
 }
 
@@ -563,6 +569,8 @@ func (h *ScheduleSearchHandler) LHA340(c echo.Context) error {
 		return err
 	}
 
+	addExpirationHeaders(c, time.Now(), time.Hour)
+
 	return c.JSON(http.StatusOK, result)
 }
 
@@ -572,6 +580,8 @@ func (h *ScheduleSearchHandler) LH747(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	addExpirationHeaders(c, time.Now(), time.Hour)
 
 	return c.JSON(http.StatusOK, result)
 }
