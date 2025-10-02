@@ -3,13 +3,14 @@ package web
 import (
 	"errors"
 	"fmt"
-	"github.com/labstack/echo/v4"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/labstack/echo/v4"
 )
 
 func VersionHeaderMiddleware(versionTxtPath string) echo.MiddlewareFunc {
@@ -93,6 +94,26 @@ func ErrorLogAndMaskMiddleware(logger *log.Logger) echo.MiddlewareFunc {
 			}
 
 			return err
+		}
+	}
+}
+
+func RecoverMiddleware() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) (outErr error) {
+			defer func() {
+				if r := recover(); r != nil {
+					err, ok := r.(error)
+					if ok {
+						outErr = fmt.Errorf("panic: %w", err)
+					} else {
+						outErr = fmt.Errorf("panic: %v", r)
+					}
+				}
+			}()
+
+			outErr = next(c)
+			return outErr
 		}
 	}
 }
