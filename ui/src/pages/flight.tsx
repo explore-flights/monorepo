@@ -1404,11 +1404,11 @@ function nextScheduleChange(dt: DateTime<true>): [DateTime<true>, string] {
 }
 
 function isSummerSchedule(dt: DateTime<true>) {
-  const lastSundayOfMar = lastWeekdayOfMonth(dt, 3, 7).startOf('day').toMillis();
-  const lastSaturdayOfOct = lastWeekdayOfMonth(dt, 10, 6).endOf('day').toMillis();
+  const summerScheduleStart = lastWeekdayOfMonth(dt, 3, 7).startOf('day').toMillis();
+  const winterScheduleStart = lastWeekdayOfMonth(dt, 10, 7).startOf('day').toMillis();
   const millis = dt.toMillis();
 
-  return millis >= lastSundayOfMar && millis <= lastSaturdayOfOct;
+  return millis >= summerScheduleStart && millis < winterScheduleStart;
 }
 
 function lastWeekdayOfMonth(dt: DateTime<true>, month: number, weekday: WeekdayNumbers) {
