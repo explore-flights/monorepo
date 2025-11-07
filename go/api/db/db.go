@@ -9,8 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/duckdb/duckdb-go/v2"
 	"github.com/explore-flights/monorepo/go/common"
-	"github.com/marcboeker/go-duckdb/v2"
 )
 
 type Database struct {
