@@ -11,7 +11,7 @@ import {
   Tracing
 } from 'aws-cdk-lib/aws-lambda';
 import { ArnFormat, Duration, Stack } from 'aws-cdk-lib';
-import { Effect, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { IStringParameter, StringParameter } from 'aws-cdk-lib/aws-ssm';
 import { BASE_DATA_LAYER_SSM_PARAMETER_NAME } from '../util/consts';
@@ -88,7 +88,7 @@ export class ApiLambdaConstruct extends Construct {
       tracing: Tracing.DISABLED,
       role: new Role(this, 'ApiLambdaRole', {
         assumedBy: new ServicePrincipal('lambda.amazonaws.com'),
-        managedPolicies: [{ managedPolicyArn: 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole' }],
+        managedPolicies: [ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole')],
       }),
     });
 
