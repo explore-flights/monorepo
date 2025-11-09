@@ -1,5 +1,4 @@
 -- flatten into one row per leg
--- id:lh_flight_schedules_flattened
 CREATE TABLE lh_flight_schedules_flattened AS
 SELECT
     CAST(? AS TIMESTAMPTZ) AS createdAt,
@@ -52,11 +51,13 @@ FROM (
     )
 ) ;
 
+-- assign:lh_flight_schedules_flattened from:result
+SELECT COUNT(*) FROM lh_flight_schedules_flattened ;
+
 -- assert: lh_flight_schedules_flattened > lh_flight_schedules_raw
 
--- id:temp_sanity_check_seat_numbers
-CREATE TABLE temp_sanity_check_seat_numbers AS
-SELECT sub.seatCode
+-- assign:sanity_check_seat_numbers from:result
+SELECT COUNT(*)
 FROM (
     SELECT UNNEST(REGEXP_EXTRACT_ALL(SPLIT_PART(leg.aircraftConfigurationVersion, 'VV', 1), '([A-Z]+)[0-9]+', 1)) AS seatCode
     FROM (
@@ -66,13 +67,10 @@ FROM (
 ) sub
 WHERE seatCode NOT IN ('F', 'C', 'J', 'E', 'R', 'U', 'P', 'PY', 'M', 'Y') ;
 
--- assert: temp_sanity_check_seat_numbers == 0
+-- assert: sanity_check_seat_numbers == 0
 
 -- drop lh_flight_schedules_raw
 DROP TABLE lh_flight_schedules_raw ;
-
--- drop temp_sanity_check_seat_numbers
-DROP TABLE temp_sanity_check_seat_numbers ;
 
 -- update seat counts
 UPDATE lh_flight_schedules_flattened
@@ -83,9 +81,11 @@ SET
     seatsEconomy = IF(seatsEconomy = 99 OR seatsEconomy >= 800, 999, seatsEconomy) ;
 
 -- create queried dates table
--- id:queried_dates
 CREATE TABLE queried_dates AS
 SELECT DISTINCT queryDate FROM lh_flight_schedules_flattened ;
+
+-- assign:queried_dates from:result
+SELECT COUNT(*) FROM queried_dates ;
 
 -- create all flights table
 CREATE TABLE lh_all_flights (
@@ -387,7 +387,6 @@ GROUP BY
 ;
 
 -- create lh_all_flights_deduped
--- id:lh_all_flights_deduped
 CREATE TABLE lh_all_flights_deduped AS
 SELECT
     createdAt,
@@ -411,13 +410,16 @@ GROUP BY
     departureDateLocal
 ;
 
+-- assign:lh_all_flights_deduped from:result
+SELECT COUNT(*) FROM lh_all_flights_deduped ;
+
 -- assert: lh_all_flights_deduped > lh_flight_schedules_flattened
 
 -- drop lh_all_flights
 DROP TABLE lh_all_flights ;
 
 -- insert new airlines
--- id:new_airlines
+-- assign:new_airlines from:rows_affected
 INSERT INTO airlines
 (id, lh_api_id, iata_code, name)
 SELECT UUID(), airline, airline, NULL
@@ -428,7 +430,7 @@ FROM (
 ) ;
 
 -- insert airports
--- id:new_airports
+-- assign:new_airports from:rows_affected
 INSERT INTO airports
 (id, lh_api_id, iata_code, icao_code, iata_area_code, country_code, city_code, type, lng, lat, timezone, name)
 SELECT UUID(), airport, airport, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
@@ -451,7 +453,7 @@ FROM (
 ) ;
 
 -- insert new aircraft
--- id:new_aircraft
+-- assign:new_aircraft from:rows_affected
 INSERT INTO aircraft
 (id, aircraft_type_id, aircraft_family_id)
 SELECT id, NULL, NULL
@@ -467,7 +469,6 @@ FROM temp_new_aircraft ;
 DROP TABLE temp_new_aircraft ;
 
 -- create all flights with ids
--- id:lh_all_flights_with_ids
 CREATE TABLE lh_all_flights_with_ids AS
 SELECT
     fresh.createdAt,
@@ -511,10 +512,13 @@ ON arr_airp.lh_api_id = opdata.destination
 LEFT JOIN aircraft_lh_mapping airc -- aircraft
 ON airc.lh_api_id = opdata.aircraftType ;
 
+-- assign:lh_all_flights_with_ids from:result
+SELECT COUNT(*) FROM lh_all_flights_with_ids ;
+
 -- assert: lh_all_flights_with_ids == lh_all_flights_deduped
 
 -- add flights with same operating number which were not part of this update
--- id:lh_all_flights_with_ids_existing
+-- assign:lh_all_flights_with_ids_existing from:rows_affected
 INSERT INTO lh_all_flights_with_ids (
     createdAt,
     airlineId,
@@ -604,7 +608,7 @@ DROP TABLE lh_all_flights_deduped ;
 DROP TABLE lh_operating_flight_data ;
 
 -- insert new flight numbers
--- id:new_flight_numbers
+-- assign:new_flight_numbers from:rows_affected
 INSERT OR IGNORE INTO flight_numbers
 (airline_id, number, suffix)
 SELECT DISTINCT airlineId, flightNumber, suffix
@@ -622,7 +626,7 @@ CREATE TABLE lh_operating_codeshares (
 ) ;
 
 -- insert codeshares
--- id:codeshares_by_operating
+-- assign:codeshares_by_operating from:rows_affected
 INSERT INTO lh_operating_codeshares (
     operatingAirlineId,
     operatingFlightNumber,
@@ -659,7 +663,7 @@ GROUP BY
 ;
 
 -- harden codeshares, for some reason the filter doesnt work on all platforms(?) https://github.com/duckdb/duckdb/issues/17757
--- id:harden_codeshares
+-- assign:harden_codeshares from:rows_affected
 UPDATE lh_operating_codeshares
 SET codeShares = LIST_SORT(LIST_DISTINCT(LIST_FILTER(
     codeShares,
@@ -673,7 +677,7 @@ WHERE LENGTH(LIST_FILTER(
 -- assert: harden_codeshares == 0
 
 -- insert new flight variants
--- id:new_flight_variants
+-- assign:new_flight_variants from:rows_affected
 INSERT INTO flight_variants (
     id,
     operating_airline_id,
@@ -761,7 +765,6 @@ ON CONFLICT (
 ) DO NOTHING ;
 
 -- create all flights with variants
--- id:lh_all_flights_with_variants
 CREATE TABLE lh_all_flights_with_variants AS
 SELECT
     fresh.*,
@@ -793,6 +796,9 @@ AND fresh.seatsEconomy = fv.seats_economy
 AND MD5_NUMBER(TO_JSON(cs.codeShares)) = fv.code_shares_hash
 AND cs.codeShares = fv.code_shares ;
 
+-- assign:lh_all_flights_with_variants from:result
+SELECT COUNT(*) FROM lh_all_flights_with_variants ;
+
 -- assert: lh_all_flights_with_variants == (lh_all_flights_with_ids + lh_all_flights_with_ids_existing)
 
 -- drop lh_all_flights_with_ids
@@ -801,13 +807,9 @@ DROP TABLE lh_all_flights_with_ids ;
 -- drop codeshares
 DROP TABLE lh_operating_codeshares ;
 
--- id:temp_sanity_check_variant_ids_filled
-CREATE TABLE temp_sanity_check_variant_ids_filled AS
-SELECT 1 AS x
+-- assign:sanity_check_variant_ids_filled from:result
+SELECT COUNT(*)
 FROM lh_all_flights_with_variants
 WHERE flightVariantId IS NULL ;
 
--- assert: temp_sanity_check_variant_ids_filled == 0
-
--- drop temp_sanity_check_variant_ids_filled
-DROP TABLE temp_sanity_check_variant_ids_filled ;
+-- assert: sanity_check_variant_ids_filled == 0

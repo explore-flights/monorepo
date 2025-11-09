@@ -1,6 +1,5 @@
 -- load updated raw data
--- id:lh_flight_schedules_raw
-CREATE TEMP TABLE lh_flight_schedules_raw AS
+CREATE TABLE lh_flight_schedules_raw AS
 SELECT *
 FROM read_json(
   ?,
@@ -14,3 +13,6 @@ FROM read_json(
     dataElements: 'STRUCT(startLegSequenceNumber USMALLINT, endLegSequenceNumber USMALLINT, id INTEGER, value TEXT)[]'
   }
 ) ;
+
+-- assign:lh_flight_schedules_raw from:result
+SELECT COUNT(*) FROM lh_flight_schedules_raw ;

@@ -6,12 +6,19 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"fmt"
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
 	"iter"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types"
+)
+
+const (
+	queryKindUnknown = iota
+	queryKindExec
+	queryKindQuery
 )
 
 type UpdateSequence []UpdateScript
@@ -63,6 +70,7 @@ func (us UpdateScript) ParseSteps(env *cel.Env, raw string, queryIdx *int, outEr
 		raw = strings.TrimSpace(raw)
 
 		isQuery := false
+		queryKind := queryKindUnknown
 		identifier := ""
 		name := us.Name
 
@@ -82,13 +90,7 @@ func (us UpdateScript) ParseSteps(env *cel.Env, raw string, queryIdx *int, outEr
 
 			if assertionRaw, ok := strings.CutPrefix(comment, "assert:"); ok {
 				assertionRaw = strings.TrimSpace(assertionRaw)
-				ast, issues := env.Parse(assertionRaw)
-				if issues != nil && issues.Err() != nil {
-					*outErr = issues.Err()
-					return
-				}
-
-				program, err := env.Program(ast)
+				program, err := parseProgram(env, assertionRaw)
 				if err != nil {
 					*outErr = err
 					return
@@ -97,15 +99,51 @@ func (us UpdateScript) ParseSteps(env *cel.Env, raw string, queryIdx *int, outEr
 				if !yield(UpdateAssertion{raw: assertionRaw, program: program}) {
 					return
 				}
+			} else if assignmentRaw, ok := strings.CutPrefix(comment, "assign:"); ok {
+				var identifierRaw, exprRaw string
+				var ok bool
+
+				identifierRaw = strings.TrimSpace(assignmentRaw)
+				identifierRaw, exprRaw, ok = strings.Cut(identifierRaw, " ")
+				if !ok {
+					*outErr = fmt.Errorf("assignment malformed, expected whitspace: %q", assignmentRaw)
+					return
+				}
+
+				identifier = strings.TrimSpace(identifierRaw)
+				exprRaw = strings.TrimSpace(exprRaw)
+
+				switch exprRaw {
+				case "from:rows_affected":
+					queryKind = queryKindExec
+
+				case "from:result":
+					queryKind = queryKindQuery
+
+				default:
+					program, err := parseProgram(env, exprRaw)
+					if err != nil {
+						*outErr = err
+						return
+					}
+
+					if !yield(UpdateAssignment{raw: assignmentRaw, identifier: identifier, program: program}) {
+						return
+					}
+
+					identifier = ""
+				}
 			} else {
 				name += fmt.Sprintf(" %s", comment)
-				if id, ok := strings.CutPrefix(comment, "id:"); ok {
-					identifier = strings.TrimSpace(id)
-				}
 			}
 		}
 
 		if isQuery {
+			if identifier != "" && queryKind == queryKindUnknown {
+				*outErr = fmt.Errorf("identifier set as %q but queryKind is unknown", identifier)
+				return
+			}
+
 			var params []any
 			if len(us.Params) > *queryIdx {
 				params = us.Params[*queryIdx]
@@ -114,6 +152,7 @@ func (us UpdateScript) ParseSteps(env *cel.Env, raw string, queryIdx *int, outEr
 			name += fmt.Sprintf(" (part %d)", *queryIdx+1)
 
 			yield(UpdateQuery{
+				queryKind:  queryKind,
 				identifier: identifier,
 				name:       name,
 				query:      raw,
@@ -141,6 +180,7 @@ type UpdateStep interface {
 }
 
 type UpdateQuery struct {
+	queryKind  int
 	identifier string
 	name       string
 	query      string
@@ -157,12 +197,24 @@ func (uq UpdateQuery) Run(ctx context.Context, conn *sql.Conn, rows map[string]i
 	fmt.Printf("running %s\n", uq.name)
 	defer printDone()
 
-	r, err := conn.ExecContext(ctx, uq.query, uq.params...)
-	if err != nil {
-		return fmt.Errorf("failed to run query %s: %w", uq.name, err)
+	switch uq.queryKind {
+	case queryKindUnknown, queryKindExec:
+		r, err := conn.ExecContext(ctx, uq.query, uq.params...)
+		if err != nil {
+			return fmt.Errorf("failed to run query %s: %w", uq.name, err)
+		}
+
+		rowsAffected, _ = r.RowsAffected()
+
+	case queryKindQuery:
+		if err := conn.QueryRowContext(ctx, uq.query, uq.params...).Scan(&rowsAffected); err != nil {
+			return fmt.Errorf("failed to run query %s: %w", uq.name, err)
+		}
+
+	default:
+		return fmt.Errorf("unknown query kind: %d", uq.queryKind)
 	}
 
-	rowsAffected, _ = r.RowsAffected()
 	if uq.identifier != "" {
 		rows[uq.identifier] = rowsAffected
 	}
@@ -195,6 +247,33 @@ func (uc UpdateAssertion) Run(ctx context.Context, conn *sql.Conn, rows map[stri
 	return nil
 }
 
+type UpdateAssignment struct {
+	raw        string
+	identifier string
+	program    cel.Program
+}
+
+func (ua UpdateAssignment) Run(ctx context.Context, conn *sql.Conn, rows map[string]int64) error {
+	anyMap := make(map[string]any)
+	for k, v := range rows {
+		anyMap[k] = v
+	}
+
+	res, _, err := ua.program.ContextEval(ctx, anyMap)
+	if err != nil {
+		return fmt.Errorf("assignment %q failed: %w", ua.raw, err)
+	}
+
+	result, ok := res.ConvertToType(types.IntType).Value().(int64)
+	if !ok {
+		return fmt.Errorf("assignment %q returned non-int64", ua.raw)
+	}
+
+	rows[ua.identifier] = result
+
+	return nil
+}
+
 func GenerateIdentifier() (string, error) {
 	const randomLength = 10
 	const timestampLength = 8 // hex unix timestamp (within reasonable time span)
@@ -215,4 +294,13 @@ func GenerateIdentifier() (string, error) {
 	r = strconv.AppendInt(r, time.Now().Unix(), 16)
 
 	return string(r), nil
+}
+
+func parseProgram(env *cel.Env, program string) (cel.Program, error) {
+	ast, issues := env.Parse(program)
+	if issues != nil && issues.Err() != nil {
+		return nil, issues.Err()
+	}
+
+	return env.Program(ast)
 }
