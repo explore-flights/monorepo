@@ -119,23 +119,28 @@ export class SfnConstruct extends Construct {
           // endregion
           // region conversion
           .otherwise(
-            new LambdaInvoke(this, 'CreateFlightSchedulesHistoryTask', {
-              lambdaFunction: props.cronLambda_4G,
-              payload: TaskInput.fromObject({
-                'action': 'create_flight_schedules_history',
-                'params': {
-                  'time': JsonPath.stringAt('$.time'),
-                  'inputBucket': props.dataBucket.bucketName,
-                  'inputPrefix': LH_FLIGHT_SCHEDULES_PREFIX,
-                  'outputBucket': props.dataBucket.bucketName,
-                  'outputPrefix': 'raw/LH_Public_Data/flightschedules_history/',
-                  'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.completed'),
-                },
-              }),
-              payloadResponseOnly: true,
-              resultPath: '$.createFlightSchedulesHistoryResponse',
-              retryOnServiceExceptions: true,
-            })
+            new Choice(this, 'CheckCreateFlightSchedulesHistoryTask', {})
+              .when(
+                Condition.isNotPresent('$.createFlightSchedulesHistoryResponse'),
+                new LambdaInvoke(this, 'CreateFlightSchedulesHistoryTask', {
+                  lambdaFunction: props.cronLambda_4G,
+                  payload: TaskInput.fromObject({
+                    'action': 'create_flight_schedules_history',
+                    'params': {
+                      'time': JsonPath.stringAt('$.time'),
+                      'inputBucket': props.dataBucket.bucketName,
+                      'inputPrefix': LH_FLIGHT_SCHEDULES_PREFIX,
+                      'outputBucket': props.dataBucket.bucketName,
+                      'outputPrefix': 'raw/LH_Public_Data/flightschedules_history/',
+                      'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.completed'),
+                    },
+                  }),
+                  payloadResponseOnly: true,
+                  resultPath: '$.createFlightSchedulesHistoryResponse',
+                  retryOnServiceExceptions: true,
+                }),
+              )
+              .afterwards({ includeOtherwise: true })
               .next(new Pass(this, 'PrepareUpdateDatabaseCommand', {
                 parameters: {
                   'args': JsonPath.array(
