@@ -248,7 +248,7 @@ DELETE FROM aircraft_families acf
 WHERE NOT EXISTS ( FROM aircraft ac WHERE ac.aircraft_family_id = acf.id ) ;
 
 -- delete orphaned aircraft families (5)
--- id:last_orphaned_family_deletion
+-- assign:last_orphaned_family_deletion from:rows_affected
 DELETE FROM aircraft ac
 WHERE ac.aircraft_family_id IS NOT NULL
 AND NOT EXISTS ( FROM aircraft_types act WHERE act.aircraft_family_id = ac.aircraft_family_id )
