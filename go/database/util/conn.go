@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/duckdb/duckdb-go/v2"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/marcboeker/go-duckdb/v2"
 )
 
 func WithDatabase(ctx context.Context, ddbHomePath, tmpDbPath, tmpDbName string, threadCount int, fn func(conn *sql.Conn) error) error {
