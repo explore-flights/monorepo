@@ -6,26 +6,48 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/explore-flights/monorepo/go/common/adapt"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/explore-flights/monorepo/go/common/adapt"
+)
+
+const (
+	kilobyte = 1000
+	megabyte = kilobyte * 1000
+	gigabyte = megabyte * 1000
 )
 
 func UploadS3File(ctx context.Context, s3c adapt.S3Putter, bucket, key, filePath string) error {
+	fInfo, err := os.Stat(filePath)
+	if err != nil {
+		return err
+	}
+
 	f, err := os.Open(filePath)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	_, err = s3c.PutObject(ctx, &s3.PutObjectInput{
+	putObjectInput := s3.PutObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 		Body:   f,
-	})
+	}
+
+	if fInfo.Size() <= 5*gigabyte {
+		_, err = s3c.PutObject(ctx, &putObjectInput)
+	} else if s3c, ok := s3c.(manager.UploadAPIClient); ok {
+		_, err = manager.NewUploader(s3c).Upload(ctx, &putObjectInput)
+	} else {
+		err = fmt.Errorf("file to be uploaded is larger than 5 GB (%d bytes) but client does not support multipart upload", fInfo.Size())
+	}
+
 	return err
 }
 
