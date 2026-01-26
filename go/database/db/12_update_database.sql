@@ -27,7 +27,7 @@ SELECT
     aircraftType,
     COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '(F)([0-9]+)', 2) AS USMALLINT), 0) AS seatsFirst,
     COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '(C|J|W)([0-9]+)', 2) AS USMALLINT), 0) AS seatsBusiness,
-    COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '(E|R|U|P|PY)([0-9]+)', 2) AS USMALLINT), 0) AS seatsPremium,
+    COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '(E|R|U|P|PY|O)([0-9]+)', 2) AS USMALLINT), 0) AS seatsPremium,
     COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '(M|Y)([0-9]+)', 2) AS USMALLINT), 0) AS seatsEconomy,
     CAST(STRPTIME(periodOfOperationUTC.startDate, '%d%b%y') + TO_DAYS(aircraftDepartureTimeDateDiffUTC) + TO_MINUTES(aircraftDepartureTimeUTC) + TO_MINUTES(aircraftDepartureTimeVariation) AS DATE) AS departureDateLocal,
     CAST(STRPTIME(periodOfOperationUTC.startDate, '%d%b%y') + TO_DAYS(aircraftDepartureTimeDateDiffUTC) + TO_MINUTES(aircraftDepartureTimeUTC) + TO_MINUTES(aircraftDepartureTimeVariation) AS TIME) AS departureTimeLocal,
@@ -65,7 +65,7 @@ FROM (
         FROM lh_flight_schedules_raw
     )
 ) sub
-WHERE seatCode NOT IN ('F', 'C', 'J', 'W', 'E', 'R', 'U', 'P', 'PY', 'M', 'Y') ;
+WHERE seatCode NOT IN ('F', 'C', 'J', 'W', 'E', 'R', 'U', 'P', 'PY', 'O', 'M', 'Y') ;
 
 -- assert: sanity_check_seat_numbers == 0
 
