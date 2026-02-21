@@ -59,7 +59,7 @@ func dbInit(ctx context.Context, ddbHomePath, tmpDbPath, tmpDbName string, threa
 				[]driver.NamedValue{},
 			},
 			{
-				`SET memory_limit = '16GB'`,
+				`SET memory_limit = '22GB'`,
 				[]driver.NamedValue{},
 			},
 			{
