@@ -64,7 +64,7 @@ export class UpdateDatabaseConstruct extends Construct {
 
     this.task = new FargateTaskDefinition(this, 'TaskDefinition', {
       cpu: 4096,
-      memoryLimitMiB: 1024 * 18,
+      memoryLimitMiB: 1024 * 24,
       taskRole: taskRole,
       executionRole: taskExecutionRole,
       runtimePlatform: {
