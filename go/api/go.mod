@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.1
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.3
-	github.com/duckdb/duckdb-go/v2 v2.10500.0
+	github.com/duckdb/duckdb-go/v2 v2.5.5
 	github.com/explore-flights/monorepo/go/common v0.0.0
 	github.com/goccy/go-graphviz v0.2.10
 	github.com/gofrs/uuid/v5 v5.4.0
@@ -44,12 +44,12 @@ require (
 	github.com/aws/smithy-go v1.24.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/disintegration/imaging v1.6.2 // indirect
-	github.com/duckdb/duckdb-go-bindings v0.10500.0 // indirect
-	github.com/duckdb/duckdb-go-bindings/lib/darwin-amd64 v0.10500.0 // indirect
-	github.com/duckdb/duckdb-go-bindings/lib/darwin-arm64 v0.10500.0 // indirect
-	github.com/duckdb/duckdb-go-bindings/lib/linux-amd64 v0.10500.0 // indirect
-	github.com/duckdb/duckdb-go-bindings/lib/linux-arm64 v0.10500.0 // indirect
-	github.com/duckdb/duckdb-go-bindings/lib/windows-amd64 v0.10500.0 // indirect
+	github.com/duckdb/duckdb-go-bindings v0.3.3 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/darwin-amd64 v0.3.3 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/darwin-arm64 v0.3.3 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/linux-amd64 v0.3.3 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/linux-arm64 v0.3.3 // indirect
+	github.com/duckdb/duckdb-go-bindings/lib/windows-amd64 v0.3.3 // indirect
 	github.com/flopp/go-findfont v0.1.0 // indirect
 	github.com/fogleman/gg v1.3.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
