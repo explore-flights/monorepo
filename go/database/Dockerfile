@@ -1,6 +1,6 @@
 FROM quay.io/pypa/manylinux_2_28_aarch64 AS build
 
-ENV GOVERSION="1.26.0"
+ENV GOVERSION="1.26.1"
 ENV GOOS="linux"
 ENV GOARCH="arm64"
 
