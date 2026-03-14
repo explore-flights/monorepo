@@ -99,7 +99,7 @@ jobs:
           node-version: '24'
       - name: 'Install npm dependencies'
         working-directory: 'ui'
-        run: 'npm install'
+        run: 'npm install --legacy-peer-deps'
       - name: 'Build'
         working-directory: 'ui'
         run: 'npm run build'

@@ -12,29 +12,29 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@cloudscape-design/code-view": "^3.0.78",
-    "@cloudscape-design/collection-hooks": "^1.0.77",
-    "@cloudscape-design/components": "^3.0.1126",
-    "@cloudscape-design/design-tokens": "^3.0.63",
-    "@cloudscape-design/global-styles": "^1.0.47",
-    "@dagrejs/dagre": "^1.1.8",
-    "@tanstack/react-query": "^5.90.7",
-    "@turf/turf": "^7.2.0",
-    "@versatiles/style": "^5.7.0",
-    "@xyflow/react": "^12.9.2",
+    "@cloudscape-design/code-view": "^3.0.107",
+    "@cloudscape-design/collection-hooks": "^1.0.85",
+    "@cloudscape-design/components": "^3.0.1234",
+    "@cloudscape-design/design-tokens": "^3.0.73",
+    "@cloudscape-design/global-styles": "^1.0.51",
+    "@dagrejs/dagre": "^2.0.4",
+    "@tanstack/react-query": "^5.90.21",
+    "@turf/turf": "^7.3.4",
+    "@versatiles/style": "^5.10.0",
+    "@xyflow/react": "^12.10.1",
     "luxon": "^3.7.2",
-    "maplibre-gl": "^5.11.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "maplibre-gl": "^5.20.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "react-map-gl": "^8.1.0",
-    "react-router-dom": "^7.9.5"
+    "react-router-dom": "^7.13.1"
   },
   "devDependencies": {
     "@types/luxon": "^3.7.1",
-    "@types/node": "^24.10.0",
-    "@types/react": "^19.2.2",
-    "@types/react-dom": "^19.2.2",
-    "@vitejs/plugin-react": "^5.1.0",
+    "@types/node": "^24.12.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
     "eslint": "^10.0.3",
     "@eslint/js": "^10.0.1",
     "@eslint/compat": "^2.0.3",
@@ -43,8 +43,8 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "globals": "^17.4.0",
-    "sass": "^1.93.3",
+    "sass": "^1.98.0",
     "typescript": "^5.9.3",
-    "vite": "^7.2.1"
+    "vite": "^7.3.1"
   }
 }
