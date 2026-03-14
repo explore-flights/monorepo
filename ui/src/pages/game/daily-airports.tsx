@@ -232,7 +232,7 @@ function DailyAirportsGame({ gameParams, departureAirport, arrivalAirport, loadN
 
   const removeDestination = useCallback((destination: DestinationReport) => {
     setSelectedDestinations((prev) => {
-      let idx = prev.findLastIndex((v) => v.airport.id === destination.airport.id);
+      const idx = prev.findLastIndex((v) => v.airport.id === destination.airport.id);
       if (idx === -1 || idx === 0) {
         return prev;
       }

@@ -109,7 +109,7 @@ function SearchForm({ actions, disabled, request, onUpdate }: { actions: React.R
                     ...prev,
                     minDepartureTime: start,
                     maxDepartureTime: end,
-                  }))
+                  }));
                 }}
                 relativeOptions={[]}
                 isValidRange={(v) => {

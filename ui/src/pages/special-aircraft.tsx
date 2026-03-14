@@ -291,7 +291,7 @@ function SpecialAircraftPageInternal({ flights, flightLinkQuery }: { flights: Re
       if (!uniqueDepartureAirportIds.has(flight.departureAirport.id)) {
         uniqueDepartureAirportIds.add(flight.departureAirport.id);
 
-        let label = '';
+        let label: string;
         const tags = [flight.departureAirport.iataCode, flight.departureAirport.icaoCode].filter(Boolean).join('/');
         if (flight.departureAirport.name) {
           label = `${flight.departureAirport.name} (${tags})`;
@@ -309,7 +309,7 @@ function SpecialAircraftPageInternal({ flights, flightLinkQuery }: { flights: Re
       if (!uniqueArrivalAirportIds.has(flight.arrivalAirport.id)) {
         uniqueArrivalAirportIds.add(flight.arrivalAirport.id);
 
-        let label = '';
+        let label: string;
         const tags = [flight.arrivalAirport.iataCode, flight.arrivalAirport.icaoCode].filter(Boolean).join('/');
         if (flight.arrivalAirport.name) {
           label = `${flight.arrivalAirport.name} (${tags})`;
@@ -431,7 +431,7 @@ function SpecialAircraftMap({ flights }: { flights: ReadonlyArray<FlightItem> })
   const [markers, lines, bounds] = useMemo(() => {
     const markers: Array<React.ReactNode> = [];
     const lines: Array<React.ReactNode> = [];
-    const points: Array<Feature<Point, any>> = [];
+    const points: Array<Feature<Point, never>> = [];
     const addedAirports = new Set<AirportId>();
     const addedRoutes = new Set<string>();
 
@@ -510,7 +510,7 @@ function TimeCell({ value }: { value: DateTime<true> }) {
       <Box>{date}</Box>
       <Box>{time}</Box>
     </>
-  )
+  );
 }
 
 function compareFlightNumbers(a: [Airline, FlightNumber], b: [Airline, FlightNumber]) {

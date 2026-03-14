@@ -195,7 +195,7 @@ function buildColumnDefinitions(flightLinkQuery?: (item: ScheduleTableItem) => U
       header: 'Flight Number',
       cell: (v) => {
         const fn = flightNumberToString(v.schedule.flightNumber, v.airline);
-        const query = flightLinkQuery ? flightLinkQuery(v) : undefined
+        const query = flightLinkQuery ? flightLinkQuery(v) : undefined;
 
         return <FlightLink flightNumber={fn} query={query} target={'_blank'} />;
       },

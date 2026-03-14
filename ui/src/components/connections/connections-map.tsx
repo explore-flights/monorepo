@@ -52,7 +52,7 @@ function buildMarkersAndLines(connections: ConnectionsResponse): [ReadonlyArray<
 
   const markers = new Map<string, React.ReactNode>();
   const lines = new Map<string, React.ReactNode>();
-  const points: Array<Feature<Point, any>> = [];
+  const points: Array<Feature<Point, never>> = [];
 
   for (const node of airportNodes.values()) {
     toMarkersAndLines(node, markers, lines, points);
@@ -82,7 +82,7 @@ function toMarkersAndLines(
   node: AirportNode,
   markers: Map<string, React.ReactNode>,
   lines: Map<string, React.ReactNode>,
-  points: Array<Feature<Point, any>>,
+  points: Array<Feature<Point, never>>,
 ) {
 
   if (!markers.has(node.airport.id)) {

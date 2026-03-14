@@ -24,5 +24,5 @@ export function ValueMultilineEditor({ values, disabled, setValues, placeholder 
       />
       <Box variant={'small'}>one value per line; supports glob patterns</Box>
     </SpaceBetween>
-  )
+  );
 }

@@ -166,7 +166,7 @@ function FlightNode({ data }: NodeProps<Node<FlightNodeData>>) {
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
     </>
-  )
+  );
 }
 
 function FlightPopoverContent({ flight, airline, departureAirport, arrivalAirport, aircraft, airlineById }: { flight: ConnectionFlightResponse, airline: Airline, departureAirport: Airport, arrivalAirport: Airport, aircraft: Aircraft, airlineById: Record<AirlineId, Airline> }) {

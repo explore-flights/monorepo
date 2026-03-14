@@ -45,7 +45,7 @@ import {
   SeriesBuilder,
   PieChartDataBuilder,
   LineSeries,
-  ThresholdSeries, BarSeries
+  ThresholdSeries,
 } from '../lib/charts/builder';
 import { RouterInlineLink } from '../components/common/router-link';
 import { FitBounds, MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
@@ -434,7 +434,7 @@ function Map({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
   const [markers, lines, bounds] = useMemo(() => {
     const markers: Array<React.ReactNode> = [];
     const lines: Array<React.ReactNode> = [];
-    const points: Array<Feature<Point, any>> = [];
+    const points: Array<Feature<Point, never>> = [];
     const addedAirports = new Set<AirportId>();
     const addedRoutes = new Set<string>();
 
@@ -667,8 +667,8 @@ function OperatingDayStat({ flights }: { flights: ReadonlyArray<ScheduledFlight>
   );
 }
 
-function generateThresholds(now: DateTime<true>, xDomain: [Date, Date] | undefined): ReadonlyArray<ThresholdSeries<any>> {
-  const series: Array<ThresholdSeries<BarSeries<Date>>> = [
+function generateThresholds(now: DateTime<true>, xDomain: [Date, Date] | undefined): ReadonlyArray<ThresholdSeries<LineSeries<Date>>> {
+  const series: Array<ThresholdSeries<LineSeries<Date>>> = [
     {
       type: 'threshold',
       title: 'Today',
@@ -682,7 +682,7 @@ function generateThresholds(now: DateTime<true>, xDomain: [Date, Date] | undefin
   }
 
   let nextScheduleChangeDT = DateTime.fromJSDate(xDomain[0]);
-  let nextScheduleChangeName = '';
+  let nextScheduleChangeName: string;
   if (!nextScheduleChangeDT.isValid) {
     return series;
   }
@@ -715,7 +715,7 @@ function AircraftCellPopover({ value, children }: React.PropsWithChildren<{ valu
     <Popover header={value.name} content={<CodeView content={JSON.stringify(value, null, 2)} highlight={jsonHighlight} />} size={'large'}>
       {children}
     </Popover>
-  )
+  );
 }
 
 function AircraftCellContent({ value, count }: { value: Aircraft, count?: number }) {
@@ -738,7 +738,7 @@ function TimeCell({ value }: { value: DateTime<true> }) {
       <Box>{date}</Box>
       <Box>{time}</Box>
     </>
-  )
+  );
 }
 
 interface TableFilterProps {
@@ -1055,9 +1055,8 @@ function processFlightSchedule(flightSchedules: FlightSchedules): ProcessedFligh
       arrivalAirports.push(arrivalAirport);
     }
 
-    let aircraftIndex = aircraft.findIndex((v) => v[0] === ac);
-    if (aircraftIndex === -1) {
-      aircraftIndex = aircraft.push([ac, 0]) - 1;
+    if (aircraft.findIndex((v) => v[0] === ac) === -1) {
+      aircraft.push([ac, 0]);
     }
 
     if (!aircraftConfigurationVersions.includes(variant.aircraftConfigurationVersion)) {

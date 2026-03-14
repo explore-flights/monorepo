@@ -207,5 +207,5 @@ function TopNavigationSearch() {
       }}
       onFocus={() => setSearchEnabled(true)}
     />
-  )
+  );
 }

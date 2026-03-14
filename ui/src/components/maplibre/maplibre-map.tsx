@@ -210,7 +210,7 @@ export function SmartLine({ src, dst, dashed }: { src: [number, number], dst: [n
 
   const [preferences] = usePreferences();
   const paint = useMemo(() => {
-    let paint: LineLayerSpecification['paint'] = {
+    const paint: LineLayerSpecification['paint'] = {
       'line-width': 3,
       'line-color': ({
         [ColorScheme.DARK]: '#c6c6cd',

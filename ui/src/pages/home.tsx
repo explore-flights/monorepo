@@ -107,7 +107,7 @@ function SearchShareModal({ share, onClose }: { share?: ConnectionSearchShare, o
         </ValueWithLabel>
       </KeyValuePairs>
     </Modal>
-  )
+  );
 }
 
 function paramsToRequest(params: ConnectionSearchParams): ConnectionsSearchRequest {
@@ -153,7 +153,7 @@ function requestToParams(req: ConnectionsSearchRequest): ConnectionSearchParams 
 function isoDateTime(iso8601: string): DateTime<true> {
   const dt = DateTime.fromISO(iso8601, { setZone: true });
   if (!dt.isValid) {
-    throw new Error(`invalid iso string ${iso8601}`)
+    throw new Error(`invalid iso string ${iso8601}`);
   }
 
   return dt;

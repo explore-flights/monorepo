@@ -14,42 +14,27 @@ export type AreaSeries<T extends ChartDataTypes> = AreaChartProps<T>['series'][n
 export type BarSeries<T extends ChartDataTypes> = BarChartProps<T>['series'][number];
 
 export type Series<T extends ChartDataTypes> = LineSeries<T> | AreaSeries<T> | BarSeries<T>;
-type DataSeries<S> = S extends Series<any>
-  ? Exclude<S, { type: 'threshold' }>
-  : never;
-type SeriesType<S> = S extends Series<any>
-  ? DataSeries<S>['type']
-  : never;
-export type ThresholdSeries<S> = S extends Series<any>
-  ? S['type'] extends 'threshold'
-    ? S
-    : never
-  : never;
-type SeriesDatum<S> = S extends Series<any>
-  ? DataSeries<S>['data'][number]
-  : never;
-type DataType<S> = S extends Series<any>
-  ? SeriesDatum<S>['x']
-  : never;
+type SeriesType<S> = S extends { type: infer U } ? U : never;
+type DataSeries<S extends Series<T>, T extends ChartDataTypes> = Exclude<S, { type: 'threshold' }>;
+export type ThresholdSeries<S extends Series<ChartDataTypes>> = Extract<S, { type: 'threshold' }>;
+type SeriesDatum<S extends Series<T>, T extends ChartDataTypes> = DataSeries<S, T>['data'][number];
+type DataType<S extends Series<T>, T extends ChartDataTypes> = SeriesDatum<S, T>['x'];
 
-type MutableDataSeries<S> = S extends Series<any>
-  ? { type: SeriesType<S>, data: Array<DataType<S>> }
-  : never;
+type MutableSeriesDataArray<S extends Series<T>, T extends ChartDataTypes> = Array<SeriesDatum<S, T>>;
+type MutableDataSeries<S extends Series<T>, T extends ChartDataTypes> = { readonly type: SeriesType<S>, readonly data: MutableSeriesDataArray<S, T> };
 
-type RemainingDataSeries<S> = S extends Series<any>
-  ? Omit<DataSeries<S>, keyof MutableDataSeries<S>>
-  : never;
+type RemainingDataSeries<S extends Series<T>, T extends ChartDataTypes> = Omit<DataSeries<S, T>, keyof MutableDataSeries<S, T>>;
 
-export class SeriesBuilder<ID extends Primitive, S extends Series<any>, D = ID> {
+export class SeriesBuilder<ID extends Primitive, S extends Series<T>, D = ID, T extends ChartDataTypes = ChartDataTypes> {
 
   private readonly type: SeriesType<S>;
   private readonly idFn: (d: D) => ID;
-  private readonly dataAndSeriesById: Map<ID, [D, MutableDataSeries<S>]>;
-  private readonly uniqueXValues: Array<DataType<S>>;
-  private xDomain: [DataType<S>, DataType<S>] | null;
+  private readonly dataAndSeriesById: Map<ID, [D, MutableDataSeries<S, T>]>;
+  private readonly uniqueXValues: Array<DataType<S, T>>;
+  private xDomain: [DataType<S, T>, DataType<S, T>] | null;
   private yDomain: [number, number] | null;
 
-  constructor(type: SeriesType<S>, xValues?: ReadonlyArray<DataType<S>>, ...idFn: IsEqual<ID, D> extends true ? [] : [(d: D) => ID]) {
+  constructor(type: SeriesType<S>, xValues?: ReadonlyArray<DataType<S, T>>, ...idFn: IsEqual<ID, D> extends true ? [] : [(d: D) => ID]) {
     this.type = type;
     this.dataAndSeriesById = new Map();
     this.uniqueXValues = [];
@@ -61,24 +46,22 @@ export class SeriesBuilder<ID extends Primitive, S extends Series<any>, D = ID> 
     if (idFn.length > 0) {
       this.idFn = idFn[0]!;
     } else {
-      // @ts-ignore
-      this.idFn = (v) => v;
+      this.idFn = (v) => v as unknown as ID;
     }
 
     this.xDomain = null;
     this.yDomain = null;
   }
 
-  public add(data: D, x: DataType<S>, y: number) {
+  public add(data: D, x: DataType<S, T>, y: number) {
     const id = this.idFn(data);
 
-    let [_, series] = this.dataAndSeriesById.get(id) ?? [undefined, undefined];
+    let [, series] = this.dataAndSeriesById.get(id) ?? [undefined, undefined];
     if (!series) {
-      const dataArray: Array<DataType<S>> = [];
       series = {
         type: this.type,
-        data: dataArray,
-      } as MutableDataSeries<S>;
+        data: [],
+      };
       this.dataAndSeriesById.set(id, [data, series]);
     }
 
@@ -91,7 +74,7 @@ export class SeriesBuilder<ID extends Primitive, S extends Series<any>, D = ID> 
       y += series.data[existingIdx].y;
       series.data[existingIdx].y = y;
     } else {
-      series.data.push({ x, y } as SeriesDatum<S>);
+      series.data.push({ x, y } as SeriesDatum<S, T>);
 
       if (this.uniqueXValues.findIndex((v) => equals(v, x)) === -1) {
         this.uniqueXValues.push(x);
@@ -99,7 +82,7 @@ export class SeriesBuilder<ID extends Primitive, S extends Series<any>, D = ID> 
     }
 
     if (this.xDomain) {
-      const sorted = [this.xDomain[0], this.xDomain[1], x].toSorted(compare<DataType<S>>);
+      const sorted = [this.xDomain[0], this.xDomain[1], x].toSorted(compare<DataType<S, T>>);
       this.xDomain = [sorted[0], sorted[2]];
     } else {
       this.xDomain = [x, x];
@@ -113,35 +96,36 @@ export class SeriesBuilder<ID extends Primitive, S extends Series<any>, D = ID> 
     }
   }
 
-  public series(finalizer: (data: D) => RemainingDataSeries<S>, fillMissingX?: boolean, sortX?: boolean): [ReadonlyArray<S>, [DataType<S>, DataType<S>] | undefined, [number, number] | undefined] {
+  public series(finalizer: (data: D) => RemainingDataSeries<S, T>, fillMissingX?: boolean, sortX?: boolean): [ReadonlyArray<S>, [DataType<S, T>, DataType<S, T>] | undefined, [number, number] | undefined] {
     let uniqueXValues = this.uniqueXValues;
     if (sortX) {
-      uniqueXValues = uniqueXValues.toSorted(compare<DataType<S>>);
+      uniqueXValues = uniqueXValues.toSorted(compare<DataType<S, T>>);
     }
 
     const series = Array.from(this.dataAndSeriesById.values()).map(([d, series]) => {
-      let data: Array<SeriesDatum<S>>;
+      const remaining = [...series.data];
+      let data: MutableSeriesDataArray<S, T>;
+      
       if (fillMissingX) {
         data = [];
-
-        const remaining = [...series.data];
+        
         for (const x of uniqueXValues) {
           const idx = remaining.findIndex((v) => equals(v.x, x));
           if (idx === -1) {
-            data.push({ x: x, y: 0 } as SeriesDatum<S>);
+            data.push({ x, y: 0 } as SeriesDatum<S, T>);
           } else {
             data.push(remaining.splice(idx, 1)[0]);
           }
         }
       } else {
-        data = [...series.data];
+        data = remaining;
       }
 
       return {
         ...series,
         data: data,
         ...finalizer(d),
-      } as S;
+      } as unknown as S;
     });
 
     return [series, this.xDomain ?? undefined, this.yDomain ?? undefined];
@@ -158,8 +142,7 @@ export class PieChartDataBuilder<ID extends Primitive, D = ID> {
     if (idFn.length > 0) {
       this.idFn = idFn[0]!;
     } else {
-      // @ts-ignore
-      this.idFn = (v) => v;
+      this.idFn = (v) => v as unknown as ID;
     }
 
     this.dataAndValueById = new Map();

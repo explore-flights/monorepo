@@ -142,7 +142,7 @@ function Version({ version, active }: { version: string, active: boolean }) {
                   <StatusIndicator type={'warning'}>CANCELLED</StatusIndicator>
                 </Popover>
               )
-              : <StatusIndicator type={'info'}>UPDATED</StatusIndicator>
+              : <StatusIndicator type={'info'}>UPDATED</StatusIndicator>;
           }, []),
           sortingField: 'isRemoved',
         },

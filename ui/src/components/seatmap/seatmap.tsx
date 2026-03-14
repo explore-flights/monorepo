@@ -121,7 +121,7 @@ function SeatMapRowComponentsView({ cabin, components }: { cabin: SeatMapCabin, 
   );
 }
 
-function SeatMapRowComponentsSingleView({ cabin, components }: { cabin: SeatMapCabin, components: ReadonlyArray<SeatMapColumnComponent | null> }) {
+function SeatMapRowComponentsSingleView({ components }: { cabin: SeatMapCabin, components: ReadonlyArray<SeatMapColumnComponent | null> }) {
   return (
     <EqualSpaceRow>
       {...components.map((v) => v ? <SeatMapComponentView component={v.features[0]} /> : <div></div>)}
@@ -132,7 +132,7 @@ function SeatMapRowComponentsSingleView({ cabin, components }: { cabin: SeatMapC
 function SeatMapComponentView({ component }: { component: ComponentFeature }) {
   return (
     <Box textAlign={'center'}>{component}</Box>
-  )
+  );
 }
 
 function EqualSpaceRow({ children }: { children: ReadonlyArray<React.ReactNode> }) {
@@ -140,7 +140,7 @@ function EqualSpaceRow({ children }: { children: ReadonlyArray<React.ReactNode> 
     <div className={classes['row']}>
       {...children.map((v) => <div className={classes['row-item']}>{v}</div>)}
     </div>
-  )
+  );
 }
 
 function CabinClassBadge({ cabinClass, ...props }: { cabinClass: CabinClass } & BadgeProps) {

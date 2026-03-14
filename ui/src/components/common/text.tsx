@@ -147,7 +147,7 @@ function AircraftCellPopover({ value, children }: React.PropsWithChildren<{ valu
     <Popover header={value.name} content={<CodeView content={JSON.stringify(value, null, 2)} highlight={jsonHighlight} />} size={'large'}>
       {children}
     </Popover>
-  )
+  );
 }
 
 export function AircraftConfigurationVersionText({ value, popoverContent }: { value: string, popoverContent?: React.ReactNode }) {

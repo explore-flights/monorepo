@@ -17,7 +17,7 @@ export function FlightSelect() {
         </TextContent>
       </Container>
     </ContentLayout>
-  )
+  );
 }
 
 function FlightLinkListItem({ flightNumber }: { flightNumber: string }) {
@@ -25,5 +25,5 @@ function FlightLinkListItem({ flightNumber }: { flightNumber: string }) {
     <li>
       <FlightLink flightNumber={flightNumber} />
     </li>
-  )
+  );
 }

@@ -19,7 +19,7 @@ export interface ApiErrorBody {
 
 export type Issuer = string;
 
-export interface AuthInfo {}
+export type AuthInfo = object;
 
 export type AirportId = Branded<string, 'AirportId'>;
 export interface Airport {

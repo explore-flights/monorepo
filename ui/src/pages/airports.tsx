@@ -31,7 +31,7 @@ export function Airports() {
 
   const removeAirport = useCallback((airport: Airport) => {
     setSelectionState((prev) => {
-      let idx = prev.airports.findLastIndex((v) => v.id === airport.id);
+      const idx = prev.airports.findLastIndex((v) => v.id === airport.id);
       if (idx === -1) {
         return prev;
       }

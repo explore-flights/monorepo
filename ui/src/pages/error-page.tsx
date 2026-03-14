@@ -12,7 +12,7 @@ interface Error {
   error?: string;
   message?: string;
   path?: string;
-  raw: any;
+  raw: unknown;
 }
 
 export function ErrorPage({ backendError }: { backendError?: boolean }) {

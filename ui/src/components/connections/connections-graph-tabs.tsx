@@ -16,7 +16,7 @@ export function ConnectionsGraphTabs({ connections }: ConnectionsGraphTabsProps)
         id: date,
         label: DateTime.fromISO(date).toLocaleString(DateTime.DATE_FULL),
         content: <ConnectionsGraph connections={connections} />,
-      } satisfies TabsProps.Tab))
+      } satisfies TabsProps.Tab));
   }, [connections]);
 
   return (

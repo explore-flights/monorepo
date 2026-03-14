@@ -313,7 +313,7 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
   );
 }
 
-function WrapChanged({ children, changed }: React.PropsWithChildren<{ changed: Changed<any> }>) {
+function WrapChanged({ children, changed }: React.PropsWithChildren<{ changed: Changed<unknown> }>) {
   if (!changed[1]) {
     return children;
   }
@@ -335,7 +335,7 @@ function TimeCell({ value }: { value: DateTime<true> }) {
       <Box>{date}</Box>
       <Box>{time}</Box>
     </>
-  )
+  );
 }
 
 function processVersions(flightVersions: FlightScheduleVersions): [ReadonlyArray<TableItem>, DateTime<boolean>] {
@@ -383,8 +383,7 @@ function processVersions(flightVersions: FlightScheduleVersions): [ReadonlyArray
           codeShares = css;
         }
 
-        let item: FlightVersionTableItem;
-        item = {
+        const item: FlightVersionTableItem = {
           type: 'scheduled',
           version: versionId,
           operatedAs: buildChanged([operatedAsAirline, variant.operatedAs], 'operatedAs', previous, isSameFlightNumber),
@@ -396,7 +395,7 @@ function processVersions(flightVersions: FlightScheduleVersions): [ReadonlyArray
           aircraft: buildChanged(aircraft, 'aircraft', previous),
           aircraftConfigurationVersion: buildChanged(variant.aircraftConfigurationVersion, 'aircraftConfigurationVersion', previous),
           codeShares: buildChanged(codeShares, 'codeShares', previous, isSameFlightNumberList),
-        } satisfies FlightVersionTableItem;
+        };
 
         items.push(item);
         previous = item;
