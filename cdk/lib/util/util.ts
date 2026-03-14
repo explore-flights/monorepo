@@ -17,7 +17,7 @@ export class CloudfrontUtil {
     }));
 
     if (allowList) {
-      let additionalStringEqualsCondition: Record<string, string> = {};
+      const additionalStringEqualsCondition: Record<string, string> = {};
       if (prefix !== '') {
         additionalStringEqualsCondition['s3:prefix'] = prefix;
       }

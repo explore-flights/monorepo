@@ -80,6 +80,6 @@ export class CronStack extends cdk.Stack {
           }),
         }),
       ],
-    })
+    });
   }
 }

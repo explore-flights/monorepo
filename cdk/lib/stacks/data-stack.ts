@@ -3,9 +3,7 @@ import { Construct } from 'constructs';
 import { BlockPublicAccess, Bucket, BucketEncryption, BucketProps, IBucket } from 'aws-cdk-lib/aws-s3';
 import { Duration, RemovalPolicy } from 'aws-cdk-lib';
 
-export interface DataStackProps extends cdk.StackProps {
-
-}
+export type DataStackProps = cdk.StackProps;
 
 export class DataStack extends cdk.Stack {
   readonly dataBucket: IBucket;

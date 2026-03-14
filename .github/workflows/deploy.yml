@@ -193,7 +193,7 @@ jobs:
           node-version: '24'
       - name: 'Install npm dependencies'
         working-directory: 'cdk'
-        run: 'npm install'
+        run: 'npm install --legacy-peer-deps'
       - name: 'Build'
         working-directory: 'cdk'
         run: 'npm run build'
