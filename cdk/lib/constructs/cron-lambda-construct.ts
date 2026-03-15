@@ -144,6 +144,10 @@ export class CronLambdaConstruct extends Construct {
         },
       }));
       // endregion
+
+      // region delete old parquet data
+      props.parquetBucket.grantReadWrite(fn);
+      // endregion
     }
   }
 

@@ -3,30 +3,17 @@ package web
 import (
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/labstack/echo/v4"
 )
 
-func VersionHeaderMiddleware(versionTxtPath string) echo.MiddlewareFunc {
+func VersionHeaderMiddleware(version string) echo.MiddlewareFunc {
 	readVersion := sync.OnceValues(func() (time.Time, error) {
-		f, err := os.Open(versionTxtPath)
-		if err != nil {
-			return time.Time{}, err
-		}
-		defer f.Close()
-
-		b, err := io.ReadAll(f)
-		if err != nil {
-			return time.Time{}, err
-		}
-
-		t, err := time.Parse(time.RFC3339, string(b))
+		t, err := time.Parse(time.RFC3339, version)
 		if err != nil {
 			return time.Time{}, err
 		}

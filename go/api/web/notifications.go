@@ -2,12 +2,11 @@ package web
 
 import (
 	"fmt"
-	"github.com/labstack/echo/v4"
-	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
+
+	"github.com/labstack/echo/v4"
 )
 
 type notificationType string
@@ -27,26 +26,15 @@ type notification struct {
 }
 
 type NotificationHandler struct {
-	versionTxtPath string
+	version string
 }
 
-func NewNotificationHandler(versionTxtPath string) *NotificationHandler {
-	return &NotificationHandler{versionTxtPath: versionTxtPath}
+func NewNotificationHandler(version string) *NotificationHandler {
+	return &NotificationHandler{version: version}
 }
 
 func (nh *NotificationHandler) Notifications(c echo.Context) error {
-	f, err := os.Open(nh.versionTxtPath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	b, err := io.ReadAll(f)
-	if err != nil {
-		return err
-	}
-
-	t, err := time.Parse(time.RFC3339, string(b))
+	t, err := time.Parse(time.RFC3339, nh.version)
 	if err != nil {
 		return err
 	}
@@ -55,8 +43,8 @@ func (nh *NotificationHandler) Notifications(c echo.Context) error {
 	if timeSinceLastUpdate := time.Since(t); timeSinceLastUpdate >= time.Hour*36 {
 		notifications = append(notifications, notification{
 			Type:    notificationTypeInfo,
-			Header:  "Issues with the Lufthansa API",
-			Content: fmt.Sprintf("The official Lufthansa API experiences issues right now. The schedules have last been updated at %s (%s ago).", t.Format(time.RFC3339), nh.humanReadableDuration(timeSinceLastUpdate)),
+			Header:  "Information outdated",
+			Content: fmt.Sprintf("We are having issues updating the data shown on this website and are working on a fix. The schedules have last been updated at %s (%s ago).", t.Format(time.RFC3339), nh.humanReadableDuration(timeSinceLastUpdate)),
 		})
 	}
 

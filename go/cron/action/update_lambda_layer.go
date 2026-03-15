@@ -5,6 +5,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"strings"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
@@ -12,12 +16,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmTypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/explore-flights/monorepo/go/common/adapt"
-	"io"
-	"strings"
-	"time"
 )
 
 type UpdateLambdaLayerParams struct {
+	Version             string `json:"version"`
 	DatabaseBucket      string `json:"databaseBucket"`
 	BaseDataDatabaseKey string `json:"baseDataDatabaseKey"`
 	ParquetBucket       string `json:"parquetBucket"`
@@ -62,6 +64,7 @@ func (a *ullAction) Handle(ctx context.Context, params UpdateLambdaLayerParams) 
 	var err error
 	output.UpdatedFunctionArns, err = a.updateLambdaLayer(
 		ctx,
+		params.Version,
 		params.DatabaseBucket,
 		params.BaseDataDatabaseKey,
 		params.ParquetBucket,
@@ -75,7 +78,7 @@ func (a *ullAction) Handle(ctx context.Context, params UpdateLambdaLayerParams) 
 	return output, err
 }
 
-func (a *ullAction) updateLambdaLayer(ctx context.Context, databaseBucket, baseDataDatabaseKey, parquetBucket, variantsKey, reportKey, connectionsKey, layerName, ssmParameterName string) ([]string, error) {
+func (a *ullAction) updateLambdaLayer(ctx context.Context, version, databaseBucket, baseDataDatabaseKey, parquetBucket, variantsKey, reportKey, connectionsKey, layerName, ssmParameterName string) ([]string, error) {
 	files := [][3]string{
 		{"data/basedata.db", databaseBucket, baseDataDatabaseKey},
 		{"data/variants.parquet", parquetBucket, variantsKey},
@@ -85,7 +88,6 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, databaseBucket, baseD
 
 	var layerZipBuffer bytes.Buffer
 	err := func() error {
-		var minLastModified time.Time
 		zipW := zip.NewWriter(&layerZipBuffer)
 
 		for _, file := range files {
@@ -96,13 +98,8 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, databaseBucket, baseD
 				return fmt.Errorf("failed to create file %q in zip", zipFileName)
 			}
 
-			var lastModified time.Time
-			if lastModified, err = a.copyS3FileTo(ctx, bucket, key, w); err != nil {
+			if _, err = a.copyS3FileTo(ctx, bucket, key, w); err != nil {
 				return fmt.Errorf("failed to write s3 file %q to zip: %w", zipFileName, err)
-			}
-
-			if minLastModified.IsZero() || lastModified.Before(minLastModified) {
-				minLastModified = lastModified
 			}
 		}
 
@@ -111,7 +108,7 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, databaseBucket, baseD
 			return fmt.Errorf(`failed to create file "data/version.txt": %w`, err)
 		}
 
-		if _, err = w.Write([]byte(minLastModified.Format(time.RFC3339))); err != nil {
+		if _, err = w.Write([]byte(version)); err != nil {
 			return fmt.Errorf(`failed to write file "data/version.txt": %w`, err)
 		}
 

@@ -4,6 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -13,11 +19,6 @@ import (
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/cron/action"
 	"golang.org/x/time/rate"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 type InputEvent struct {
@@ -101,6 +102,7 @@ func newHandler(s3c *s3.Client, lambdaC *lambdasdk.Client, ssmc *ssm.Client, lhc
 	ullAction := action.NewUpdateLambdaLayerAction(s3c, lambdaC, ssmc)
 	umdAction := action.NewUpdateMetadataAction(s3c)
 	invWHAction := action.NewInvokeWebhookAction(http.DefaultClient)
+	ds3DataAction := action.NewDeleteS3DataAction(s3c)
 
 	return func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
 		switch event.Action {
@@ -148,6 +150,9 @@ func newHandler(s3c *s3.Client, lambdaC *lambdasdk.Client, ssmc *ssm.Client, lhc
 
 		case "invoke_webhook":
 			return handle(ctx, invWHAction, event.Params)
+
+		case "delete_s3_data":
+			return handle(ctx, ds3DataAction, event.Params)
 		}
 
 		return nil, fmt.Errorf("unsupported action: %v", event.Action)

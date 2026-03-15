@@ -37,13 +37,6 @@ func main() {
 		panic(err)
 	}
 
-	/*
-		authHandler, err := authorizationHandler(ctx, s3c)
-		if err != nil {
-			panic(err)
-		}
-	*/
-
 	lhc, err := config.Config.LufthansaClient()
 	if err != nil {
 		panic(err)
@@ -54,6 +47,11 @@ func main() {
 		panic(err)
 	}
 	defer database.Close()
+
+	version, err := config.Config.Version()
+	if err != nil {
+		panic(err)
+	}
 
 	fr := db.NewFlightRepo(database)
 	connSearch := connections.NewSearch(fr)
@@ -67,7 +65,7 @@ func main() {
 		),
 		web.ErrorLogAndMaskMiddleware(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile)),
 		web.RecoverMiddleware(),
-		web.VersionHeaderMiddleware(config.Config.VersionTxtPath()),
+		web.VersionHeaderMiddleware(version),
 		web.NoCacheOnErrorMiddleware(),
 		// authHandler.Middleware,
 	)
@@ -91,20 +89,9 @@ func main() {
 		gameHandler := web.NewGameHandler(fr)
 		group.GET("/game/connection", gameHandler.ConnectionGame)
 
-		notificationHandler := web.NewNotificationHandler(config.Config.VersionTxtPath())
+		notificationHandler := web.NewNotificationHandler(version)
 		group.GET("/notifications", notificationHandler.Notifications)
 	}
-
-	/*
-		{
-			group := e.Group("/auth", web.NeverCacheMiddleware())
-			group.HEAD("/info", authHandler.AuthInfo)
-			group.POST("/logout", authHandler.Logout)
-			group.GET("/oauth2/register/:issuer", authHandler.Register)
-			group.GET("/oauth2/login/:issuer", authHandler.Login)
-			group.GET("/oauth2/code/:issuer", authHandler.Code)
-		}
-	*/
 
 	{
 		group := e.Group("/data")

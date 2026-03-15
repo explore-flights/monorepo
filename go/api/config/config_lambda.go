@@ -7,6 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -17,10 +23,6 @@ import (
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/time/rate"
-	"os"
-	"strconv"
-	"sync"
-	"time"
 )
 
 var Config = func() *accessor {
@@ -145,6 +147,11 @@ func (a *accessor) LufthansaClient() (*lufthansa.Client, error) {
 }
 
 func (a *accessor) Database() (*db.Database, error) {
+	version, err := a.Version()
+	if err != nil {
+		return nil, err
+	}
+
 	parquetBucketName, err := a.ParquetBucket()
 	if err != nil {
 		return nil, err
@@ -155,13 +162,24 @@ func (a *accessor) Database() (*db.Database, error) {
 		"/opt/data/variants.parquet",
 		"/opt/data/report.parquet",
 		"/opt/data/connections.parquet",
-		fmt.Sprintf("s3://%s/history", parquetBucketName),
-		fmt.Sprintf("s3://%s/latest", parquetBucketName),
+		fmt.Sprintf("s3://%s/%s/history", parquetBucketName, version),
+		fmt.Sprintf("s3://%s/%s/latest", parquetBucketName, version),
 	), nil
 }
 
-func (*accessor) VersionTxtPath() string {
-	return "/opt/data/version.txt"
+func (*accessor) Version() (string, error) {
+	f, err := os.Open("/opt/data/version.txt")
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }
 
 func (a *accessor) getSsmParams() (map[string]string, error) {

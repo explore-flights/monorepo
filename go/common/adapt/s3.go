@@ -27,6 +27,19 @@ type S3Lister interface {
 	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
 }
 
+type S3DeleterSingle interface {
+	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
+}
+
+type S3DeleterMulti interface {
+	DeleteObjects(ctx context.Context, params *s3.DeleteObjectsInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectsOutput, error)
+}
+
+type S3Deleter interface {
+	S3DeleterSingle
+	S3DeleterMulti
+}
+
 func S3GetJson(ctx context.Context, s3c S3Getter, bucket, key string, v any) error {
 	return S3Get(ctx, s3c, bucket, key, readJson(v))
 }

@@ -7,6 +7,11 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"io"
+	"os"
+	"path/filepath"
+	"time"
+
 	"github.com/explore-flights/monorepo/go/api/auth"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web"
@@ -14,9 +19,6 @@ import (
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/gofrs/uuid/v5"
 	"golang.org/x/time/rate"
-	"os"
-	"path/filepath"
-	"time"
 )
 
 var Config = accessor{}
@@ -103,11 +105,23 @@ func (a accessor) Database() (*db.Database, error) {
 	), nil
 }
 
-func (accessor) VersionTxtPath() string {
+func (accessor) Version() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		panic(err)
 	}
 
-	return filepath.Join(home, "Downloads", "data", "version.txt")
+	versionTxtPath := filepath.Join(home, "Downloads", "data", "version.txt")
+	f, err := os.Open(versionTxtPath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
 }

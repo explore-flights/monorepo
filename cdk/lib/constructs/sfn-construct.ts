@@ -149,11 +149,11 @@ export class SfnConstruct extends Construct {
                     '--full-database-key=processed/flights.db',
                     '--basedata-database-key=processed/basedata.db',
                     `--parquet-bucket=${props.parquetBucket.bucketName}`,
-                    '--variants-key=variants.parquet',
-                    '--report-key=report.parquet',
-                    '--connections-key=connections.parquet',
-                    '--history-prefix=history/',
-                    '--latest-prefix=latest/',
+                    JsonPath.format('--variants-key={}/variants.parquet', JsonPath.stringAt('$.time')),
+                    JsonPath.format('--report-key={}/report.parquet', JsonPath.stringAt('$.time')),
+                    JsonPath.format('--connections-key={}/connections.parquet', JsonPath.stringAt('$.time')),
+                    JsonPath.format('--history-prefix={}/history/', JsonPath.stringAt('$.time')),
+                    JsonPath.format('--latest-prefix={}/latest/', JsonPath.stringAt('$.time')),
                     JsonPath.format('--input-bucket={}', JsonPath.stringAt('$.createFlightSchedulesHistoryResponse.bucket')),
                     JsonPath.format('--input-key={}', JsonPath.stringAt('$.createFlightSchedulesHistoryResponse.key')),
                     `--update-summary-bucket=${props.dataBucket.bucketName}`,
@@ -186,18 +186,32 @@ export class SfnConstruct extends Construct {
                 payload: TaskInput.fromObject({
                   'action': 'update_lambda_layer',
                   'params': {
+                    'version': JsonPath.stringAt('$.time'),
                     'databaseBucket': props.dataBucket.bucketName,
                     'baseDataDatabaseKey': 'processed/basedata.db',
                     'parquetBucket': props.parquetBucket.bucketName,
-                    'variantsKey': 'variants.parquet',
-                    'reportKey': 'report.parquet',
-                    'connectionsKey': 'connections.parquet',
+                    'variantsKey': JsonPath.format('{}/variants.parquet', JsonPath.stringAt('$.time')),
+                    'reportKey': JsonPath.format('{}/report.parquet', JsonPath.stringAt('$.time')),
+                    'connectionsKey': JsonPath.format('{}/connections.parquet', JsonPath.stringAt('$.time')),
                     'layerName': BASE_DATA_LAYER_NAME,
                     'ssmParameterName': BASE_DATA_LAYER_SSM_PARAMETER_NAME,
                   },
                 }),
                 payloadResponseOnly: true,
                 resultPath: '$.updateLambdaLayerResponse',
+                retryOnServiceExceptions: true,
+              }))
+              .next(new LambdaInvoke(this, 'DeleteS3DataTask', {
+                lambdaFunction: props.cronLambda_1G,
+                payload: TaskInput.fromObject({
+                  'action': 'delete_s3_data',
+                  'params': {
+                    'bucket': props.parquetBucket.bucketName,
+                    'excludePrefix': JsonPath.format('{}/', JsonPath.stringAt('$.time')),
+                  },
+                }),
+                payloadResponseOnly: true,
+                resultPath: '$.deleteS3DataResponse',
                 retryOnServiceExceptions: true,
               }))
               .next(new CallAwsService(this, 'LoadUpdateSummaryTask', {

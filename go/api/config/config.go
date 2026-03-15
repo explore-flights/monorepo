@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web"
 	"github.com/explore-flights/monorepo/go/common/adapt"
@@ -23,5 +24,5 @@ type Accessor interface {
 	AuthorizationHandler(ctx context.Context) (*web.AuthorizationHandler, error)
 	LufthansaClient() (*lufthansa.Client, error)
 	Database() (*db.Database, error)
-	VersionTxtPath() string
+	Version() (string, error)
 }
