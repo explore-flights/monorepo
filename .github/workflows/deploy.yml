@@ -209,8 +209,43 @@ jobs:
             cdk/cdk.json
           retention-days: 1
 
-  deploy:
-    name: 'Deploy'
+  deploy-beta:
+    name: 'Deploy Beta'
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    environment:
+      name: 'beta'
+    permissions:
+      id-token: write
+    needs:
+      - build_and_synth_cdk
+    steps:
+      - name: 'Download cdk synth artifact'
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ env.WORKSPACE_ARTIFACT_CDK }}
+          path: .
+      - name: 'Setup node'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: 'Install cdk'
+        run: 'npm install -g aws-cdk'
+      - name: 'Setup QEMU'
+        uses: docker/setup-qemu-action@v3
+      - name: 'Setup Docker Buildx'
+        uses: docker/setup-buildx-action@v3
+      - name: 'AWS Credentials'
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_CDK_ROLE }}
+          aws-region: ${{ secrets.AWS_CDK_REGION }}
+      - name: 'Deploy'
+        run: |
+          cdk --app ./cdk.out deploy --require-approval never "Data-Prod" "Website-Beta"
+
+  deploy-prod:
+    name: 'Deploy Prod'
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
     environment:

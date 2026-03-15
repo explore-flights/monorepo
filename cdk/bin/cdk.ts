@@ -10,7 +10,16 @@ const app = new cdk.App();
 
 const dataStack = new DataStack(app, 'Data-Prod', {});
 
-const websiteStack = new WebsiteStack(app, 'Website-Prod', {
+new WebsiteStack(app, 'Website-Beta', {
+  domain: 'beta.explore.flights',
+  certificateId: '9c27522c-5296-4d83-b03e-1fdfcf4e09c4',
+  apiLambdaZipPath: 'api_lambda_bundle.zip',
+  uiResourcesZipPath: 'explore_flights_ui_artifact.zip',
+  dataBucket: dataStack.dataBucket,
+  parquetBucket: dataStack.parquetBucket,
+});
+
+new WebsiteStack(app, 'Website-Prod', {
   domain: 'explore.flights',
   certificateId: 'a96a703e-5454-4fc5-98eb-43b2f881be37',
   apiLambdaZipPath: 'api_lambda_bundle.zip',
@@ -27,5 +36,4 @@ new CronStack(app, 'Cron-Prod', {
 
 new Route53Stack(app, 'Route53-Prod', {
   zoneName: 'explore.flights',
-  websiteDistribution: websiteStack.distribution,
 });
