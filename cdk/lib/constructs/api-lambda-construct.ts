@@ -75,7 +75,7 @@ export class ApiLambdaConstruct extends Construct {
             service: 'lambda',
             account: '753240598075', // https://github.com/awslabs/aws-lambda-web-adapter?tab=readme-ov-file#lambda-functions-packaged-as-zip-package-for-aws-managed-runtimes
             resource: 'layer',
-            resourceName: 'LambdaAdapterLayerArm64:25',
+            resourceName: 'LambdaAdapterLayerArm64:26',
             arnFormat: ArnFormat.COLON_RESOURCE_NAME,
           }),
         ),
