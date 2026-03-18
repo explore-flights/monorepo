@@ -10,6 +10,8 @@ export const AircraftConfigurationVersion = Object.freeze({
 
   LH_787_9_ALLEGRIS_4BC: 'C4E28M231',
   LH_787_9_ALLEGRIS: 'C28E28M231',
+
+  A380_RETROFIT: 'F8C68E52M371',
 });
 
 export function aircraftConfigurationVersionToName(v: string): string | undefined {
@@ -24,6 +26,7 @@ export function aircraftConfigurationVersionToName(v: string): string | undefine
     [AircraftConfigurationVersion.LH_A350_900_PHILIPINE_2]: 'LH/Philippines Config 2',
     [AircraftConfigurationVersion.LH_787_9_ALLEGRIS_4BC]: 'Allegris (without FC, 4 BC)',
     [AircraftConfigurationVersion.LH_787_9_ALLEGRIS]: 'Allegris (without FC)',
+    [AircraftConfigurationVersion.A380_RETROFIT]: 'A380 BC Retrofit',
   })[v] ?? undefined;
 }
 
