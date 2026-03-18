@@ -1,15 +1,15 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
   ContentLayout,
-  ExpandableSection,
-  Header,
+  ExpandableSection, FormField,
+  Header, LineChart,
   Pagination,
   PropertyFilter,
   PropertyFilterProps,
   SpaceBetween,
-  Table
+  Table, Toggle, ToggleButton
 } from '@cloudscape-design/components';
 import { useSpecialAircraftSchedules } from '../components/util/state/data';
 import { UseQueryResult } from '@tanstack/react-query';
@@ -35,6 +35,7 @@ import { Marker } from 'react-map-gl/maplibre';
 import { bbox, featureCollection, point } from '@turf/turf';
 import { useConsent } from '../components/util/state/use-consent';
 import { ConsentLevel } from '../lib/consent.model';
+import { LineSeries, SeriesBuilder } from '../lib/charts/builder';
 
 export function Allegris() {
   const query = useSpecialAircraftSchedules('allegris');
@@ -349,6 +350,7 @@ function SpecialAircraftPageInternal({ flights, flightLinkQuery }: { flights: Re
   return (
     <>
       <SpecialAircraftMap flights={allPageItems} />
+      <SpecialAircraftStats flights={allPageItems} />
       <Table
         {...collectionProps}
         variant={'stacked'}
@@ -497,6 +499,72 @@ function SpecialAircraftMap({ flights }: { flights: ReadonlyArray<FlightItem> })
         {...lines}
         {bounds && <FitBounds bounds={bounds} options={{ padding: 100 }} />}
       </MaplibreMap>
+    </ExpandableSection>
+  );
+}
+
+function SpecialAircraftStats({ flights }: { flights: ReadonlyArray<FlightItem> }) {
+  const now = useMemo(() => DateTime.now(), []);
+  const [aircraftOnly, setAircraftOnly] = useState(false);
+  const [series, xDomain, yDomain] = useMemo(() => {
+    const builder = new SeriesBuilder<string, LineSeries<Date>, [Aircraft, string]>(
+      'line',
+      undefined,
+      ([ac, acc]) => ac.id + acc,
+    );
+
+    for (const flight of flights) {
+      builder.add(
+        [flight.aircraft, aircraftOnly ? '' : flight.aircraftConfigurationVersion],
+        flight.departureTime.toUTC().startOf('week').toJSDate(),
+        1,
+      );
+    }
+
+    let formatFn: (aircraft: Aircraft, configuration: string) => string;
+    if (aircraftOnly) {
+      formatFn = (aircraft, _) => aircraft.name ?? aircraft.icaoCode ?? aircraft.iataCode ?? aircraft.id;
+    } else {
+      formatFn = (aircraft, configuration) => `${aircraft.name ?? aircraft.icaoCode ?? aircraft.iataCode ?? aircraft.id} (${aircraftConfigurationVersionToName(configuration) ?? configuration})`;
+    }
+
+    const [series, xDomain, yDomain] = builder.series(([aircraft, configuration]) => ({
+      title: formatFn(aircraft, configuration),
+    }), true, true);
+
+    return [
+      series,
+      xDomain,
+      yDomain,
+    ] as const;
+  }, [now, aircraftOnly, flights]);
+
+  return (
+    <ExpandableSection
+      variant={'stacked'}
+      headerText={'Stats'}
+      headerInfo={<Box variant={'small'}>Table filters applied</Box>}
+      defaultExpanded={false}
+    >
+      <LineChart
+        series={series}
+        xDomain={xDomain}
+        yDomain={yDomain ? [0, yDomain[1]] : undefined}
+        xScaleType={'time'}
+        xTitle={'Week (UTC)'}
+        yTitle={'Flights'}
+        xTickFormatter={(e) => DateTime.fromJSDate(e).toFormat('W/yyyy')}
+        additionalFilters={
+          <FormField label={'Grouping'}>
+            <ToggleButton
+              pressed={aircraftOnly}
+              onChange={(e) => setAircraftOnly(e.detail.pressed)}
+              iconName={'shrink'}
+              pressedIconName={'expand'}
+            >{aircraftOnly ? 'Aircraft with Configuration' : 'Aircraft only'}</ToggleButton>
+          </FormField>
+        }
+      />
     </ExpandableSection>
   );
 }

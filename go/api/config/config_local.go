@@ -111,7 +111,7 @@ func (accessor) Version() (string, error) {
 		panic(err)
 	}
 
-	versionTxtPath := filepath.Join(home, "Downloads", "data", "version.txt")
+	versionTxtPath := filepath.Join(home, "Downloads", "local_s3", "version.txt")
 	f, err := os.Open(versionTxtPath)
 	if err != nil {
 		return "", err
