@@ -619,6 +619,7 @@ SELECT
     fvh.departure_airport_id,
     FIRST(fvh.flight_variant_id ORDER BY created_at DESC),
     FIRST(fvh.created_at ORDER BY created_at DESC),
+    COUNT(*)
 FROM flight_variant_history fvh
 LEFT JOIN flight_variants fv
 ON fvh.flight_variant_id = fv.id
@@ -655,6 +656,7 @@ ORDER BY
 				&fsi.DepartureAirportId,
 				&fsi.FlightVariantId,
 				&fsi.Version,
+				&fsi.VersionCount,
 			)
 			if err != nil {
 				return err

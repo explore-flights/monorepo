@@ -285,6 +285,7 @@ func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model
 		aggByAirports := make(map[model.UUID]map[model.UUID][]struct {
 			MinVersion                    time.Time
 			MaxVersion                    time.Time
+			MaxNonStandaloneVersion       time.Time
 			MinDepartureDateLocal         xtime.LocalDate
 			MaxDepartureDateLocal         xtime.LocalDate
 			OperatingDays                 int
@@ -308,6 +309,7 @@ func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model
 				aggByArrivalAirport = make(map[model.UUID][]struct {
 					MinVersion                    time.Time
 					MaxVersion                    time.Time
+					MaxNonStandaloneVersion       time.Time
 					MinDepartureDateLocal         xtime.LocalDate
 					MaxDepartureDateLocal         xtime.LocalDate
 					OperatingDays                 int
@@ -321,6 +323,7 @@ func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model
 			var latestEntry struct {
 				MinVersion                    time.Time
 				MaxVersion                    time.Time
+				MaxNonStandaloneVersion       time.Time
 				MinDepartureDateLocal         xtime.LocalDate
 				MaxDepartureDateLocal         xtime.LocalDate
 				OperatingDays                 int
@@ -340,6 +343,10 @@ func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model
 					latestEntry.MaxVersion = item.Version
 				}
 
+				if item.VersionCount > 1 && item.Version.After(latestEntry.MaxNonStandaloneVersion) {
+					latestEntry.MaxNonStandaloneVersion = item.Version
+				}
+
 				latestEntry.MaxDepartureDateLocal = item.DepartureDateLocal
 				latestEntry.OperatingDays += 1
 				latestEntry.AircraftIds.Add(flightVariant.AircraftId)
@@ -349,6 +356,11 @@ func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model
 			} else {
 				latestEntry.MinVersion = item.Version
 				latestEntry.MaxVersion = item.Version
+
+				if item.VersionCount > 1 {
+					latestEntry.MaxNonStandaloneVersion = item.Version
+				}
+
 				latestEntry.MinDepartureDateLocal = item.DepartureDateLocal
 				latestEntry.MaxDepartureDateLocal = item.DepartureDateLocal
 				latestEntry.OperatingDays = 1
@@ -404,7 +416,13 @@ From %s until %s for a total of %d flights
 							entry.OperatingDays,
 						)),
 						Created: entry.MinVersion,
-						Updated: entry.MaxVersion,
+					}
+
+					// do not increase the updated timestamp for new "standalone" versions
+					if entry.MaxNonStandaloneVersion.IsZero() {
+						item.Updated = entry.MinVersion
+					} else {
+						item.Updated = entry.MaxNonStandaloneVersion
 					}
 
 					item.Description = item.Content
