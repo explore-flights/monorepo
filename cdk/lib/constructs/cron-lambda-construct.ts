@@ -143,6 +143,25 @@ export class CronLambdaConstruct extends Construct {
           },
         },
       }));
+
+      fn.addToRolePolicy(new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['lambda:ListLayerVersions'],
+        resources: ['*'],
+      }));
+
+      fn.addToRolePolicy(new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ['lambda:DeleteLayerVersion'],
+        resources: [
+          Stack.of(this).formatArn({
+            service: 'lambda',
+            resource: 'layer',
+            resourceName: `${BASE_DATA_LAYER_NAME}:*`,
+            arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+          }),
+        ],
+      }));
       // endregion
 
       // region delete old parquet data

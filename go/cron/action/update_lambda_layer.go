@@ -39,6 +39,8 @@ type ullActionLambdaClient interface {
 	ListFunctions(ctx context.Context, params *lambda.ListFunctionsInput, optFns ...func(*lambda.Options)) (*lambda.ListFunctionsOutput, error)
 	GetFunctionConfiguration(ctx context.Context, params *lambda.GetFunctionConfigurationInput, optFns ...func(*lambda.Options)) (*lambda.GetFunctionConfigurationOutput, error)
 	UpdateFunctionConfiguration(ctx context.Context, params *lambda.UpdateFunctionConfigurationInput, optFns ...func(*lambda.Options)) (*lambda.UpdateFunctionConfigurationOutput, error)
+	ListLayerVersions(ctx context.Context, params *lambda.ListLayerVersionsInput, optFns ...func(*lambda.Options)) (*lambda.ListLayerVersionsOutput, error)
+	DeleteLayerVersion(ctx context.Context, params *lambda.DeleteLayerVersionInput, optFns ...func(*lambda.Options)) (*lambda.DeleteLayerVersionOutput, error)
 }
 
 type ullActionSsmClient interface {
@@ -79,6 +81,7 @@ func (a *ullAction) Handle(ctx context.Context, params UpdateLambdaLayerParams) 
 }
 
 func (a *ullAction) updateLambdaLayer(ctx context.Context, version, databaseBucket, baseDataDatabaseKey, parquetBucket, variantsKey, reportKey, connectionsKey, layerName, ssmParameterName string) ([]string, error) {
+	// create layer zip
 	files := [][3]string{
 		{"data/basedata.db", databaseBucket, baseDataDatabaseKey},
 		{"data/variants.parquet", parquetBucket, variantsKey},
@@ -118,7 +121,9 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, version, databaseBuck
 		return nil, fmt.Errorf("failed to create layer zip file: %w", err)
 	}
 
+	// publish new layer version
 	var updatedLayerArn, updatedLayerVersionArn string
+	var updatedLayerVersion int64
 	{
 		resp, err := a.lambdaC.PublishLayerVersion(ctx, &lambda.PublishLayerVersionInput{
 			LayerName: aws.String(layerName),
@@ -131,8 +136,10 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, version, databaseBuck
 		}
 
 		updatedLayerArn, updatedLayerVersionArn = *resp.LayerArn, *resp.LayerVersionArn
+		updatedLayerVersion = resp.Version
 	}
 
+	// update ssm parameter (for CDK deployments)
 	_, err = a.ssmc.PutParameter(ctx, &ssm.PutParameterInput{
 		Name:      aws.String(ssmParameterName),
 		Value:     aws.String(updatedLayerVersionArn),
@@ -143,6 +150,7 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, version, databaseBuck
 		return nil, fmt.Errorf("failed to update SSM parameter for layer version: %w", err)
 	}
 
+	// figure out which functions use this layer
 	functionsToUpdate := make([]lambdaTypes.FunctionConfiguration, 0)
 	{
 		var marker *string
@@ -167,6 +175,7 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, version, databaseBuck
 		}
 	}
 
+	// update functions to use the new layer version
 	updatedFunctionArns := make([]string, 0)
 	for _, function := range functionsToUpdate {
 		fmt.Printf("updating layers for function %q\n", *function.FunctionName)
@@ -189,6 +198,37 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, version, databaseBuck
 		}
 
 		updatedFunctionArns = append(updatedFunctionArns, *function.FunctionArn)
+	}
+
+	// remove old layer versions
+	{
+		var marker *string
+		for {
+			resp, err := a.lambdaC.ListLayerVersions(ctx, &lambda.ListLayerVersionsInput{
+				LayerName: aws.String(updatedLayerArn),
+				Marker:    marker,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to list layers: %w", err)
+			}
+
+			for _, layerVersion := range resp.LayerVersions {
+				if layerVersion.Version < updatedLayerVersion {
+					_, err = a.lambdaC.DeleteLayerVersion(ctx, &lambda.DeleteLayerVersionInput{
+						LayerName:     aws.String(updatedLayerArn),
+						VersionNumber: aws.Int64(layerVersion.Version),
+					})
+					if err != nil {
+						return nil, fmt.Errorf("failed to delete layer version %q: %w", *layerVersion.LayerVersionArn, err)
+					}
+				}
+			}
+
+			marker = resp.NextMarker
+			if marker == nil {
+				break
+			}
+		}
 	}
 
 	return updatedFunctionArns, nil
