@@ -73,9 +73,9 @@ export class ApiLambdaConstruct extends Construct {
           'LWALayer',
           Stack.of(this).formatArn({
             service: 'lambda',
-            account: '753240598075', // https://github.com/awslabs/aws-lambda-web-adapter?tab=readme-ov-file#lambda-functions-packaged-as-zip-package-for-aws-managed-runtimes
+            account: '753240598075', // https://github.com/aws/aws-lambda-web-adapter?tab=readme-ov-file#zip-packages
             resource: 'layer',
-            resourceName: 'LambdaAdapterLayerArm64:26',
+            resourceName: 'LambdaAdapterLayerArm64:27',
             arnFormat: ArnFormat.COLON_RESOURCE_NAME,
           }),
         ),
