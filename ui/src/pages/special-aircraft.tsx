@@ -9,7 +9,8 @@ import {
   PropertyFilter,
   PropertyFilterProps,
   SpaceBetween,
-  Table, Toggle, ToggleButton
+  Table,
+  ToggleButton,
 } from '@cloudscape-design/components';
 import { useSpecialAircraftSchedules } from '../components/util/state/data';
 import { UseQueryResult } from '@tanstack/react-query';
@@ -202,12 +203,12 @@ function SpecialAircraftPage({ name, identifier, query, flightLinkQuery }: { nam
 
   return (
     <ContentLayout header={<Header variant={'h1'} actions={actions}>{name} Routes</Header>}>
-      <SpecialAircraftPageInternal flights={allFlights} flightLinkQuery={flightLinkQuery} />
+      <SpecialAircraftPageInternal flights={allFlights} flightLinkQuery={flightLinkQuery} loading={query.isPending} />
     </ContentLayout>
   );
 }
 
-function SpecialAircraftPageInternal({ flights, flightLinkQuery }: { flights: ReadonlyArray<FlightItem>, flightLinkQuery: ((item: FlightItem) => URLSearchParams) }) {
+function SpecialAircraftPageInternal({ flights, flightLinkQuery, loading }: { flights: ReadonlyArray<FlightItem>, flightLinkQuery: ((item: FlightItem) => URLSearchParams), loading: boolean }) {
   const departureTimeComparator = useCallback((a: FlightItem, b: FlightItem) => {
     return a.departureTime.toMillis() - b.departureTime.toMillis();
   }, []);
@@ -349,10 +350,11 @@ function SpecialAircraftPageInternal({ flights, flightLinkQuery }: { flights: Re
 
   return (
     <>
-      <SpecialAircraftMap flights={allPageItems} />
+      <SpecialAircraftMap flights={allPageItems} loading={loading} />
       <SpecialAircraftStats flights={allPageItems} />
       <Table
         {...collectionProps}
+        loading={loading}
         variant={'stacked'}
         items={items}
         header={<Header counter={filteredItemsCount && filteredItemsCount < flights.length ? `${filteredItemsCount}/${flights.length}` : `(${flights.length})`}>Flights</Header>}
@@ -429,7 +431,7 @@ function SpecialAircraftPageInternal({ flights, flightLinkQuery }: { flights: Re
   );
 }
 
-function SpecialAircraftMap({ flights }: { flights: ReadonlyArray<FlightItem> }) {
+function SpecialAircraftMap({ flights, loading }: { flights: ReadonlyArray<FlightItem>, loading: boolean }) {
   const [markers, lines, bounds] = useMemo(() => {
     const markers: Array<React.ReactNode> = [];
     const lines: Array<React.ReactNode> = [];
@@ -494,7 +496,7 @@ function SpecialAircraftMap({ flights }: { flights: ReadonlyArray<FlightItem> })
       defaultExpanded={useConsent()[0].has(ConsentLevel.VERSATILES)}
       disableContentPaddings={true}
     >
-      <MaplibreMap height={'50vh'}>
+      <MaplibreMap height={'50vh'} loading={loading}>
         {...markers}
         {...lines}
         {bounds && <FitBounds bounds={bounds} options={{ padding: 100 }} />}
