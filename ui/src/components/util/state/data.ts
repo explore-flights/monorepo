@@ -319,19 +319,6 @@ export function useAircraftReport(airport: string, year?: number, summerSchedule
   });
 }
 
-export function useVersions() {
-  const { apiClient } = useHttpClient();
-  return useQuery({
-    queryKey: ['versions'],
-    queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getVersions());
-      return body;
-    },
-    retry: 5,
-    staleTime: 1000 * 60 * 60,
-  });
-}
-
 export function useUpdatesForVersion(version: string, active: boolean) {
   const { apiClient } = useHttpClient();
   return useQuery({

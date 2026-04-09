@@ -921,32 +921,6 @@ AND day_utc = ?
 	return flights, rows.Err()
 }
 
-func (fr *FlightRepo) Versions(ctx context.Context) ([]time.Time, error) {
-	conn, err := fr.db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	rows, err := conn.QueryContext(ctx, `SELECT DISTINCT created_at FROM flight_variant_history`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	versions := make([]time.Time, 0)
-	for rows.Next() {
-		var t time.Time
-		if err = rows.Scan(&t); err != nil {
-			return nil, err
-		}
-
-		versions = append(versions, t)
-	}
-
-	return versions, rows.Err()
-}
-
 func (fr *FlightRepo) UpdatesForVersion(ctx context.Context, version time.Time, page int) ([]FlightScheduleUpdate, error) {
 	const limit = 10_000
 

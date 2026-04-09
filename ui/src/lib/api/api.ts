@@ -216,10 +216,6 @@ export class ApiClient {
     return transform(this.httpClient.fetch(urlParts.join('/')));
   }
 
-  getVersions(): Promise<ApiResponse<ReadonlyArray<string>>> {
-    return transform(this.httpClient.fetch('/data/versions.json'));
-  }
-
   async getUpdatesForVersion(version: string): Promise<ApiResponse<FlightScheduleUpdates>> {
     let page = 0;
     let exhausted = false;

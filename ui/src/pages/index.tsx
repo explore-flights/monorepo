@@ -15,7 +15,6 @@ import { FlightSearch } from './tools/flight-search';
 import { FlightVersionsView } from './flight-versions';
 import { Airports } from './airports';
 import { AirportPage } from './airport';
-import { Updates } from './updates';
 import { TechAirports } from './game/tech-airports';
 import { DailyAirports } from './game/daily-airports';
 import { Allegris, LH747, LHA340, LHA380, SwissA350 } from './special-aircraft';
@@ -92,10 +91,6 @@ const router = createBrowserRouter([
       {
         path: 'lh747',
         element: <LH747 />,
-      },
-      {
-        path: 'updates',
-        element: <Updates />,
       },
       {
         path: 'tools/flight-search',

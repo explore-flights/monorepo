@@ -38,7 +38,6 @@ type dataHandlerRepo interface {
 	RelatedFlightNumbers(ctx context.Context, fn db.FlightNumber, version time.Time) (common.Set[db.FlightNumber], error)
 	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
 	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber, departureAirport uuid.UUID, departureDate xtime.LocalDate) (db.FlightScheduleVersions, error)
-	Versions(ctx context.Context) ([]time.Time, error)
 	UpdatesForVersion(ctx context.Context, version time.Time, page int) ([]db.FlightScheduleUpdate, error)
 }
 
@@ -757,22 +756,6 @@ func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, de
 	model.AddReferencedAircraft(maps.Keys(referencedAircraft), aircraft, fs.Aircraft)
 
 	return fs, nil
-}
-
-func (dh *DataHandler) Versions(c echo.Context) error {
-	versions, err := dh.repo.Versions(c.Request().Context())
-	if err != nil {
-		return NewHTTPError(http.StatusInternalServerError, WithCause(err))
-	}
-
-	slices.SortFunc(versions, func(a, b time.Time) int {
-		// latest first
-		return b.Compare(a)
-	})
-
-	addExpirationHeaders(c, time.Now(), time.Hour*3)
-
-	return c.JSON(http.StatusOK, versions)
 }
 
 func (dh *DataHandler) Version(c echo.Context) error {

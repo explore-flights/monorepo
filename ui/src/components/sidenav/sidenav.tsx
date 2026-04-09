@@ -50,12 +50,6 @@ export function SideNav() {
             { type: 'link', text: 'Airports', href: useHref('/airport') },
           ],
         },
-        { type: 'divider' },
-        {
-          type: 'link',
-          text: 'Updates',
-          href: useHref('/updates'),
-        },
       ]}
       activeHref={location.pathname}
       onFollow={(e) => {
