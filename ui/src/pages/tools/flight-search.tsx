@@ -27,13 +27,11 @@ import { aircraftConfigurationVersionToName } from '../../lib/consts';
 import { UseQueryResult } from '@tanstack/react-query';
 import { ErrorNotificationContent, useAppControls } from '../../components/util/context/app-controls';
 import { DateTime } from 'luxon';
-import { SchedulesTable, ScheduleTableItem } from '../../components/schedules/schedules-table';
 import {
-  withAircraftConfigurationVersionFilter,
-  withAircraftIdFilter,
   withDepartureAirportIdFilter,
   withDepartureDateFilter,
 } from '../flight';
+import { FlightItem, QueryScheduleResult } from '../../components/schedules/schedules';
 
 export function FlightSearch() {
   const [request, setRequest] = useState<QuerySchedulesRequest>({});
@@ -54,7 +52,7 @@ export function FlightSearch() {
           onUpdate={setRequest}
         />
 
-        <ResultTable title={'Result'} query={schedules} />
+        <SearchResults title={'Result'} query={schedules} />
       </ColumnLayout>
     </ContentLayout>
   );
@@ -467,7 +465,7 @@ function AircraftConfigurationSelect({ selectedAirlineIds, selectedAircraftId, s
   );
 }
 
-function ResultTable({ title, query }: { title: string, query: UseQueryResult<QuerySchedulesResponseV2, Error> }) {
+function SearchResults({ title, query }: { title: string, query: UseQueryResult<QuerySchedulesResponseV2, Error> }) {
   const { notification } = useAppControls();
 
   useEffect(() => {
@@ -482,33 +480,18 @@ function ResultTable({ title, query }: { title: string, query: UseQueryResult<Qu
   }, [query.status, title]);
 
   return (
-    <SchedulesTable
-      title={title}
-      result={query.data}
-      loading={query.isLoading}
-      flightLinkQuery={useCallback((v: ScheduleTableItem) => {
+    <QueryScheduleResult
+      data={query.data}
+      flightLinkQuery={useCallback((v: FlightItem) => {
         let query = new URLSearchParams();
-
-        const minDepartureDate = DateTime.fromISO(v.operatingRange[0]);
-        const maxDepartureDate = DateTime.fromISO(v.operatingRange[1]);
-
-        if (minDepartureDate.isValid) {
-          query = withDepartureDateFilter(query, minDepartureDate, '>=');
-        }
-
-        if (maxDepartureDate.isValid) {
-          query = withDepartureDateFilter(query, maxDepartureDate, '<=');
-        }
-
+        query = withDepartureDateFilter(query, v.departureTime, '=');
         query = withDepartureAirportIdFilter(query, v.departureAirport.id);
-
-        if (v.type === 'child') {
-          query = withAircraftIdFilter(query, v.aircraft.id);
-          query = withAircraftConfigurationVersionFilter(query, v.aircraftConfigurationVersion);
-        }
 
         return query;
       }, [])}
+      loading={query.isPending}
+      showMap={true}
+      showStats={true}
     />
   );
 }
