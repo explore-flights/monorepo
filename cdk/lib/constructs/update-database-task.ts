@@ -74,16 +74,16 @@ export class UpdateDatabaseConstruct extends Construct {
       ephemeralStorageGiB: 30,
     });
 
-    this.taskContainer = this.task.addContainer('DatabaseContainer', {
-      image: ContainerImage.fromDockerImageAsset(new DockerImageAsset(this, 'DatabaseImage', {
-        directory: '../go',
-        file: 'database/Dockerfile',
+    this.taskContainer = this.task.addContainer('UpdaterContainer', {
+      image: ContainerImage.fromDockerImageAsset(new DockerImageAsset(this, 'UpdaterImage', {
+        directory: '../updater',
+        file: 'Dockerfile',
         platform: Platform.LINUX_ARM64,
       })),
       essential: true,
       logging: LogDriver.awsLogs({
         logGroup: ecsLogGroup,
-        streamPrefix: 'database',
+        streamPrefix: 'updater',
       }),
     });
   }
