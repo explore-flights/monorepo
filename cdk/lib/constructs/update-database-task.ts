@@ -79,7 +79,6 @@ export class UpdateDatabaseConstruct extends Construct {
         directory: '../updater',
         file: 'Dockerfile',
         platform: Platform.LINUX_ARM64,
-        ignoreMode: IgnoreMode.DOCKER,
       })),
       essential: true,
       logging: LogDriver.awsLogs({
