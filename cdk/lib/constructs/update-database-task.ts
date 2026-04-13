@@ -12,7 +12,7 @@ import {
   TaskDefinition
 } from 'aws-cdk-lib/aws-ecs';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
-import { RemovalPolicy } from 'aws-cdk-lib';
+import { IgnoreMode, RemovalPolicy } from 'aws-cdk-lib';
 import { ManagedPolicy, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { DockerImageAsset, Platform } from 'aws-cdk-lib/aws-ecr-assets';
@@ -79,6 +79,7 @@ export class UpdateDatabaseConstruct extends Construct {
         directory: '../updater',
         file: 'Dockerfile',
         platform: Platform.LINUX_ARM64,
+        ignoreMode: IgnoreMode.DOCKER,
       })),
       essential: true,
       logging: LogDriver.awsLogs({
