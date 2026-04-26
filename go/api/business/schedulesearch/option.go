@@ -5,22 +5,21 @@ import (
 
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common"
-	"github.com/gofrs/uuid/v5"
 )
 
 type Condition struct {
 	cond db.Condition
 }
 
-func WithAirlines(airlineIds ...uuid.UUID) Condition {
-	c := make(db.OrCondition, 0, len(airlineIds))
-	set := make(common.Set[uuid.UUID], len(airlineIds))
+func WithAirlines(airlineIataCodes ...string) Condition {
+	c := make(db.OrCondition, 0, len(airlineIataCodes))
+	set := make(common.Set[string], len(airlineIataCodes))
 
-	for _, airlineId := range airlineIds {
-		if set.Add(airlineId) {
+	for _, airlineIataCode := range airlineIataCodes {
+		if set.Add(airlineIataCode) {
 			c = append(c, db.BaseCondition{
-				Filter: "fvh.airline_id = ?",
-				Params: []any{airlineId},
+				Filter: "fvh.airline_iata_code = ?",
+				Params: []any{airlineIataCode},
 			})
 		}
 	}
@@ -30,9 +29,9 @@ func WithAirlines(airlineIds ...uuid.UUID) Condition {
 
 func WithFlightNumber(fn db.FlightNumber) Condition {
 	return Condition{db.BaseCondition{
-		Filter: "fvh.airline_id = ? AND fvh.number = ? AND fvh.suffix = ? AND fvh.number_mod_10 = ?",
+		Filter: "fvh.airline_iata_code = ? AND fvh.number = ? AND fvh.suffix = ? AND fvh.number_mod_10 = ?",
 		Params: []any{
-			fn.AirlineId,
+			fn.AirlineIataCode,
 			fn.Number,
 			fn.Suffix,
 			fn.Number % 10,
@@ -47,10 +46,10 @@ func WithServiceType(serviceType string) Condition {
 	}}
 }
 
-func WithAircraftId(aircraftId uuid.UUID) Condition {
+func WithAircraftIataCode(aircraftIataCode string) Condition {
 	return Condition{db.BaseCondition{
-		Filter: "fv.aircraft_id = ?",
-		Params: []any{aircraftId},
+		Filter: "fv.aircraft_iata_code = ?",
+		Params: []any{aircraftIataCode},
 	}}
 }
 
@@ -103,23 +102,23 @@ func WithSeatsEconomy(seats int) Condition {
 	}}
 }
 
-func WithDepartureAirportId(airportId uuid.UUID) Condition {
+func WithDepartureAirportIataCode(airportIataCode string) Condition {
 	return Condition{db.BaseCondition{
-		Filter: "fvh.departure_airport_id = ?",
-		Params: []any{airportId},
+		Filter: "fvh.departure_airport_iata_code = ?",
+		Params: []any{airportIataCode},
 	}}
 }
 
-func WithArrivalAirportId(airportId uuid.UUID) Condition {
+func WithArrivalAirportIataCode(airportIataCode string) Condition {
 	return Condition{db.BaseCondition{
-		Filter: "fv.arrival_airport_id = ?",
-		Params: []any{airportId},
+		Filter: "fv.arrival_airport_iata_code = ?",
+		Params: []any{airportIataCode},
 	}}
 }
 
 func WithIgnoreCodeShares() Condition {
 	return Condition{db.BaseCondition{
-		Filter: "fvh.airline_id = fv.operating_airline_id AND fvh.number = fv.operating_number AND fvh.suffix = fv.operating_suffix",
+		Filter: "fvh.airline_iata_code = fv.operating_airline_iata_code AND fvh.number = fv.operating_number AND fvh.suffix = fv.operating_suffix",
 		Params: []any{},
 	}}
 }

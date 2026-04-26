@@ -3,19 +3,19 @@ package web
 import (
 	"context"
 	"fmt"
-	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/explore-flights/monorepo/go/api/web/model"
-	"github.com/explore-flights/monorepo/go/common"
-	"github.com/gofrs/uuid/v5"
-	"github.com/labstack/echo/v4"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/explore-flights/monorepo/go/api/db"
+	"github.com/explore-flights/monorepo/go/api/web/model"
+	"github.com/explore-flights/monorepo/go/common"
+	"github.com/labstack/echo/v4"
 )
 
 type searchHandlerRepo interface {
-	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
+	Airlines(ctx context.Context) (map[string]db.Airline, error)
 	FindFlightNumbers(ctx context.Context, query string, limit int) ([]db.FlightNumber, error)
 }
 
@@ -68,7 +68,7 @@ func (sh *SearchHandler) Search(c echo.Context) error {
 	return c.Redirect(http.StatusFound, "/flight/"+url.PathEscape(sh.flightNumberString(airlines, resp.FlightNumbers[0])))
 }
 
-func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, map[uuid.UUID]db.Airline, error) {
+func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, map[string]db.Airline, error) {
 	ctx := c.Request().Context()
 	fns, err := sh.repo.FindFlightNumbers(ctx, strings.TrimSpace(c.QueryParam("q")), 100)
 	if err != nil {
@@ -80,7 +80,7 @@ func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, map[uuid.
 		return model.SearchResponse{}, nil, err
 	}
 
-	added := make(common.Set[uuid.UUID])
+	added := make(common.Set[string])
 	resp := model.SearchResponse{
 		Airlines:      make([]model.Airline, 0, len(fns)/4),
 		FlightNumbers: make([]model.FlightNumber, len(fns)),
@@ -89,8 +89,8 @@ func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, map[uuid.
 	for i, fn := range fns {
 		resp.FlightNumbers[i] = model.FlightNumberFromDb(fn)
 
-		if added.Add(fn.AirlineId) {
-			if airline, ok := airlines[fn.AirlineId]; ok {
+		if added.Add(fn.AirlineIataCode) {
+			if airline, ok := airlines[fn.AirlineIataCode]; ok {
 				resp.Airlines = append(resp.Airlines, model.AirlineFromDb(airline))
 			}
 		}
@@ -99,10 +99,10 @@ func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, map[uuid.
 	return resp, airlines, nil
 }
 
-func (sh *SearchHandler) flightNumberString(airlines map[uuid.UUID]db.Airline, fn model.FlightNumber) string {
-	if airline, ok := airlines[uuid.UUID(fn.AirlineId)]; ok {
+func (sh *SearchHandler) flightNumberString(airlines map[string]db.Airline, fn model.FlightNumber) string {
+	if airline, ok := airlines[fn.AirlineIataCode]; ok {
 		return fmt.Sprintf("%s%d%s", airline.IataCode, fn.Number, fn.Suffix)
 	}
 
-	return fmt.Sprintf("%s-%d%s", fn.AirlineId, fn.Number, fn.Suffix)
+	return fmt.Sprintf("%s-%d%s", fn.AirlineIataCode, fn.Number, fn.Suffix)
 }

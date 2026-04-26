@@ -2,21 +2,21 @@ package web
 
 import (
 	"context"
-	"github.com/explore-flights/monorepo/go/api/business/report"
-	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/explore-flights/monorepo/go/api/web/model"
-	"github.com/gofrs/uuid/v5"
-	"github.com/labstack/echo/v4"
-	"golang.org/x/sync/errgroup"
 	"net/http"
 	"slices"
 	"strconv"
 	"time"
+
+	"github.com/explore-flights/monorepo/go/api/business/report"
+	"github.com/explore-flights/monorepo/go/api/db"
+	"github.com/explore-flights/monorepo/go/api/web/model"
+	"github.com/labstack/echo/v4"
+	"golang.org/x/sync/errgroup"
 )
 
 type reportHandlerRepo interface {
-	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
-	Aircraft(ctx context.Context) (map[uuid.UUID]db.Aircraft, error)
+	Airports(ctx context.Context) (map[string]db.Airport, error)
+	Aircraft(ctx context.Context) (map[string]db.Aircraft, error)
 }
 
 type ReportHandler struct {
@@ -33,7 +33,7 @@ func NewReportHandler(repo reportHandlerRepo, search *report.Search) *ReportHand
 
 func (rh *ReportHandler) Destinations(c echo.Context) error {
 	ctx := c.Request().Context()
-	airportId, err := util{}.parseAirport(ctx, c.Param("airport"), rh.repo.Airports)
+	airportIataCode, err := util{}.parseAirport(ctx, c.Param("airport"), rh.repo.Airports)
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
@@ -43,13 +43,13 @@ func (rh *ReportHandler) Destinations(c echo.Context) error {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
-	var destinations map[uuid.UUID]time.Duration
-	var airports map[uuid.UUID]db.Airport
+	var destinations map[string]time.Duration
+	var airports map[string]db.Airport
 
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		destinations, err = rh.search.Destinations(gCtx, airportId, cond)
+		destinations, err = rh.search.Destinations(gCtx, airportIataCode, cond)
 		return err
 	})
 
@@ -64,9 +64,9 @@ func (rh *ReportHandler) Destinations(c echo.Context) error {
 	}
 
 	result := make([]model.DestinationReport, 0, len(destinations))
-	for id, minDuration := range destinations {
+	for iataCode, minDuration := range destinations {
 		result = append(result, model.DestinationReport{
-			Airport:            model.AirportFromDb(airports[id]),
+			Airport:            model.AirportFromDb(airports[iataCode]),
 			MinDurationSeconds: int(minDuration.Seconds()),
 		})
 	}
@@ -76,7 +76,7 @@ func (rh *ReportHandler) Destinations(c echo.Context) error {
 
 func (rh *ReportHandler) Aircraft(c echo.Context) error {
 	ctx := c.Request().Context()
-	airportId, err := util{}.parseAirport(ctx, c.Param("airport"), rh.repo.Airports)
+	airportIataCode, err := util{}.parseAirport(ctx, c.Param("airport"), rh.repo.Airports)
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
@@ -86,18 +86,18 @@ func (rh *ReportHandler) Aircraft(c echo.Context) error {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
-	fullCond := report.WithDepartureAirportId(airportId)
+	fullCond := report.WithDepartureAirportIataCode(airportIataCode)
 	if cond != nil {
 		fullCond = report.WithAll(fullCond, *cond)
 	}
 
-	var reportsByAircraftId map[uuid.UUID][]report.AircraftReport
-	var aircraft map[uuid.UUID]db.Aircraft
+	var reportsByAircraftIataCode map[string][]report.AircraftReport
+	var aircraft map[string]db.Aircraft
 
 	g, gCtx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		reportsByAircraftId, err = rh.search.AircraftReport(gCtx, &fullCond)
+		reportsByAircraftIataCode, err = rh.search.AircraftReport(gCtx, &fullCond)
 		return err
 	})
 
@@ -111,8 +111,8 @@ func (rh *ReportHandler) Aircraft(c echo.Context) error {
 		return err
 	}
 
-	result := make([]model.AircraftReport, 0, len(reportsByAircraftId))
-	for aircraftId, reports := range reportsByAircraftId {
+	result := make([]model.AircraftReport, 0, len(reportsByAircraftIataCode))
+	for aircraftIataCode, reports := range reportsByAircraftIataCode {
 		flightsAndDuration := make([][2]int, 0, len(reports))
 
 		for _, r := range reports {
@@ -123,12 +123,12 @@ func (rh *ReportHandler) Aircraft(c echo.Context) error {
 			return a[0] - b[0]
 		})
 
-		if _, ok := aircraft[aircraftId]; !ok {
-			println(aircraftId.String())
+		if _, ok := aircraft[aircraftIataCode]; !ok {
+			println(aircraftIataCode)
 		}
 
 		result = append(result, model.AircraftReport{
-			Aircraft:           model.AircraftFromDb(aircraft[aircraftId]),
+			Aircraft:           model.AircraftFromDb(aircraft[aircraftIataCode]),
 			FlightsAndDuration: flightsAndDuration,
 		})
 	}

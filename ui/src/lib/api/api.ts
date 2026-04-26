@@ -75,15 +75,15 @@ export class ApiClient {
   }
 
   getAirlines(): Promise<ApiResponse<ReadonlyArray<Airline>>> {
-    return transform(this.httpClient.fetch('/data/airlines.json?v=1'));
+    return transform(this.httpClient.fetch('/data/airlines.json?v=2'));
   }
 
   getAirports(): Promise<ApiResponse<ReadonlyArray<Airport>>> {
-    return transform(this.httpClient.fetch('/data/airports.json?v=1'));
+    return transform(this.httpClient.fetch('/data/airports.json?v=2'));
   }
 
   getAircraft(): Promise<ApiResponse<ReadonlyArray<Aircraft>>> {
-    return transform(this.httpClient.fetch('/data/aircraft.json?v=3'));
+    return transform(this.httpClient.fetch('/data/aircraft.json?v=4'));
   }
 
   getFlightSchedule(flightNumber: string, version?: DateTime<true>): Promise<ApiResponse<FlightSchedules>> {
@@ -92,11 +92,11 @@ export class ApiClient {
       suffix = `/${version.toUTC().toISO()}`;
     }
 
-    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}${suffix}?v=5`));
+    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}${suffix}?v=6`));
   }
 
   getFlightScheduleVersions(flightNumber: string, departureAirport: string, departureDateLocal: string): Promise<ApiResponse<FlightScheduleVersions>> {
-    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(departureAirport)}/${encodeURIComponent(departureDateLocal)}?v=3`));
+    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(departureAirport)}/${encodeURIComponent(departureDateLocal)}?v=4`));
   }
 
   getConnections(req: ConnectionsSearchRequest): Promise<ApiResponse<ConnectionsSearchResponse>> {

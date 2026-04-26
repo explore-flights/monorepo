@@ -21,7 +21,6 @@ import (
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xtime"
-	"github.com/gofrs/uuid/v5"
 	"github.com/gorilla/feeds"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/sync/errgroup"
@@ -32,12 +31,12 @@ var icaoFlightNumberRgx = regexp.MustCompile("^([0-9A-Z]{3})([0-9]{1,4})([A-Z]?)
 var numberAndSuffixRgx = regexp.MustCompile("^([0-9]{1,4})([A-Z]?)$")
 
 type dataHandlerRepo interface {
-	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
-	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
-	Aircraft(ctx context.Context) (map[uuid.UUID]db.Aircraft, error)
+	Airlines(ctx context.Context) (map[string]db.Airline, error)
+	Airports(ctx context.Context) (map[string]db.Airport, error)
+	Aircraft(ctx context.Context) (map[string]db.Aircraft, error)
 	RelatedFlightNumbers(ctx context.Context, fn db.FlightNumber, version time.Time) (common.Set[db.FlightNumber], error)
 	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
-	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber, departureAirport uuid.UUID, departureDate xtime.LocalDate) (db.FlightScheduleVersions, error)
+	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber, departureAirportIataCode string, departureDate xtime.LocalDate) (db.FlightScheduleVersions, error)
 	UpdatesForVersion(ctx context.Context, version time.Time, page int) ([]db.FlightScheduleUpdate, error)
 }
 
@@ -120,9 +119,9 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 
 	var flightSchedules db.FlightSchedules
 	var relatedFlightNumbers common.Set[db.FlightNumber]
-	var airlines map[uuid.UUID]db.Airline
-	var airports map[uuid.UUID]db.Airport
-	var aircraft map[uuid.UUID]db.Aircraft
+	var airlines map[string]db.Airline
+	var airports map[string]db.Airport
+	var aircraft map[string]db.Aircraft
 
 	{
 		g, ctx := errgroup.WithContext(ctx)
@@ -167,44 +166,44 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 		RelatedFlightNumbers: make([]model.FlightNumber, 0, len(relatedFlightNumbers)),
 		Items:                make([]model.FlightScheduleItem, 0, len(flightSchedules.Items)),
 		Variants:             make(map[model.UUID]model.FlightScheduleVariant, len(flightSchedules.Variants)),
-		Airlines:             make(map[model.UUID]model.Airline),
-		Airports:             make(map[model.UUID]model.Airport),
-		Aircraft:             make(map[model.UUID]model.Aircraft),
+		Airlines:             make(map[string]model.Airline),
+		Airports:             make(map[string]model.Airport),
+		Aircraft:             make(map[string]model.Aircraft),
 	}
-	referencedAirlines := make(common.Set[uuid.UUID])
-	referencedAirports := make(common.Set[uuid.UUID])
-	referencedAircraft := make(common.Set[uuid.UUID])
+	referencedAirlines := make(common.Set[string])
+	referencedAirports := make(common.Set[string])
+	referencedAircraft := make(common.Set[string])
 
-	referencedAirlines.Add(fn.AirlineId)
+	referencedAirlines.Add(fn.AirlineIataCode)
 
 	for _, item := range flightSchedules.Items {
 		fs.Items = append(fs.Items, model.FlightScheduleItemFromDb(item))
-		referencedAirports.Add(item.DepartureAirportId)
+		referencedAirports.Add(item.DepartureAirportIataCode)
 	}
 
 	for variantId, variant := range flightSchedules.Variants {
 		fs.Variants[model.UUID(variantId)] = model.FlightScheduleVariantFromDb(variant)
 
 		for cs := range variant.CodeShares {
-			referencedAirlines.Add(cs.AirlineId)
+			referencedAirlines.Add(cs.AirlineIataCode)
 		}
 
-		referencedAirlines.Add(variant.OperatedAs.AirlineId)
-		referencedAirports.Add(variant.ArrivalAirportId)
-		referencedAircraft.Add(variant.AircraftId)
+		referencedAirlines.Add(variant.OperatedAs.AirlineIataCode)
+		referencedAirports.Add(variant.ArrivalAirportIataCode)
+		referencedAircraft.Add(variant.AircraftIataCode)
 	}
 
 	for relFn := range relatedFlightNumbers {
-		referencedAirlines.Add(relFn.AirlineId)
+		referencedAirlines.Add(relFn.AirlineIataCode)
 		fs.RelatedFlightNumbers = append(fs.RelatedFlightNumbers, model.FlightNumberFromDb(relFn))
 	}
 
-	for airlineId := range referencedAirlines {
-		fs.Airlines[model.UUID(airlineId)] = model.AirlineFromDb(airlines[airlineId])
+	for airlineIataCode := range referencedAirlines {
+		fs.Airlines[airlineIataCode] = model.AirlineFromDb(airlines[airlineIataCode])
 	}
 
-	for airportId := range referencedAirports {
-		fs.Airports[model.UUID(airportId)] = model.AirportFromDb(airports[airportId])
+	for airportIataCode := range referencedAirports {
+		fs.Airports[airportIataCode] = model.AirportFromDb(airports[airportIataCode])
 	}
 
 	model.AddReferencedAircraft(maps.Keys(referencedAircraft), aircraft, fs.Aircraft)
@@ -280,7 +279,7 @@ func (dh *DataHandler) SeatMap(c echo.Context) error {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
-	departureAirportId, err := dh.parseAirport(ctx, departureAirportRaw)
+	departureAirportIataCode, err := dh.parseAirport(ctx, departureAirportRaw)
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
@@ -290,7 +289,7 @@ func (dh *DataHandler) SeatMap(c echo.Context) error {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
-	sm, err := dh.smSearch.SeatMap(ctx, fn, departureAirportId, departureDateLocal)
+	sm, err := dh.smSearch.SeatMap(ctx, fn, departureAirportIataCode, departureDateLocal)
 	if err != nil {
 		if errors.Is(err, seatmap.ErrNotFound) {
 			return NewHTTPError(http.StatusNotFound, WithCause(err))
@@ -334,36 +333,36 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 
 	fnName := func(fn model.FlightNumber) string {
 		var airlinePrefix string
-		if airline, ok := fs.Airlines[fn.AirlineId]; ok {
-			airlinePrefix = cmp.Or(airline.IataCode, airline.IcaoCode, airline.Id.String()+"-")
+		if airline, ok := fs.Airlines[fn.AirlineIataCode]; ok {
+			airlinePrefix = cmp.Or(airline.IataCode, airline.IcaoCode)
 		} else {
-			airlinePrefix = fn.AirlineId.String() + "-"
+			airlinePrefix = fn.AirlineIataCode
 		}
 
 		return fmt.Sprintf("%s%d%s", airlinePrefix, fn.Number, fn.Suffix)
 	}
 
-	airportName := func(airportId model.UUID) string {
-		airport, ok := fs.Airports[airportId]
+	airportName := func(airportIataCode string) string {
+		airport, ok := fs.Airports[airportIataCode]
 		if !ok {
-			return airportId.String()
+			return airportIataCode
 		}
 
-		return cmp.Or(airport.IataCode, airport.IcaoCode, airport.Name, airport.Id.String())
+		return cmp.Or(airport.IataCode, airport.IcaoCode, airport.Name)
 	}
 
-	aircraftName := func(aircraftId model.UUID) string {
-		aircraft, ok := fs.Aircraft[aircraftId]
+	aircraftName := func(aircraftIataCode string) string {
+		aircraft, ok := fs.Aircraft[aircraftIataCode]
 		if !ok {
-			return aircraftId.String()
+			return aircraftIataCode
 		}
 
-		return cmp.Or(aircraft.Name(), aircraft.IcaoCode, aircraft.IataCode(), aircraft.Id.String())
+		return cmp.Or(aircraft.Name(), aircraft.IcaoCode, aircraft.IataCode())
 	}
 
-	aircraftAndConfigurationVersionName := func(aircraftId model.UUID, v string) string {
+	aircraftAndConfigurationVersionName := func(aircraftIataCode string, v string) string {
 		configName := v
-		if aircraft, ok := fs.Aircraft[aircraftId]; ok && aircraft.IataCode() == "359" {
+		if aircraft, ok := fs.Aircraft[aircraftIataCode]; ok && aircraft.IataCode() == "359" {
 			switch v {
 			case "C38E24M201":
 				configName = "Allegris (no first)"
@@ -387,12 +386,12 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 			}
 		}
 
-		return fmt.Sprintf("%s (%s)", aircraftName(aircraftId), configName)
+		return fmt.Sprintf("%s (%s)", aircraftName(aircraftIataCode), configName)
 	}
 
 	baseFnName := fnName(fs.FlightNumber)
-	departureAirportName := airportName(fs.DepartureAirportId)
-	feedId := fmt.Sprintf("https://explore.flights/flight/%s/versions/%s/%s", baseFnName, fs.DepartureAirportId.String(), fs.DepartureDateLocal.String())
+	departureAirportName := airportName(fs.DepartureAirportIataCode)
+	feedId := fmt.Sprintf("https://explore.flights/flight/%s/versions/%s/%s", baseFnName, fs.DepartureAirportIataCode, fs.DepartureDateLocal.String())
 	baseLink := &feeds.Link{
 		Href: feedId,
 		Rel:  "alternate",
@@ -473,13 +472,13 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 				updates = append(updates, fmt.Sprintf("Duration: %snew=%s", old, (time.Duration(variant.DurationSeconds)*time.Second).String()))
 			}
 
-			if prevVariant == nil || prevVariant.ArrivalAirportId != variant.ArrivalAirportId {
+			if prevVariant == nil || prevVariant.ArrivalAirportIataCode != variant.ArrivalAirportIataCode {
 				var old string
 				if prevVariant != nil {
-					old = fmt.Sprintf("old=%s ", airportName(prevVariant.ArrivalAirportId))
+					old = fmt.Sprintf("old=%s ", airportName(prevVariant.ArrivalAirportIataCode))
 				}
 
-				updates = append(updates, fmt.Sprintf("Arrival Airport: %snew=%s", old, airportName(variant.ArrivalAirportId)))
+				updates = append(updates, fmt.Sprintf("Arrival Airport: %snew=%s", old, airportName(variant.ArrivalAirportIataCode)))
 			}
 
 			if prevVariant == nil || prevVariant.ServiceType != variant.ServiceType {
@@ -500,18 +499,18 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 				updates = append(updates, fmt.Sprintf("Aircraft Owner: %snew=%s", old, variant.AircraftOwner))
 			}
 
-			if prevVariant == nil || prevVariant.AircraftId != variant.AircraftId || prevVariant.AircraftConfigurationVersion != variant.AircraftConfigurationVersion {
+			if prevVariant == nil || prevVariant.AircraftIataCode != variant.AircraftIataCode || prevVariant.AircraftConfigurationVersion != variant.AircraftConfigurationVersion {
 				var old string
 				if prevVariant != nil {
-					old = fmt.Sprintf("old=%s ", aircraftAndConfigurationVersionName(prevVariant.AircraftId, prevVariant.AircraftConfigurationVersion))
+					old = fmt.Sprintf("old=%s ", aircraftAndConfigurationVersionName(prevVariant.AircraftIataCode, prevVariant.AircraftConfigurationVersion))
 				}
 
-				updates = append(updates, fmt.Sprintf("Aircraft: %snew=%s", old, aircraftAndConfigurationVersionName(variant.AircraftId, variant.AircraftConfigurationVersion)))
+				updates = append(updates, fmt.Sprintf("Aircraft: %snew=%s", old, aircraftAndConfigurationVersionName(variant.AircraftIataCode, variant.AircraftConfigurationVersion)))
 			}
 
 			slices.SortFunc(variant.CodeShares, func(a, b model.FlightNumber) int {
 				return cmp.Or(
-					strings.Compare(a.AirlineId.String(), b.AirlineId.String()),
+					strings.Compare(a.AirlineIataCode, b.AirlineIataCode),
 					a.Number-b.Number,
 					strings.Compare(a.Suffix, b.Suffix),
 				)
@@ -654,7 +653,7 @@ func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, de
 		return model.FlightScheduleVersions{}, NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
-	departureAirportId, err := dh.parseAirport(ctx, departureAirportRaw)
+	departureAirportIataCode, err := dh.parseAirport(ctx, departureAirportRaw)
 	if err != nil {
 		return model.FlightScheduleVersions{}, NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
@@ -665,16 +664,16 @@ func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, de
 	}
 
 	var flightScheduleVersions db.FlightScheduleVersions
-	var airlines map[uuid.UUID]db.Airline
-	var airports map[uuid.UUID]db.Airport
-	var aircraft map[uuid.UUID]db.Aircraft
+	var airlines map[string]db.Airline
+	var airports map[string]db.Airport
+	var aircraft map[string]db.Aircraft
 
 	{
 		g, ctx := errgroup.WithContext(ctx)
 
 		g.Go(func() error {
 			var err error
-			flightScheduleVersions, err = dh.repo.FlightScheduleVersions(ctx, fn, departureAirportId, departureDateLocal)
+			flightScheduleVersions, err = dh.repo.FlightScheduleVersions(ctx, fn, departureAirportIataCode, departureDateLocal)
 			return err
 		})
 
@@ -702,21 +701,21 @@ func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, de
 	}
 
 	fs := model.FlightScheduleVersions{
-		FlightNumber:       model.FlightNumberFromDb(fn),
-		DepartureDateLocal: departureDateLocal,
-		DepartureAirportId: model.UUID(departureAirportId),
-		Versions:           make([]model.FlightScheduleVersion, 0, len(flightScheduleVersions.Versions)),
-		Variants:           make(map[model.UUID]model.FlightScheduleVariant, len(flightScheduleVersions.Variants)),
-		Airlines:           make(map[model.UUID]model.Airline),
-		Airports:           make(map[model.UUID]model.Airport),
-		Aircraft:           make(map[model.UUID]model.Aircraft),
+		FlightNumber:             model.FlightNumberFromDb(fn),
+		DepartureDateLocal:       departureDateLocal,
+		DepartureAirportIataCode: departureAirportIataCode,
+		Versions:                 make([]model.FlightScheduleVersion, 0, len(flightScheduleVersions.Versions)),
+		Variants:                 make(map[model.UUID]model.FlightScheduleVariant, len(flightScheduleVersions.Variants)),
+		Airlines:                 make(map[string]model.Airline),
+		Airports:                 make(map[string]model.Airport),
+		Aircraft:                 make(map[string]model.Aircraft),
 	}
-	referencedAirlines := make(common.Set[uuid.UUID])
-	referencedAirports := make(common.Set[uuid.UUID])
-	referencedAircraft := make(common.Set[uuid.UUID])
+	referencedAirlines := make(common.Set[string])
+	referencedAirports := make(common.Set[string])
+	referencedAircraft := make(common.Set[string])
 
-	referencedAirlines.Add(fn.AirlineId)
-	referencedAirports.Add(departureAirportId)
+	referencedAirlines.Add(fn.AirlineIataCode)
+	referencedAirports.Add(departureAirportIataCode)
 
 	for _, version := range flightScheduleVersions.Versions {
 		var flightVariantId *model.UUID
@@ -737,20 +736,20 @@ func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, de
 		fs.Variants[model.UUID(variantId)] = model.FlightScheduleVariantFromDb(variant)
 
 		for cs := range variant.CodeShares {
-			referencedAirlines.Add(cs.AirlineId)
+			referencedAirlines.Add(cs.AirlineIataCode)
 		}
 
-		referencedAirlines.Add(variant.OperatedAs.AirlineId)
-		referencedAirports.Add(variant.ArrivalAirportId)
-		referencedAircraft.Add(variant.AircraftId)
+		referencedAirlines.Add(variant.OperatedAs.AirlineIataCode)
+		referencedAirports.Add(variant.ArrivalAirportIataCode)
+		referencedAircraft.Add(variant.AircraftIataCode)
 	}
 
-	for airlineId := range referencedAirlines {
-		fs.Airlines[model.UUID(airlineId)] = model.AirlineFromDb(airlines[airlineId])
+	for airlineIataCode := range referencedAirlines {
+		fs.Airlines[airlineIataCode] = model.AirlineFromDb(airlines[airlineIataCode])
 	}
 
-	for airportId := range referencedAirports {
-		fs.Airports[model.UUID(airportId)] = model.AirportFromDb(airports[airportId])
+	for airportIataCode := range referencedAirports {
+		fs.Airports[airportIataCode] = model.AirportFromDb(airports[airportIataCode])
 	}
 
 	model.AddReferencedAircraft(maps.Keys(referencedAircraft), aircraft, fs.Aircraft)
@@ -772,8 +771,8 @@ func (dh *DataHandler) Version(c echo.Context) error {
 	}
 
 	var dbResult []db.FlightScheduleUpdate
-	var airlines map[uuid.UUID]db.Airline
-	var airports map[uuid.UUID]db.Airport
+	var airlines map[string]db.Airline
+	var airports map[string]db.Airport
 
 	{
 		g, ctx := errgroup.WithContext(c.Request().Context())
@@ -811,29 +810,6 @@ func (dh *DataHandler) Version(c echo.Context) error {
 }
 
 func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.FlightNumber, error) {
-	if airlineIdRaw, numberAndSuffix, found := strings.Cut(raw, "-"); found {
-		var airlineId model.UUID
-		if err := airlineId.FromString(airlineIdRaw); err != nil {
-			return db.FlightNumber{}, err
-		}
-
-		groups := numberAndSuffixRgx.FindStringSubmatch(numberAndSuffix)
-		if groups == nil {
-			return db.FlightNumber{}, fmt.Errorf("invalid FlightNumber: %q", raw)
-		}
-
-		number, err := strconv.Atoi(groups[1])
-		if err != nil {
-			return db.FlightNumber{}, fmt.Errorf("invalid FlightNumber: %q: %w", raw, err)
-		}
-
-		return db.FlightNumber{
-			AirlineId: uuid.UUID(airlineId),
-			Number:    number,
-			Suffix:    groups[2],
-		}, nil
-	}
-
 	airlines, err := dh.repo.Airlines(ctx)
 	if err != nil {
 		return db.FlightNumber{}, err
@@ -849,9 +825,9 @@ func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.Fl
 		for _, airline := range airlines {
 			if airline.IataCode == airlineIata {
 				return db.FlightNumber{
-					AirlineId: airline.Id,
-					Number:    number,
-					Suffix:    groups[3],
+					AirlineIataCode: airline.IataCode,
+					Number:          number,
+					Suffix:          groups[3],
 				}, nil
 			}
 		}
@@ -867,9 +843,9 @@ func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.Fl
 		for _, airline := range airlines {
 			if airline.IcaoCode.Valid && airline.IcaoCode.String == airlineIcao {
 				return db.FlightNumber{
-					AirlineId: airline.Id,
-					Number:    number,
-					Suffix:    groups[3],
+					AirlineIataCode: airline.IataCode,
+					Number:          number,
+					Suffix:          groups[3],
 				}, nil
 			}
 		}
@@ -889,14 +865,14 @@ func (dh *DataHandler) parseAndResolveFlightNumber(ctx context.Context, raw stri
 		return db.FlightNumber{}, db.Airline{}, err
 	}
 
-	if airline, ok := airlines[fn.AirlineId]; ok {
+	if airline, ok := airlines[fn.AirlineIataCode]; ok {
 		return fn, airline, nil
 	}
 
-	return db.FlightNumber{}, db.Airline{}, fmt.Errorf("airline not found: %q", fn.AirlineId)
+	return db.FlightNumber{}, db.Airline{}, fmt.Errorf("airline not found: %q", fn.AirlineIataCode)
 }
 
-func (dh *DataHandler) parseAirport(ctx context.Context, raw string) (uuid.UUID, error) {
+func (dh *DataHandler) parseAirport(ctx context.Context, raw string) (string, error) {
 	return util{}.parseAirport(ctx, raw, dh.repo.Airports)
 }
 

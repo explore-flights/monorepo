@@ -16,16 +16,15 @@ import (
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xtime"
-	"github.com/gofrs/uuid/v5"
 	"github.com/gorilla/feeds"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/sync/errgroup"
 )
 
 type scheduleSearchHandlerRepo interface {
-	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
-	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
-	Aircraft(ctx context.Context) (map[uuid.UUID]db.Aircraft, error)
+	Airlines(ctx context.Context) (map[string]db.Airline, error)
+	Airports(ctx context.Context) (map[string]db.Airport, error)
+	Aircraft(ctx context.Context) (map[string]db.Aircraft, error)
 }
 
 type ScheduleSearchHandler struct {
@@ -52,23 +51,11 @@ func (h *ScheduleSearchHandler) Query(c echo.Context) error {
 		subConditions := make([]schedulesearch.Condition, 0, len(values))
 		switch k {
 		case "airlineId":
-			for _, value := range values {
-				var airlineId model.UUID
-				if err := airlineId.FromString(value); err != nil {
-					return NewHTTPError(http.StatusBadRequest, WithCause(err))
-				}
-
-				subConditions = append(subConditions, schedulesearch.WithAirlines(uuid.UUID(airlineId)))
-			}
+			subConditions = append(subConditions, schedulesearch.WithAirlines(values...))
 
 		case "aircraftId":
 			for _, value := range values {
-				var aircraftId model.UUID
-				if err := aircraftId.FromString(value); err != nil {
-					return NewHTTPError(http.StatusBadRequest, WithCause(err))
-				}
-
-				subConditions = append(subConditions, schedulesearch.WithAircraftId(uuid.UUID(aircraftId)))
+				subConditions = append(subConditions, schedulesearch.WithAircraftIataCode(value))
 			}
 
 		case "aircraftConfigurationVersion":
@@ -78,14 +65,9 @@ func (h *ScheduleSearchHandler) Query(c echo.Context) error {
 
 		case "aircraft":
 			for _, value := range values {
-				if aircraftIdRaw, aircraftConfigurationVersion, ok := strings.Cut(value, "-"); ok {
-					var aircraftId model.UUID
-					if err := aircraftId.FromString(aircraftIdRaw); err != nil {
-						return NewHTTPError(http.StatusBadRequest, WithCause(err))
-					}
-
+				if aircraftIataCode, aircraftConfigurationVersion, ok := strings.Cut(value, "-"); ok {
 					subConditions = append(subConditions, schedulesearch.WithAll(
-						schedulesearch.WithAircraftId(uuid.UUID(aircraftId)),
+						schedulesearch.WithAircraftIataCode(aircraftIataCode),
 						schedulesearch.WithAircraftConfigurationVersion(aircraftConfigurationVersion),
 					))
 				}
@@ -93,40 +75,20 @@ func (h *ScheduleSearchHandler) Query(c echo.Context) error {
 
 		case "departureAirportId":
 			for _, value := range values {
-				var airportId model.UUID
-				if err := airportId.FromString(value); err != nil {
-					return NewHTTPError(http.StatusBadRequest, WithCause(err))
-				}
-
-				subConditions = append(subConditions, schedulesearch.WithDepartureAirportId(uuid.UUID(airportId)))
+				subConditions = append(subConditions, schedulesearch.WithDepartureAirportIataCode(value))
 			}
 
 		case "arrivalAirportId":
 			for _, value := range values {
-				var airportId model.UUID
-				if err := airportId.FromString(value); err != nil {
-					return NewHTTPError(http.StatusBadRequest, WithCause(err))
-				}
-
-				subConditions = append(subConditions, schedulesearch.WithArrivalAirportId(uuid.UUID(airportId)))
+				subConditions = append(subConditions, schedulesearch.WithArrivalAirportIataCode(value))
 			}
 
 		case "route":
 			for _, value := range values {
 				if departureAirport, arrivalAirport, ok := strings.Cut(value, "-"); ok {
-					var departureAirportId model.UUID
-					if err := departureAirportId.FromString(departureAirport); err != nil {
-						return NewHTTPError(http.StatusBadRequest, WithCause(err))
-					}
-
-					var arrivalAirportId model.UUID
-					if err := arrivalAirportId.FromString(arrivalAirport); err != nil {
-						return NewHTTPError(http.StatusBadRequest, WithCause(err))
-					}
-
 					subConditions = append(subConditions, schedulesearch.WithAll(
-						schedulesearch.WithDepartureAirportId(uuid.UUID(departureAirportId)),
-						schedulesearch.WithArrivalAirportId(uuid.UUID(arrivalAirportId)),
+						schedulesearch.WithDepartureAirportIataCode(departureAirport),
+						schedulesearch.WithArrivalAirportIataCode(arrivalAirport),
 					))
 				}
 			}
@@ -244,26 +206,26 @@ func (h *ScheduleSearchHandler) swissA350Feed(c echo.Context, contentType string
 func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model.FlightSchedulesMany, feedId, feedTitle, shortName, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
 	fnName := func(fn model.FlightNumber) string {
 		var airlinePrefix string
-		if airline, ok := result.Airlines[fn.AirlineId]; ok {
-			airlinePrefix = cmp.Or(airline.IataCode, airline.IcaoCode, airline.Id.String()+"-")
+		if airline, ok := result.Airlines[fn.AirlineIataCode]; ok {
+			airlinePrefix = cmp.Or(airline.IataCode, airline.IcaoCode)
 		} else {
-			airlinePrefix = fn.AirlineId.String() + "-"
+			airlinePrefix = fn.AirlineIataCode
 		}
 
 		return fmt.Sprintf("%s%d%s", airlinePrefix, fn.Number, fn.Suffix)
 	}
 
-	airportName := func(airportId model.UUID) string {
-		airport, ok := result.Airports[airportId]
+	airportName := func(airportIataCode string) string {
+		airport, ok := result.Airports[airportIataCode]
 		if !ok {
-			return airportId.String()
+			return airportIataCode
 		}
 
-		return cmp.Or(airport.IataCode, airport.IcaoCode, airport.Name, airport.Id.String())
+		return cmp.Or(airport.IataCode, airport.IcaoCode, airport.Name)
 	}
 
-	routeName := func(departureAirportId, arrivalAirportId model.UUID) string {
-		return fmt.Sprintf("%s - %s", airportName(departureAirportId), airportName(arrivalAirportId))
+	routeName := func(departureAirportIataCode, arrivalAirportIataCode string) string {
+		return fmt.Sprintf("%s - %s", airportName(departureAirportIataCode), airportName(arrivalAirportIataCode))
 	}
 
 	baseLink := &feeds.Link{
@@ -282,14 +244,14 @@ func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model
 
 	for _, schedule := range result.Schedules {
 		fnStr := fnName(schedule.FlightNumber)
-		aggByAirports := make(map[model.UUID]map[model.UUID][]struct {
+		aggByAirports := make(map[string]map[string][]struct {
 			MinVersion                    time.Time
 			MaxVersion                    time.Time
 			MaxNonStandaloneVersion       time.Time
 			MinDepartureDateLocal         xtime.LocalDate
 			MaxDepartureDateLocal         xtime.LocalDate
 			OperatingDays                 int
-			AircraftIds                   common.Set[model.UUID]
+			AircraftIataCodes             common.Set[string]
 			AircraftConfigurationVersions common.Set[string]
 		})
 
@@ -304,22 +266,22 @@ func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model
 			}
 
 			flightVariant := result.Variants[*item.FlightVariantId]
-			aggByArrivalAirport, ok := aggByAirports[item.DepartureAirportId]
+			aggByArrivalAirport, ok := aggByAirports[item.DepartureAirportIataCode]
 			if !ok {
-				aggByArrivalAirport = make(map[model.UUID][]struct {
+				aggByArrivalAirport = make(map[string][]struct {
 					MinVersion                    time.Time
 					MaxVersion                    time.Time
 					MaxNonStandaloneVersion       time.Time
 					MinDepartureDateLocal         xtime.LocalDate
 					MaxDepartureDateLocal         xtime.LocalDate
 					OperatingDays                 int
-					AircraftIds                   common.Set[model.UUID]
+					AircraftIataCodes             common.Set[string]
 					AircraftConfigurationVersions common.Set[string]
 				})
-				aggByAirports[item.DepartureAirportId] = aggByArrivalAirport
+				aggByAirports[item.DepartureAirportIataCode] = aggByArrivalAirport
 			}
 
-			agg := aggByArrivalAirport[flightVariant.ArrivalAirportId]
+			agg := aggByArrivalAirport[flightVariant.ArrivalAirportIataCode]
 			var latestEntry struct {
 				MinVersion                    time.Time
 				MaxVersion                    time.Time
@@ -327,7 +289,7 @@ func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model
 				MinDepartureDateLocal         xtime.LocalDate
 				MaxDepartureDateLocal         xtime.LocalDate
 				OperatingDays                 int
-				AircraftIds                   common.Set[model.UUID]
+				AircraftIataCodes             common.Set[string]
 				AircraftConfigurationVersions common.Set[string]
 			}
 
@@ -349,7 +311,7 @@ func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model
 
 				latestEntry.MaxDepartureDateLocal = item.DepartureDateLocal
 				latestEntry.OperatingDays += 1
-				latestEntry.AircraftIds.Add(flightVariant.AircraftId)
+				latestEntry.AircraftIataCodes.Add(flightVariant.AircraftIataCode)
 				latestEntry.AircraftConfigurationVersions.Add(flightVariant.AircraftConfigurationVersion)
 
 				agg[idx] = latestEntry
@@ -365,28 +327,28 @@ func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model
 				latestEntry.MaxDepartureDateLocal = item.DepartureDateLocal
 				latestEntry.OperatingDays = 1
 
-				latestEntry.AircraftIds = make(common.Set[model.UUID])
+				latestEntry.AircraftIataCodes = make(common.Set[string])
 				latestEntry.AircraftConfigurationVersions = make(common.Set[string])
 
-				latestEntry.AircraftIds.Add(flightVariant.AircraftId)
+				latestEntry.AircraftIataCodes.Add(flightVariant.AircraftIataCode)
 				latestEntry.AircraftConfigurationVersions.Add(flightVariant.AircraftConfigurationVersion)
 
 				agg = append(agg, latestEntry)
 			}
 
-			aggByArrivalAirport[flightVariant.ArrivalAirportId] = agg
+			aggByArrivalAirport[flightVariant.ArrivalAirportIataCode] = agg
 		}
 
 		for departureAirportId, aggByArrivalAirport := range aggByAirports {
 			for arrivalAirportId, entries := range aggByArrivalAirport {
 				for _, entry := range entries {
 					q := make(url.Values)
-					q.Set("departure_airport_id", departureAirportId.String())
+					q.Set("departure_airport_id", departureAirportId)
 					q.Set("departure_date_gte", entry.MinDepartureDateLocal.String())
 					q.Set("departure_date_lte", entry.MaxDepartureDateLocal.String())
 
-					for aircraftId := range entry.AircraftIds {
-						q.Set("aircraft_id", aircraftId.String())
+					for aircraftId := range entry.AircraftIataCodes {
+						q.Set("aircraft_id", aircraftId)
 					}
 
 					for aircraftConfigurationVersion := range entry.AircraftConfigurationVersions {
@@ -452,120 +414,36 @@ From %s until %s for a total of %d flights
 }
 
 func (h *ScheduleSearchHandler) queryAllegris(ctx context.Context) (model.FlightSchedulesMany, error) {
-	var lhAirlineId uuid.UUID
-	var a350900AircraftId uuid.UUID
-	var b7879AircraftId uuid.UUID
-	{
-		airlines, err := h.repo.Airlines(ctx)
-		if err != nil {
-			return model.FlightSchedulesMany{}, err
-		}
-
-		for _, airline := range airlines {
-			if airline.IataCode == "LH" {
-				lhAirlineId = airline.Id
-				break
-			}
-		}
-
-		aircraft, err := h.repo.Aircraft(ctx)
-		if err != nil {
-			return model.FlightSchedulesMany{}, err
-		}
-
-		for _, ac := range aircraft {
-			if ac.IataCode.Valid {
-				switch ac.IataCode.String {
-				case "359":
-					a350900AircraftId = ac.Id
-
-				case "789":
-					b7879AircraftId = ac.Id
-				}
-			}
-
-			if !a350900AircraftId.IsNil() && !b7879AircraftId.IsNil() {
-				break
-			}
-		}
-	}
-
-	if lhAirlineId.IsNil() || a350900AircraftId.IsNil() || b7879AircraftId.IsNil() {
-		return model.FlightSchedulesMany{}, NewHTTPError(http.StatusInternalServerError)
-	}
-
-	result, err := h.queryInternal(
+	return h.queryInternal(
 		ctx,
 		schedulesearch.WithAll(
-			schedulesearch.WithAirlines(lhAirlineId),
+			schedulesearch.WithAirlines("LH"),
 			schedulesearch.WithAny(
 				schedulesearch.WithAll(
-					schedulesearch.WithAircraftId(a350900AircraftId),
+					schedulesearch.WithAircraftIataCode("359"),
 					schedulesearch.WithAny(
 						schedulesearch.WithTotalSeats(38+24+201),
 						schedulesearch.WithTotalSeats(4+38+24+201),
 					),
 				),
 				schedulesearch.WithAll(
-					schedulesearch.WithAircraftId(b7879AircraftId),
+					schedulesearch.WithAircraftIataCode("789"),
 					schedulesearch.WithSeatsPremium(28),
 					schedulesearch.WithSeatsEconomy(231),
 				),
 			),
 		),
 	)
-	if err != nil {
-		return model.FlightSchedulesMany{}, err
-	}
-
-	return result, nil
 }
 
 func (h *ScheduleSearchHandler) querySwissA350(ctx context.Context) (model.FlightSchedulesMany, error) {
-	var lxAirlineId uuid.UUID
-	var a350900AircraftId uuid.UUID
-	{
-		airlines, err := h.repo.Airlines(ctx)
-		if err != nil {
-			return model.FlightSchedulesMany{}, err
-		}
-
-		for _, airline := range airlines {
-			if airline.IataCode == "LX" {
-				lxAirlineId = airline.Id
-				break
-			}
-		}
-
-		aircraft, err := h.repo.Aircraft(ctx)
-		if err != nil {
-			return model.FlightSchedulesMany{}, err
-		}
-
-		for _, ac := range aircraft {
-			if ac.IataCode.Valid && ac.IataCode.String == "359" {
-				a350900AircraftId = ac.Id
-				break
-			}
-		}
-	}
-
-	if lxAirlineId.IsNil() || a350900AircraftId.IsNil() {
-		return model.FlightSchedulesMany{}, NewHTTPError(http.StatusInternalServerError)
-	}
-
-	result, err := h.queryInternal(
+	return h.queryInternal(
 		ctx,
 		schedulesearch.WithAll(
-			schedulesearch.WithAirlines(lxAirlineId),
-			schedulesearch.WithAircraftId(a350900AircraftId),
+			schedulesearch.WithAirlines("LX"),
+			schedulesearch.WithAircraftIataCode("359"),
 		),
 	)
-	if err != nil {
-		return model.FlightSchedulesMany{}, err
-	}
-
-	return result, nil
 }
 
 func (h *ScheduleSearchHandler) LHA380(c echo.Context) error {
@@ -605,62 +483,25 @@ func (h *ScheduleSearchHandler) LH747(c echo.Context) error {
 }
 
 func (h *ScheduleSearchHandler) querySpecialAircraft(ctx context.Context, airlineIata string, aircraftIata common.Set[string]) (model.FlightSchedulesMany, error) {
-	var airlineId uuid.UUID
 	var aircraftConditions []schedulesearch.Condition
-	{
-		airlines, err := h.repo.Airlines(ctx)
-		if err != nil {
-			return model.FlightSchedulesMany{}, err
-		}
-
-		for _, airline := range airlines {
-			if airline.IataCode == airlineIata {
-				airlineId = airline.Id
-				break
-			}
-		}
-
-		aircraft, err := h.repo.Aircraft(ctx)
-		if err != nil {
-			return model.FlightSchedulesMany{}, err
-		}
-
-		for _, ac := range aircraft {
-			if ac.IataCode.Valid {
-				if _, ok := aircraftIata[ac.IataCode.String]; ok {
-					aircraftConditions = append(aircraftConditions, schedulesearch.WithAircraftId(ac.Id))
-				}
-
-				if len(aircraftConditions) == len(aircraftIata) {
-					break
-				}
-			}
-		}
+	for iataCode := range aircraftIata {
+		aircraftConditions = append(aircraftConditions, schedulesearch.WithAircraftIataCode(iataCode))
 	}
 
-	if airlineId.IsNil() || len(aircraftConditions) < len(aircraftIata) {
-		return model.FlightSchedulesMany{}, NewHTTPError(http.StatusInternalServerError)
-	}
-
-	result, err := h.queryInternal(
+	return h.queryInternal(
 		ctx,
 		schedulesearch.WithAll(
-			schedulesearch.WithAirlines(airlineId),
+			schedulesearch.WithAirlines(airlineIata),
 			schedulesearch.WithAny(aircraftConditions...),
 		),
 	)
-	if err != nil {
-		return model.FlightSchedulesMany{}, err
-	}
-
-	return result, nil
 }
 
 func (h *ScheduleSearchHandler) queryInternal(ctx context.Context, condition schedulesearch.Condition) (model.FlightSchedulesMany, error) {
 	var dbResult db.FlightSchedulesMany
-	var airlines map[uuid.UUID]db.Airline
-	var airports map[uuid.UUID]db.Airport
-	var aircraft map[uuid.UUID]db.Aircraft
+	var airlines map[string]db.Airline
+	var airports map[string]db.Airport
+	var aircraft map[string]db.Aircraft
 
 	{
 		g, ctx := errgroup.WithContext(ctx)

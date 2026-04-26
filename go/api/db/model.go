@@ -12,51 +12,40 @@ import (
 )
 
 type Airline struct {
-	Id       uuid.UUID
 	IataCode string
 	IcaoCode sql.NullString
-	Name     sql.NullString
+	Name     string
 }
 
 type Airport struct {
-	Id           uuid.UUID
 	IataCode     string
 	IcaoCode     sql.NullString
 	IataAreaCode sql.NullString
-	CountryCode  sql.NullString
-	CityCode     sql.NullString
-	Type         sql.NullString
-	Lng          sql.NullFloat64
-	Lat          sql.NullFloat64
-	Timezone     sql.NullString
-	Name         sql.NullString
+	CountryCode  string
+	CityCode     string
+	Type         string
+	Lng          float64
+	Lat          float64
+	Timezone     string
+	Name         string
 }
 
-type AircraftType string
-
-const (
-	AircraftTypeAircraft AircraftType = "aircraft"
-	AircraftTypeFamily   AircraftType = "family"
-	AircraftTypeUnmapped AircraftType = "unmapped"
-)
-
 type Aircraft struct {
-	Id             uuid.UUID
-	ParentFamilyId sql.Null[uuid.UUID]
-	IataCode       sql.NullString
+	IataCode       string
+	ParentIataCode sql.NullString
 	IcaoCode       sql.NullString
 	Wtc            sql.NullString
 	EngineCount    sql.NullInt16
 	EngineType     sql.NullString
-	Name           sql.NullString
-	Type           AircraftType
-	Configurations map[uuid.UUID][]string
+	Name           string
+	Configurations map[string][]string
+	IsFamily       bool
 }
 
 type FlightNumber struct {
-	AirlineId uuid.UUID
-	Number    int
-	Suffix    string
+	AirlineIataCode string
+	Number          int
+	Suffix          string
 }
 
 func (csfn *FlightNumber) Scan(src any) error {
@@ -65,10 +54,11 @@ func (csfn *FlightNumber) Scan(src any) error {
 		return fmt.Errorf("FlightNumber.Scan: expected map[string]any, got %T", src)
 	}
 
+	var sqlAirlineIataCode xsql.String
 	var sqlNumber xsql.Int64
 	var sqlString xsql.String
 
-	if err := csfn.AirlineId.Scan(codeShareRaw["airline_id"]); err != nil {
+	if err := sqlAirlineIataCode.Scan(codeShareRaw["airline_iata_code"]); err != nil {
 		return err
 	}
 
@@ -80,6 +70,7 @@ func (csfn *FlightNumber) Scan(src any) error {
 		return err
 	}
 
+	csfn.AirlineIataCode = string(sqlAirlineIataCode)
 	csfn.Number = int(sqlNumber)
 	csfn.Suffix = string(sqlString)
 
@@ -89,18 +80,19 @@ func (csfn *FlightNumber) Scan(src any) error {
 type Flight struct {
 	FlightNumber
 	DepartureTime                time.Time
-	DepartureAirportId           uuid.UUID
+	DepartureAirportIataCode     string
 	ArrivalTime                  time.Time
-	ArrivalAirportId             uuid.UUID
+	ArrivalAirportIataCode       string
 	ServiceType                  string
 	AircraftOwner                string
-	AircraftId                   uuid.UUID
+	AircraftIataCode             string
 	SeatsFirst                   int
 	SeatsBusiness                int
 	SeatsPremium                 int
 	SeatsEconomy                 int
 	AircraftConfigurationVersion string
 	CodeShares                   common.Set[FlightNumber]
+	DataElements                 map[int64]string
 }
 
 type FlightSchedules struct {
@@ -114,11 +106,11 @@ type FlightSchedulesMany struct {
 }
 
 type FlightScheduleItem struct {
-	DepartureDateLocal xtime.LocalDate
-	DepartureAirportId uuid.UUID
-	FlightVariantId    sql.Null[uuid.UUID]
-	Version            time.Time
-	VersionCount       int
+	DepartureDateLocal       xtime.LocalDate
+	DepartureAirportIataCode string
+	FlightVariantId          sql.Null[uuid.UUID]
+	Version                  time.Time
+	VersionCount             int
 }
 
 type FlightScheduleVariant struct {
@@ -127,17 +119,18 @@ type FlightScheduleVariant struct {
 	DepartureTimeLocal           xtime.LocalTime
 	DepartureUtcOffsetSeconds    int64
 	DurationSeconds              int64
-	ArrivalAirportId             uuid.UUID
+	ArrivalAirportIataCode       string
 	ArrivalUtcOffsetSeconds      int64
 	ServiceType                  string
 	AircraftOwner                string
-	AircraftId                   uuid.UUID
+	AircraftIataCode             string
 	SeatsFirst                   int
 	SeatsBusiness                int
 	SeatsPremium                 int
 	SeatsEconomy                 int
 	AircraftConfigurationVersion string
 	CodeShares                   common.Set[FlightNumber]
+	DataElements                 map[int64]string
 }
 
 type FlightScheduleVersions struct {
@@ -152,7 +145,7 @@ type FlightScheduleVersion struct {
 
 type FlightScheduleUpdate struct {
 	FlightNumber
-	DepartureDateLocal xtime.LocalDate
-	DepartureAirportId uuid.UUID
-	FlightVariantId    sql.Null[uuid.UUID]
+	DepartureDateLocal       xtime.LocalDate
+	DepartureAirportIataCode string
+	FlightVariantId          sql.Null[uuid.UUID]
 }

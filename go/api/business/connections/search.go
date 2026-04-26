@@ -3,23 +3,23 @@ package connections
 import (
 	"context"
 	"fmt"
-	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/explore-flights/monorepo/go/common/xtime"
-	"github.com/gofrs/uuid/v5"
-	"golang.org/x/sync/errgroup"
 	"path"
 	"slices"
 	"time"
+
+	"github.com/explore-flights/monorepo/go/api/db"
+	"github.com/explore-flights/monorepo/go/common/xtime"
+	"golang.org/x/sync/errgroup"
 )
 
 type predicateContext struct {
-	airlines map[uuid.UUID]db.Airline
-	airports map[uuid.UUID]db.Airport
-	aircraft map[uuid.UUID]db.Aircraft
+	airlines map[string]db.Airline
+	airports map[string]db.Airport
+	aircraft map[string]db.Aircraft
 }
 
-func (pctx *predicateContext) globMatchAirline(airlineId uuid.UUID, pattern string) bool {
-	airline, ok := pctx.airlines[airlineId]
+func (pctx *predicateContext) globMatchAirline(airlineIataCode string, pattern string) bool {
+	airline, ok := pctx.airlines[airlineIataCode]
 	if !ok {
 		return false
 	}
@@ -28,8 +28,8 @@ func (pctx *predicateContext) globMatchAirline(airlineId uuid.UUID, pattern stri
 		(airline.IcaoCode.Valid && pctx.globMatch(airline.IcaoCode.String, pattern))
 }
 
-func (pctx *predicateContext) globMatchAirport(airportId uuid.UUID, pattern string) bool {
-	airport, ok := pctx.airports[airportId]
+func (pctx *predicateContext) globMatchAirport(airportIataCode string, pattern string) bool {
+	airport, ok := pctx.airports[airportIataCode]
 	if !ok {
 		return false
 	}
@@ -38,19 +38,19 @@ func (pctx *predicateContext) globMatchAirport(airportId uuid.UUID, pattern stri
 		(airport.IcaoCode.Valid && pctx.globMatch(airport.IcaoCode.String, pattern))
 }
 
-func (pctx *predicateContext) globMatchAircraft(aircraftId uuid.UUID, pattern string) bool {
-	aircraft, ok := pctx.aircraft[aircraftId]
+func (pctx *predicateContext) globMatchAircraft(aircraftIataCode string, pattern string) bool {
+	aircraft, ok := pctx.aircraft[aircraftIataCode]
 	if !ok {
 		return false
 	}
 
-	return (aircraft.IataCode.Valid && pctx.globMatch(aircraft.IataCode.String, pattern)) ||
+	return pctx.globMatch(aircraft.IataCode, pattern) ||
 		(aircraft.IcaoCode.Valid && pctx.globMatch(aircraft.IcaoCode.String, pattern)) ||
-		(aircraft.Name.Valid && pctx.globMatch(aircraft.Name.String, pattern))
+		pctx.globMatch(aircraft.Name, pattern)
 }
 
 func (pctx *predicateContext) anyMatchFlightNumber(f *Flight, predicate func(fn string) bool) bool {
-	airline, ok := pctx.airlines[f.AirlineId]
+	airline, ok := pctx.airlines[f.AirlineIataCode]
 	if !ok {
 		return false
 	}
@@ -75,9 +75,9 @@ type flightPredicate func(pctx *predicateContext, f *Flight) bool
 
 type searchRepo interface {
 	Flights(ctx context.Context, start, end xtime.LocalDate) (map[xtime.LocalDate][]db.Flight, error)
-	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
-	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
-	Aircraft(ctx context.Context) (map[uuid.UUID]db.Aircraft, error)
+	Airlines(ctx context.Context) (map[string]db.Airline, error)
+	Airports(ctx context.Context) (map[string]db.Airport, error)
+	Aircraft(ctx context.Context) (map[string]db.Aircraft, error)
 }
 
 type Options struct {
@@ -99,7 +99,7 @@ func NewSearch(repo searchRepo) *Search {
 	return &Search{repo}
 }
 
-func (ch *Search) FindConnections(ctx context.Context, origins, destinations []uuid.UUID, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, options ...SearchOption) ([]Connection, error) {
+func (ch *Search) FindConnections(ctx context.Context, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, options ...SearchOption) ([]Connection, error) {
 	var f Options
 	for _, opt := range options {
 		opt.Apply(&f)
@@ -112,9 +112,9 @@ func (ch *Search) FindConnections(ctx context.Context, origins, destinations []u
 	var flightsByDeparture map[Departure][]*Flight
 	{
 		var flightsByDate map[xtime.LocalDate][]db.Flight
-		var airlines map[uuid.UUID]db.Airline
-		var airports map[uuid.UUID]db.Airport
-		var aircraft map[uuid.UUID]db.Aircraft
+		var airlines map[string]db.Airline
+		var airports map[string]db.Airport
+		var aircraft map[string]db.Aircraft
 
 		g, ctx := errgroup.WithContext(ctx)
 		g.Go(func() error {
@@ -176,7 +176,7 @@ func findConnections(
 	ctx context.Context,
 	flightsByDeparture map[Departure][]*Flight,
 	origins,
-	destinations []uuid.UUID,
+	destinations []string,
 	minDeparture,
 	maxDeparture time.Time,
 	maxFlights uint32,
@@ -213,8 +213,8 @@ func findConnections(
 		for currDate <= maxDate {
 			for _, origin := range origins {
 				d := Departure{
-					AirportId: origin,
-					Date:      currDate,
+					AirportIataCode: origin,
+					Date:            currDate,
 				}
 
 				for _, f := range flightsByDeparture[d] {
@@ -247,7 +247,7 @@ func findConnections(
 						}
 					}
 
-					if slices.Contains(destinations, f.ArrivalAirportId) {
+					if slices.Contains(destinations, f.ArrivalAirportIataCode) {
 						if len(remPredicates) < 1 {
 							conn := Connection{
 								Flight:   f,
@@ -272,7 +272,7 @@ func findConnections(
 						subConns := findConnections(
 							ctx,
 							flightsByDeparture,
-							[]uuid.UUID{f.ArrivalAirportId},
+							[]string{f.ArrivalAirportIataCode},
 							destinations,
 							f.ArrivalTime,
 							f.ArrivalTime.Add(maxLayover),

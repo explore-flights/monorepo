@@ -1,7 +1,6 @@
 package connections
 
 import (
-	"github.com/gofrs/uuid/v5"
 	"slices"
 )
 
@@ -15,19 +14,19 @@ func (a WithCountMultiLeg) Apply(f *Options) {
 	f.countMultiLeg = bool(a)
 }
 
-type WithIncludeAircraft uuid.UUID
+type WithIncludeAircraft string
 
 func (a WithIncludeAircraft) Apply(f *Options) {
 	f.any = append(f.any, func(pctx *predicateContext, f *Flight) bool {
-		return f.AircraftId == uuid.UUID(a)
+		return f.AircraftIataCode == string(a)
 	})
 }
 
-type WithExcludeAircraft []uuid.UUID
+type WithExcludeAircraft []string
 
 func (a WithExcludeAircraft) Apply(f *Options) {
 	f.all = append(f.all, func(pctx *predicateContext, f *Flight) bool {
-		return !slices.Contains(a, f.AircraftId)
+		return !slices.Contains(a, f.AircraftIataCode)
 	})
 }
 
@@ -35,7 +34,7 @@ type WithIncludeAircraftGlob string
 
 func (a WithIncludeAircraftGlob) Apply(f *Options) {
 	f.any = append(f.any, func(pctx *predicateContext, f *Flight) bool {
-		return pctx.globMatchAircraft(f.AircraftId, string(a))
+		return pctx.globMatchAircraft(f.AircraftIataCode, string(a))
 	})
 }
 
@@ -44,24 +43,24 @@ type WithExcludeAircraftGlob []string
 func (a WithExcludeAircraftGlob) Apply(f *Options) {
 	f.all = append(f.all, func(pctx *predicateContext, f *Flight) bool {
 		return !slices.ContainsFunc(a, func(s string) bool {
-			return pctx.globMatchAircraft(f.AircraftId, s)
+			return pctx.globMatchAircraft(f.AircraftIataCode, s)
 		})
 	})
 }
 
-type WithIncludeAirport uuid.UUID
+type WithIncludeAirport string
 
 func (a WithIncludeAirport) Apply(f *Options) {
 	f.any = append(f.any, func(pctx *predicateContext, f *Flight) bool {
-		return f.DepartureAirportId == uuid.UUID(a) || f.ArrivalAirportId == uuid.UUID(a)
+		return f.DepartureAirportIataCode == string(a) || f.ArrivalAirportIataCode == string(a)
 	})
 }
 
-type WithExcludeAirport []uuid.UUID
+type WithExcludeAirport []string
 
 func (a WithExcludeAirport) Apply(f *Options) {
 	f.all = append(f.all, func(pctx *predicateContext, f *Flight) bool {
-		return !slices.Contains(a, f.DepartureAirportId) && !slices.Contains(a, f.ArrivalAirportId)
+		return !slices.Contains(a, f.DepartureAirportIataCode) && !slices.Contains(a, f.ArrivalAirportIataCode)
 	})
 }
 
@@ -69,7 +68,7 @@ type WithIncludeAirportGlob string
 
 func (a WithIncludeAirportGlob) Apply(f *Options) {
 	f.any = append(f.any, func(pctx *predicateContext, f *Flight) bool {
-		return pctx.globMatchAirport(f.DepartureAirportId, string(a)) || pctx.globMatchAirport(f.ArrivalAirportId, string(a))
+		return pctx.globMatchAirport(f.DepartureAirportIataCode, string(a)) || pctx.globMatchAirport(f.ArrivalAirportIataCode, string(a))
 	})
 }
 
@@ -78,7 +77,7 @@ type WithExcludeAirportGlob []string
 func (a WithExcludeAirportGlob) Apply(f *Options) {
 	f.all = append(f.all, func(pctx *predicateContext, f *Flight) bool {
 		return !slices.ContainsFunc(a, func(s string) bool {
-			return pctx.globMatchAirport(f.DepartureAirportId, s) || pctx.globMatchAirport(f.ArrivalAirportId, s)
+			return pctx.globMatchAirport(f.DepartureAirportIataCode, s) || pctx.globMatchAirport(f.ArrivalAirportIataCode, s)
 		})
 	})
 }

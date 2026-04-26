@@ -1,9 +1,10 @@
 package model
 
 import (
+	"time"
+
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common/xtime"
-	"time"
 )
 
 type FlightSchedules struct {
@@ -11,17 +12,17 @@ type FlightSchedules struct {
 	RelatedFlightNumbers []FlightNumber                 `json:"relatedFlightNumbers"`
 	Items                []FlightScheduleItem           `json:"items"`
 	Variants             map[UUID]FlightScheduleVariant `json:"variants"`
-	Airlines             map[UUID]Airline               `json:"airlines"`
-	Airports             map[UUID]Airport               `json:"airports"`
-	Aircraft             map[UUID]Aircraft              `json:"aircraft"`
+	Airlines             map[string]Airline             `json:"airlines"`
+	Airports             map[string]Airport             `json:"airports"`
+	Aircraft             map[string]Aircraft            `json:"aircraft"`
 }
 
 type FlightScheduleItem struct {
-	DepartureDateLocal xtime.LocalDate `json:"departureDateLocal"`
-	DepartureAirportId UUID            `json:"departureAirportId"`
-	FlightVariantId    *UUID           `json:"flightVariantId,omitempty"`
-	Version            time.Time       `json:"version"`
-	VersionCount       int             `json:"versionCount"`
+	DepartureDateLocal       xtime.LocalDate `json:"departureDateLocal"`
+	DepartureAirportIataCode string          `json:"departureAirportId"`
+	FlightVariantId          *UUID           `json:"flightVariantId,omitempty"`
+	Version                  time.Time       `json:"version"`
+	VersionCount             int             `json:"versionCount"`
 }
 
 func FlightScheduleItemFromDb(item db.FlightScheduleItem) FlightScheduleItem {
@@ -32,11 +33,11 @@ func FlightScheduleItemFromDb(item db.FlightScheduleItem) FlightScheduleItem {
 	}
 
 	return FlightScheduleItem{
-		DepartureDateLocal: item.DepartureDateLocal,
-		DepartureAirportId: UUID(item.DepartureAirportId),
-		FlightVariantId:    flightVariantId,
-		Version:            item.Version,
-		VersionCount:       item.VersionCount,
+		DepartureDateLocal:       item.DepartureDateLocal,
+		DepartureAirportIataCode: item.DepartureAirportIataCode,
+		FlightVariantId:          flightVariantId,
+		Version:                  item.Version,
+		VersionCount:             item.VersionCount,
 	}
 }
 
@@ -46,11 +47,11 @@ type FlightScheduleVariant struct {
 	DepartureTimeLocal           xtime.LocalTime `json:"departureTimeLocal"`
 	DepartureUtcOffsetSeconds    int64           `json:"departureUtcOffsetSeconds"`
 	DurationSeconds              int64           `json:"durationSeconds"`
-	ArrivalAirportId             UUID            `json:"arrivalAirportId"`
+	ArrivalAirportIataCode       string          `json:"arrivalAirportId"`
 	ArrivalUtcOffsetSeconds      int64           `json:"arrivalUtcOffsetSeconds"`
 	ServiceType                  string          `json:"serviceType"`
 	AircraftOwner                string          `json:"aircraftOwner"`
-	AircraftId                   UUID            `json:"aircraftId"`
+	AircraftIataCode             string          `json:"aircraftId"`
 	AircraftConfigurationVersion string          `json:"aircraftConfigurationVersion"`
 	CodeShares                   []FlightNumber  `json:"codeShares"`
 }
@@ -62,11 +63,11 @@ func FlightScheduleVariantFromDb(variant db.FlightScheduleVariant) FlightSchedul
 		DepartureTimeLocal:           variant.DepartureTimeLocal,
 		DepartureUtcOffsetSeconds:    variant.DepartureUtcOffsetSeconds,
 		DurationSeconds:              variant.DurationSeconds,
-		ArrivalAirportId:             UUID(variant.ArrivalAirportId),
+		ArrivalAirportIataCode:       variant.ArrivalAirportIataCode,
 		ArrivalUtcOffsetSeconds:      variant.ArrivalUtcOffsetSeconds,
 		ServiceType:                  variant.ServiceType,
 		AircraftOwner:                variant.AircraftOwner,
-		AircraftId:                   UUID(variant.AircraftId),
+		AircraftIataCode:             variant.AircraftIataCode,
 		AircraftConfigurationVersion: variant.AircraftConfigurationVersion,
 		CodeShares:                   make([]FlightNumber, 0, len(variant.CodeShares)),
 	}
@@ -79,14 +80,14 @@ func FlightScheduleVariantFromDb(variant db.FlightScheduleVariant) FlightSchedul
 }
 
 type FlightScheduleVersions struct {
-	FlightNumber       FlightNumber                   `json:"flightNumber"`
-	DepartureDateLocal xtime.LocalDate                `json:"departureDateLocal"`
-	DepartureAirportId UUID                           `json:"departureAirportId"`
-	Versions           []FlightScheduleVersion        `json:"versions"`
-	Variants           map[UUID]FlightScheduleVariant `json:"variants"`
-	Airlines           map[UUID]Airline               `json:"airlines"`
-	Airports           map[UUID]Airport               `json:"airports"`
-	Aircraft           map[UUID]Aircraft              `json:"aircraft"`
+	FlightNumber             FlightNumber                   `json:"flightNumber"`
+	DepartureDateLocal       xtime.LocalDate                `json:"departureDateLocal"`
+	DepartureAirportIataCode string                         `json:"departureAirportId"`
+	Versions                 []FlightScheduleVersion        `json:"versions"`
+	Variants                 map[UUID]FlightScheduleVariant `json:"variants"`
+	Airlines                 map[string]Airline             `json:"airlines"`
+	Airports                 map[string]Airport             `json:"airports"`
+	Aircraft                 map[string]Aircraft            `json:"aircraft"`
 }
 
 type FlightScheduleVersion struct {

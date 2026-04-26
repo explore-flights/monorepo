@@ -2,24 +2,23 @@ package report
 
 import (
 	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/gofrs/uuid/v5"
 )
 
 type Condition struct {
 	cond db.Condition
 }
 
-func WithDepartureAirportId(airportId uuid.UUID) Condition {
+func WithDepartureAirportIataCode(airportIataCode string) Condition {
 	return Condition{db.BaseCondition{
-		Filter: "departure_airport_id = ?",
-		Params: []any{airportId},
+		Filter: "departure_airport_iata_code = ?",
+		Params: []any{airportIataCode},
 	}}
 }
 
-func WithArrivalAirportId(airportId uuid.UUID) Condition {
+func WithArrivalAirportIataCode(airportIataCode string) Condition {
 	return Condition{db.BaseCondition{
-		Filter: "arrival_airport_id = ?",
-		Params: []any{airportId},
+		Filter: "arrival_airport_iata_code = ?",
+		Params: []any{airportIataCode},
 	}}
 }
 

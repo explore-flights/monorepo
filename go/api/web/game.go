@@ -4,19 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/explore-flights/monorepo/go/api/web/model"
-	"github.com/explore-flights/monorepo/go/common/xtime"
-	"github.com/gofrs/uuid/v5"
-	"github.com/labstack/echo/v4"
 	"math"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/explore-flights/monorepo/go/api/db"
+	"github.com/explore-flights/monorepo/go/api/web/model"
+	"github.com/explore-flights/monorepo/go/common/xtime"
+	"github.com/labstack/echo/v4"
 )
 
 type gameHandlerRepo interface {
-	FindConnection(ctx context.Context, minFlights, maxFlights int, seed string) ([2]uuid.UUID, error)
+	FindConnection(ctx context.Context, minFlights, maxFlights int, seed string) ([2]string, error)
 }
 
 type GameHandler struct {
@@ -67,8 +67,8 @@ func (gh *GameHandler) ConnectionGame(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, model.ConnectionGameChallenge{
-		Seed:               seed,
-		DepartureAirportId: model.UUID(todaysConnections[0]),
-		ArrivalAirportId:   model.UUID(todaysConnections[1]),
+		Seed:                     seed,
+		DepartureAirportIataCode: todaysConnections[0],
+		ArrivalAirportIataCode:   todaysConnections[1],
 	})
 }

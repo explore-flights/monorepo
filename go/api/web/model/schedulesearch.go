@@ -1,31 +1,31 @@
 package model
 
 import (
+	"maps"
+
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common"
-	"github.com/gofrs/uuid/v5"
-	"maps"
 )
 
 type FlightSchedulesMany struct {
 	Schedules []FlightScheduleNumberAndItems `json:"schedules"`
 	Variants  map[UUID]FlightScheduleVariant `json:"variants"`
-	Airlines  map[UUID]Airline               `json:"airlines"`
-	Airports  map[UUID]Airport               `json:"airports"`
-	Aircraft  map[UUID]Aircraft              `json:"aircraft"`
+	Airlines  map[string]Airline             `json:"airlines"`
+	Airports  map[string]Airport             `json:"airports"`
+	Aircraft  map[string]Aircraft            `json:"aircraft"`
 }
 
-func FlightSchedulesManyFromDb(dbResult db.FlightSchedulesMany, airlines map[uuid.UUID]db.Airline, airports map[uuid.UUID]db.Airport, aircraft map[uuid.UUID]db.Aircraft) FlightSchedulesMany {
+func FlightSchedulesManyFromDb(dbResult db.FlightSchedulesMany, airlines map[string]db.Airline, airports map[string]db.Airport, aircraft map[string]db.Aircraft) FlightSchedulesMany {
 	fs := FlightSchedulesMany{
 		Schedules: make([]FlightScheduleNumberAndItems, 0, len(dbResult.Schedules)),
 		Variants:  make(map[UUID]FlightScheduleVariant, len(dbResult.Variants)),
-		Airlines:  make(map[UUID]Airline),
-		Airports:  make(map[UUID]Airport),
-		Aircraft:  make(map[UUID]Aircraft),
+		Airlines:  make(map[string]Airline),
+		Airports:  make(map[string]Airport),
+		Aircraft:  make(map[string]Aircraft),
 	}
-	referencedAirlines := make(common.Set[uuid.UUID])
-	referencedAirports := make(common.Set[uuid.UUID])
-	referencedAircraft := make(common.Set[uuid.UUID])
+	referencedAirlines := make(common.Set[string])
+	referencedAirports := make(common.Set[string])
+	referencedAircraft := make(common.Set[string])
 
 	for fn, items := range dbResult.Schedules {
 		fsNumberAndItems := FlightScheduleNumberAndItems{
@@ -33,11 +33,11 @@ func FlightSchedulesManyFromDb(dbResult db.FlightSchedulesMany, airlines map[uui
 			Items:        make([]FlightScheduleItem, 0, len(items)),
 		}
 
-		referencedAirlines.Add(fn.AirlineId)
+		referencedAirlines.Add(fn.AirlineIataCode)
 
 		for _, item := range items {
 			fsNumberAndItems.Items = append(fsNumberAndItems.Items, FlightScheduleItemFromDb(item))
-			referencedAirports.Add(item.DepartureAirportId)
+			referencedAirports.Add(item.DepartureAirportIataCode)
 		}
 
 		fs.Schedules = append(fs.Schedules, fsNumberAndItems)
@@ -47,20 +47,20 @@ func FlightSchedulesManyFromDb(dbResult db.FlightSchedulesMany, airlines map[uui
 		fs.Variants[UUID(variantId)] = FlightScheduleVariantFromDb(variant)
 
 		for cs := range variant.CodeShares {
-			referencedAirlines.Add(cs.AirlineId)
+			referencedAirlines.Add(cs.AirlineIataCode)
 		}
 
-		referencedAirlines.Add(variant.OperatedAs.AirlineId)
-		referencedAirports.Add(variant.ArrivalAirportId)
-		referencedAircraft.Add(variant.AircraftId)
+		referencedAirlines.Add(variant.OperatedAs.AirlineIataCode)
+		referencedAirports.Add(variant.ArrivalAirportIataCode)
+		referencedAircraft.Add(variant.AircraftIataCode)
 	}
 
-	for airlineId := range referencedAirlines {
-		fs.Airlines[UUID(airlineId)] = AirlineFromDb(airlines[airlineId])
+	for airlineIataCode := range referencedAirlines {
+		fs.Airlines[airlineIataCode] = AirlineFromDb(airlines[airlineIataCode])
 	}
 
-	for airportId := range referencedAirports {
-		fs.Airports[UUID(airportId)] = AirportFromDb(airports[airportId])
+	for airportIataCode := range referencedAirports {
+		fs.Airports[airportIataCode] = AirportFromDb(airports[airportIataCode])
 	}
 
 	AddReferencedAircraft(maps.Keys(referencedAircraft), aircraft, fs.Aircraft)

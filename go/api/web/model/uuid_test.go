@@ -2,9 +2,10 @@ package model
 
 import (
 	"encoding/json"
+	"testing"
+
 	"github.com/gofrs/uuid/v5"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestUUID_MarshalJSON(t *testing.T) {

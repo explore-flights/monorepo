@@ -33,9 +33,9 @@ import (
 var shareTemplateHtml string
 
 type connectionsHandlerFlightRepo interface {
-	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
-	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
-	Aircraft(ctx context.Context) (map[uuid.UUID]db.Aircraft, error)
+	Airlines(ctx context.Context) (map[string]db.Airline, error)
+	Airports(ctx context.Context) (map[string]db.Airport, error)
+	Aircraft(ctx context.Context) (map[string]db.Aircraft, error)
 }
 
 type ConnectionsHandler struct {
@@ -78,15 +78,15 @@ func (ch *ConnectionsHandler) connections(c echo.Context, export string) error {
 	options = append(options, connections.WithCountMultiLeg(req.CountMultiLeg))
 	options = appendStringOptions[connections.WithIncludeAirport, connections.WithIncludeAirportGlob](options, req.IncludeAirport)
 	options = appendSliceOptions[connections.WithExcludeAirport, connections.WithExcludeAirportGlob](options, req.ExcludeAirport)
-	options = appendRegularStringOptions[connections.WithIncludeFlightNumber, connections.WithIncludeFlightNumberGlob](options, req.IncludeFlightNumber)
-	options = appendRegularSliceOptions[connections.WithExcludeFlightNumber, connections.WithExcludeFlightNumberGlob](options, req.ExcludeFlightNumber)
+	options = appendStringOptions[connections.WithIncludeFlightNumber, connections.WithIncludeFlightNumberGlob](options, req.IncludeFlightNumber)
+	options = appendSliceOptions[connections.WithExcludeFlightNumber, connections.WithExcludeFlightNumberGlob](options, req.ExcludeFlightNumber)
 	options = appendStringOptions[connections.WithIncludeAircraft, connections.WithIncludeAircraftGlob](options, req.IncludeAircraft)
 	options = appendSliceOptions[connections.WithExcludeAircraft, connections.WithExcludeAircraftGlob](options, req.ExcludeAircraft)
 
 	conns, err := ch.search.FindConnections(
 		ctx,
-		ch.mapAirports(req.Origins),
-		ch.mapAirports(req.Destinations),
+		req.Origins,
+		req.Destinations,
 		req.MinDeparture,
 		req.MaxDeparture,
 		req.MaxFlights,
@@ -181,13 +181,13 @@ func (ch *ConnectionsHandler) ConnectionsShareHTML(c echo.Context) error {
 	destinations := make([]string, 0, len(req.Destinations))
 
 	for _, o := range req.Origins {
-		if airport, ok := airports[uuid.UUID(o)]; ok {
+		if airport, ok := airports[o]; ok {
 			origins = append(origins, airport.IataCode)
 		}
 	}
 
 	for _, d := range req.Destinations {
-		if airport, ok := airports[uuid.UUID(d)]; ok {
+		if airport, ok := airports[d]; ok {
 			destinations = append(destinations, airport.IataCode)
 		}
 	}
@@ -230,7 +230,7 @@ func (ch *ConnectionsHandler) shareImageUrl(scheme, host, payload string) string
 	return scheme + "://" + host + "/api/connections/png/" + url.PathEscape(payload) + "/c.png"
 }
 
-func (ch *ConnectionsHandler) parseAndValidateRequest(c echo.Context, airports map[uuid.UUID]db.Airport) (model.ConnectionsSearchRequest, error) {
+func (ch *ConnectionsHandler) parseAndValidateRequest(c echo.Context, airports map[string]db.Airport) (model.ConnectionsSearchRequest, error) {
 	req, err := ch.parseRequest(c, airports)
 	if err != nil {
 		return model.ConnectionsSearchRequest{}, err
@@ -243,7 +243,7 @@ func (ch *ConnectionsHandler) parseAndValidateRequest(c echo.Context, airports m
 	return req, nil
 }
 
-func (ch *ConnectionsHandler) parseRequest(c echo.Context, airports map[uuid.UUID]db.Airport) (model.ConnectionsSearchRequest, error) {
+func (ch *ConnectionsHandler) parseRequest(c echo.Context, airports map[string]db.Airport) (model.ConnectionsSearchRequest, error) {
 	payloadB64 := c.Param("payload")
 
 	var req model.ConnectionsSearchRequest
@@ -289,11 +289,11 @@ func (ch *ConnectionsHandler) parseRequest(c echo.Context, airports map[uuid.UUI
 	return req, nil
 }
 
-func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns []connections.Connection, airports map[uuid.UUID]db.Airport) (model.ConnectionsResponse, error) {
+func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns []connections.Connection, airports map[string]db.Airport) (model.ConnectionsResponse, error) {
 	flights := make(map[model.UUID]model.ConnectionFlightResponse)
-	referencedAirlines := make(common.Set[uuid.UUID])
-	referencedAirports := make(common.Set[uuid.UUID])
-	referencedAircraft := make(common.Set[uuid.UUID])
+	referencedAirlines := make(common.Set[string])
+	referencedAirports := make(common.Set[string])
+	referencedAircraft := make(common.Set[string])
 	connections, err := ch.buildConnectionsResponse(conns, flights, make(map[*connections.Flight]model.UUID), referencedAirlines, referencedAirports, referencedAircraft)
 	if err != nil {
 		return model.ConnectionsResponse{}, err
@@ -302,9 +302,9 @@ func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns [
 	r := model.ConnectionsResponse{
 		Connections: connections,
 		Flights:     flights,
-		Airlines:    make(map[model.UUID]model.Airline),
-		Airports:    make(map[model.UUID]model.Airport),
-		Aircraft:    make(map[model.UUID]model.Aircraft),
+		Airlines:    make(map[string]model.Airline),
+		Airports:    make(map[string]model.Airport),
+		Aircraft:    make(map[string]model.Aircraft),
 	}
 
 	airlines, err := ch.repo.Airlines(ctx)
@@ -317,12 +317,12 @@ func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns [
 		return model.ConnectionsResponse{}, err
 	}
 
-	for id := range referencedAirlines {
-		r.Airlines[model.UUID(id)] = model.AirlineFromDb(airlines[id])
+	for iataCode := range referencedAirlines {
+		r.Airlines[iataCode] = model.AirlineFromDb(airlines[iataCode])
 	}
 
-	for id := range referencedAirports {
-		r.Airports[model.UUID(id)] = model.AirportFromDb(airports[id])
+	for iataCode := range referencedAirports {
+		r.Airports[iataCode] = model.AirportFromDb(airports[iataCode])
 	}
 
 	model.AddReferencedAircraft(maps.Keys(referencedAircraft), aircraft, r.Aircraft)
@@ -330,7 +330,7 @@ func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns [
 	return r, nil
 }
 
-func (ch *ConnectionsHandler) buildConnectionsResponse(conns []connections.Connection, flights map[model.UUID]model.ConnectionFlightResponse, uuidByFlight map[*connections.Flight]model.UUID, referencedAirlines, referencedAirports, referencedAircraft common.Set[uuid.UUID]) ([]model.ConnectionResponse, error) {
+func (ch *ConnectionsHandler) buildConnectionsResponse(conns []connections.Connection, flights map[model.UUID]model.ConnectionFlightResponse, uuidByFlight map[*connections.Flight]model.UUID, referencedAirlines, referencedAirports, referencedAircraft common.Set[string]) ([]model.ConnectionResponse, error) {
 	r := make([]model.ConnectionResponse, 0, len(conns))
 
 	for _, conn := range conns {
@@ -353,21 +353,21 @@ func (ch *ConnectionsHandler) buildConnectionsResponse(conns []connections.Conne
 		}
 
 		if _, ok := flights[fid]; !ok {
-			referencedAirlines.Add(conn.Flight.AirlineId)
-			referencedAirports.Add(conn.Flight.DepartureAirportId)
-			referencedAirports.Add(conn.Flight.ArrivalAirportId)
-			referencedAircraft.Add(conn.Flight.AircraftId)
+			referencedAirlines.Add(conn.Flight.AirlineIataCode)
+			referencedAirports.Add(conn.Flight.DepartureAirportIataCode)
+			referencedAirports.Add(conn.Flight.ArrivalAirportIataCode)
+			referencedAircraft.Add(conn.Flight.AircraftIataCode)
 
 			flights[fid] = model.ConnectionFlightResponse{
-				FlightNumber:          model.FlightNumberFromDb(conn.Flight.FlightNumber),
-				DepartureTime:         conn.Flight.DepartureTime,
-				DepartureAirportId:    model.UUID(conn.Flight.DepartureAirportId),
-				ArrivalTime:           conn.Flight.ArrivalTime,
-				ArrivalAirportId:      model.UUID(conn.Flight.ArrivalAirportId),
-				AircraftOwner:         conn.Flight.AircraftOwner,
-				AircraftId:            model.UUID(conn.Flight.AircraftId),
-				AircraftConfiguration: conn.Flight.AircraftConfigurationVersion,
-				CodeShares:            ch.convertCodeShares(conn.Flight.CodeShares, referencedAirlines),
+				FlightNumber:             model.FlightNumberFromDb(conn.Flight.FlightNumber),
+				DepartureTime:            conn.Flight.DepartureTime,
+				DepartureAirportIataCode: conn.Flight.DepartureAirportIataCode,
+				ArrivalTime:              conn.Flight.ArrivalTime,
+				ArrivalAirportIataCode:   conn.Flight.ArrivalAirportIataCode,
+				AircraftOwner:            conn.Flight.AircraftOwner,
+				AircraftIataCode:         conn.Flight.AircraftIataCode,
+				AircraftConfiguration:    conn.Flight.AircraftConfigurationVersion,
+				CodeShares:               ch.convertCodeShares(conn.Flight.CodeShares, referencedAirlines),
 			}
 		}
 
@@ -385,17 +385,17 @@ func (ch *ConnectionsHandler) buildConnectionsResponse(conns []connections.Conne
 	return r, nil
 }
 
-func (ch *ConnectionsHandler) convertCodeShares(inp common.Set[db.FlightNumber], referencedAirlines common.Set[uuid.UUID]) []model.FlightNumber {
+func (ch *ConnectionsHandler) convertCodeShares(inp common.Set[db.FlightNumber], referencedAirlines common.Set[string]) []model.FlightNumber {
 	r := make([]model.FlightNumber, 0, len(inp))
 	for fn := range inp {
-		referencedAirlines.Add(fn.AirlineId)
+		referencedAirlines.Add(fn.AirlineIataCode)
 		r = append(r, model.FlightNumberFromDb(fn))
 	}
 
 	return r
 }
 
-func (ch *ConnectionsHandler) exportConnectionsImage(ctx context.Context, airports map[uuid.UUID]db.Airport, conns []connections.Connection, w io.Writer) error {
+func (ch *ConnectionsHandler) exportConnectionsImage(ctx context.Context, airports map[string]db.Airport, conns []connections.Connection, w io.Writer) error {
 	airlines, err := ch.repo.Airlines(ctx)
 	if err != nil {
 		return err
@@ -426,27 +426,27 @@ func (ch *ConnectionsHandler) exportConnectionsImage(ctx context.Context, airpor
 	return g.Render(ctx, graph, graphviz.PNG, w)
 }
 
-func (ch *ConnectionsHandler) buildGraph(parent *connections.Flight, airlines map[uuid.UUID]db.Airline, airports map[uuid.UUID]db.Airport, aircraft map[uuid.UUID]db.Aircraft, conns []connections.Connection, graph *cgraph.Graph, lookup map[*connections.Flight]*cgraph.Node, nodeId *graphviz.ID, edgeId *graphviz.ID) error {
+func (ch *ConnectionsHandler) buildGraph(parent *connections.Flight, airlines map[string]db.Airline, airports map[string]db.Airport, aircraft map[string]db.Aircraft, conns []connections.Connection, graph *cgraph.Graph, lookup map[*connections.Flight]*cgraph.Node, nodeId *graphviz.ID, edgeId *graphviz.ID) error {
 	var err error
 	for _, conn := range conns {
-		airline, ok := airlines[conn.Flight.AirlineId]
+		airline, ok := airlines[conn.Flight.AirlineIataCode]
 		if !ok {
-			return fmt.Errorf("could not find airline for id %s", conn.Flight.AirlineId)
+			return fmt.Errorf("could not find airline for id %s", conn.Flight.AirlineIataCode)
 		}
 
-		departureAirport, ok := airports[conn.Flight.DepartureAirportId]
+		departureAirport, ok := airports[conn.Flight.DepartureAirportIataCode]
 		if !ok {
-			return fmt.Errorf("could not find departure airport for id %s", conn.Flight.DepartureAirportId)
+			return fmt.Errorf("could not find departure airport for id %s", conn.Flight.DepartureAirportIataCode)
 		}
 
-		arrivalAirport, ok := airports[conn.Flight.ArrivalAirportId]
+		arrivalAirport, ok := airports[conn.Flight.ArrivalAirportIataCode]
 		if !ok {
-			return fmt.Errorf("could not find arrival airport for id %s", conn.Flight.ArrivalAirportId)
+			return fmt.Errorf("could not find arrival airport for id %s", conn.Flight.ArrivalAirportIataCode)
 		}
 
-		ac, ok := aircraft[conn.Flight.AircraftId]
+		ac, ok := aircraft[conn.Flight.AircraftIataCode]
 		if !ok {
-			return fmt.Errorf("could not find aircraft for id %s", conn.Flight.AircraftId)
+			return fmt.Errorf("could not find aircraft for id %s", conn.Flight.AircraftIataCode)
 		}
 
 		var node *cgraph.Node
@@ -487,41 +487,19 @@ func (ch *ConnectionsHandler) buildNodeLabel(f *connections.Flight, airline db.A
 	var aircraftStr string
 	if aircraft.IcaoCode.Valid {
 		aircraftStr = aircraft.IcaoCode.String
-	} else if aircraft.IataCode.Valid {
-		aircraftStr = aircraft.IataCode.String
-	} else if aircraft.Name.Valid {
-		aircraftStr = aircraft.Name.String
 	} else {
-		aircraftStr = model.UUID(aircraft.Id).String()
+		aircraftStr = aircraft.IataCode
 	}
 
 	return fmt.Sprintf("%s\n%s\u2014%s\n%s", fnStr, departureAirport.IataCode, arrivalAirport.IataCode, aircraftStr)
 }
 
-func (ch *ConnectionsHandler) mapAirports(base []model.UUID) []uuid.UUID {
-	result := make([]uuid.UUID, len(base))
-	for i, a := range base {
-		result[i] = uuid.UUID(a)
-	}
-
-	return result
-}
-
-func (ch *ConnectionsHandler) mapAirportsFromPB(airports map[uuid.UUID]db.Airport, base []string) []model.UUID {
-	result := make([]model.UUID, 0, len(base))
+func (ch *ConnectionsHandler) mapAirportsFromPB(airports map[string]db.Airport, base []string) []string {
+	result := make([]string, 0, len(base))
 	for _, v := range base {
-		// new protobuf always contains idv1: prefix with the internal airport id
-		if idRaw, ok := strings.CutPrefix(v, "idv1:"); ok {
-			var u model.UUID
-			if err := u.FromString(idRaw); err == nil {
-				result = append(result, u)
-			}
-		}
-
-		// old protobuf messages: convert from iata code
 		for _, airport := range airports {
 			if airport.IataCode == v {
-				result = append(result, model.UUID(airport.Id))
+				result = append(result, airport.IataCode)
 				break
 			}
 		}
@@ -558,50 +536,12 @@ func (ch *ConnectionsHandler) validateRequest(req model.ConnectionsSearchRequest
 	return nil
 }
 
-type uuidSliceRestr interface {
-	~[]uuid.UUID
-	connections.SearchOption
-}
-
 type stringSliceRestr interface {
 	~[]string
 	connections.SearchOption
 }
 
-func appendSliceOptions[Reg uuidSliceRestr, Glob stringSliceRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
-	unique := make(map[string]struct{})
-	regular := make(Reg, 0)
-	glob := make(Glob, 0)
-
-	for _, v := range values {
-		if _, ok := unique[v]; ok {
-			continue
-		}
-
-		if hasMeta(v) && isValidGlob(v) {
-			glob = append(glob, v)
-		} else {
-			var u model.UUID
-			if err := u.FromString(v); err == nil {
-				regular = append(regular, uuid.UUID(u))
-			}
-		}
-
-		unique[v] = struct{}{}
-	}
-
-	if len(regular) > 0 {
-		options = append(options, regular)
-	}
-
-	if len(glob) > 0 {
-		options = append(options, glob)
-	}
-
-	return options
-}
-
-func appendRegularSliceOptions[Reg stringSliceRestr, Glob stringSliceRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
+func appendSliceOptions[Reg stringSliceRestr, Glob stringSliceRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
 	unique := make(map[string]struct{})
 	regular := make(Reg, 0)
 	glob := make(Glob, 0)
@@ -631,40 +571,12 @@ func appendRegularSliceOptions[Reg stringSliceRestr, Glob stringSliceRestr](opti
 	return options
 }
 
-type uuidRestr interface {
-	~[16]byte
-	connections.SearchOption
-}
-
 type stringRestr interface {
 	~string
 	connections.SearchOption
 }
 
-func appendStringOptions[Reg uuidRestr, Glob stringRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
-	unique := make(map[string]struct{})
-
-	for _, v := range values {
-		if _, ok := unique[v]; ok {
-			continue
-		}
-
-		if hasMeta(v) && isValidGlob(v) {
-			options = append(options, Glob(v))
-		} else {
-			var u model.UUID
-			if err := u.FromString(v); err == nil {
-				options = append(options, Reg(u))
-			}
-		}
-
-		unique[v] = struct{}{}
-	}
-
-	return options
-}
-
-func appendRegularStringOptions[Reg stringRestr, Glob stringRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
+func appendStringOptions[Reg stringRestr, Glob stringRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
 	unique := make(map[string]struct{})
 
 	for _, v := range values {

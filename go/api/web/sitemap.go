@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
-	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/explore-flights/monorepo/go/api/web/model"
-	"github.com/gofrs/uuid/v5"
-	"github.com/labstack/echo/v4"
 	"iter"
-	"net/http"
 	"time"
+
+	"github.com/explore-flights/monorepo/go/api/db"
+	"github.com/labstack/echo/v4"
 )
 
 type xmlSitemapUrl struct {
@@ -19,8 +17,8 @@ type xmlSitemapUrl struct {
 }
 
 type sitemapHandlerRepo interface {
-	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
-	IterFlightNumbers(ctx context.Context, airlineId uuid.UUID, err *error) iter.Seq2[db.FlightNumber, time.Time]
+	Airlines(ctx context.Context) (map[string]db.Airline, error)
+	IterFlightNumbers(ctx context.Context, airlineIataCode string, err *error) iter.Seq2[db.FlightNumber, time.Time]
 }
 
 type SitemapHandler struct {
@@ -83,10 +81,7 @@ func (sh *SitemapHandler) SitemapIndex(c echo.Context) error {
 func (sh *SitemapHandler) SitemapAirline(c echo.Context) error {
 	const ttl = time.Hour * 3
 
-	var airlineId model.UUID
-	if err := airlineId.FromString(c.Param("airlineId")); err != nil {
-		return NewHTTPError(http.StatusBadRequest, WithCause(err))
-	}
+	airlineIataCode := c.Param("airlineId")
 
 	ctx := c.Request().Context()
 	airlines, err := sh.repo.Airlines(ctx)
@@ -118,7 +113,7 @@ func (sh *SitemapHandler) SitemapAirline(c echo.Context) error {
 		return err
 	}
 
-	for fn, lastModified := range sh.repo.IterFlightNumbers(ctx, uuid.UUID(airlineId), &err) {
+	for fn, lastModified := range sh.repo.IterFlightNumbers(ctx, airlineIataCode, &err) {
 		if err = sh.addSitemapURL(enc, "url", sh.buildFlightURL(baseURL, airlines, fn), lastModified); err != nil {
 			return err
 		}
@@ -136,16 +131,16 @@ func (sh *SitemapHandler) SitemapAirline(c echo.Context) error {
 	})
 }
 
-func (sh *SitemapHandler) buildSitemapURL(baseURL string, airlineId uuid.UUID) string {
-	return fmt.Sprintf("%s/data/sitemap/%s/sitemap.xml", baseURL, model.UUID(airlineId).String())
+func (sh *SitemapHandler) buildSitemapURL(baseURL string, airlineIataCode string) string {
+	return fmt.Sprintf("%s/data/sitemap/%s/sitemap.xml", baseURL, airlineIataCode)
 }
 
-func (sh *SitemapHandler) buildFlightURL(baseURL string, airlines map[uuid.UUID]db.Airline, fn db.FlightNumber) string {
+func (sh *SitemapHandler) buildFlightURL(baseURL string, airlines map[string]db.Airline, fn db.FlightNumber) string {
 	var prefix string
-	if airline, ok := airlines[fn.AirlineId]; ok {
+	if airline, ok := airlines[fn.AirlineIataCode]; ok {
 		prefix = airline.IataCode
 	} else {
-		prefix = model.UUID(fn.AirlineId).String() + "-"
+		prefix = fn.AirlineIataCode
 	}
 
 	return fmt.Sprintf("%s/flight/%s%d%s", baseURL, prefix, fn.Number, fn.Suffix)

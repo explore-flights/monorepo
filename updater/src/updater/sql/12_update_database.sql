@@ -10,25 +10,20 @@ SELECT
     CAST(LIST_REDUCE(
         LIST_TRANSFORM(
             LIST_FILTER(dataElements, lambda de: sequenceNumber BETWEEN de.startLegSequenceNumber AND de.endLegSequenceNumber),
-            lambda de: MAP([de.id], [[de.value]])
+            lambda de: MAP([de.id], [de.value])
         ),
-        lambda acc, e: MAP_FROM_ENTRIES(
-            LIST_TRANSFORM(
-                LIST_DISTINCT(MAP_KEYS(acc) || MAP_KEYS(e)),
-                lambda k: {'k': k, 'v': LIST_DISTINCT(COALESCE(acc[k], []) || COALESCE(e[k], []))}
-            )
-        ),
+        lambda acc, e: MAP_CONCAT(acc, e),
         MAP()
-    ) AS MAP(INTEGER, TEXT[])) AS dataElements,
+    ) AS MAP(INTEGER, TEXT)) AS dataElements,
     origin,
     destination,
     COALESCE(serviceType, '') AS serviceType,
     COALESCE(aircraftOwner, '') AS aircraftOwner,
     aircraftType,
-    COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '(F)([0-9]+)', 2) AS USMALLINT), 0) AS seatsFirst,
-    COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '(C|J|W)([0-9]+)', 2) AS USMALLINT), 0) AS seatsBusiness,
-    COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '(E|R|U|P|PY|O|S)([0-9]+)', 2) AS USMALLINT), 0) AS seatsPremium,
-    COALESCE(TRY_CAST(REGEXP_EXTRACT(SPLIT_PART(aircraftConfigurationVersion, 'VV', 1), '(M|Y)([0-9]+)', 2) AS USMALLINT), 0) AS seatsEconomy,
+    COALESCE(EXTRACT_SEATS(aircraftConfigurationVersion).first, 0) AS seatsFirst,
+    COALESCE(EXTRACT_SEATS(aircraftConfigurationVersion).business, 0) AS seatsBusiness,
+    COALESCE(EXTRACT_SEATS(aircraftConfigurationVersion).premium, 0) AS seatsPremium,
+    COALESCE(EXTRACT_SEATS(aircraftConfigurationVersion).economy, 0) AS seatsEconomy,
     CAST(STRPTIME(periodOfOperationUTC.startDate, '%d%b%y') + TO_DAYS(aircraftDepartureTimeDateDiffUTC) + TO_MINUTES(aircraftDepartureTimeUTC) + TO_MINUTES(aircraftDepartureTimeVariation) AS DATE) AS departureDateLocal,
     CAST(STRPTIME(periodOfOperationUTC.startDate, '%d%b%y') + TO_DAYS(aircraftDepartureTimeDateDiffUTC) + TO_MINUTES(aircraftDepartureTimeUTC) + TO_MINUTES(aircraftDepartureTimeVariation) AS TIME) AS departureTimeLocal,
     aircraftDepartureTimeVariation * 60 AS departureUTCOffsetSeconds,
@@ -56,29 +51,8 @@ SELECT COUNT(*) FROM lh_flight_schedules_flattened ;
 
 -- assert: lh_flight_schedules_flattened > lh_flight_schedules_raw
 
--- assign:sanity_check_seat_numbers from:result
-SELECT COUNT(*)
-FROM (
-    SELECT UNNEST(REGEXP_EXTRACT_ALL(SPLIT_PART(leg.aircraftConfigurationVersion, 'VV', 1), '([A-Z]+)[0-9]+', 1)) AS seatCode
-    FROM (
-        SELECT UNNEST(legs) AS leg
-        FROM lh_flight_schedules_raw
-    )
-) sub
-WHERE seatCode NOT IN ('F', 'C', 'J', 'W', 'E', 'R', 'U', 'P', 'PY', 'O', 'S', 'M', 'Y') ;
-
--- assert: sanity_check_seat_numbers == 0
-
 -- drop lh_flight_schedules_raw
 DROP TABLE lh_flight_schedules_raw ;
-
--- update seat counts
-UPDATE lh_flight_schedules_flattened
-SET
-    seatsFirst = IF(seatsFirst = 99 OR seatsFirst >= 800, 999, seatsFirst),
-    seatsBusiness = IF(seatsBusiness = 99 OR seatsBusiness >= 800, 999, seatsBusiness),
-    seatsPremium = IF(seatsPremium = 99 OR seatsPremium >= 800, 999, seatsPremium),
-    seatsEconomy = IF(seatsEconomy = 99 OR seatsEconomy >= 800, 999, seatsEconomy) ;
 
 -- create queried dates table
 CREATE TABLE queried_dates AS
@@ -86,6 +60,14 @@ SELECT DISTINCT queryDate FROM lh_flight_schedules_flattened ;
 
 -- assign:queried_dates from:result
 SELECT COUNT(*) FROM queried_dates ;
+
+-- create flightnumber macro
+CREATE OR REPLACE MACRO EXTRACT_FLIGHTNUMBER(flightNumberRaw, matchGroup) AS
+REGEXP_EXTRACT(flightNumberRaw, '^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$', matchGroup) ;
+
+-- create filtered dataelements macro
+CREATE OR REPLACE MACRO FILTER_DATAELEMENTS(dataElements) AS
+MAP_FROM_ENTRIES(LIST_FILTER(MAP_ENTRIES(dataElements), lambda e: e.key IN (106, 109, 820))) ;
 
 -- create all flights table
 CREATE TABLE lh_all_flights (
@@ -113,6 +95,7 @@ CREATE TABLE lh_all_flights (
     arrivalUTCOffsetSeconds INT NOT NULL,
     queryDate DATE NOT NULL,
     codeSharesRaw TEXT[] NOT NULL,
+    dataElements MAP(INTEGER, TEXT) NOT NULL,
     priority INT NOT NULL
 ) ;
 
@@ -142,6 +125,7 @@ INSERT INTO lh_all_flights (
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
+    dataElements,
     priority
 )
 SELECT
@@ -168,7 +152,11 @@ SELECT
     arrivalTimeLocal,
     arrivalUTCOffsetSeconds,
     queryDate,
-    LIST_DISTINCT(FLATTEN(LIST_TRANSFORM(COALESCE(dataElements[10], []), lambda v: STRING_SPLIT(v, '/')))),
+    LIST_FILTER(
+        LIST_DISTINCT(STRING_SPLIT(COALESCE(dataElements[10], ''), '/')),
+        lambda cs: LENGTH(cs) > 0
+    ),
+    FILTER_DATAELEMENTS(dataElements),
     IF(isOp, 10, 11)
 FROM lh_flight_schedules_flattened
 WHERE dataElements[50] IS NULL OR LENGTH(dataElements[50]) < 1 ;
@@ -199,6 +187,7 @@ INSERT INTO lh_all_flights (
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
+    dataElements,
     priority
 )
 SELECT
@@ -206,9 +195,9 @@ SELECT
     airline,
     flightNumber,
     suffix,
-    REGEXP_EXTRACT(operatingFlightNumberFull, '^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$', 1),
-    CAST(REGEXP_EXTRACT(operatingFlightNumberFull, '^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$', 2) AS USMALLINT),
-    REGEXP_EXTRACT(operatingFlightNumberFull, '^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$', 3),
+    EXTRACT_FLIGHTNUMBER(operatingFlightNumberFull, 1),
+    CAST(EXTRACT_FLIGHTNUMBER(operatingFlightNumberFull, 2) AS USMALLINT),
+    EXTRACT_FLIGHTNUMBER(operatingFlightNumberFull, 3),
     origin,
     destination,
     serviceType,
@@ -225,12 +214,16 @@ SELECT
     arrivalTimeLocal,
     arrivalUTCOffsetSeconds,
     queryDate,
-    LIST_DISTINCT(FLATTEN(LIST_TRANSFORM(COALESCE(dataElements[10], []), lambda v: STRING_SPLIT(v, '/')))),
+    LIST_FILTER(
+        LIST_DISTINCT(STRING_SPLIT(COALESCE(dataElements[10], ''), '/')),
+        lambda cs: LENGTH(cs) > 0
+    ),
+    FILTER_DATAELEMENTS(dataElements),
     20
 FROM (
     SELECT
         *,
-        UNNEST(dataElements[50]) operatingFlightNumberFull
+        dataElements[50] AS operatingFlightNumberFull
     FROM lh_flight_schedules_flattened
     WHERE dataElements[50] IS NOT NULL AND LENGTH(dataElements[50]) > 0
 ) ;
@@ -261,13 +254,14 @@ INSERT INTO lh_all_flights (
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
+    dataElements,
     priority
 )
 SELECT
     createdAt,
-    REGEXP_EXTRACT(codeShareFlightNumberFull, '^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$', 1),
-    CAST(REGEXP_EXTRACT(codeShareFlightNumberFull, '^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$', 2) AS USMALLINT),
-    REGEXP_EXTRACT(codeShareFlightNumberFull, '^([0-9A-Z]{2})([0-9]{1,4})([A-Z]?)$', 3),
+    EXTRACT_FLIGHTNUMBER(codeShareFlightNumberFull, 1),
+    CAST(EXTRACT_FLIGHTNUMBER(codeShareFlightNumberFull, 2) AS USMALLINT),
+    EXTRACT_FLIGHTNUMBER(codeShareFlightNumberFull, 3),
     operatingAirline,
     operatingFlightNumber,
     operatingSuffix,
@@ -288,6 +282,7 @@ SELECT
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
+    FILTER_DATAELEMENTS(dataElements),
     priority + 5
 FROM (
     SELECT
@@ -323,6 +318,7 @@ INSERT INTO lh_all_flights (
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
+    dataElements,
     priority
 )
 SELECT
@@ -350,41 +346,64 @@ SELECT
     arrivalUTCOffsetSeconds,
     queryDate,
     codeSharesRaw,
+    FILTER_DATAELEMENTS(dataElements),
     priority + 5
 FROM lh_all_flights ;
 
 -- drop lh_flight_schedules_flattened
 DROP TABLE lh_flight_schedules_flattened ;
 
+-- drop flightnumber macro
+DROP MACRO EXTRACT_FLIGHTNUMBER ;
+
+-- drop dataelements macro
+DROP MACRO FILTER_DATAELEMENTS ;
+
 -- create lh_operating_flight_data
 CREATE TABLE lh_operating_flight_data AS
+WITH ranked AS (
+    SELECT
+        *,
+        ROW_NUMBER() OVER (
+            PARTITION BY
+                createdAt,
+                operatingAirline,
+                operatingFlightNumber,
+                operatingSuffix,
+                origin,
+                departureDateLocal
+            ORDER BY
+                priority ASC,
+                departureTimeLocal DESC,
+                airline ASC
+        ) AS rank
+    FROM lh_all_flights
+)
 SELECT
     createdAt,
     operatingAirline,
     operatingFlightNumber,
     operatingSuffix,
     origin,
-    FIRST(destination ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS destination,
-    FIRST(IF(LENGTH(aircraftOwner) = 2, aircraftOwner, operatingAirline) ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS aircraftOwner,
-    FIRST(aircraftType ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS aircraftType,
-    FIRST(seatsFirst ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS seatsFirst,
-    FIRST(seatsBusiness ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS seatsBusiness,
-    FIRST(seatsPremium ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS seatsPremium,
-    FIRST(seatsEconomy ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS seatsEconomy,
     departureDateLocal,
-    FIRST(departureTimeLocal ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS departureTimeLocal,
-    FIRST(departureUTCOffsetSeconds ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS departureUTCOffsetSeconds,
-    FIRST(arrivalUTCOffsetSeconds ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS arrivalUTCOffsetSeconds,
-    FIRST(EPOCH(arrivalDateLocal + arrivalTimeLocal - TO_SECONDS(arrivalUTCOffsetSeconds)) - EPOCH(departureDateLocal + departureTimeLocal - TO_SECONDS(departureUTCOffsetSeconds)) ORDER BY priority ASC, departureTimeLocal DESC, airline ASC) AS durationSeconds
-FROM lh_all_flights
-GROUP BY
-    createdAt,
-    operatingAirline,
-    operatingFlightNumber,
-    operatingSuffix,
-    origin,
-    departureDateLocal
-;
+    destination,
+    serviceType,
+    IF(LENGTH(aircraftOwner) = 2, aircraftOwner, operatingAirline) AS aircraftOwner,
+    aircraftType,
+    seatsFirst,
+    seatsBusiness,
+    seatsPremium,
+    seatsEconomy,
+    departureTimeLocal,
+    departureUTCOffsetSeconds,
+    arrivalUTCOffsetSeconds,
+    (
+        EPOCH(arrivalDateLocal + arrivalTimeLocal - TO_SECONDS(arrivalUTCOffsetSeconds))
+        - EPOCH(departureDateLocal + departureTimeLocal - TO_SECONDS(departureUTCOffsetSeconds))
+    ) AS durationSeconds,
+    dataElements
+FROM ranked
+WHERE rank = 1 ;
 
 -- create lh_all_flights_deduped
 CREATE TABLE lh_all_flights_deduped AS
@@ -393,12 +412,11 @@ SELECT
     airline,
     flightNumber,
     suffix,
+    origin,
+    departureDateLocal,
     FIRST(operatingAirline ORDER BY priority ASC, departureTimeLocal DESC) AS operatingAirline,
     FIRST(operatingFlightNumber ORDER BY priority ASC, departureTimeLocal DESC) AS operatingFlightNumber,
     FIRST(operatingSuffix ORDER BY priority ASC, departureTimeLocal DESC) AS operatingSuffix,
-    origin,
-    departureDateLocal,
-    FIRST(serviceType ORDER BY priority ASC, departureTimeLocal DESC) AS serviceType,
     ARRAY_AGG(DISTINCT queryDate) AS queryDates
 FROM lh_all_flights
 GROUP BY
@@ -418,139 +436,81 @@ SELECT COUNT(*) FROM lh_all_flights_deduped ;
 -- drop lh_all_flights
 DROP TABLE lh_all_flights ;
 
--- insert new airlines
--- assign:new_airlines from:rows_affected
-INSERT INTO airlines
-(id, lh_api_id, iata_code, name)
-SELECT UUID(), airline, airline, NULL
-FROM (
-    SELECT DISTINCT fresh.airline
-    FROM lh_all_flights_deduped fresh
-    WHERE NOT EXISTS( FROM airlines airl WHERE airl.lh_api_id = fresh.airline )
-) ;
-
--- insert airports
--- assign:new_airports from:rows_affected
-INSERT INTO airports
-(id, lh_api_id, iata_code, icao_code, iata_area_code, country_code, city_code, type, lng, lat, timezone, name)
-SELECT UUID(), airport, airport, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
-FROM (
-    SELECT DISTINCT fresh.airport
-    FROM (
-        SELECT UNNEST([origin, destination]) AS airport
-        FROM lh_operating_flight_data
-    ) fresh
-    WHERE NOT EXISTS( FROM airports airp WHERE airp.lh_api_id = fresh.airport )
-) ;
-
--- prepare new aircraft
-CREATE TABLE temp_new_aircraft AS
-SELECT UUID() AS id, aircraftType AS lh_api_id
-FROM (
-    SELECT DISTINCT fresh.aircraftType
-    FROM lh_operating_flight_data fresh
-    WHERE NOT EXISTS( FROM aircraft_lh_mapping ac WHERE ac.lh_api_id = fresh.aircraftType )
-) ;
-
--- insert new aircraft
--- assign:new_aircraft from:rows_affected
-INSERT INTO aircraft
-(id, aircraft_type_id, aircraft_family_id)
-SELECT id, NULL, NULL
-FROM temp_new_aircraft ;
-
--- insert new dummy mappings
-INSERT INTO aircraft_lh_mapping
-(lh_api_id, aircraft_id)
-SELECT lh_api_id, id
-FROM temp_new_aircraft ;
-
--- drop temp aircraft table
-DROP TABLE temp_new_aircraft ;
-
--- create all flights with ids
-CREATE TABLE lh_all_flights_with_ids AS
+-- create all flights with operating flight data
+CREATE TABLE lh_all_flights_with_operating_flight_data AS
 SELECT
-    fresh.createdAt,
-    mrktg_airl.id AS airlineId,
-    fresh.flightNumber,
-    fresh.suffix,
-    op_airl.id AS operatingAirlineId,
-    fresh.operatingFlightNumber,
-    fresh.operatingSuffix,
-    dep_airp.id AS departureAirportId,
-    arr_airp.id AS arrivalAirportId,
-    fresh.serviceType,
+    f.createdAt,
+    f.airline,
+    f.flightNumber,
+    f.suffix,
+    f.origin,
+    f.departureDateLocal,
+    f.operatingAirline,
+    f.operatingFlightNumber,
+    f.operatingSuffix,
+    f.queryDates,
+    opdata.destination,
+    opdata.serviceType,
     opdata.aircraftOwner,
-    airc.aircraft_id AS aircraftId,
+    opdata.aircraftType,
     opdata.seatsFirst,
     opdata.seatsBusiness,
     opdata.seatsPremium,
     opdata.seatsEconomy,
-    opdata.departureDateLocal,
     opdata.departureTimeLocal,
     opdata.departureUTCOffsetSeconds,
     opdata.arrivalUTCOffsetSeconds,
     opdata.durationSeconds,
-    fresh.queryDates
-FROM lh_all_flights_deduped fresh
+    opdata.dataElements
+FROM lh_all_flights_deduped f
 LEFT JOIN lh_operating_flight_data opdata
-ON fresh.createdAt = opdata.createdAt
-AND fresh.operatingAirline = opdata.operatingAirline
-AND fresh.operatingFlightNumber = opdata.operatingFlightNumber
-AND fresh.operatingSuffix = opdata.operatingSuffix
-AND fresh.origin = opdata.origin
-AND fresh.departureDateLocal = opdata.departureDateLocal
-LEFT JOIN airlines mrktg_airl -- marketing airline
-ON mrktg_airl.lh_api_id = fresh.airline
-LEFT JOIN airlines op_airl -- operating airline
-ON op_airl.lh_api_id = fresh.operatingAirline
-LEFT JOIN airports dep_airp -- departure airport
-ON dep_airp.lh_api_id = opdata.origin
-LEFT JOIN airports arr_airp -- arrival airport
-ON arr_airp.lh_api_id = opdata.destination
-LEFT JOIN aircraft_lh_mapping airc -- aircraft
-ON airc.lh_api_id = opdata.aircraftType ;
+ON f.createdAt = opdata.createdAt
+AND f.operatingAirline = opdata.operatingAirline
+AND f.operatingFlightNumber = opdata.operatingFlightNumber
+AND f.operatingSuffix = opdata.operatingSuffix
+AND f.origin = opdata.origin
+AND f.departureDateLocal = opdata.departureDateLocal ;
 
--- assign:lh_all_flights_with_ids from:result
-SELECT COUNT(*) FROM lh_all_flights_with_ids ;
+-- assign:lh_all_flights_with_operating_flight_data from:result
+SELECT COUNT(*) FROM lh_all_flights_with_operating_flight_data ;
 
--- assert: lh_all_flights_with_ids == lh_all_flights_deduped
+-- assert: lh_all_flights_with_operating_flight_data == lh_all_flights_deduped
 
 -- add flights with same operating number which were not part of this update
--- assign:lh_all_flights_with_ids_existing from:rows_affected
-INSERT INTO lh_all_flights_with_ids (
+-- assign:lh_all_flights_with_operating_flight_data_existing from:rows_affected
+INSERT INTO lh_all_flights_with_operating_flight_data (
     createdAt,
-    airlineId,
+    airline,
     flightNumber,
     suffix,
-    operatingAirlineId,
+    origin,
+    departureDateLocal,
+    operatingAirline,
     operatingFlightNumber,
     operatingSuffix,
-    departureAirportId,
-    arrivalAirportId,
+    queryDates,
+    destination,
     serviceType,
     aircraftOwner,
-    aircraftId,
+    aircraftType,
     seatsFirst,
     seatsBusiness,
     seatsPremium,
     seatsEconomy,
-    departureDateLocal,
     departureTimeLocal,
     departureUTCOffsetSeconds,
     arrivalUTCOffsetSeconds,
     durationSeconds,
-    queryDates
+    dataElements
 )
 WITH non_queried_flight_variant_history AS (
     SELECT fvh.*
     FROM flight_variant_history fvh
-    LEFT JOIN lh_all_flights_with_ids fresh
-    ON fvh.airline_id = fresh.airlineId
+    LEFT JOIN lh_all_flights_with_operating_flight_data fresh
+    ON fvh.airline_iata_code = fresh.airline
     AND fvh.number = fresh.flightNumber
     AND fvh.suffix = fresh.suffix
-    AND fvh.departure_airport_id = fresh.departureAirportId
+    AND fvh.departure_airport_iata_code = fresh.origin
     AND fvh.departure_date_local = fresh.departureDateLocal
     WHERE fvh.replaced_at IS NULL -- latest entry
     AND fvh.flight_variant_id IS NOT NULL -- is not removed
@@ -562,42 +522,43 @@ WITH non_queried_flight_variant_history AS (
 )
 SELECT
     fresh.createdAt,
-    fvh.airline_id,
+    fvh.airline_iata_code,
     fvh.number,
     fvh.suffix,
-    FIRST(fresh.airlineId),
+    fresh.origin,
+    fresh.departureDateLocal,
+    FIRST(fresh.airline),
     FIRST(fresh.flightNumber),
     FIRST(fresh.suffix),
-    fresh.departureAirportId,
-    FIRST(fresh.arrivalAirportId),
-    FIRST(fv.service_type),
+    FIRST(fvh.query_dates),
+    FIRST(fresh.destination),
+    FIRST(fresh.serviceType),
     FIRST(fresh.aircraftOwner),
-    FIRST(fresh.aircraftId),
+    FIRST(fresh.aircraftType),
     FIRST(fresh.seatsFirst),
     FIRST(fresh.seatsBusiness),
     FIRST(fresh.seatsPremium),
     FIRST(fresh.seatsEconomy),
-    fresh.departureDateLocal,
     FIRST(fresh.departureTimeLocal),
     FIRST(fresh.departureUTCOffsetSeconds),
     FIRST(fresh.arrivalUTCOffsetSeconds),
     FIRST(fresh.durationSeconds),
-    FIRST(fvh.query_dates)
+    FIRST(fresh.dataElements)
 FROM non_queried_flight_variant_history fvh
 INNER JOIN flight_variants fv
 ON fvh.flight_variant_id = fv.id
-INNER JOIN lh_all_flights_with_ids fresh
-ON fv.operating_airline_id = fresh.airlineId
+INNER JOIN lh_all_flights_with_operating_flight_data fresh
+ON fv.operating_airline_iata_code = fresh.airline
 AND fv.operating_number = fresh.flightNumber
 AND fv.operating_suffix = fresh.suffix
-AND fvh.departure_airport_id = fresh.departureAirportId
+AND fvh.departure_airport_iata_code = fresh.origin
 AND fvh.departure_date_local = fresh.departureDateLocal
 GROUP BY
     fresh.createdAt,
-    fvh.airline_id,
+    fvh.airline_iata_code,
     fvh.number,
     fvh.suffix,
-    fresh.departureAirportId,
+    fresh.origin,
     fresh.departureDateLocal
 ;
 
@@ -607,161 +568,146 @@ DROP TABLE lh_all_flights_deduped ;
 -- drop lh_operating_flight_data
 DROP TABLE lh_operating_flight_data ;
 
--- insert new flight numbers
--- assign:new_flight_numbers from:rows_affected
-INSERT OR IGNORE INTO flight_numbers
-(airline_id, number, suffix)
-SELECT DISTINCT airlineId, flightNumber, suffix
-FROM lh_all_flights_with_ids ;
-
 -- create codeshares table
 CREATE TABLE lh_operating_codeshares (
-    operatingAirlineId UUID NOT NULL,
+    operatingAirlineIataCode TEXT NOT NULL,
     operatingFlightNumber USMALLINT NOT NULL,
     operatingSuffix TEXT NOT NULL,
-    departureAirportId UUID NOT NULL,
+    departureAirportIataCode TEXT NOT NULL,
     departureDateLocal DATE NOT NULL,
-    codeShares STRUCT(airline_id UUID, number USMALLINT, suffix TEXT)[] NOT NULL,
+    codeShares STRUCT(airline_iata_code TEXT, number USMALLINT, suffix TEXT)[] NOT NULL,
     CHECK ( TO_JSON(codeShares) = TO_JSON(LIST_SORT(LIST_DISTINCT(codeShares))) )
 ) ;
 
 -- insert codeshares
 -- assign:codeshares_by_operating from:rows_affected
 INSERT INTO lh_operating_codeshares (
-    operatingAirlineId,
+    operatingAirlineIataCode,
     operatingFlightNumber,
     operatingSuffix,
-    departureAirportId,
+    departureAirportIataCode,
     departureDateLocal,
     codeShares
 )
 SELECT
-    operatingAirlineId,
+    operatingAirline,
     operatingFlightNumber,
     operatingSuffix,
-    departureAirportId,
+    origin,
     departureDateLocal,
     LIST_SORT(
         LIST_DISTINCT(
             LIST_FILTER(-- aggregation filter does not work on linux https://github.com/duckdb/duckdb/issues/17757
                 COALESCE(ARRAY_AGG({
-                    'airline_id': airlineId,
+                    'airline_iata_code': airline,
                     'number': flightNumber,
                     'suffix': suffix
                 }), []),
-                lambda cs: ( cs.airline_id != operatingAirlineId OR cs.number != operatingFlightNumber OR cs.suffix != operatingSuffix )
+                lambda cs: ( cs.airline_iata_code != operatingAirline OR cs.number != operatingFlightNumber OR cs.suffix != operatingSuffix )
             )
         )
     ) AS codeShares
-FROM lh_all_flights_with_ids
+FROM lh_all_flights_with_operating_flight_data
 GROUP BY
-    operatingAirlineId,
+    operatingAirline,
     operatingFlightNumber,
     operatingSuffix,
-    departureAirportId,
+    origin,
     departureDateLocal
 ;
-
--- harden codeshares, for some reason the filter doesnt work on all platforms(?) https://github.com/duckdb/duckdb/issues/17757
--- assign:harden_codeshares from:rows_affected
-UPDATE lh_operating_codeshares
-SET codeShares = LIST_SORT(LIST_DISTINCT(LIST_FILTER(
-    codeShares,
-    lambda cs: ( cs.airline_id != operatingAirlineId OR cs.number != operatingFlightNumber OR cs.suffix != operatingSuffix )
-)))
-WHERE LENGTH(LIST_FILTER(
-    codeShares,
-    lambda cs: ( cs.airline_id = operatingAirlineId AND cs.number = operatingFlightNumber AND cs.suffix = operatingSuffix )
-)) > 0 ;
-
--- assert: harden_codeshares == 0
 
 -- insert new flight variants
 -- assign:new_flight_variants from:rows_affected
 INSERT INTO flight_variants (
     id,
-    operating_airline_id,
+    operating_airline_iata_code,
     operating_number,
     operating_suffix,
-    departure_airport_id,
+    departure_airport_iata_code,
     departure_time_local,
     departure_utc_offset_seconds,
     duration_seconds,
-    arrival_airport_id,
+    arrival_airport_iata_code,
     arrival_utc_offset_seconds,
     service_type,
     aircraft_owner,
-    aircraft_id,
+    aircraft_iata_code,
     seats_first,
     seats_business,
     seats_premium,
     seats_economy,
     code_shares_hash,
-    code_shares
+    code_shares,
+    data_elements_hash,
+    data_elements
 )
 SELECT
     UUID(),
-    fresh.operatingAirlineId,
+    fresh.operatingAirline,
     fresh.operatingFlightNumber,
     fresh.operatingSuffix,
-    fresh.departureAirportId,
+    fresh.origin,
     fresh.departureTimeLocal,
     fresh.departureUTCOffsetSeconds,
     fresh.durationSeconds,
-    fresh.arrivalAirportId,
+    fresh.destination,
     fresh.arrivalUTCOffsetSeconds,
     fresh.serviceType,
     fresh.aircraftOwner,
-    fresh.aircraftId,
+    fresh.aircraftType,
     fresh.seatsFirst,
     fresh.seatsBusiness,
     fresh.seatsPremium,
     fresh.seatsEconomy,
     MD5_NUMBER(TO_JSON(cs.codeShares)),
-    cs.codeShares
-FROM lh_all_flights_with_ids fresh
+    cs.codeShares,
+    MD5_NUMBER(TO_JSON(LIST_SORT(MAP_ENTRIES(fresh.dataElements)))),
+    fresh.dataElements
+FROM lh_all_flights_with_operating_flight_data fresh
 LEFT JOIN lh_operating_codeshares cs
-ON fresh.operatingAirlineId = cs.operatingAirlineId
+ON fresh.operatingAirline = cs.operatingAirlineIataCode
 AND fresh.operatingFlightNumber = cs.operatingFlightNumber
 AND fresh.operatingSuffix = cs.operatingSuffix
-AND fresh.departureAirportId = cs.departureAirportId
+AND fresh.origin = cs.departureAirportIataCode
 AND fresh.departureDateLocal = cs.departureDateLocal
 GROUP BY
-    fresh.operatingAirlineId,
+    fresh.operatingAirline,
     fresh.operatingFlightNumber,
     fresh.operatingSuffix,
-    fresh.departureAirportId,
+    fresh.origin,
     fresh.departureTimeLocal,
     fresh.departureUTCOffsetSeconds,
     fresh.durationSeconds,
-    fresh.arrivalAirportId,
+    fresh.destination,
     fresh.arrivalUTCOffsetSeconds,
     fresh.serviceType,
     fresh.aircraftOwner,
-    fresh.aircraftId,
+    fresh.aircraftType,
     fresh.seatsFirst,
     fresh.seatsBusiness,
     fresh.seatsPremium,
     fresh.seatsEconomy,
-    cs.codeShares
+    cs.codeShares,
+    fresh.dataElements
 ON CONFLICT (
-    operating_airline_id,
+    operating_airline_iata_code,
     operating_number,
     operating_suffix,
-    departure_airport_id,
+    departure_airport_iata_code,
     departure_time_local,
     departure_utc_offset_seconds,
     duration_seconds,
-    arrival_airport_id,
+    arrival_airport_iata_code,
     arrival_utc_offset_seconds,
     service_type,
     aircraft_owner,
-    aircraft_id,
+    aircraft_iata_code,
     seats_first,
     seats_business,
     seats_premium,
     seats_economy,
-    code_shares_hash
+    code_shares_hash,
+    data_elements_hash
 ) DO NOTHING ;
 
 -- create all flights with variants
@@ -769,40 +715,42 @@ CREATE TABLE lh_all_flights_with_variants AS
 SELECT
     fresh.*,
     fv.id AS flightVariantId
-FROM lh_all_flights_with_ids fresh
+FROM lh_all_flights_with_operating_flight_data fresh
 LEFT JOIN lh_operating_codeshares cs
-ON fresh.operatingAirlineId = cs.operatingAirlineId
+ON fresh.operatingAirline = cs.operatingAirlineIataCode
 AND fresh.operatingFlightNumber = cs.operatingFlightNumber
 AND fresh.operatingSuffix = cs.operatingSuffix
-AND fresh.departureAirportId = cs.departureAirportId
+AND fresh.origin = cs.departureAirportIataCode
 AND fresh.departureDateLocal = cs.departureDateLocal
 LEFT JOIN flight_variants fv
-ON fresh.operatingAirlineId = fv.operating_airline_id
+ON fresh.operatingAirline = fv.operating_airline_iata_code
 AND fresh.operatingFlightNumber = fv.operating_number
 AND fresh.operatingSuffix = fv.operating_suffix
-AND fresh.departureAirportId = fv.departure_airport_id
+AND fresh.origin = fv.departure_airport_iata_code
 AND fresh.departureTimeLocal = fv.departure_time_local
 AND fresh.departureUTCOffsetSeconds = fv.departure_utc_offset_seconds
 AND fresh.durationSeconds = fv.duration_seconds
-AND fresh.arrivalAirportId = fv.arrival_airport_id
+AND fresh.destination = fv.arrival_airport_iata_code
 AND fresh.arrivalUTCOffsetSeconds = fv.arrival_utc_offset_seconds
 AND fresh.serviceType = fv.service_type
 AND fresh.aircraftOwner = fv.aircraft_owner
-AND fresh.aircraftId = fv.aircraft_id
+AND fresh.aircraftType = fv.aircraft_iata_code
 AND fresh.seatsFirst = fv.seats_first
 AND fresh.seatsBusiness = fv.seats_business
 AND fresh.seatsPremium = fv.seats_premium
 AND fresh.seatsEconomy = fv.seats_economy
 AND MD5_NUMBER(TO_JSON(cs.codeShares)) = fv.code_shares_hash
-AND cs.codeShares = fv.code_shares ;
+AND cs.codeShares = fv.code_shares
+AND MD5_NUMBER(TO_JSON(LIST_SORT(MAP_ENTRIES(fresh.dataElements)))) = fv.data_elements_hash
+AND fresh.dataElements = fv.data_elements ;
 
 -- assign:lh_all_flights_with_variants from:result
 SELECT COUNT(*) FROM lh_all_flights_with_variants ;
 
--- assert: lh_all_flights_with_variants == (lh_all_flights_with_ids + lh_all_flights_with_ids_existing)
+-- assert: lh_all_flights_with_variants == (lh_all_flights_with_operating_flight_data + lh_all_flights_with_operating_flight_data_existing)
 
--- drop lh_all_flights_with_ids
-DROP TABLE lh_all_flights_with_ids ;
+-- drop lh_all_flights_with_operating_flight_data
+DROP TABLE lh_all_flights_with_operating_flight_data ;
 
 -- drop codeshares
 DROP TABLE lh_operating_codeshares ;

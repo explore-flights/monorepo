@@ -6,6 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"net/http"
+	"slices"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/explore-flights/monorepo/go/api/db"
@@ -13,19 +18,14 @@ import (
 	"github.com/explore-flights/monorepo/go/common/adapt"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/common/xtime"
-	"github.com/gofrs/uuid/v5"
-	"maps"
-	"net/http"
-	"slices"
-	"time"
 )
 
 var ErrNotFound = errors.New("not found")
 
 type searchRepo interface {
 	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
-	Airlines(ctx context.Context) (map[uuid.UUID]db.Airline, error)
-	Airports(ctx context.Context) (map[uuid.UUID]db.Airport, error)
+	Airlines(ctx context.Context) (map[string]db.Airline, error)
+	Airports(ctx context.Context) (map[string]db.Airport, error)
 }
 
 type Search struct {
@@ -50,14 +50,14 @@ func NewSearch(s3c interface {
 	}
 }
 
-func (s *Search) SeatMap(ctx context.Context, fn db.FlightNumber, departureAirportId uuid.UUID, departureDateLocal xtime.LocalDate) (SeatMap, error) {
+func (s *Search) SeatMap(ctx context.Context, fn db.FlightNumber, departureAirportIataCode string, departureDateLocal xtime.LocalDate) (SeatMap, error) {
 	fs, err := s.repo.FlightSchedules(ctx, fn, time.Now())
 	if err != nil {
 		return SeatMap{}, err
 	}
 
 	idx := slices.IndexFunc(fs.Items, func(item db.FlightScheduleItem) bool {
-		return item.DepartureAirportId == departureAirportId && item.DepartureDateLocal == departureDateLocal
+		return item.DepartureAirportIataCode == departureAirportIataCode && item.DepartureDateLocal == departureDateLocal
 	})
 	if idx == -1 {
 		return SeatMap{}, ErrNotFound
@@ -73,10 +73,10 @@ func (s *Search) SeatMap(ctx context.Context, fn db.FlightNumber, departureAirpo
 		return SeatMap{}, ErrNotFound
 	}
 
-	return s.loadSeatMap(ctx, fn, departureAirportId, variant, departureDateLocal)
+	return s.loadSeatMap(ctx, fn, departureAirportIataCode, variant, departureDateLocal)
 }
 
-func (s *Search) loadSeatMap(ctx context.Context, fn db.FlightNumber, departureAirportId uuid.UUID, variant db.FlightScheduleVariant, departureDateLocal xtime.LocalDate) (SeatMap, error) {
+func (s *Search) loadSeatMap(ctx context.Context, fn db.FlightNumber, departureAirportIataCode string, variant db.FlightScheduleVariant, departureDateLocal xtime.LocalDate) (SeatMap, error) {
 	var airline db.Airline
 	var departureAirport db.Airport
 	var arrivalAirport db.Airport
@@ -86,7 +86,7 @@ func (s *Search) loadSeatMap(ctx context.Context, fn db.FlightNumber, departureA
 			return SeatMap{}, err
 		}
 
-		airline = airlines[fn.AirlineId]
+		airline = airlines[fn.AirlineIataCode]
 	}
 	{
 		airports, err := s.repo.Airports(ctx)
@@ -94,8 +94,8 @@ func (s *Search) loadSeatMap(ctx context.Context, fn db.FlightNumber, departureA
 			return SeatMap{}, err
 		}
 
-		departureAirport = airports[departureAirportId]
-		arrivalAirport = airports[variant.ArrivalAirportId]
+		departureAirport = airports[departureAirportIataCode]
+		arrivalAirport = airports[variant.ArrivalAirportIataCode]
 	}
 
 	rawSeatMaps := make(map[lufthansa.RequestCabinClass]lufthansa.SeatAvailability)
@@ -122,8 +122,8 @@ func (s *Search) loadSeatMap(ctx context.Context, fn db.FlightNumber, departureA
 
 func (s *Search) loadSeatMapInternal(ctx context.Context, fn db.FlightNumber, airline db.Airline, departureAirport, arrivalAirport db.Airport, departureDateLocal xtime.LocalDate, variant db.FlightScheduleVariant, cabinClass lufthansa.RequestCabinClass) (*lufthansa.SeatAvailability, error) {
 	s3Key := s.seatMapS3Key(
-		airline.Id,
-		variant.AircraftId,
+		airline.IataCode,
+		variant.AircraftIataCode,
 		variant.AircraftConfigurationVersion,
 		cabinClass,
 	)
@@ -209,8 +209,8 @@ func (s *Search) loadSeatMapFromS3(ctx context.Context, s3Key string) (*lufthans
 	return sm, true, nil
 }
 
-func (s *Search) seatMapS3Key(airlineId, aircraftId uuid.UUID, aircraftConfigurationVersion string, cabinClass lufthansa.RequestCabinClass) string {
-	return fmt.Sprintf("tmp/seatmap/%s/%s/%s/%s.json", airlineId.String(), aircraftId.String(), aircraftConfigurationVersion, cabinClass)
+func (s *Search) seatMapS3Key(airlineIataCode, aircraftIataCode, aircraftConfigurationVersion string, cabinClass lufthansa.RequestCabinClass) string {
+	return fmt.Sprintf("tmp/seatmap/%s/%s/%s/%s.json", airlineIataCode, aircraftIataCode, aircraftConfigurationVersion, cabinClass)
 }
 
 func (s *Search) deduplicateSeatMaps(rawSeatMaps map[lufthansa.RequestCabinClass]lufthansa.SeatAvailability) {

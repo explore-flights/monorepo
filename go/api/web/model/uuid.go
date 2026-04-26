@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+
 	"github.com/gofrs/uuid/v5"
 	"github.com/jxskiss/base62"
 )

@@ -219,7 +219,7 @@ FROM read_parquet('%s', hive_partitioning = false)
 		},
 		{
 			fmt.Sprintf(
-				`CREATE OR REPLACE VIEW flight_variant_history AS SELECT * FROM read_parquet('%s', hive_partitioning = true, hive_types = {'airline_id': UUID, 'number_mod_10': USMALLINT})`,
+				`CREATE OR REPLACE VIEW flight_variant_history AS SELECT * FROM read_parquet('%s', hive_partitioning = true, hive_types = {'airline_iata_code': TEXT, 'number_mod_10': USMALLINT})`,
 				historyParquetPath+"/**/*.parquet",
 			),
 			nil,

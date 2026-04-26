@@ -1,7 +1,7 @@
 package model
 
 type ConnectionGameChallenge struct {
-	Seed               string `json:"seed"`
-	DepartureAirportId UUID   `json:"departureAirportId"`
-	ArrivalAirportId   UUID   `json:"arrivalAirportId"`
+	Seed                     string `json:"seed"`
+	DepartureAirportIataCode string `json:"departureAirportId"`
+	ArrivalAirportIataCode   string `json:"arrivalAirportId"`
 }

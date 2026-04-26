@@ -23,7 +23,7 @@ def _parse_time(value: str) -> datetime:
     parsed = datetime.fromisoformat(raw)
     if parsed.tzinfo is None:
         raise argparse.ArgumentTypeError("--time must include timezone information")
-    return parsed
+    return parsed.astimezone(timezone.utc)
 
 
 def _parse_bool(value: str) -> bool:
@@ -32,7 +32,7 @@ def _parse_bool(value: str) -> bool:
 
 def _parse_args() -> Settings:
     parser = argparse.ArgumentParser(prog="updater")
-    parser.add_argument("--time", type=_parse_time, default=datetime.now(timezone.utc))
+    parser.add_argument("--time", default="")
     parser.add_argument("--database-bucket", required=True)
     parser.add_argument("--full-database-key", required=True)
     parser.add_argument("--basedata-database-key", required=True)
@@ -48,8 +48,18 @@ def _parse_args() -> Settings:
     parser.add_argument("--update-summary-key", default="")
     parser.add_argument("--skip-update-database", type=_parse_bool, default=False)
     args = parser.parse_args()
+
+    times = args.time.split(",")
+    input_keys = args.input_key.split(",")
+    inputs: list[tuple[datetime, str]] = []
+
+    if len(times) != len(input_keys):
+        raise argparse.ArgumentTypeError("time and input key must have the same number of elements")
+
+    for time, key in zip(times, input_keys):
+        inputs.append((_parse_time(time), key))
+
     return Settings(
-        time=args.time,
         database_bucket=args.database_bucket,
         full_database_key=args.full_database_key,
         basedata_database_key=args.basedata_database_key,
@@ -60,7 +70,7 @@ def _parse_args() -> Settings:
         history_prefix=args.history_prefix,
         latest_prefix=args.latest_prefix,
         input_bucket=args.input_bucket,
-        input_key=args.input_key,
+        inputs=inputs,
         update_summary_bucket=args.update_summary_bucket,
         update_summary_key=args.update_summary_key,
         skip_update_database=args.skip_update_database,

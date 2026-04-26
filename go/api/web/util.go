@@ -2,14 +2,14 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/explore-flights/monorepo/go/api/web/model"
-	"github.com/gofrs/uuid/v5"
-	"github.com/labstack/echo/v4"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/explore-flights/monorepo/go/api/db"
+	"github.com/labstack/echo/v4"
 )
 
 func baseUrl(c echo.Context) string {
@@ -63,26 +63,19 @@ func noCache(c echo.Context) {
 
 type util struct{}
 
-func (util) parseAirport(ctx context.Context, raw string, airportsFn func(context.Context) (map[uuid.UUID]db.Airport, error)) (uuid.UUID, error) {
-	if len(raw) <= 4 {
-		airports, err := airportsFn(ctx)
-		if err != nil {
-			return uuid.Nil, err
-		}
+func (util) parseAirport(ctx context.Context, raw string, airportsFn func(context.Context) (map[string]db.Airport, error)) (string, error) {
+	airports, err := airportsFn(ctx)
+	if err != nil {
+		return "", err
+	}
 
-		for _, airport := range airports {
-			if airport.IataCode == raw || (airport.IcaoCode.Valid && airport.IcaoCode.String == raw) {
-				return airport.Id, nil
-			}
+	for _, airport := range airports {
+		if airport.IataCode == raw || (airport.IcaoCode.Valid && airport.IcaoCode.String == raw) {
+			return airport.IataCode, nil
 		}
 	}
 
-	var airportId model.UUID
-	if err := airportId.FromString(raw); err != nil {
-		return uuid.Nil, err
-	}
-
-	return uuid.UUID(airportId), nil
+	return "", errors.New("not found")
 }
 
 type HTTPErrorOption func(e *HTTPError)

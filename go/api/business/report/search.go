@@ -3,9 +3,9 @@ package report
 import (
 	"context"
 	"database/sql"
-	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/gofrs/uuid/v5"
 	"time"
+
+	"github.com/explore-flights/monorepo/go/api/db"
 )
 
 type searchRepo interface {
@@ -20,23 +20,23 @@ func NewSearch(repo searchRepo) *Search {
 	return &Search{repo}
 }
 
-func (s *Search) Destinations(ctx context.Context, airportId uuid.UUID, cond *Condition) (map[uuid.UUID]time.Duration, error) {
-	destinations := make(map[uuid.UUID]time.Duration)
+func (s *Search) Destinations(ctx context.Context, airportIataCode string, cond *Condition) (map[string]time.Duration, error) {
+	destinations := make(map[string]time.Duration)
 	scanner := func(rows *sql.Rows) error {
 		for rows.Next() {
-			var destinationAirportId uuid.UUID
+			var destinationAirportIataCode string
 			var minDurationSeconds int64
-			if err := rows.Scan(&destinationAirportId, &minDurationSeconds); err != nil {
+			if err := rows.Scan(&destinationAirportIataCode, &minDurationSeconds); err != nil {
 				return err
 			}
 
-			destinations[destinationAirportId] = time.Duration(minDurationSeconds) * time.Second
+			destinations[destinationAirportIataCode] = time.Duration(minDurationSeconds) * time.Second
 		}
 
 		return nil
 	}
 
-	fullCond := WithDepartureAirportId(airportId)
+	fullCond := WithDepartureAirportIataCode(airportIataCode)
 	if cond != nil && cond.cond != nil {
 		fullCond = WithAll(
 			fullCond,
@@ -47,7 +47,7 @@ func (s *Search) Destinations(ctx context.Context, airportId uuid.UUID, cond *Co
 	return destinations, s.repo.Report(
 		ctx,
 		[]db.SelectExpression{
-			db.LiteralValueExpression("arrival_airport_id"),
+			db.LiteralValueExpression("arrival_airport_iata_code"),
 			db.AggregationValueExpression{
 				Function: "MIN",
 				Expr:     db.LiteralValueExpression("min_duration_seconds"),
@@ -55,32 +55,32 @@ func (s *Search) Destinations(ctx context.Context, airportId uuid.UUID, cond *Co
 		},
 		fullCond.cond,
 		[]db.ValueExpression{
-			db.LiteralValueExpression("arrival_airport_id"),
+			db.LiteralValueExpression("arrival_airport_iata_code"),
 		},
 		scanner,
 	)
 }
 
-func (s *Search) AircraftReport(ctx context.Context, cond *Condition) (map[uuid.UUID][]AircraftReport, error) {
-	reportsByAircraftId := make(map[uuid.UUID][]AircraftReport)
+func (s *Search) AircraftReport(ctx context.Context, cond *Condition) (map[string][]AircraftReport, error) {
+	reportsByAircraftIataCode := make(map[string][]AircraftReport)
 	scanner := func(rows *sql.Rows) error {
 		for rows.Next() {
-			var aircraftId uuid.UUID
+			var aircraftIataCode string
 			var report AircraftReport
-			if err := rows.Scan(&aircraftId, &report.DurationSeconds5mTrunc, &report.Flights); err != nil {
+			if err := rows.Scan(&aircraftIataCode, &report.DurationSeconds5mTrunc, &report.Flights); err != nil {
 				return err
 			}
 
-			reportsByAircraftId[aircraftId] = append(reportsByAircraftId[aircraftId], report)
+			reportsByAircraftIataCode[aircraftIataCode] = append(reportsByAircraftIataCode[aircraftIataCode], report)
 		}
 
 		return nil
 	}
 
-	return reportsByAircraftId, s.repo.Report(
+	return reportsByAircraftIataCode, s.repo.Report(
 		ctx,
 		[]db.SelectExpression{
-			db.LiteralValueExpression("COALESCE(acf.id, act.id)"),
+			db.LiteralValueExpression("ac.iata_code"),
 			db.LiteralValueExpression("r.duration_seconds_5m_trunc"),
 			db.AggregationValueExpression{
 				Function: "SUM",
@@ -89,33 +89,33 @@ func (s *Search) AircraftReport(ctx context.Context, cond *Condition) (map[uuid.
 		},
 		s.withIsOperating(cond).cond,
 		[]db.ValueExpression{
-			db.LiteralValueExpression("COALESCE(acf.id, act.id)"),
+			db.LiteralValueExpression("ac.iata_code"),
 			db.LiteralValueExpression("r.duration_seconds_5m_trunc"),
 		},
 		scanner,
 	)
 }
 
-func (s *Search) FlightsByAirline(ctx context.Context, cond *Condition) (map[uuid.UUID]int, error) {
-	flightsByAirlineIds := make(map[uuid.UUID]int)
+func (s *Search) FlightsByAirline(ctx context.Context, cond *Condition) (map[string]int, error) {
+	flightsByAirlineIataCode := make(map[string]int)
 	scanner := func(rows *sql.Rows) error {
 		for rows.Next() {
-			var airlineId uuid.UUID
+			var airlineIataCode string
 			var count int
-			if err := rows.Scan(&airlineId, &count); err != nil {
+			if err := rows.Scan(&airlineIataCode, &count); err != nil {
 				return err
 			}
 
-			flightsByAirlineIds[airlineId] = count
+			flightsByAirlineIataCode[airlineIataCode] = count
 		}
 
 		return nil
 	}
 
-	return flightsByAirlineIds, s.repo.Report(
+	return flightsByAirlineIataCode, s.repo.Report(
 		ctx,
 		[]db.SelectExpression{
-			db.LiteralValueExpression("airline_id"),
+			db.LiteralValueExpression("airline_iata_code"),
 			db.AggregationValueExpression{
 				Function: "SUM",
 				Expr:     db.LiteralValueExpression("count"),
@@ -123,7 +123,7 @@ func (s *Search) FlightsByAirline(ctx context.Context, cond *Condition) (map[uui
 		},
 		s.withIsOperating(cond).cond,
 		[]db.ValueExpression{
-			db.LiteralValueExpression("airline_id"),
+			db.LiteralValueExpression("airline_iata_code"),
 		},
 		scanner,
 	)

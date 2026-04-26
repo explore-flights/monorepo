@@ -22,8 +22,8 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type aircraftConfigurationsAdapter struct {
-	AirlineId      uuid.UUID
-	Configurations xsql.SQLArray[xsql.String, *xsql.String]
+	AirlineIataCode string
+	Configurations  xsql.SQLArray[xsql.String, *xsql.String]
 }
 
 func (a *aircraftConfigurationsAdapter) Scan(src any) error {
@@ -32,10 +32,10 @@ func (a *aircraftConfigurationsAdapter) Scan(src any) error {
 		return fmt.Errorf("AircraftConfigurationsAdapter.Scan: expected map[string]any, got %T", src)
 	}
 
-	var airlineId uuid.UUID
+	var airlineIataCode xsql.String
 	var configurations xsql.SQLArray[xsql.String, *xsql.String]
 
-	if err := airlineId.Scan(configurationsRaw["airline_id"]); err != nil {
+	if err := airlineIataCode.Scan(configurationsRaw["airline_iata_code"]); err != nil {
 		return err
 	}
 
@@ -44,8 +44,8 @@ func (a *aircraftConfigurationsAdapter) Scan(src any) error {
 	}
 
 	*a = aircraftConfigurationsAdapter{
-		AirlineId:      airlineId,
-		Configurations: configurations,
+		AirlineIataCode: string(airlineIataCode),
+		Configurations:  configurations,
 	}
 	return nil
 }
@@ -56,9 +56,9 @@ type flightRepoDatabase interface {
 
 type FlightRepo struct {
 	db       flightRepoDatabase
-	airlines *xsync.Preload[map[uuid.UUID]Airline]
-	airports *xsync.Preload[map[uuid.UUID]Airport]
-	aircraft *xsync.Preload[map[uuid.UUID]Aircraft]
+	airlines *xsync.Preload[map[string]Airline]
+	airports *xsync.Preload[map[string]Airport]
+	aircraft *xsync.Preload[map[string]Aircraft]
 }
 
 func NewFlightRepo(db flightRepoDatabase) *FlightRepo {
@@ -99,11 +99,11 @@ func (fr *FlightRepo) Flights(ctx context.Context, start, end xtime.LocalDate) (
 	return result, g.Wait()
 }
 
-func (fr *FlightRepo) Airlines(ctx context.Context) (map[uuid.UUID]Airline, error) {
+func (fr *FlightRepo) Airlines(ctx context.Context) (map[string]Airline, error) {
 	return fr.airlines.Value(ctx)
 }
 
-func (fr *FlightRepo) airlinesInternal() (map[uuid.UUID]Airline, error) {
+func (fr *FlightRepo) airlinesInternal() (map[string]Airline, error) {
 	ctx := context.Background()
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
@@ -115,9 +115,8 @@ func (fr *FlightRepo) airlinesInternal() (map[uuid.UUID]Airline, error) {
 		ctx,
 		`
 SELECT
-    id,
     iata_code,
-    ( SELECT icao_code FROM airline_icao_codes WHERE airline_id = id LIMIT 1 ),
+    icao_code,
     name
 FROM airlines
 `,
@@ -127,24 +126,24 @@ FROM airlines
 	}
 	defer rows.Close()
 
-	airlines := make(map[uuid.UUID]Airline)
+	airlines := make(map[string]Airline)
 	for rows.Next() {
 		var airline Airline
-		if err = rows.Scan(&airline.Id, &airline.IataCode, &airline.IcaoCode, &airline.Name); err != nil {
+		if err = rows.Scan(&airline.IataCode, &airline.IcaoCode, &airline.Name); err != nil {
 			return nil, err
 		}
 
-		airlines[airline.Id] = airline
+		airlines[airline.IataCode] = airline
 	}
 
 	return airlines, rows.Err()
 }
 
-func (fr *FlightRepo) Airports(ctx context.Context) (map[uuid.UUID]Airport, error) {
+func (fr *FlightRepo) Airports(ctx context.Context) (map[string]Airport, error) {
 	return fr.airports.Value(ctx)
 }
 
-func (fr *FlightRepo) airportsInternal() (map[uuid.UUID]Airport, error) {
+func (fr *FlightRepo) airportsInternal() (map[string]Airport, error) {
 	ctx := context.Background()
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
@@ -156,7 +155,6 @@ func (fr *FlightRepo) airportsInternal() (map[uuid.UUID]Airport, error) {
 		ctx,
 		`
 SELECT
-    id,
     iata_code,
     icao_code,
     iata_area_code,
@@ -175,11 +173,10 @@ FROM airports
 	}
 	defer rows.Close()
 
-	airports := make(map[uuid.UUID]Airport)
+	airports := make(map[string]Airport)
 	for rows.Next() {
 		var airport Airport
 		err = rows.Scan(
-			&airport.Id,
 			&airport.IataCode,
 			&airport.IcaoCode,
 			&airport.IataAreaCode,
@@ -195,17 +192,17 @@ FROM airports
 			return nil, err
 		}
 
-		airports[airport.Id] = airport
+		airports[airport.IataCode] = airport
 	}
 
 	return airports, rows.Err()
 }
 
-func (fr *FlightRepo) Aircraft(ctx context.Context) (map[uuid.UUID]Aircraft, error) {
+func (fr *FlightRepo) Aircraft(ctx context.Context) (map[string]Aircraft, error) {
 	return fr.aircraft.Value(ctx)
 }
 
-func (fr *FlightRepo) aircraftInternal() (map[uuid.UUID]Aircraft, error) {
+func (fr *FlightRepo) aircraftInternal() (map[string]Aircraft, error) {
 	ctx := context.Background()
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
@@ -217,38 +214,29 @@ func (fr *FlightRepo) aircraftInternal() (map[uuid.UUID]Aircraft, error) {
 		ctx,
 		`
 SELECT
-    ac.id,
-    COALESCE(act.aircraft_family_id, acf.parent_id),
-    COALESCE(act.iata_code, acf.iata_code),
-    act.icao_code,
-    act.wtc,
-    act.engine_count,
-    act.engine_type,
-    COALESCE(act.name, acf.name),
-    CASE
-    	WHEN ac.aircraft_type_id IS NOT NULL THEN 'aircraft'
-        WHEN ac.aircraft_family_id IS NOT NULL THEN 'family'
-        ELSE 'unmapped'
-    END,
+    iata_code,
+    parent_iata_code,
+    icao_code,
+    wtc,
+    engine_count,
+    engine_type,
+    name,
     COALESCE(
     	(
-			SELECT ARRAY_AGG({'airline_id': sub.operating_airline_id, 'configurations': sub.aircraft_configuration_versions})
+			SELECT ARRAY_AGG({'airline_iata_code': sub.operating_airline_iata_code, 'configurations': sub.aircraft_configuration_versions})
 			FROM (
 				SELECT
-					fv.operating_airline_id,
+					fv.operating_airline_iata_code,
 					COALESCE(ARRAY_AGG(DISTINCT fv.aircraft_configuration_version), []) AS aircraft_configuration_versions
 				FROM flight_variants fv
-				WHERE fv.aircraft_id = ac.id
-				GROUP BY fv.operating_airline_id
+				WHERE fv.aircraft_iata_code = ac.iata_code
+				GROUP BY fv.operating_airline_iata_code
 			) sub
 		),
     	[]
-    )
+    ),
+    EXISTS( FROM aircraft ac_child WHERE ac_child.parent_iata_code = ac.iata_code )
 FROM aircraft ac
-LEFT JOIN aircraft_types act
-ON ac.aircraft_type_id = act.id
-LEFT JOIN aircraft_families acf
-ON ac.aircraft_family_id = acf.id
 `,
 	)
 	if err != nil {
@@ -256,34 +244,33 @@ ON ac.aircraft_family_id = acf.id
 	}
 	defer rows.Close()
 
-	aircraft := make(map[uuid.UUID]Aircraft)
+	aircraft := make(map[string]Aircraft)
 	for rows.Next() {
 		var ac Aircraft
 		var configurationsRaw xsql.SQLArray[aircraftConfigurationsAdapter, *aircraftConfigurationsAdapter]
 		err = rows.Scan(
-			&ac.Id,
-			&ac.ParentFamilyId,
 			&ac.IataCode,
+			&ac.ParentIataCode,
 			&ac.IcaoCode,
 			&ac.Wtc,
 			&ac.EngineCount,
 			&ac.EngineType,
 			&ac.Name,
-			&ac.Type,
 			&configurationsRaw,
+			&ac.IsFamily,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		ac.Configurations = make(map[uuid.UUID][]string)
+		ac.Configurations = make(map[string][]string)
 		for _, configurationRaw := range configurationsRaw {
 			for _, v := range configurationRaw.Configurations {
-				ac.Configurations[configurationRaw.AirlineId] = append(ac.Configurations[configurationRaw.AirlineId], string(v))
+				ac.Configurations[configurationRaw.AirlineIataCode] = append(ac.Configurations[configurationRaw.AirlineIataCode], string(v))
 			}
 		}
 
-		aircraft[ac.Id] = ac
+		aircraft[ac.IataCode] = ac
 	}
 
 	return aircraft, rows.Err()
@@ -301,37 +288,35 @@ func (fr *FlightRepo) FindFlightNumbers(ctx context.Context, query string, limit
 		ctx,
 		`
 SELECT
-    sub.airline_id,
+    sub.airline_iata_code,
     sub.number,
     sub.suffix
 FROM (
 	SELECT
-		fn.airline_id,
+		fn.airline_iata_code,
 		fn.number,
 		fn.suffix,
 		MIN(
 			CASE
 			    WHEN UPPER(CONCAT(airl.iata_code, fn.number, fn.suffix)) = ? THEN 1
-				WHEN icao.icao_code IS NOT NULL AND UPPER(CONCAT(icao.icao_code, fn.number, fn.suffix)) = ? THEN 2
+				WHEN airl.icao_code IS NOT NULL AND UPPER(CONCAT(airl.icao_code, fn.number, fn.suffix)) = ? THEN 2
 			    WHEN airl.name IS NOT NULL AND UPPER(CONCAT(airl.name, fn.number, fn.suffix)) = ? THEN 3
 			    WHEN STARTS_WITH(UPPER(CONCAT(airl.iata_code, fn.number, fn.suffix)), ?) THEN 4
-				WHEN icao.icao_code IS NOT NULL AND STARTS_WITH(UPPER(CONCAT(icao.icao_code, fn.number, fn.suffix)), ?) THEN 5
+				WHEN airl.icao_code IS NOT NULL AND STARTS_WITH(UPPER(CONCAT(airl.icao_code, fn.number, fn.suffix)), ?) THEN 5
 			    WHEN airl.name IS NOT NULL AND STARTS_WITH(UPPER(CONCAT(airl.name, fn.number, fn.suffix)), ?) THEN 6
 			    WHEN UPPER(CONCAT(airl.iata_code, fn.number, fn.suffix)) GLOB ? THEN 7
-				WHEN icao.icao_code IS NOT NULL AND UPPER(CONCAT(icao.icao_code, fn.number, fn.suffix)) GLOB ? THEN 8
+				WHEN airl.icao_code IS NOT NULL AND UPPER(CONCAT(airl.icao_code, fn.number, fn.suffix)) GLOB ? THEN 8
 			    WHEN airl.name IS NOT NULL AND UPPER(CONCAT(airl.name, fn.number, fn.suffix)) GLOB ? THEN 9
 				ELSE 100
 			END
 		) AS priority
 	FROM flight_numbers fn
 	INNER JOIN airlines airl
-	ON fn.airline_id = airl.id
-	LEFT JOIN airline_icao_codes icao
-	ON fn.airline_id = icao.airline_id
-	GROUP BY fn.airline_id, fn.number, fn.suffix
+	ON fn.airline_iata_code = airl.iata_code
+	GROUP BY fn.airline_iata_code, fn.number, fn.suffix
 ) sub
 WHERE ? OR sub.priority < 100
-ORDER BY sub.priority, sub.airline_id ASC, sub.number ASC, sub.suffix ASC
+ORDER BY sub.priority, sub.airline_iata_code ASC, sub.number ASC, sub.suffix ASC
 LIMIT ?
 `,
 		query,
@@ -354,7 +339,7 @@ LIMIT ?
 	results := make([]FlightNumber, 0, limit)
 	for rows.Next() {
 		var flightNumber FlightNumber
-		if err = rows.Scan(&flightNumber.AirlineId, &flightNumber.Number, &flightNumber.Suffix); err != nil {
+		if err = rows.Scan(&flightNumber.AirlineIataCode, &flightNumber.Number, &flightNumber.Suffix); err != nil {
 			return nil, err
 		}
 
@@ -364,7 +349,7 @@ LIMIT ?
 	return results, rows.Err()
 }
 
-func (fr *FlightRepo) IterFlightNumbers(ctx context.Context, airlineId uuid.UUID, outErr *error) iter.Seq2[FlightNumber, time.Time] {
+func (fr *FlightRepo) IterFlightNumbers(ctx context.Context, airlineIataCode string, outErr *error) iter.Seq2[FlightNumber, time.Time] {
 	return func(yield func(FlightNumber, time.Time) bool) {
 		conn, err := fr.db.Conn(ctx)
 		if err != nil {
@@ -377,22 +362,22 @@ func (fr *FlightRepo) IterFlightNumbers(ctx context.Context, airlineId uuid.UUID
 			ctx,
 			`
 SELECT
-    fn.airline_id,
+    fn.airline_iata_code,
     fn.number,
     fn.suffix,
     MAX(fvh.created_at)
 FROM flight_numbers fn
 INNER JOIN flight_variant_history fvh
-ON fn.airline_id = fvh.airline_id
+ON fn.airline_iata_code = fvh.airline_iata_code
 AND fn.number = fvh.number
 AND fn.suffix = fvh.suffix
-WHERE fn.airline_id = ?
-AND fvh.airline_id = ?
-GROUP BY fn.airline_id, fn.number, fn.suffix
-ORDER BY fn.airline_id ASC, fn.number ASC, fn.suffix ASC
+WHERE fn.airline_iata_code = ?
+AND fvh.airline_iata_code = ?
+GROUP BY fn.airline_iata_code, fn.number, fn.suffix
+ORDER BY fn.airline_iata_code ASC, fn.number ASC, fn.suffix ASC
 `,
-			airlineId,
-			airlineId,
+			airlineIataCode,
+			airlineIataCode,
 		)
 		if err != nil {
 			*outErr = err
@@ -403,7 +388,7 @@ ORDER BY fn.airline_id ASC, fn.number ASC, fn.suffix ASC
 		for rows.Next() {
 			var flightNumber FlightNumber
 			var maxCreatedAt time.Time
-			if err = rows.Scan(&flightNumber.AirlineId, &flightNumber.Number, &flightNumber.Suffix, &maxCreatedAt); err != nil {
+			if err = rows.Scan(&flightNumber.AirlineIataCode, &flightNumber.Number, &flightNumber.Suffix, &maxCreatedAt); err != nil {
 				*outErr = err
 				return
 			}
@@ -433,7 +418,7 @@ func (fr *FlightRepo) RelatedFlightNumbers(ctx context.Context, fn FlightNumber,
 WITH filtered_flight_variant_history AS (
     SELECT *
 	FROM flight_variant_history
-	WHERE airline_id = ?
+	WHERE airline_iata_code = ?
 	AND number_mod_10 IN ((? % 10), (? % 10), (? % 10))
 	AND created_at <= CAST(? AS TIMESTAMPTZ)
 ), self_flight_variant_history AS (
@@ -450,23 +435,23 @@ WITH filtered_flight_variant_history AS (
 	    OR number = ?
 	)
 )
-SELECT DISTINCT rel_fvh.airline_id, rel_fvh.number, rel_fvh.suffix
+SELECT DISTINCT rel_fvh.airline_iata_code, rel_fvh.number, rel_fvh.suffix
 FROM related_flight_variant_history rel_fvh
 INNER JOIN flight_variants rel_fv
 ON rel_fvh.flight_variant_id = rel_fv.id
 INNER JOIN (
-	SELECT DISTINCT fvh.departure_airport_id, fv.arrival_airport_id
+	SELECT DISTINCT fvh.departure_airport_iata_code, fv.arrival_airport_iata_code
 	FROM self_flight_variant_history fvh
 	INNER JOIN flight_variants fv
 	ON fvh.flight_variant_id = fv.id
 ) self
 ON (
-	( rel_fvh.departure_airport_id = self.departure_airport_id AND rel_fv.arrival_airport_id = self.arrival_airport_id )
+	( rel_fvh.departure_airport_iata_code = self.departure_airport_iata_code AND rel_fv.arrival_airport_iata_code = self.arrival_airport_iata_code )
 	OR
-	( rel_fvh.departure_airport_id = self.arrival_airport_id AND rel_fv.arrival_airport_id = self.departure_airport_id )
+	( rel_fvh.departure_airport_iata_code = self.arrival_airport_iata_code AND rel_fv.arrival_airport_iata_code = self.departure_airport_iata_code )
 )
 `,
-		fn.AirlineId,
+		fn.AirlineIataCode,
 		fn.Number,
 		fn.Number+1,
 		fn.Number-1,
@@ -485,7 +470,7 @@ ON (
 	result := make(common.Set[FlightNumber])
 	for rows.Next() {
 		var flightNumber FlightNumber
-		if err = rows.Scan(&flightNumber.AirlineId, &flightNumber.Number, &flightNumber.Suffix); err != nil {
+		if err = rows.Scan(&flightNumber.AirlineIataCode, &flightNumber.Number, &flightNumber.Suffix); err != nil {
 			return nil, err
 		}
 
@@ -511,11 +496,11 @@ func (fr *FlightRepo) FlightSchedules(ctx context.Context, fn FlightNumber, vers
 WITH filtered_flight_variant_history AS (
     SELECT
         departure_date_local,
-		departure_airport_id,
+		departure_airport_iata_code,
 		flight_variant_id,
 		created_at
     FROM flight_variant_history
-	WHERE airline_id = ?
+	WHERE airline_iata_code = ?
 	AND number_mod_10 = (? % 10)
 	AND number = ?
 	AND suffix = ?
@@ -523,15 +508,15 @@ WITH filtered_flight_variant_history AS (
 )
 SELECT
     departure_date_local,
-    departure_airport_id,
+    departure_airport_iata_code,
     FIRST(flight_variant_id ORDER BY created_at DESC),
     FIRST(created_at ORDER BY created_at DESC),
     COUNT(DISTINCT created_at)
 FROM filtered_flight_variant_history
-GROUP BY departure_date_local, departure_airport_id
+GROUP BY departure_date_local, departure_airport_iata_code
 ORDER BY departure_date_local ASC
 `,
-			fn.AirlineId,
+			fn.AirlineIataCode,
 			fn.Number,
 			fn.Number,
 			fn.Suffix,
@@ -546,7 +531,7 @@ ORDER BY departure_date_local ASC
 			var fsi FlightScheduleItem
 			err = rows.Scan(
 				&fsi.DepartureDateLocal,
-				&fsi.DepartureAirportId,
+				&fsi.DepartureAirportIataCode,
 				&fsi.FlightVariantId,
 				&fsi.Version,
 				&fsi.VersionCount,
@@ -612,11 +597,11 @@ func (fr *FlightRepo) flightSchedulesRaw(ctx context.Context, filter Condition) 
 			fmt.Sprintf(
 				`
 SELECT
-    fvh.airline_id,
+    fvh.airline_iata_code,
     fvh.number,
     fvh.suffix,
     fvh.departure_date_local,
-    fvh.departure_airport_id,
+    fvh.departure_airport_iata_code,
     FIRST(fvh.flight_variant_id ORDER BY created_at DESC),
     FIRST(fvh.created_at ORDER BY created_at DESC),
     COUNT(*)
@@ -625,13 +610,13 @@ LEFT JOIN flight_variants fv
 ON fvh.flight_variant_id = fv.id
 WHERE %s
 GROUP BY
-	fvh.airline_id,
+	fvh.airline_iata_code,
 	fvh.number,
 	fvh.suffix,
 	fvh.departure_date_local,
-	fvh.departure_airport_id
+	fvh.departure_airport_iata_code
 ORDER BY
-    fvh.airline_id ASC,
+    fvh.airline_iata_code ASC,
 	fvh.number ASC,
 	fvh.suffix ASC,
 	fvh.departure_date_local ASC
@@ -649,11 +634,11 @@ ORDER BY
 			var fn FlightNumber
 			var fsi FlightScheduleItem
 			err = rows.Scan(
-				&fn.AirlineId,
+				&fn.AirlineIataCode,
 				&fn.Number,
 				&fn.Suffix,
 				&fsi.DepartureDateLocal,
-				&fsi.DepartureAirportId,
+				&fsi.DepartureAirportIataCode,
 				&fsi.FlightVariantId,
 				&fsi.Version,
 				&fsi.VersionCount,
@@ -686,7 +671,7 @@ ORDER BY
 	}, nil
 }
 
-func (fr *FlightRepo) FlightScheduleVersions(ctx context.Context, fn FlightNumber, departureAirport uuid.UUID, departureDate xtime.LocalDate) (FlightScheduleVersions, error) {
+func (fr *FlightRepo) FlightScheduleVersions(ctx context.Context, fn FlightNumber, departureAirportIataCode string, departureDate xtime.LocalDate) (FlightScheduleVersions, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return FlightScheduleVersions{}, err
@@ -703,19 +688,19 @@ SELECT
     created_at,
     flight_variant_id
 FROM flight_variant_history
-WHERE airline_id = ?
+WHERE airline_iata_code = ?
 AND number_mod_10 = (? % 10)
 AND number = ?
 AND suffix = ?
-AND departure_airport_id = ?
+AND departure_airport_iata_code = ?
 AND departure_date_local = ?
 ORDER BY created_at ASC
 `,
-			fn.AirlineId,
+			fn.AirlineIataCode,
 			fn.Number,
 			fn.Number,
 			fn.Suffix,
-			departureAirport,
+			departureAirportIataCode,
 			departureDate.String(),
 		)
 		if err != nil {
@@ -761,23 +746,24 @@ func (fr *FlightRepo) flightVariants(ctx context.Context, conn *sql.Conn, varian
 		strings.Replace(`
 SELECT
     id,
-    operating_airline_id,
+    operating_airline_iata_code,
     operating_number,
     operating_suffix,
     departure_time_local,
     departure_utc_offset_seconds,
     duration_seconds,
-    arrival_airport_id,
+    arrival_airport_iata_code,
     arrival_utc_offset_seconds,
     service_type,
     aircraft_owner,
-    aircraft_id,
+    aircraft_iata_code,
     seats_first,
     seats_business,
     seats_premium,
     seats_economy,
     aircraft_configuration_version,
-    code_shares
+    code_shares,
+    data_elements
 FROM flight_variants
 WHERE :filter
 			`, ":filter", filter, 1),
@@ -792,25 +778,27 @@ WHERE :filter
 	for rows.Next() {
 		var fsv FlightScheduleVariant
 		var codeShares xsql.SQLArray[FlightNumber, *FlightNumber]
+		var dataElements DuckDBMap[xsql.Int64, *xsql.Int64, xsql.String, *xsql.String]
 		err = rows.Scan(
 			&fsv.Id,
-			&fsv.OperatedAs.AirlineId,
+			&fsv.OperatedAs.AirlineIataCode,
 			&fsv.OperatedAs.Number,
 			&fsv.OperatedAs.Suffix,
 			&fsv.DepartureTimeLocal,
 			&fsv.DepartureUtcOffsetSeconds,
 			&fsv.DurationSeconds,
-			&fsv.ArrivalAirportId,
+			&fsv.ArrivalAirportIataCode,
 			&fsv.ArrivalUtcOffsetSeconds,
 			&fsv.ServiceType,
 			&fsv.AircraftOwner,
-			&fsv.AircraftId,
+			&fsv.AircraftIataCode,
 			&fsv.SeatsFirst,
 			&fsv.SeatsBusiness,
 			&fsv.SeatsPremium,
 			&fsv.SeatsEconomy,
 			&fsv.AircraftConfigurationVersion,
 			&codeShares,
+			&dataElements,
 		)
 		if err != nil {
 			return nil, err
@@ -823,6 +811,11 @@ WHERE :filter
 			}
 
 			variants[fsv.Id] = fsv
+		}
+
+		fsv.DataElements = make(map[int64]string)
+		for k, v := range dataElements {
+			fsv.DataElements[int64(k)] = string(v)
 		}
 	}
 
@@ -841,24 +834,25 @@ func (fr *FlightRepo) flightsInternal(ctx context.Context, d xtime.LocalDate) ([
 		ctx,
 		`
 SELECT
-    airline_id,
+    airline_iata_code,
     number,
     suffix,
     departure_timestamp_utc,
     departure_utc_offset_seconds,
-    departure_airport_id,
+    departure_airport_iata_code,
     duration_seconds,
     arrival_utc_offset_seconds,
-    arrival_airport_id,
+    arrival_airport_iata_code,
     service_type,
     aircraft_owner,
-    aircraft_id,
+    aircraft_iata_code,
     seats_first,
     seats_business,
     seats_premium,
     seats_economy,
     aircraft_configuration_version,
-    code_shares
+    code_shares,
+    data_elements
 FROM flight_variant_history_latest
 WHERE year_utc = ?
 AND month_utc = ?
@@ -878,25 +872,27 @@ AND day_utc = ?
 		var f Flight
 		var departureUtcOffsetSeconds, arrivalUtcOffsetSeconds, durationSeconds int
 		var codeShares xsql.SQLArray[FlightNumber, *FlightNumber]
+		var dataElements DuckDBMap[xsql.Int64, *xsql.Int64, xsql.String, *xsql.String]
 		err = rows.Scan(
-			&f.AirlineId,
+			&f.AirlineIataCode,
 			&f.Number,
 			&f.Suffix,
 			&f.DepartureTime,
 			&departureUtcOffsetSeconds,
-			&f.DepartureAirportId,
+			&f.DepartureAirportIataCode,
 			&durationSeconds,
 			&arrivalUtcOffsetSeconds,
-			&f.ArrivalAirportId,
+			&f.ArrivalAirportIataCode,
 			&f.ServiceType,
 			&f.AircraftOwner,
-			&f.AircraftId,
+			&f.AircraftIataCode,
 			&f.SeatsFirst,
 			&f.SeatsBusiness,
 			&f.SeatsPremium,
 			&f.SeatsEconomy,
 			&f.AircraftConfigurationVersion,
 			&codeShares,
+			&dataElements,
 		)
 		if err != nil {
 			return nil, err
@@ -906,9 +902,14 @@ AND day_utc = ?
 		f.ArrivalTime = f.DepartureTime.Add(time.Duration(durationSeconds) * time.Second)
 		f.ArrivalTime = f.ArrivalTime.In(time.FixedZone("", arrivalUtcOffsetSeconds))
 		f.CodeShares = make(common.Set[FlightNumber])
+		f.DataElements = make(map[int64]string)
 
 		for _, codeShareFn := range codeShares {
 			f.CodeShares.Add(codeShareFn)
+		}
+
+		for k, v := range dataElements {
+			f.DataElements[int64(k)] = string(v)
 		}
 
 		flights = append(flights, f)
@@ -934,30 +935,30 @@ func (fr *FlightRepo) UpdatesForVersion(ctx context.Context, version time.Time, 
 		ctx,
 		`
 SELECT DISTINCT
-    base.airline_id,
+    base.airline_iata_code,
     base.number,
     base.suffix,
     base.departure_date_local,
-    base.departure_airport_id,
+    base.departure_airport_iata_code,
     base.flight_variant_id
 FROM flight_variant_history base
 WHERE base.created_at >= ?
 AND base.created_at <= ?
 AND EXISTS(
     FROM flight_variant_history prev
-	WHERE base.airline_id = prev.airline_id
+	WHERE base.airline_iata_code = prev.airline_iata_code
 	AND base.number = prev.number
 	AND base.suffix = prev.suffix
 	AND base.departure_date_local = prev.departure_date_local
-	AND base.departure_airport_id = prev.departure_airport_id
+	AND base.departure_airport_iata_code = prev.departure_airport_iata_code
 	AND base.created_at = prev.replaced_at
 )
 ORDER BY
-    base.airline_id,
+    base.airline_iata_code,
     base.number,
     base.suffix,
     base.departure_date_local,
-    base.departure_airport_id,
+    base.departure_airport_iata_code,
     base.flight_variant_id
 LIMIT ?
 OFFSET ?
@@ -975,7 +976,7 @@ OFFSET ?
 	updates := make([]FlightScheduleUpdate, 0)
 	for rows.Next() {
 		var update FlightScheduleUpdate
-		if err := rows.Scan(&update.AirlineId, &update.Number, &update.Suffix, &update.DepartureDateLocal, &update.DepartureAirportId, &update.FlightVariantId); err != nil {
+		if err := rows.Scan(&update.AirlineIataCode, &update.Number, &update.Suffix, &update.DepartureDateLocal, &update.DepartureAirportIataCode, &update.FlightVariantId); err != nil {
 			return nil, err
 		}
 
@@ -1016,12 +1017,9 @@ func (fr *FlightRepo) Report(ctx context.Context, selectFields []SelectExpressio
 	query := "SELECT " + strings.Join(selectStrs, ",") + `
 FROM report r
 INNER JOIN aircraft ac
-ON r.aircraft_id = ac.id
-LEFT JOIN aircraft_types act
-ON ac.aircraft_type_id = act.id
-LEFT JOIN aircraft_families acf
-ON ac.aircraft_family_id = acf.id
-OR act.aircraft_family_id = acf.id
+ON r.aircraft_iata_code = ac.iata_code
+LEFT JOIN aircraft acp
+ON ac.parent_iata_code = acp.iata_code
 `
 	if filterStr != "" {
 		query += " WHERE " + filterStr
@@ -1050,24 +1048,24 @@ OR act.aircraft_family_id = acf.id
 	return rows.Err()
 }
 
-func (fr *FlightRepo) FindConnection(ctx context.Context, minFlights, maxFlights int, seed string) ([2]uuid.UUID, error) {
+func (fr *FlightRepo) FindConnection(ctx context.Context, minFlights, maxFlights int, seed string) ([2]string, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
-		return [2]uuid.UUID{}, err
+		return [2]string{}, err
 	}
 	defer conn.Close()
 
 	rows, err := conn.QueryContext(
 		ctx,
 		`
-SELECT departure_airport_id, arrival_airport_id
+SELECT departure_airport_iata_code, arrival_airport_iata_code
 FROM connections
 WHERE min_flights >= ?
 AND min_flights <= ?
 ORDER BY (
-    GREATEST(MD5_NUMBER(CONCAT(departure_airport_id, arrival_airport_id)), MD5_NUMBER(?))
+    GREATEST(MD5_NUMBER(CONCAT(departure_airport_iata_code, arrival_airport_iata_code)), MD5_NUMBER(?))
     -
-    LEAST(MD5_NUMBER(CONCAT(departure_airport_id, arrival_airport_id)), MD5_NUMBER(?))
+    LEAST(MD5_NUMBER(CONCAT(departure_airport_iata_code, arrival_airport_iata_code)), MD5_NUMBER(?))
 )
 LIMIT 1
 `,
@@ -1077,17 +1075,17 @@ LIMIT 1
 		seed,
 	)
 	if err != nil {
-		return [2]uuid.UUID{}, err
+		return [2]string{}, err
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
-		return [2]uuid.UUID{}, fmt.Errorf("no connection found: %w", ErrNotFound)
+		return [2]string{}, fmt.Errorf("no connection found: %w", ErrNotFound)
 	}
 
-	var connection [2]uuid.UUID
+	var connection [2]string
 	if err = rows.Scan(&connection[0], &connection[1]); err != nil {
-		return [2]uuid.UUID{}, err
+		return [2]string{}, err
 	}
 
 	return connection, rows.Err()
