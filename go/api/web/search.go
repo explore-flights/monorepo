@@ -28,7 +28,7 @@ func NewSearchHandler(repo searchHandlerRepo) *SearchHandler {
 }
 
 func (sh *SearchHandler) Search(c echo.Context) error {
-	resp, airlines, err := sh.search(c)
+	resp, err := sh.search(c)
 
 	if c.Request().Header.Get(echo.HeaderAccept) == echo.MIMEApplicationJSON {
 		// api request
@@ -59,25 +59,25 @@ func (sh *SearchHandler) Search(c echo.Context) error {
 	} else if len(resp.FlightNumbers) > 1 {
 		q := make(url.Values)
 		for _, fn := range resp.FlightNumbers {
-			q.Add("v", sh.flightNumberString(airlines, fn))
+			q.Add("v", sh.flightNumberString(fn))
 		}
 
 		return c.Redirect(http.StatusFound, "/flight?"+q.Encode())
 	}
 
-	return c.Redirect(http.StatusFound, "/flight/"+url.PathEscape(sh.flightNumberString(airlines, resp.FlightNumbers[0])))
+	return c.Redirect(http.StatusFound, "/flight/"+url.PathEscape(sh.flightNumberString(resp.FlightNumbers[0])))
 }
 
-func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, map[string]db.Airline, error) {
+func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, error) {
 	ctx := c.Request().Context()
 	fns, err := sh.repo.FindFlightNumbers(ctx, strings.TrimSpace(c.QueryParam("q")), 100)
 	if err != nil {
-		return model.SearchResponse{}, nil, err
+		return model.SearchResponse{}, err
 	}
 
 	airlines, err := sh.repo.Airlines(ctx)
 	if err != nil {
-		return model.SearchResponse{}, nil, err
+		return model.SearchResponse{}, err
 	}
 
 	added := make(common.Set[string])
@@ -96,13 +96,9 @@ func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, map[strin
 		}
 	}
 
-	return resp, airlines, nil
+	return resp, nil
 }
 
-func (sh *SearchHandler) flightNumberString(airlines map[string]db.Airline, fn model.FlightNumber) string {
-	if airline, ok := airlines[fn.AirlineIataCode]; ok {
-		return fmt.Sprintf("%s%d%s", airline.IataCode, fn.Number, fn.Suffix)
-	}
-
-	return fmt.Sprintf("%s-%d%s", fn.AirlineIataCode, fn.Number, fn.Suffix)
+func (sh *SearchHandler) flightNumberString(fn model.FlightNumber) string {
+	return fmt.Sprintf("%s%d%s", fn.AirlineIataCode, fn.Number, fn.Suffix)
 }
