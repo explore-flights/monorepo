@@ -65,7 +65,7 @@ func (ch *ConnectionsHandler) connections(c echo.Context, export string) error {
 		return err
 	}
 
-	req, err := ch.parseAndValidateRequest(c, airports)
+	req, err := ch.parseAndValidateRequest(c)
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 	}
@@ -132,13 +132,7 @@ func (ch *ConnectionsHandler) connections(c echo.Context, export string) error {
 }
 
 func (ch *ConnectionsHandler) ConnectionsShareCreate(c echo.Context) error {
-	ctx := c.Request().Context()
-	airports, err := ch.repo.Airports(ctx)
-	if err != nil {
-		return err
-	}
-
-	req, err := ch.parseAndValidateRequest(c, airports)
+	req, err := ch.parseAndValidateRequest(c)
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 	}
@@ -158,13 +152,7 @@ func (ch *ConnectionsHandler) ConnectionsShareCreate(c echo.Context) error {
 }
 
 func (ch *ConnectionsHandler) ConnectionsShareHTML(c echo.Context) error {
-	ctx := c.Request().Context()
-	airports, err := ch.repo.Airports(ctx)
-	if err != nil {
-		return err
-	}
-
-	req, err := ch.parseAndValidateRequest(c, airports)
+	req, err := ch.parseAndValidateRequest(c)
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 	}
@@ -177,23 +165,8 @@ func (ch *ConnectionsHandler) ConnectionsShareHTML(c echo.Context) error {
 		return err
 	}
 
-	origins := make([]string, 0, len(req.Origins))
-	destinations := make([]string, 0, len(req.Destinations))
-
-	for _, o := range req.Origins {
-		if airport, ok := airports[o]; ok {
-			origins = append(origins, airport.IataCode)
-		}
-	}
-
-	for _, d := range req.Destinations {
-		if airport, ok := airports[d]; ok {
-			destinations = append(destinations, airport.IataCode)
-		}
-	}
-
-	originsStr := strings.Join(origins, " | ")
-	destinationsStr := strings.Join(destinations, " | ")
+	originsStr := strings.Join(req.Origins, " | ")
+	destinationsStr := strings.Join(req.Destinations, " | ")
 
 	data := map[string]string{
 		"scheme":     scheme,
@@ -230,8 +203,8 @@ func (ch *ConnectionsHandler) shareImageUrl(scheme, host, payload string) string
 	return scheme + "://" + host + "/api/connections/png/" + url.PathEscape(payload) + "/c.png"
 }
 
-func (ch *ConnectionsHandler) parseAndValidateRequest(c echo.Context, airports map[string]db.Airport) (model.ConnectionsSearchRequest, error) {
-	req, err := ch.parseRequest(c, airports)
+func (ch *ConnectionsHandler) parseAndValidateRequest(c echo.Context) (model.ConnectionsSearchRequest, error) {
+	req, err := ch.parseRequest(c)
 	if err != nil {
 		return model.ConnectionsSearchRequest{}, err
 	}
@@ -243,7 +216,7 @@ func (ch *ConnectionsHandler) parseAndValidateRequest(c echo.Context, airports m
 	return req, nil
 }
 
-func (ch *ConnectionsHandler) parseRequest(c echo.Context, airports map[string]db.Airport) (model.ConnectionsSearchRequest, error) {
+func (ch *ConnectionsHandler) parseRequest(c echo.Context) (model.ConnectionsSearchRequest, error) {
 	payloadB64 := c.Param("payload")
 
 	var req model.ConnectionsSearchRequest
@@ -268,8 +241,8 @@ func (ch *ConnectionsHandler) parseRequest(c echo.Context, airports map[string]d
 		}
 
 		req = model.ConnectionsSearchRequest{
-			Origins:             ch.mapAirportsFromPB(airports, pbReq.Origins),
-			Destinations:        ch.mapAirportsFromPB(airports, pbReq.Destinations),
+			Origins:             pbReq.Origins,
+			Destinations:        pbReq.Destinations,
 			MinDeparture:        pbReq.MinDeparture.AsTime(),
 			MaxDeparture:        pbReq.MaxDeparture.AsTime(),
 			MaxFlights:          pbReq.MaxFlights,
@@ -492,20 +465,6 @@ func (ch *ConnectionsHandler) buildNodeLabel(f *connections.Flight, airline db.A
 	}
 
 	return fmt.Sprintf("%s\n%s\u2014%s\n%s", fnStr, departureAirport.IataCode, arrivalAirport.IataCode, aircraftStr)
-}
-
-func (ch *ConnectionsHandler) mapAirportsFromPB(airports map[string]db.Airport, base []string) []string {
-	result := make([]string, 0, len(base))
-	for _, v := range base {
-		for _, airport := range airports {
-			if airport.IataCode == v {
-				result = append(result, airport.IataCode)
-				break
-			}
-		}
-	}
-
-	return result
 }
 
 func (ch *ConnectionsHandler) validateRequest(req model.ConnectionsSearchRequest) error {

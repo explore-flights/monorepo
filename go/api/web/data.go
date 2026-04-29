@@ -815,6 +815,11 @@ func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.Fl
 		return db.FlightNumber{}, err
 	}
 
+	return parseFlightNumber(airlines, raw)
+}
+
+func parseFlightNumber(airlines map[string]db.Airline, raw string) (db.FlightNumber, error) {
+
 	if groups := iataFlightNumberRgx.FindStringSubmatch(raw); groups != nil {
 		airlineIata := strings.ToUpper(groups[1])
 		number, err := strconv.Atoi(groups[2])
@@ -822,14 +827,12 @@ func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.Fl
 			return db.FlightNumber{}, fmt.Errorf("invalid FlightNumber: %q: %w", raw, err)
 		}
 
-		for _, airline := range airlines {
-			if airline.IataCode == airlineIata {
-				return db.FlightNumber{
-					AirlineIataCode: airline.IataCode,
-					Number:          number,
-					Suffix:          groups[3],
-				}, nil
-			}
+		if _, ok := airlines[airlineIata]; ok {
+			return db.FlightNumber{
+				AirlineIataCode: airlineIata,
+				Number:          number,
+				Suffix:          groups[3],
+			}, nil
 		}
 	}
 
@@ -855,12 +858,12 @@ func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.Fl
 }
 
 func (dh *DataHandler) parseAndResolveFlightNumber(ctx context.Context, raw string) (db.FlightNumber, db.Airline, error) {
-	fn, err := dh.parseFlightNumber(ctx, raw)
+	airlines, err := dh.repo.Airlines(ctx)
 	if err != nil {
 		return db.FlightNumber{}, db.Airline{}, err
 	}
 
-	airlines, err := dh.repo.Airlines(ctx)
+	fn, err := parseFlightNumber(airlines, raw)
 	if err != nil {
 		return db.FlightNumber{}, db.Airline{}, err
 	}
