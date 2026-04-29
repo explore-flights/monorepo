@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"errors"
 	"iter"
 
 	"github.com/explore-flights/monorepo/go/api/db"
@@ -101,17 +102,14 @@ func (ac Aircraft) MarshalJSON() ([]byte, error) {
 		}
 	} else if ac.AircraftFamily != nil {
 		v["type"] = "family"
+		v["iataCode"] = ac.AircraftFamily.IataCode
 		v["name"] = ac.AircraftFamily.Name
 
 		if ac.AircraftFamily.ParentFamilyId != nil {
 			v["parentFamilyId"] = *ac.AircraftFamily.ParentFamilyId
 		}
-
-		if ac.AircraftFamily.IataCode != "" {
-			v["iataCode"] = ac.AircraftFamily.IataCode
-		}
 	} else {
-		v["type"] = "unmapped"
+		return nil, errors.New("aircraft has neither aircraft type nor aircraft family")
 	}
 
 	return json.Marshal(v)
@@ -161,19 +159,19 @@ func AircraftFromDb(dbAc db.Aircraft) Aircraft {
 		Configurations: configurations,
 	}
 
+	var parentFamilyId *string
+	if dbAc.ParentIataCode.Valid {
+		id := dbAc.ParentIataCode.String
+		parentFamilyId = &id
+	}
+
 	if dbAc.IsFamily {
 		ac.AircraftFamily = &AircraftFamily{
-			ParentFamilyId: nil,
+			ParentFamilyId: parentFamilyId,
 			IataCode:       dbAc.IataCode,
 			Name:           dbAc.Name,
 		}
 	} else {
-		var parentFamilyId *string
-		if dbAc.ParentIataCode.Valid {
-			id := dbAc.ParentIataCode.String
-			parentFamilyId = &id
-		}
-
 		ac.AircraftType = &AircraftType{
 			ParentFamilyId: parentFamilyId,
 			IataCode:       dbAc.IataCode,

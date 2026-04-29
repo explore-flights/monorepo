@@ -27,15 +27,15 @@ export interface Airport {
   iataCode: string;
   icaoCode?: string;
   iataAreaCode?: string;
-  countryCode?: string;
-  cityCode?: string;
-  type?: string;
-  location?: {
+  countryCode: string;
+  cityCode: string;
+  type: string;
+  location: {
     lng: number;
     lat: number;
   }
-  timezone?: string;
-  name?: string;
+  timezone: string;
+  name: string;
 }
 
 export type AirlineId = Branded<string, 'AirlineId'>;
@@ -48,12 +48,12 @@ export interface Airline {
 
 export type AircraftId = Branded<string, 'AircraftId'>;
 export interface AircraftBase {
-  type: 'aircraft' | 'family' | 'unmapped';
+  type: 'aircraft' | 'family';
   id: AircraftId;
+  iataCode: string;
   parentFamilyId?: AircraftId;
-  iataCode?: string;
   icaoCode?: string;
-  name?: string;
+  name: string;
   configurations: Record<AirlineId, ReadonlyArray<string>>;
 }
 
@@ -68,15 +68,7 @@ export interface AircraftFamily extends AircraftBase {
   icaoCode: undefined;
 }
 
-export interface AircraftUnmapped extends AircraftBase {
-  type: 'unmapped';
-  parentFamilyId: undefined;
-  iataCode: undefined;
-  icaoCode: undefined;
-  name: undefined;
-}
-
-export type Aircraft = AircraftType | AircraftFamily | AircraftUnmapped;
+export type Aircraft = AircraftType | AircraftFamily;
 
 export interface FlightNumber {
   airlineId: AirlineId;
