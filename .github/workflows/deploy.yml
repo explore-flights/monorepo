@@ -38,15 +38,14 @@ jobs:
       - name: 'Checkout'
         uses: actions/checkout@v6
       - name: 'Build'
-        uses: explore-flights/libduckdb/.github/actions/build_go_provided@v1.5.1-v1+parquet.json.icu.httpfs.aws
+        uses: explore-flights/libduckdb/.github/actions/build_go_provided@v1.5.2-v1+parquet.json.icu.httpfs.aws
         with:
-          release: 'v1.5.1-v1+parquet.json.icu.httpfs.aws'
           file: 'libduckdb_bundle-arm64-linux.a'
           platform: 'linux/arm64'
           image_arch: 'aarch64'
           go_os: 'linux'
           go_arch: 'arm64'
-          go_version: '1.26.1'
+          go_version: '1.26.2'
           go_build_tags: 'lambda'
           go_build_relative_dir: 'go/api'
           go_build_output_file: 'go/api/bootstrap'
