@@ -80,21 +80,15 @@ func (sh *SitemapHandler) SitemapIndex(c echo.Context) error {
 
 func (sh *SitemapHandler) SitemapAirline(c echo.Context) error {
 	const ttl = time.Hour * 3
+	ctx := c.Request().Context()
 
 	airlineIataCode := c.Param("airlineId")
-
-	ctx := c.Request().Context()
-	airlines, err := sh.repo.Airlines(ctx)
-	if err != nil {
-		return err
-	}
-
 	baseURL := baseUrl(c)
 	res := c.Response()
 	res.Header().Set(echo.HeaderContentType, echo.MIMEApplicationXMLCharsetUTF8)
 	addExpirationHeaders(c, time.Now(), ttl)
 
-	_, err = res.Write([]byte(xml.Header))
+	_, err := res.Write([]byte(xml.Header))
 	if err != nil {
 		return err
 	}
@@ -114,7 +108,7 @@ func (sh *SitemapHandler) SitemapAirline(c echo.Context) error {
 	}
 
 	for fn, lastModified := range sh.repo.IterFlightNumbers(ctx, airlineIataCode, &err) {
-		if err = sh.addSitemapURL(enc, "url", sh.buildFlightURL(baseURL, airlines, fn), lastModified); err != nil {
+		if err = sh.addSitemapURL(enc, "url", sh.buildFlightURL(baseURL, fn), lastModified); err != nil {
 			return err
 		}
 	}
@@ -135,15 +129,8 @@ func (sh *SitemapHandler) buildSitemapURL(baseURL string, airlineIataCode string
 	return fmt.Sprintf("%s/data/sitemap/%s/sitemap.xml", baseURL, airlineIataCode)
 }
 
-func (sh *SitemapHandler) buildFlightURL(baseURL string, airlines map[string]db.Airline, fn db.FlightNumber) string {
-	var prefix string
-	if airline, ok := airlines[fn.AirlineIataCode]; ok {
-		prefix = airline.IataCode
-	} else {
-		prefix = fn.AirlineIataCode
-	}
-
-	return fmt.Sprintf("%s/flight/%s%d%s", baseURL, prefix, fn.Number, fn.Suffix)
+func (sh *SitemapHandler) buildFlightURL(baseURL string, fn db.FlightNumber) string {
+	return fmt.Sprintf("%s/flight/%s%d%s", baseURL, fn.AirlineIataCode, fn.Number, fn.Suffix)
 }
 
 func (sh *SitemapHandler) addSitemapURL(enc *xml.Encoder, name, loc string, modified time.Time) error {
