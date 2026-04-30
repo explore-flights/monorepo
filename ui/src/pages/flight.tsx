@@ -488,7 +488,13 @@ function Map({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
   }, [flights]);
 
   return (
-    <ExpandableSection variant={'stacked'} headerText={'Map'} headerInfo={<Box variant={'small'}>Table filters applied</Box>} defaultExpanded={true}>
+    <ExpandableSection
+      variant={'stacked'}
+      headerText={'Map'}
+      headerInfo={<Box variant={'small'}>Table filters applied</Box>}
+      defaultExpanded={true}
+      disableContentPaddings={true}
+    >
       <MaplibreMap height={'50vh'}>
         {...markers}
         {...lines}

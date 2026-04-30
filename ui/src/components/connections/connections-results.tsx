@@ -16,7 +16,7 @@ export function ConnectionsResults({ connections }: ConnectionsResultsProps) {
 
   return (
     <>
-      <ExpandableSection headerText={'Graph'} defaultExpanded={true} variant={'stacked'}>
+      <ExpandableSection headerText={'Graph'} defaultExpanded={true} variant={'stacked'} disableContentPaddings={true}>
         <ConnectionsGraphTabs connections={connections} />
       </ExpandableSection>
       <ExpandableSection headerText={'Map'} defaultExpanded={false} variant={'stacked'} disableContentPaddings={true}>
