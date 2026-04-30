@@ -15,7 +15,7 @@ import { bbox, featureCollection, point } from '@turf/turf';
 import { Feature, Point } from 'geojson';
 import { LngLatBoundsLike } from 'maplibre-gl';
 import { AirportInlineText } from '../common/text';
-import { Marker } from 'react-map-gl/maplibre';
+import { AirportMarker } from '../maplibre/marker';
 
 export interface ConnectionsMapProps {
   connections: ConnectionsResponse;
@@ -103,11 +103,11 @@ function toMarkersAndLines(
     markers.set(
       node.airport.id,
       (
-        <Marker longitude={node.airport.location?.lng ?? 0.0} latitude={node.airport.location?.lat ?? 0.0}>
+        <AirportMarker airport={node.airport}>
           <Popover content={<AirportPopoverContent node={node} />} renderWithPortal={true}>
             <AirportInlineText airport={node.airport} badgeColor={badgeColor} noPopover={true} />
           </Popover>
-        </Marker>
+        </AirportMarker>
       ),
     );
   }

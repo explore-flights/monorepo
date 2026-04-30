@@ -13,7 +13,7 @@ import { CodeView } from '@cloudscape-design/code-view';
 import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
 import { aircraftConfigurationVersionToName } from '../../lib/consts';
 import { MaplibreMapInline } from '../maplibre/maplibre-map';
-import { Marker } from 'react-map-gl/maplibre';
+import { AirportMarker } from '../maplibre/marker';
 
 export interface AirportTextProps {
   airport: Airport;
@@ -120,9 +120,9 @@ function AirportPopover({ airport, renderWithPortal, children }: React.PropsWith
               <SpaceBetween size={'xs'} direction={'vertical'}>
                 <Box>Latitude: {airport.location.lat}, Longitude: {airport.location.lng}</Box>
                 <MaplibreMapInline initialLat={airport.location.lat} initialLng={airport.location.lng} initialZoom={2}>
-                  <Marker latitude={airport.location.lat} longitude={airport.location.lng}>
+                  <AirportMarker airport={airport}>
                     <Badge color={'green'}>{airport.iataCode}</Badge>
-                  </Marker>
+                  </AirportMarker>
                 </MaplibreMapInline>
               </SpaceBetween>
             )

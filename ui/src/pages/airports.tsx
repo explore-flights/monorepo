@@ -10,7 +10,7 @@ import {
 } from '@cloudscape-design/components';
 import { distance } from '@turf/turf';
 import { MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
-import { Marker } from 'react-map-gl/maplibre';
+import { AirportMarker } from '../components/maplibre/marker';
 import { Airport, AirportId, DestinationReport } from '../lib/api/api.model';
 import { WithRequired } from '@tanstack/react-query';
 
@@ -119,7 +119,7 @@ function AllAirportsMarkers({ airports, onAirportClick }: { airports: ReadonlyAr
 
       const airport = { ..._airport, location: _airport.location };
       nodes.push(
-        <AirportMarker
+        <InternalAirportMarker
           airport={airport}
           onClick={() => onAirportClick(airport)}
           onRemoveClick={() => {}}
@@ -193,7 +193,7 @@ function SelectedAirportsMarkers({ airports, tailConnections, addAirport, remove
 
         if (isTail || !hasTailConnection) {
           nodes.push(
-            <AirportMarker
+            <InternalAirportMarker
               airport={airport}
               onClick={() => toggleShowConnections()}
               onRemoveClick={() => removeAirport(airport)}
@@ -225,7 +225,7 @@ function SelectedAirportsMarkers({ airports, tailConnections, addAirport, remove
         const indexes = indexesByAirportId.get(airport.id) ?? [];
 
         nodes.push(
-          <AirportMarker
+          <InternalAirportMarker
             airport={airport}
             onClick={() => addAirport(airport)}
             onRemoveClick={() => {}}
@@ -248,7 +248,7 @@ function SelectedAirportsMarkers({ airports, tailConnections, addAirport, remove
   );
 }
 
-function AirportMarker({ airport, onClick, onRemoveClick, indexes, connectable, removable, disabled }: { airport: WithRequired<Airport, 'location'>, onClick: () => void, onRemoveClick: () => void, indexes: ReadonlyArray<number>, connectable: boolean, removable: boolean, disabled: boolean }) {
+function InternalAirportMarker({ airport, onClick, onRemoveClick, indexes, connectable, removable, disabled }: { airport: WithRequired<Airport, 'location'>, onClick: () => void, onRemoveClick: () => void, indexes: ReadonlyArray<number>, connectable: boolean, removable: boolean, disabled: boolean }) {
   let badge: React.ReactNode | null = null;
   if (indexes.length > 0) {
     const text = indexes.map((v) => v + 1).join(',');
@@ -276,9 +276,9 @@ function AirportMarker({ airport, onClick, onRemoveClick, indexes, connectable, 
   }
 
   return (
-    <Marker longitude={airport.location.lng} latitude={airport.location.lat}>
+    <AirportMarker airport={airport}>
       {content}
-    </Marker>
+    </AirportMarker>
   );
 }
 

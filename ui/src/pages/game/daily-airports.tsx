@@ -24,7 +24,7 @@ import {
 } from '@cloudscape-design/components';
 import { distance } from '@turf/turf';
 import { MaplibreMap, SmartLine } from '../../components/maplibre/maplibre-map';
-import { Marker, useMap } from 'react-map-gl/maplibre';
+import { useMap } from 'react-map-gl/maplibre';
 import { Airport, AirportId, DestinationReport, isJsonObject, JsonType } from '../../lib/api/api.model';
 import { WithRequired } from '@tanstack/react-query';
 import { DateTime, Duration } from 'luxon';
@@ -32,6 +32,7 @@ import { useDependentState } from '../../components/util/state/use-dependent-sta
 import { ConsentLevel } from '../../lib/consent.model';
 import { useSearchParams } from 'react-router-dom';
 import { useBrowserStore } from '../../components/util/context/browser-store';
+import { AirportMarker } from '../../components/maplibre/marker';
 
 interface GameParams {
   seed: string;
@@ -327,7 +328,7 @@ function DailyAirportsGame({ gameParams, departureAirport, arrivalAirport, loadN
           && arrivalAirport.location
           && lastAirportId !== arrivalAirport.id
             ? (
-              <AirportMarker
+              <InternalAirportMarker
                 iconName={'search'}
                 airport={arrivalAirport}
                 onClick={() => {}}
@@ -404,7 +405,7 @@ function SelectedAirportsMarkers({ searchForAirportId, destinations, tailConnect
 
         if (isTail || !hasTailConnection) {
           nodes.push(
-            <AirportMarker
+            <InternalAirportMarker
               airport={airport}
               onClick={() => {}}
               onRemoveClick={() => removeDestination(destination)}
@@ -437,7 +438,7 @@ function SelectedAirportsMarkers({ searchForAirportId, destinations, tailConnect
         const indexes = indexesByAirportId.get(airport.id) ?? [];
 
         nodes.push(
-          <AirportMarker
+          <InternalAirportMarker
             iconName={airport.id === searchForAirportId ? 'search' : undefined}
             airport={airport}
             onClick={() => addDestination(destination)}
@@ -461,7 +462,7 @@ function SelectedAirportsMarkers({ searchForAirportId, destinations, tailConnect
   );
 }
 
-function AirportMarker({ iconName, airport, onClick, onRemoveClick, indexes, connectable, removable, disabled }: { iconName?: IconProps.Name, airport: WithRequired<Airport, 'location'>, onClick: () => void, onRemoveClick: () => void, indexes: ReadonlyArray<number>, connectable: boolean, removable: boolean, disabled: boolean }) {
+function InternalAirportMarker({ iconName, airport, onClick, onRemoveClick, indexes, connectable, removable, disabled }: { iconName?: IconProps.Name, airport: WithRequired<Airport, 'location'>, onClick: () => void, onRemoveClick: () => void, indexes: ReadonlyArray<number>, connectable: boolean, removable: boolean, disabled: boolean }) {
   let badge: React.ReactNode | null = null;
   if (indexes.length > 0) {
     const text = indexes.map((v) => v + 1).join(',');
@@ -489,9 +490,9 @@ function AirportMarker({ iconName, airport, onClick, onRemoveClick, indexes, con
   }
 
   return (
-    <Marker longitude={airport.location.lng} latitude={airport.location.lat}>
+    <AirportMarker airport={airport}>
       {content}
-    </Marker>
+    </AirportMarker>
   );
 }
 

@@ -21,12 +21,12 @@ import { aircraftConfigurationVersionToName } from '../../lib/consts';
 import { FlightNumberList, InternalFlightLink } from '../common/flight-link';
 import { AircraftConfigurationVersionText, AircraftText, AirportInlineText } from '../common/text';
 import { Feature, Point } from 'geojson';
-import { Marker } from 'react-map-gl/maplibre';
 import { bbox, featureCollection, point } from '@turf/turf';
 import { FitBounds, MaplibreMap, SmartLine } from '../maplibre/maplibre-map';
 import { useConsent } from '../util/state/use-consent';
 import { ConsentLevel } from '../../lib/consent.model';
 import { LineSeries, SeriesBuilder } from '../../lib/charts/builder';
+import { AirportMarker } from '../maplibre/marker';
 
 export interface FlightItem {
   flightNumber: [Airline, FlightNumber];
@@ -334,9 +334,9 @@ function AircraftMap({ flights, loading }: { flights: ReadonlyArray<FlightItem>,
           addedAirports.add(airport.id);
 
           markers.push(
-            <Marker latitude={airport.location.lat} longitude={airport.location.lng}>
+            <AirportMarker airport={airport}>
               <AirportInlineText airport={airport} badgeColor={'green'} renderWithPortal={true} />
-            </Marker>
+            </AirportMarker>
           );
 
           points.push(point([airport.location.lng, airport.location.lat]));

@@ -49,9 +49,9 @@ import {
 } from '../lib/charts/builder';
 import { RouterInlineLink } from '../components/common/router-link';
 import { FitBounds, MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
-import { Marker } from 'react-map-gl/maplibre';
 import { Feature, Point } from 'geojson';
 import { bbox, featureCollection, point } from '@turf/turf';
+import { AirportMarker } from '../components/maplibre/marker';
 
 export function FlightView() {
   const { id } = useParams();
@@ -451,9 +451,9 @@ function Map({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
           addedAirports.add(airport.id);
 
           markers.push(
-            <Marker latitude={airport.location.lat} longitude={airport.location.lng}>
+            <AirportMarker airport={airport}>
               <AirportInlineText airport={airport} badgeColor={'green'} renderWithPortal={true} />
-            </Marker>
+            </AirportMarker>
           );
 
           points.push(point([airport.location.lng, airport.location.lat]));

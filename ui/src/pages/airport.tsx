@@ -16,7 +16,7 @@ import { Duration } from 'luxon';
 import { LineSeries, SeriesBuilder } from '../lib/charts/builder';
 import { MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
 import { airportToString } from '../lib/util/flight';
-import { Marker } from 'react-map-gl/maplibre';
+import { AirportMarker } from '../components/maplibre/marker';
 
 export function AirportPage() {
   const { id } = useParams();
@@ -94,9 +94,9 @@ function DestinationsMap({ airport, destinations, loading }: { airport?: Airport
 
     const srcLocation = airport.location;
     nodes.push(
-      <Marker latitude={srcLocation.lat} longitude={srcLocation.lng}>
+      <AirportMarker airport={airport}>
         <Button variant={'primary'} disabled={true}>{airportToString(airport)}</Button>
-      </Marker>
+      </AirportMarker>
     );
 
     for (const destination of destinations) {
@@ -107,9 +107,9 @@ function DestinationsMap({ airport, destinations, loading }: { airport?: Airport
 
       nodes.push(<SmartLine src={[srcLocation.lng, srcLocation.lat]} dst={[destinationAirport.location.lng, destinationAirport.location.lat]} />);
       nodes.push(
-        <Marker latitude={destinationAirport.location.lat} longitude={destinationAirport.location.lng}>
+        <AirportMarker airport={destinationAirport}>
           <Button variant={'normal'} disabled={true}>{airportToString(destinationAirport)}</Button>
-        </Marker>
+        </AirportMarker>
       );
     }
 
