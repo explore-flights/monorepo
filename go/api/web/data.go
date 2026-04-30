@@ -17,6 +17,7 @@ import (
 
 	"github.com/explore-flights/monorepo/go/api/business/raw"
 	"github.com/explore-flights/monorepo/go/api/business/seatmap"
+	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
@@ -360,30 +361,10 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 		return cmp.Or(aircraft.Name(), aircraft.IcaoCode, aircraft.IataCode())
 	}
 
-	aircraftAndConfigurationVersionName := func(aircraftIataCode string, v string) string {
+	aircraftAndConfigurationVersionName := func(airlineIataCode, aircraftIataCode, v string) string {
 		configName := v
-		if aircraft, ok := fs.Aircraft[aircraftIataCode]; ok && aircraft.IataCode() == "359" {
-			switch v {
-			case "C38E24M201":
-				configName = "Allegris (no first)"
-				break
-
-			case "F4C38E24M201":
-				configName = "Allegris (with first)"
-				break
-
-			case "C48E21M224":
-				configName = "LH Classic"
-				break
-
-			case "C30E26M262":
-				configName = "LH Philippines Config 1"
-				break
-
-			case "C30E24M241":
-				configName = "LH Philippines Config 2"
-				break
-			}
+		if names, ok := data.AircraftConfigurationName(airlineIataCode, aircraftIataCode, v); ok {
+			configName = names.Name
 		}
 
 		return fmt.Sprintf("%s (%s)", aircraftName(aircraftIataCode), configName)
@@ -502,10 +483,10 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 			if prevVariant == nil || prevVariant.AircraftIataCode != variant.AircraftIataCode || prevVariant.AircraftConfigurationVersion != variant.AircraftConfigurationVersion {
 				var old string
 				if prevVariant != nil {
-					old = fmt.Sprintf("old=%s ", aircraftAndConfigurationVersionName(prevVariant.AircraftIataCode, prevVariant.AircraftConfigurationVersion))
+					old = fmt.Sprintf("old=%s ", aircraftAndConfigurationVersionName(prevVariant.OperatedAs.AirlineIataCode, prevVariant.AircraftIataCode, prevVariant.AircraftConfigurationVersion))
 				}
 
-				updates = append(updates, fmt.Sprintf("Aircraft: %snew=%s", old, aircraftAndConfigurationVersionName(variant.AircraftIataCode, variant.AircraftConfigurationVersion)))
+				updates = append(updates, fmt.Sprintf("Aircraft: %snew=%s", old, aircraftAndConfigurationVersionName(variant.OperatedAs.AirlineIataCode, variant.AircraftIataCode, variant.AircraftConfigurationVersion)))
 			}
 
 			slices.SortFunc(variant.CodeShares, func(a, b model.FlightNumber) int {

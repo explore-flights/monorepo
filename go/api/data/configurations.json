@@ -1,0 +1,62 @@
+{
+  "LH": {
+    "359": {
+      "C38E24M201": {
+        "name": "Allegris, no FC",
+        "short_name": "Allegris"
+      },
+      "C42E24M201": {
+        "name": "Allegris, FC as BC",
+        "short_name": "Allegris"
+      },
+      "F4C38E24M201": {
+        "name": "Allegris",
+        "short_name": "Allegris"
+      },
+      "C48E21M224": {
+        "name": "Old LH Config",
+        "short_name": "Old LH Config"
+      },
+      "C48M245": {
+        "name": "Old LH Config (Shorthaul)",
+        "short_name": "Old LH Config"
+      },
+      "C30E26M262": {
+        "name": "LH/Philippines Config 1",
+        "short_name": "LH/Philippines Config"
+      },
+      "C30M288": {
+        "name": "LH/Philippines Config 1 (Shorthaul)",
+        "short_name": "LH/Philippines Config"
+      },
+      "C30E24M241": {
+        "name": "LH/Philippines Config 2",
+        "short_name": "LH/Philippines Config"
+      }
+    },
+    "789": {
+      "C4E28M231": {
+        "name": "Allegris, no FC, 4 BC",
+        "short_name": "Allegris"
+      },
+      "C28E28M231": {
+        "name": "Allegris, no FC",
+        "short_name": "Allegris"
+      },
+      "C26E21M247": {
+        "name": "C26E21M247",
+        "short_name": "C26E21M247"
+      }
+    },
+    "388": {
+      "F8C68E52M371": {
+        "name": "BC Retrofit 2026",
+        "short_name": "BC Retrofit"
+      },
+      "F8C78E52M371": {
+        "name": "Old LH Config",
+        "short_name": "Old LH Config"
+      }
+    }
+  }
+}
