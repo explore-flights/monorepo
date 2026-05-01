@@ -1,4 +1,5 @@
 import { LineChartProps, BarChartProps, PieChartProps, AreaChartProps } from '@cloudscape-design/components';
+import { DateTime, WeekdayNumbers } from 'luxon';
 
 type Primitive = string | number | boolean | bigint | symbol;
 type IsEqual<A, B> =
@@ -16,7 +17,6 @@ export type BarSeries<T extends ChartDataTypes> = BarChartProps<T>['series'][num
 export type Series<T extends ChartDataTypes> = LineSeries<T> | AreaSeries<T> | BarSeries<T>;
 type SeriesType<S> = S extends { type: infer U } ? U : never;
 type DataSeries<S extends Series<T>, T extends ChartDataTypes> = Exclude<S, { type: 'threshold' }>;
-export type ThresholdSeries<S extends Series<ChartDataTypes>> = Extract<S, { type: 'threshold' }>;
 type SeriesDatum<S extends Series<T>, T extends ChartDataTypes> = DataSeries<S, T>['data'][number];
 type DataType<S extends Series<T>, T extends ChartDataTypes> = SeriesDatum<S, T>['x'];
 
@@ -25,23 +25,31 @@ type MutableDataSeries<S extends Series<T>, T extends ChartDataTypes> = { readon
 
 type RemainingDataSeries<S extends Series<T>, T extends ChartDataTypes> = Omit<DataSeries<S, T>, keyof MutableDataSeries<S, T>>;
 
+export interface DateThresholdSeries {
+  type: 'threshold';
+  title: string;
+  x: Date;
+  color?: string;
+}
+
 export class SeriesBuilder<ID extends Primitive, S extends Series<T>, D = ID, T extends ChartDataTypes = ChartDataTypes> {
 
   private readonly type: SeriesType<S>;
   private readonly idFn: (d: D) => ID;
+  private readonly finalizer: (data: D) => RemainingDataSeries<S, T>;
   private readonly dataAndSeriesById: Map<ID, [D, MutableDataSeries<S, T>]>;
   private readonly uniqueXValues: Array<DataType<S, T>>;
   private xDomain: [DataType<S, T>, DataType<S, T>] | null;
   private yDomain: [number, number] | null;
 
-  constructor(type: SeriesType<S>, xValues?: ReadonlyArray<DataType<S, T>>, ...idFn: IsEqual<ID, D> extends true ? [] : [(d: D) => ID]) {
+  constructor(type: SeriesType<S>,
+              finalizer: (data: D) => RemainingDataSeries<S, T>,
+              ...idFn: IsEqual<ID, D> extends true ? [] : [(d: D) => ID]) {
+
     this.type = type;
+    this.finalizer = finalizer;
     this.dataAndSeriesById = new Map();
     this.uniqueXValues = [];
-
-    if (xValues) {
-      this.uniqueXValues.push(...xValues);
-    }
 
     if (idFn.length > 0) {
       this.idFn = idFn[0]!;
@@ -96,7 +104,7 @@ export class SeriesBuilder<ID extends Primitive, S extends Series<T>, D = ID, T 
     }
   }
 
-  public series(finalizer: (data: D) => RemainingDataSeries<S, T>, fillMissingX?: boolean, sortX?: boolean): [ReadonlyArray<S>, [DataType<S, T>, DataType<S, T>] | undefined, [number, number] | undefined] {
+  public series(fillMissingX?: boolean, sortX?: boolean): [ReadonlyArray<S>, [DataType<S, T>, DataType<S, T>] | undefined, [number, number] | undefined] {
     let uniqueXValues = this.uniqueXValues;
     if (sortX) {
       uniqueXValues = uniqueXValues.toSorted(compare<DataType<S, T>>);
@@ -124,12 +132,89 @@ export class SeriesBuilder<ID extends Primitive, S extends Series<T>, D = ID, T 
       return {
         ...series,
         data: data,
-        ...finalizer(d),
+        ...this.finalizer(d),
       } as unknown as S;
     });
 
     return [series, this.xDomain ?? undefined, this.yDomain ?? undefined];
   }
+}
+
+export function nextScheduleChange(dt: DateTime): [DateTime, number, boolean, string] {
+  dt = dt.toUTC();
+
+  if (isSummerSchedule(dt)) {
+    const lastSundayOfOct = lastWeekdayOfMonth(dt, 10, 7).startOf('day');
+    return [
+      lastSundayOfOct,
+      lastSundayOfOct.year,
+      false,
+      `Winter ${lastSundayOfOct.year}/${lastSundayOfOct.year+1}`,
+    ];
+  } else {
+    if (dt.month >= 10) {
+      dt = dt.set({ year: dt.year + 1 });
+    }
+
+    const lastSundayOfMar = lastWeekdayOfMonth(dt, 3, 7).startOf('day');
+    return [
+      lastSundayOfMar,
+      lastSundayOfMar.year,
+      true,
+      `Summer ${lastSundayOfMar.year}`,
+    ];
+  }
+}
+
+export function isSummerSchedule(dt: DateTime): boolean {
+  dt = dt.toUTC();
+
+  const summerScheduleStart = lastWeekdayOfMonth(dt, 3, 7).startOf('day').toMillis();
+  const winterScheduleStart = lastWeekdayOfMonth(dt, 10, 7).startOf('day').toMillis();
+  const millis = dt.toMillis();
+
+  return millis >= summerScheduleStart && millis < winterScheduleStart;
+}
+
+export function lastWeekdayOfMonth(dt: DateTime, month: number, weekday: WeekdayNumbers): DateTime {
+  dt = dt.set({ month: month }).endOf('month');
+  if (dt.weekday === weekday) {
+    return dt;
+  }
+
+  return dt.minus({ day: ((dt.weekday - weekday + 7) % 7) });
+}
+
+export function generateThresholds(xDomain?: [Date, Date]): ReadonlyArray<DateThresholdSeries> {
+  const today = DateTime.now().toUTC().startOf('day');
+  const series: Array<DateThresholdSeries> = [
+    {
+      type: 'threshold',
+      title: 'Today',
+      x: today.toJSDate(),
+      color: '#00FF00',
+    }
+  ];
+
+  if (!xDomain || xDomain[0].getTime() === xDomain[1].getTime()) {
+    return series;
+  } else if (xDomain[0].getTime() > xDomain[1].getTime()) {
+    throw new Error('xDomain[0] must be before xDomain[1]');
+  }
+
+  let [nextScheduleChangeDT, _, isSummer, nextScheduleChangeName] = nextScheduleChange(DateTime.fromJSDate(xDomain[0]));
+  while (nextScheduleChangeDT.toMillis() < xDomain[1].getTime()) {
+    series.push({
+      type: 'threshold',
+      title: nextScheduleChangeName,
+      x: nextScheduleChangeDT.toJSDate(),
+      color: isSummer ? '#FFFF00' : '#00FFFF',
+    });
+
+    [nextScheduleChangeDT, _, isSummer, nextScheduleChangeName] = nextScheduleChange(nextScheduleChangeDT);
+  }
+
+  return series;
 }
 
 type RemainingPieChartDatum = Omit<PieChartProps.Datum, 'value'>;

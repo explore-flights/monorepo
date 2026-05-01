@@ -45,7 +45,8 @@ import {
   SeriesBuilder,
   PieChartDataBuilder,
   LineSeries,
-  ThresholdSeries,
+  isSummerSchedule,
+  generateThresholds,
 } from '../lib/charts/builder';
 import { RouterInlineLink } from '../components/common/router-link';
 import { FitBounds, MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
@@ -505,7 +506,6 @@ function Map({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
 }
 
 function Stats({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
-  const now = useMemo(() => DateTime.now(), []);
   const scheduledFlights = useMemo(() => flights.filter((v) => v.type === 'scheduled'), [flights]);
   return (
     <ExpandableSection variant={'stacked'} headerText={'Stats'} headerInfo={<Box variant={'small'}>Table filters applied</Box>} defaultExpanded={false}>
@@ -519,12 +519,12 @@ function Stats({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
           {
             id: 'aircraft',
             label: 'Aircraft',
-            content: <AircraftStat now={now} flights={scheduledFlights} />,
+            content: <AircraftStat flights={scheduledFlights} />,
           },
           {
             id: 'duration',
             label: 'Duration',
-            content: <DurationStat now={now} flights={scheduledFlights} />,
+            content: <DurationStat flights={scheduledFlights} />,
           },
           {
             id: 'operating_day',
@@ -555,11 +555,13 @@ function RouteStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
   );
 }
 
-function AircraftStat({ now, flights }: { now: DateTime<true>, flights: ReadonlyArray<ScheduledFlight> }) {
+function AircraftStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
   const [series, xDomain, yDomain] = useMemo(() => {
     const builder = new SeriesBuilder<string, LineSeries<Date>, [Aircraft, string]>(
       'line',
-      undefined,
+      ([ac, config]) => ({
+        title: `${ac.name ?? ac.icaoCode ?? ac.iataCode ?? ac.id} (${aircraftConfigurationVersionToName(config) ?? config})`,
+      }),
       ([ac, acc]) => ac.id + acc,
     );
 
@@ -571,19 +573,17 @@ function AircraftStat({ now, flights }: { now: DateTime<true>, flights: Readonly
       );
     }
 
-    const [series, xDomain, yDomain] = builder.series(([aircraft, configuration]) => ({
-      title: `${aircraft.name ?? aircraft.icaoCode ?? aircraft.iataCode ?? aircraft.id} (${aircraftConfigurationVersionToName(configuration) ?? configuration})`,
-    }), true, true);
+    const [series, xDomain, yDomain] = builder.series(true, true);
 
     return [
       [
         ...series,
-        ...generateThresholds(now, xDomain),
-      ] as ReadonlyArray<LineSeries<Date>>,
+        ...generateThresholds(xDomain),
+      ] satisfies ReadonlyArray<LineSeries<Date>>,
       xDomain,
       yDomain,
     ] as const;
-  }, [now, flights]);
+  }, [flights]);
 
   return (
     <LineChart
@@ -598,7 +598,7 @@ function AircraftStat({ now, flights }: { now: DateTime<true>, flights: Readonly
   );
 }
 
-function DurationStat({ now, flights }: { now: DateTime<true>, flights: ReadonlyArray<ScheduledFlight> }) {
+function DurationStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) {
   const durationFormatter = useCallback((v: number) => {
     return Duration.fromMillis(v).shiftTo('hours', 'minutes').toHuman({ listStyle: 'narrow', unitDisplay: 'narrow', maximumFractionDigits: 0 });
   }, []);
@@ -606,7 +606,10 @@ function DurationStat({ now, flights }: { now: DateTime<true>, flights: Readonly
   const [series, xDomain, yDomain] = useMemo(() => {
     const builder = new SeriesBuilder<string, LineSeries<Date>, [Airport, Airport]>(
       'line',
-      undefined,
+      ([a1, a2]) => ({
+        title: `${airportToString(a1)} \u2014 ${airportToString(a2)}`,
+        valueFormatter: (v, _) => durationFormatter(v),
+      }),
       ([a1, a2]) => a1.id + a2.id,
     );
 
@@ -618,20 +621,17 @@ function DurationStat({ now, flights }: { now: DateTime<true>, flights: Readonly
       );
     }
 
-    const [series, xDomain, yDomain] = builder.series(([a1, a2]) => ({
-      title: `${airportToString(a1)} \u2014 ${airportToString(a2)}`,
-      valueFormatter: (v, _) => durationFormatter(v),
-    }), false, true);
+    const [series, xDomain, yDomain] = builder.series(false, true);
 
     return [
       [
         ...series,
-        ...generateThresholds(now, xDomain),
-      ] as ReadonlyArray<LineSeries<Date>>,
+        ...generateThresholds(xDomain),
+      ] satisfies ReadonlyArray<LineSeries<Date>>,
       xDomain,
       yDomain,
     ] as const;
-  }, [now, flights]);
+  }, [flights]);
 
   return (
     <LineChart
@@ -671,40 +671,6 @@ function OperatingDayStat({ flights }: { flights: ReadonlyArray<ScheduledFlight>
   return (
     <PieChart data={data} />
   );
-}
-
-function generateThresholds(now: DateTime<true>, xDomain: [Date, Date] | undefined): ReadonlyArray<ThresholdSeries<LineSeries<Date>>> {
-  const series: Array<ThresholdSeries<LineSeries<Date>>> = [
-    {
-      type: 'threshold',
-      title: 'Today',
-      x: now.toJSDate(),
-      color: 'green',
-    },
-  ];
-
-  if (!xDomain) {
-    return series;
-  }
-
-  let nextScheduleChangeDT = DateTime.fromJSDate(xDomain[0]);
-  let nextScheduleChangeName: string;
-  if (!nextScheduleChangeDT.isValid) {
-    return series;
-  }
-
-  [nextScheduleChangeDT, nextScheduleChangeName] = nextScheduleChange(nextScheduleChangeDT);
-  while (nextScheduleChangeDT.toMillis() < xDomain[1].getTime()) {
-    series.push({
-      type: 'threshold',
-      title: nextScheduleChangeName,
-      x: nextScheduleChangeDT.toJSDate(),
-    });
-
-    [nextScheduleChangeDT, nextScheduleChangeName] = nextScheduleChange(nextScheduleChangeDT);
-  }
-
-  return series;
 }
 
 function AircraftCell({ value, count }: { value: Aircraft, count?: number }) {
@@ -1392,37 +1358,6 @@ function parseSearchParams(v: URLSearchParams): PropertyFilterProps.Query | null
     operation: 'and',
     tokens: tokens,
   } satisfies PropertyFilterProps.Query;
-}
-
-function nextScheduleChange(dt: DateTime<true>): [DateTime<true>, string] {
-  if (isSummerSchedule(dt)) {
-    const lastSundayOfOct = lastWeekdayOfMonth(dt, 10, 7).startOf('day');
-    return [lastSundayOfOct, `Start of winter schedule ${lastSundayOfOct.year}/${lastSundayOfOct.year+1}`];
-  } else {
-    if (dt.month >= 10) {
-      dt = dt.set({ year: dt.year + 1 });
-    }
-
-    const lastSundayOfMar = lastWeekdayOfMonth(dt, 3, 7).startOf('day');
-    return [lastSundayOfMar, `Start of summer schedule ${lastSundayOfMar.year}`];
-  }
-}
-
-function isSummerSchedule(dt: DateTime<true>) {
-  const summerScheduleStart = lastWeekdayOfMonth(dt, 3, 7).startOf('day').toMillis();
-  const winterScheduleStart = lastWeekdayOfMonth(dt, 10, 7).startOf('day').toMillis();
-  const millis = dt.toMillis();
-
-  return millis >= summerScheduleStart && millis < winterScheduleStart;
-}
-
-function lastWeekdayOfMonth(dt: DateTime<true>, month: number, weekday: WeekdayNumbers) {
-  dt = dt.set({ month: month }).endOf('month');
-  if (dt.weekday === weekday) {
-    return dt;
-  }
-
-  return dt.minus({ day: ((dt.weekday - weekday + 7) % 7) });
 }
 
 export function withDepartureDateRawFilter(q: URLSearchParams, date: string, operator: '=' | '>=' | '<=' = '='): URLSearchParams {

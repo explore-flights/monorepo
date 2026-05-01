@@ -25,7 +25,7 @@ import { bbox, featureCollection, point } from '@turf/turf';
 import { FitBounds, MaplibreMap, SmartLine } from '../maplibre/maplibre-map';
 import { useConsent } from '../util/state/use-consent';
 import { ConsentLevel } from '../../lib/consent.model';
-import { LineSeries, SeriesBuilder } from '../../lib/charts/builder';
+import { generateThresholds, LineSeries, SeriesBuilder } from '../../lib/charts/builder';
 import { AirportMarker } from '../maplibre/marker';
 
 export interface FlightItem {
@@ -393,7 +393,7 @@ function AircraftStats({ flights }: { flights: ReadonlyArray<FlightItem> }) {
   const [series, xDomain, yDomain] = useMemo(() => {
     const builder = new SeriesBuilder<string, LineSeries<Date>, [Aircraft, string]>(
       'line',
-      undefined,
+      ([ac, config]) => ({ title: formatFn(ac, config) }),
       ([ac, acc]) => ac.id + acc,
     );
 
@@ -412,12 +412,13 @@ function AircraftStats({ flights }: { flights: ReadonlyArray<FlightItem> }) {
       formatFn = (aircraft, configuration) => `${aircraft.name ?? aircraft.icaoCode ?? aircraft.iataCode ?? aircraft.id} (${aircraftConfigurationVersionToName(configuration) ?? configuration})`;
     }
 
-    const [series, xDomain, yDomain] = builder.series(([aircraft, configuration]) => ({
-      title: formatFn(aircraft, configuration),
-    }), true, true);
+    const [series, xDomain, yDomain] = builder.series(true, true);
 
     return [
-      series,
+      [
+        ...series,
+        ...generateThresholds(xDomain),
+      ] satisfies ReadonlyArray<LineSeries<Date>>,
       xDomain,
       yDomain,
     ] as const;

@@ -129,7 +129,11 @@ function AircraftReportChart({ reports, loading }: { reports: ReadonlyArray<Airc
   }, []);
 
   const [series, xDomain, yDomain] = useMemo(() => {
-    const builder = new SeriesBuilder<string, LineSeries<number>, Aircraft>('line', undefined, (ac) => ac.id);
+    const builder = new SeriesBuilder<string, LineSeries<number>, Aircraft>(
+      'line',
+      (ac) => ({ title: ac.name ?? ac.icaoCode ?? ac.iataCode ?? ac.id }),
+      (ac) => ac.id,
+    );
 
     for (const report of reports) {
       for (const [duration, flights] of report.flightsAndDuration) {
@@ -143,9 +147,7 @@ function AircraftReportChart({ reports, loading }: { reports: ReadonlyArray<Airc
       }
     }
 
-    return builder.series((ac) => ({
-      title: ac.name ?? ac.icaoCode ?? ac.iataCode ?? ac.id,
-    }), false, true);
+    return builder.series(false, true);
   }, [reports]);
 
   return (
