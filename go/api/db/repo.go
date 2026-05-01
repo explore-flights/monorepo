@@ -810,12 +810,12 @@ WHERE :filter
 				fsv.CodeShares.Add(codeShareFn)
 			}
 
-			variants[fsv.Id] = fsv
-		}
+			fsv.DataElements = make(map[int64]string)
+			for k, v := range dataElements {
+				fsv.DataElements[int64(k)] = string(v)
+			}
 
-		fsv.DataElements = make(map[int64]string)
-		for k, v := range dataElements {
-			fsv.DataElements[int64(k)] = string(v)
+			variants[fsv.Id] = fsv
 		}
 	}
 
