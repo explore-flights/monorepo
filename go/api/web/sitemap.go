@@ -130,7 +130,7 @@ func (sh *SitemapHandler) buildSitemapURL(baseURL string, airlineIataCode string
 }
 
 func (sh *SitemapHandler) buildFlightURL(baseURL string, fn db.FlightNumber) string {
-	return fmt.Sprintf("%s/flight/%s%d%s", baseURL, fn.AirlineIataCode, fn.Number, fn.Suffix)
+	return fmt.Sprintf("%s/flight/%s", baseURL, fn.String())
 }
 
 func (sh *SitemapHandler) addSitemapURL(enc *xml.Encoder, name, loc string, modified time.Time) error {

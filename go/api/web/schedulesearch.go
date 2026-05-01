@@ -205,14 +205,7 @@ func (h *ScheduleSearchHandler) swissA350Feed(c echo.Context, contentType string
 
 func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model.FlightSchedulesMany, feedId, feedTitle, shortName, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
 	fnName := func(fn model.FlightNumber) string {
-		var airlinePrefix string
-		if airline, ok := result.Airlines[fn.AirlineIataCode]; ok {
-			airlinePrefix = cmp.Or(airline.IataCode, airline.IcaoCode)
-		} else {
-			airlinePrefix = fn.AirlineIataCode
-		}
-
-		return fmt.Sprintf("%s%d%s", airlinePrefix, fn.Number, fn.Suffix)
+		return fmt.Sprintf("%s%d%s", fn.AirlineIataCode, fn.Number, fn.Suffix)
 	}
 
 	airportName := func(airportIataCode string) string {

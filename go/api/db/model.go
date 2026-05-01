@@ -48,7 +48,7 @@ type FlightNumber struct {
 	Suffix          string
 }
 
-func (csfn *FlightNumber) Scan(src any) error {
+func (fn *FlightNumber) Scan(src any) error {
 	codeShareRaw, ok := src.(map[string]any)
 	if !ok {
 		return fmt.Errorf("FlightNumber.Scan: expected map[string]any, got %T", src)
@@ -70,11 +70,15 @@ func (csfn *FlightNumber) Scan(src any) error {
 		return err
 	}
 
-	csfn.AirlineIataCode = string(sqlAirlineIataCode)
-	csfn.Number = int(sqlNumber)
-	csfn.Suffix = string(sqlString)
+	fn.AirlineIataCode = string(sqlAirlineIataCode)
+	fn.Number = int(sqlNumber)
+	fn.Suffix = string(sqlString)
 
 	return nil
+}
+
+func (fn FlightNumber) String() string {
+	return fmt.Sprintf("%s%d%s", fn.AirlineIataCode, fn.Number, fn.Suffix)
 }
 
 type Flight struct {

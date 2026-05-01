@@ -235,7 +235,7 @@ func (dh *DataHandler) FlightScheduleVersionRaw(c echo.Context) error {
 	departureAirportRaw := c.Param("departureAirport")
 	departureDateLocalRaw := c.Param("departureDateLocal")
 
-	fn, airline, err := dh.parseAndResolveFlightNumber(ctx, fnRaw)
+	fn, _, err := dh.parseAndResolveFlightNumber(ctx, fnRaw)
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
@@ -255,7 +255,7 @@ func (dh *DataHandler) FlightScheduleVersionRaw(c echo.Context) error {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err))
 	}
 
-	schedules, err := dh.rawSearch.Search(ctx, version, fmt.Sprintf("%s%d%s", airline.IataCode, fn.Number, fn.Suffix), departureDateLocal, airport.IataCode)
+	schedules, err := dh.rawSearch.Search(ctx, version, fn.String(), departureDateLocal, airport.IataCode)
 	if err != nil {
 		return NewHTTPError(http.StatusInternalServerError, WithCause(err))
 	}
@@ -333,14 +333,7 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 	const maxSize = 20
 
 	fnName := func(fn model.FlightNumber) string {
-		var airlinePrefix string
-		if airline, ok := fs.Airlines[fn.AirlineIataCode]; ok {
-			airlinePrefix = cmp.Or(airline.IataCode, airline.IcaoCode)
-		} else {
-			airlinePrefix = fn.AirlineIataCode
-		}
-
-		return fmt.Sprintf("%s%d%s", airlinePrefix, fn.Number, fn.Suffix)
+		return fmt.Sprintf("%s%d%s", fn.AirlineIataCode, fn.Number, fn.Suffix)
 	}
 
 	airportName := func(airportIataCode string) string {

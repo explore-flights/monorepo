@@ -455,8 +455,6 @@ func (ch *ConnectionsHandler) buildGraph(parent *connections.Flight, airlines ma
 }
 
 func (ch *ConnectionsHandler) buildNodeLabel(f *connections.Flight, airline db.Airline, departureAirport, arrivalAirport db.Airport, aircraft db.Aircraft) string {
-	fnStr := fmt.Sprintf("%s%d%s", airline.IataCode, f.Number, f.Suffix)
-
 	var aircraftStr string
 	if aircraft.IcaoCode.Valid {
 		aircraftStr = aircraft.IcaoCode.String
@@ -464,7 +462,7 @@ func (ch *ConnectionsHandler) buildNodeLabel(f *connections.Flight, airline db.A
 		aircraftStr = aircraft.IataCode
 	}
 
-	return fmt.Sprintf("%s\n%s\u2014%s\n%s", fnStr, departureAirport.IataCode, arrivalAirport.IataCode, aircraftStr)
+	return fmt.Sprintf("%s\n%s\u2014%s\n%s", f.FlightNumber.String(), departureAirport.IataCode, arrivalAirport.IataCode, aircraftStr)
 }
 
 func (ch *ConnectionsHandler) validateRequest(req model.ConnectionsSearchRequest) error {

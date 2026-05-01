@@ -50,13 +50,13 @@ func (pctx *predicateContext) globMatchAircraft(aircraftIataCode string, pattern
 }
 
 func (pctx *predicateContext) anyMatchFlightNumber(f *Flight, predicate func(fn string) bool) bool {
+	if predicate(f.FlightNumber.String()) {
+		return true
+	}
+
 	airline, ok := pctx.airlines[f.AirlineIataCode]
 	if !ok {
 		return false
-	}
-
-	if predicate(fmt.Sprintf("%s%d%s", airline.IataCode, f.Number, f.Suffix)) {
-		return true
 	}
 
 	if airline.IcaoCode.Valid && predicate(fmt.Sprintf("%s%d%s", airline.IcaoCode.String, f.Number, f.Suffix)) {
