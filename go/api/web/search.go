@@ -28,7 +28,8 @@ func NewSearchHandler(repo searchHandlerRepo) *SearchHandler {
 }
 
 func (sh *SearchHandler) Search(c echo.Context) error {
-	resp, err := sh.search(c)
+	ctx := c.Request().Context()
+	resp, err := sh.search(ctx, strings.TrimSpace(c.QueryParam("q")))
 
 	if c.Request().Header.Get(echo.HeaderAccept) == echo.MIMEApplicationJSON {
 		// api request
@@ -68,9 +69,8 @@ func (sh *SearchHandler) Search(c echo.Context) error {
 	return c.Redirect(http.StatusFound, "/flight/"+url.PathEscape(sh.flightNumberString(resp.FlightNumbers[0])))
 }
 
-func (sh *SearchHandler) search(c echo.Context) (model.SearchResponse, error) {
-	ctx := c.Request().Context()
-	fns, err := sh.repo.FindFlightNumbers(ctx, strings.TrimSpace(c.QueryParam("q")), 100)
+func (sh *SearchHandler) search(ctx context.Context, query string) (model.SearchResponse, error) {
+	fns, err := sh.repo.FindFlightNumbers(ctx, query, 100)
 	if err != nil {
 		return model.SearchResponse{}, err
 	}
