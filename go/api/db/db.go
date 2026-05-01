@@ -128,7 +128,8 @@ func (db *Database) Close() error {
 }
 
 func dbInit(ctx context.Context, conn *sql.Conn, dbWorkPath, baseDbPath, variantsParquetPath, reportParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath string) error {
-	bootQueries := []common.Tuple[string, []any]{
+	bootQueries := make([]common.Tuple[string, []any], 0)
+	bootQueries = append(bootQueries, []common.Tuple[string, []any]{
 		{
 			`SET threads TO 1`,
 			nil,
@@ -158,10 +159,10 @@ func dbInit(ctx context.Context, conn *sql.Conn, dbWorkPath, baseDbPath, variant
 			`SET TimeZone = 'UTC'`,
 			nil,
 		},
-		{
-			`CREATE OR REPLACE SECRET secret ( TYPE s3, PROVIDER credential_chain, REGION 'eu-central-1' )`,
-			nil,
-		},
+	}...)
+
+	bootQueries = append(bootQueries, bootQueriesSecrets()...)
+	bootQueries = append(bootQueries, []common.Tuple[string, []any]{
 		{
 			fmt.Sprintf(`ATTACH '%s' AS base_db (READ_ONLY)`, baseDbPath),
 			nil,
@@ -242,7 +243,7 @@ FROM read_parquet('%s', hive_partitioning = true, hive_types = {'year_utc': USMA
 			),
 			nil,
 		},
-	}
+	}...)
 
 	for _, query := range bootQueries {
 		if _, err := conn.ExecContext(ctx, query.V1, query.V2...); err != nil {
