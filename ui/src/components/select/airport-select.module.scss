@@ -1,0 +1,14 @@
+@use '@cloudscape-design/design-tokens' as cs;
+
+.airport-select-container {
+  display: flex;
+  gap: cs.$space-scaled-xs;
+}
+
+.airport-select-item-grow {
+  flex-grow: 1;
+}
+
+.airport-select-item-shrink {
+  flex-shrink: 0;
+}

@@ -1,5 +1,5 @@
 import { DateTime, Duration } from 'luxon';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -15,6 +15,7 @@ import { AirportMultiselect } from '../select/airport-select';
 import { AircraftMultiselect } from '../select/aircraft-select';
 import { ValueMultilineEditor } from './value-multiline-editor';
 import { AirportId } from '../../lib/api/api.model';
+import { useAirports } from '../util/state/data';
 
 export interface ConnectionSearchParams {
   readonly origins: ReadonlyArray<AirportId>;
@@ -131,16 +132,18 @@ export function ConnectionSearchForm({ isLoading, params, onChange, onSearch, on
           <FormField label={'Origin'} errorText={errors?.origins}>
             <AirportMultiselect
               selectedAirportIds={origins}
-              disabled={isLoading}
               onChange={(v) => onChange((prev) => ({ ...prev, origins: v }))}
+              modalHeader={'Origin'}
+              disabled={isLoading}
             />
           </FormField>
 
           <FormField label={'Destination'} errorText={errors?.destinations}>
             <AirportMultiselect
               selectedAirportIds={destinations}
-              disabled={isLoading}
               onChange={(v) => onChange((prev) => ({ ...prev, destinations: v }))}
+              modalHeader={'Destination'}
+              disabled={isLoading}
             />
           </FormField>
 
@@ -325,13 +328,33 @@ interface AirportMultiselectOrEditorProps {
 }
 
 function AirportMultiselectOrEditor({ values, onChange, disabled }: AirportMultiselectOrEditorProps) {
+  const { data: { lookupById } } = useAirports();
+  const [rawValues, selectedAirportIds] = useMemo(() => {
+    const raw: Array<string> = [];
+    const ids: Array<AirportId> = [];
+
+    for (const v of values) {
+      const maybeAirportId = v as AirportId;
+      if (lookupById.has(maybeAirportId)) {
+        ids.push(maybeAirportId);
+      } else {
+        raw.push(v);
+      }
+    }
+
+    return [raw, ids] as const;
+  }, [values, lookupById]);
+
+  const onMultiselectChange = useCallback((newSelectedIds: ReadonlyArray<AirportId>) => {
+    onChange([...newSelectedIds, ...rawValues]);
+  }, [rawValues, onChange]);
+
   return (
     <StandardOrMultilineEditor values={values} setValues={onChange} disabled={disabled}>
       <AirportMultiselect
-        selectedAirportIds={[]}
-        rawSelectedAirports={values}
+        selectedAirportIds={selectedAirportIds}
+        onChange={onMultiselectChange}
         disabled={disabled}
-        onChange={onChange}
       />
     </StandardOrMultilineEditor>
   );

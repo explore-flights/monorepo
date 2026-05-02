@@ -1,19 +1,28 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Multiselect, MultiselectProps, Select, SelectProps } from '@cloudscape-design/components';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Button,
+  Multiselect,
+  MultiselectProps,
+  Select,
+  SelectProps,
+} from '@cloudscape-design/components';
 import { Airport, AirportId } from '../../lib/api/api.model';
 import { useAirports } from '../util/state/data';
 import { useDebounce } from '../util/state/use-debounce';
+import { AirportSelectMapModal, AirportSelectMapModalProps } from './airport-select-map';
+import classes from './airport-select.module.scss';
 
 export interface AirportSelectProps {
   selectedAirportId: AirportId | null;
-  disabled: boolean;
   onChange: (value: AirportId | null) => void;
   placeholder?: string;
+  modalHeader?: React.ReactNode;
+  disabled?: boolean;
 }
 
-export function AirportSelect({ selectedAirportId, disabled, onChange, placeholder }: AirportSelectProps) {
-  const { data, isLoading: loading } = useAirports();
-  const [options, optionByAirportId] = useAirportOptions(data.airports);
+export function AirportSelect({ selectedAirportId, onChange, placeholder, modalHeader, disabled }: AirportSelectProps) {
+  const { data: { airports }, isLoading: loading } = useAirports();
+  const [options, optionByAirportId] = useAirportOptions(airports);
 
   const [filterText, setFilterText] = useState('');
   const [filterLoading, displayOptions] = useFilteredOptions(useDebounce(filterText, 250), options);
@@ -23,72 +32,93 @@ export function AirportSelect({ selectedAirportId, disabled, onChange, placehold
       return null;
     }
 
-    return optionByAirportId[selectedAirportId];
+    return optionByAirportId[selectedAirportId] ?? null;
   }, [optionByAirportId, selectedAirportId]);
 
+  const onAirportClick = useCallback((airportId: AirportId) => onChange(airportId === selectedAirportId ? null : airportId), [selectedAirportId, onChange]);
+
   return (
-    <Select
-      options={displayOptions}
-      selectedOption={selectedOption}
-      onChange={(e) => onChange((e.detail.selectedOption?.value as AirportId) ?? null)}
-      virtualScroll={true}
-      disabled={disabled}
-      statusType={(loading || filterLoading) ? 'loading' : 'finished'}
-      filteringType={'manual'}
-      onLoadItems={(e) => setFilterText(e.detail.filteringText)}
-      placeholder={placeholder}
-    />
+    <AirportSelectWithMapModal header={modalHeader} selectedAirportIds={selectedAirportId ? [selectedAirportId] : []} onAirportClick={onAirportClick}>
+      <Select
+        options={displayOptions}
+        selectedOption={selectedOption}
+        onChange={(e) => onChange((e.detail.selectedOption?.value as AirportId) ?? null)}
+        virtualScroll={true}
+        disabled={disabled}
+        statusType={(loading || filterLoading) ? 'loading' : 'finished'}
+        filteringType={'manual'}
+        onLoadItems={(e) => setFilterText(e.detail.filteringText)}
+        placeholder={placeholder}
+      />
+    </AirportSelectWithMapModal>
   );
 }
 
 export interface AirportMultiselectProps {
   selectedAirportIds: ReadonlyArray<AirportId>;
-  rawSelectedAirports?: ReadonlyArray<string>;
-  disabled: boolean;
   onChange: (options: ReadonlyArray<AirportId>) => void;
+  inlineTokens?: boolean;
+  modalHeader?: React.ReactNode;
+  disabled?: boolean;
 }
 
-export function AirportMultiselect({ selectedAirportIds, rawSelectedAirports, disabled, onChange }: AirportMultiselectProps) {
-  const { data, isLoading: loading } = useAirports();
-  const [options, optionByAirportId] = useAirportOptions(data.airports);
+export function AirportMultiselect({ selectedAirportIds, onChange, inlineTokens, modalHeader, disabled }: AirportMultiselectProps) {
+  const { data: { airports }, isPending: loading } = useAirports();
+  const [options, optionByAirportId] = useAirportOptions(airports);
 
   const [filterText, setFilterText] = useState('');
   const [filterLoading, displayOptions] = useFilteredOptions(useDebounce(filterText, 250), options);
 
-  const selectedOptions = useMemo(() => {
-    const result: Array<MultiselectProps.Option> = [];
-    for (const airportId of selectedAirportIds) {
-      const option = optionByAirportId[airportId];
-      if (option) {
-        result.push(option);
-      }
-    }
+  const selectedOptions = useMemo(() => selectedAirportIds.flatMap((airportId) => {
+    const option = optionByAirportId[airportId];
+    return option ? [option] : [];
+  }), [optionByAirportId, selectedAirportIds]);
 
-    if (rawSelectedAirports) {
-      for (const maybeAirportId of rawSelectedAirports) {
-        const option = optionByAirportId[maybeAirportId as AirportId];
-        if (option) {
-          result.push(option);
-        }
-      }
+  const onAirportClick = useCallback((airportId: AirportId) => {
+    if (selectedAirportIds.includes(airportId)) {
+      onChange(selectedAirportIds.filter((id) => id !== airportId));
+    } else {
+      onChange([...selectedAirportIds, airportId]);
     }
-
-    return result;
-  }, [optionByAirportId, selectedAirportIds, rawSelectedAirports]);
+  }, [selectedAirportIds, onChange]);
 
   return (
-    <Multiselect
-      options={displayOptions}
-      selectedOptions={selectedOptions}
-      onChange={(e) => onChange(e.detail.selectedOptions.flatMap((v) => v.value ? [v.value as AirportId] : []))}
-      keepOpen={true}
-      virtualScroll={true}
-      tokenLimit={2}
-      disabled={disabled}
-      statusType={(loading || filterLoading) ? 'loading' : 'finished'}
-      filteringType={'manual'}
-      onLoadItems={(e) => setFilterText(e.detail.filteringText)}
-    />
+    <AirportSelectWithMapModal header={modalHeader} selectedAirportIds={selectedAirportIds} onAirportClick={onAirportClick}>
+      <Multiselect
+        options={displayOptions}
+        selectedOptions={selectedOptions}
+        onChange={(e) => onChange(e.detail.selectedOptions.flatMap((v) => v.value ? [v.value as AirportId] : []))}
+        keepOpen={true}
+        virtualScroll={true}
+        inlineTokens={inlineTokens}
+        tokenLimit={2}
+        disabled={disabled}
+        statusType={(loading || filterLoading) ? 'loading' : 'finished'}
+        filteringType={'manual'}
+        onLoadItems={(e) => setFilterText(e.detail.filteringText)}
+      />
+    </AirportSelectWithMapModal>
+  );
+}
+
+function AirportSelectWithMapModal({ children, ...mapModalProps }: React.PropsWithChildren<Omit<AirportSelectMapModalProps, 'visible' | 'onDismiss'>>) {
+  const [mapModalVisible, setMapModalVisible] = useState(false);
+
+  return (
+    <>
+      <div className={classes['airport-select-container']}>
+        <div className={classes['airport-select-item-grow']}>{children}</div>
+        <div className={classes['airport-select-item-shrink']}>
+          <Button iconName={'globe'} onClick={() => setMapModalVisible((prev) => !prev)} />
+        </div>
+      </div>
+
+      <AirportSelectMapModal
+        {...mapModalProps}
+        visible={mapModalVisible}
+        onDismiss={() => setMapModalVisible(false)}
+      />
+    </>
   );
 }
 
@@ -140,6 +170,18 @@ function useAirportOptions(airports: ReadonlyArray<Airport>): [ReadonlyArray<Com
         options: childOptions,
       } satisfies CommonOptionGroup);
     }
+
+    options.sort((a, b) => {
+      if (a.label && b.label) {
+        return a.label.localeCompare(b.label);
+      } else if (a.label) {
+        return -1;
+      } else if (b.label) {
+        return 1;
+      }
+
+      return 0;
+    });
 
     return [options, optionByAirportId];
   }, [airports]);
