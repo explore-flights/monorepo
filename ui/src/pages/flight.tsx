@@ -61,18 +61,14 @@ export function FlightView() {
   }
 
   const [version, setVersion] = useState<DateTime<true>>();
-  const flightScheduleResult = useFlightSchedule(id, version);
+  const { data, status, error: queryError } = useFlightSchedule(id, version);
 
-  if (!flightScheduleResult.data) {
+  if (!data) {
     let content: React.ReactNode;
-    if (flightScheduleResult.status === 'pending') {
+    if (status === 'pending') {
       content = <Spinner size={'large'} />;
     } else {
-      let error = flightScheduleResult.error;
-      if (!error) {
-        error = new Error(flightScheduleResult.status);
-      }
-
+      const error = queryError ?? new Error(status);
       if (error instanceof ApiError && error.response.status >= 400 && error.response.status < 500) {
         const query = new URLSearchParams();
         query.set('q', id);
@@ -96,7 +92,7 @@ export function FlightView() {
   }
 
   return (
-    <FlightScheduleContent flightSchedules={flightScheduleResult.data} version={version} setVersion={setVersion} />
+    <FlightScheduleContent flightSchedules={data} version={version} setVersion={setVersion} />
   );
 }
 
