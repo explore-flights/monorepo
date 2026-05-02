@@ -28,7 +28,7 @@ export function ConnectionsMap({ connections }: ConnectionsMapProps) {
     <MaplibreMap height={'80vh'}>
       {...markers}
       {...lines}
-      <FitBounds bounds={bounds} options={{ padding: 100 }} />
+      <FitBounds bounds={bounds} padding={100} animate={false} />
     </MaplibreMap>
   );
 }

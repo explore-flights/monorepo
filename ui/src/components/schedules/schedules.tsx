@@ -381,7 +381,7 @@ function AircraftMap({ flights, loading }: { flights: ReadonlyArray<FlightItem>,
       <MaplibreMap height={'50vh'} loading={loading}>
         {...markers}
         {...lines}
-        {bounds && <FitBounds bounds={bounds} options={{ padding: 100 }} />}
+        {bounds && <FitBounds bounds={bounds} padding={100} animate={false} />}
       </MaplibreMap>
     </ExpandableSection>
   );

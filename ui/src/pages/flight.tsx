@@ -499,7 +499,7 @@ function Map({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
       <MaplibreMap height={'50vh'}>
         {...markers}
         {...lines}
-        {bounds && <FitBounds bounds={bounds} options={{ padding: 100 }} />}
+        {bounds && <FitBounds bounds={bounds} padding={100} animate={false} />}
       </MaplibreMap>
     </ExpandableSection>
   );

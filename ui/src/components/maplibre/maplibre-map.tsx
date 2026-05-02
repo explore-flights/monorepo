@@ -1,6 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
 import classes from './maplibre-map.module.scss';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
   FullscreenControl,
   Layer,
@@ -36,6 +36,12 @@ function ComponentResize() {
   return null;
 }
 
+export interface MaplibreMapdDisplayControls {
+  fullscreen: boolean;
+  scale: boolean;
+  globeTransition: boolean;
+}
+
 export interface MaplibreMapProps {
   height: string | number;
   controls?: ReadonlyArray<React.ReactNode>;
@@ -43,24 +49,26 @@ export interface MaplibreMapProps {
   initialLat?: number;
   initialZoom?: number;
   loading?: boolean;
-  displayControls?: {
-    fullscreen: boolean;
-    scale: boolean;
-    globeTransition: boolean;
-  };
+  displayControls?: MaplibreMapdDisplayControls;
 }
 
-export function MaplibreMap(props: React.PropsWithChildren<MaplibreMapProps>) {
+export function MaplibreMap({ loading, displayControls, ...props }: React.PropsWithChildren<MaplibreMapProps>) {
   const [allowOnce, setAllowOnce] = useState(false);
   const [consentLevels] = useConsent();
 
+  const displayControlsMemoized = useMemo<MaplibreMapdDisplayControls>(() => ({
+    fullscreen: displayControls?.fullscreen ?? true,
+    scale: displayControls?.scale ?? true,
+    globeTransition: displayControls?.globeTransition ?? true,
+  }), [displayControls?.fullscreen, displayControls?.scale, displayControls?.globeTransition]);
+
   if (!allowOnce && !consentLevels.has(ConsentLevel.VERSATILES)) {
     return <MaplibreMapConsent {...props} onAllowOnceClick={() => setAllowOnce(true)} />;
-  } else if (props.loading) {
+  } else if (loading) {
     return <MaplibreMapLoading {...props} />;
   }
 
-  return <MaplibreMapInternal {...props} />;
+  return <MaplibreMapInternal {...props} displayControls={displayControlsMemoized} />;
 }
 
 export function MaplibreMapInline(props: React.PropsWithChildren<Omit<MaplibreMapProps, 'height'>>) {
@@ -124,7 +132,11 @@ function MaplibreMapOverlay({ height, children }: React.PropsWithChildren<{ heig
   );
 }
 
-function MaplibreMapInternal({ children, height, controls, initialLat, initialLng, initialZoom, displayControls }: React.PropsWithChildren<MaplibreMapProps>) {
+interface MaplibreMapInternalProps extends MaplibreMapProps {
+  displayControls: MaplibreMapdDisplayControls;
+}
+
+function MaplibreMapInternal({ children, height, controls, initialLat, initialLng, initialZoom, displayControls }: React.PropsWithChildren<MaplibreMapInternalProps>) {
   const [preferences] = usePreferences();
   const [projection, setProjection] = useState<'globe' | 'mercator'>('mercator');
   const mapStyle = useMemo(() => {
@@ -151,12 +163,12 @@ function MaplibreMapInternal({ children, height, controls, initialLat, initialLn
       <ComponentResize />
       <div style={{ float: 'left', marginTop: '10px', marginLeft: '10px' }}>
         <SpaceBetween size={'m'} direction={'horizontal'} alignItems={'center'}>
-          {(displayControls?.globeTransition ?? true) && <GlobeTransition projection={projection} setProjection={setProjection} />}
-          {...(controls ?? [])}
+          {displayControls.globeTransition && <GlobeTransition projection={projection} setProjection={setProjection} />}
+          {controls}
         </SpaceBetween>
       </div>
-      {(displayControls?.fullscreen ?? true) && <FullscreenControl />}
-      {(displayControls?.scale ?? true) && <ScaleControl />}
+      {displayControls?.fullscreen && <FullscreenControl />}
+      {displayControls?.scale && <ScaleControl />}
       {children}
     </Map>
   );
@@ -173,14 +185,18 @@ function GlobeTransition({ projection, setProjection }: { projection: 'globe' | 
   );
 }
 
-export function FitBounds({ bounds, options }: { bounds: LngLatBoundsLike, options?: FitBoundsOptions }) {
+export interface FitBoundsProps extends FitBoundsOptions {
+  bounds: LngLatBoundsLike;
+}
+
+export const FitBounds = memo(function FitBounds({ bounds, ...options }: FitBoundsProps) {
   const map = useMap();
   useEffect(() => {
     map.current?.fitBounds(bounds, options);
   }, [map.current, bounds, options]);
 
   return null;
-}
+});
 
 export function SmartLine({ src, dst, dashed }: { src: [number, number], dst: [number, number], dashed?: boolean }) {
   const [srcLng, srcLat] = src;
