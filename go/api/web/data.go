@@ -337,12 +337,7 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 	}
 
 	airportName := func(airportIataCode string) string {
-		airport, ok := fs.Airports[airportIataCode]
-		if !ok {
-			return airportIataCode
-		}
-
-		return cmp.Or(airport.IataCode, airport.IcaoCode, airport.Name)
+		return airportIataCode
 	}
 
 	aircraftName := func(aircraftIataCode string) string {
@@ -507,6 +502,36 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 				}
 
 				updates = append(updates, fmt.Sprintf("Codeshares: %snew=%s", old, strings.Join(parts, ",")))
+			}
+
+			if prevVariant == nil || !maps.Equal(prevVariant.DataElements, variant.DataElements) {
+				allElementsIds := make(common.Set[int64])
+				if prevVariant != nil {
+					for id := range prevVariant.DataElements {
+						allElementsIds.Add(id)
+					}
+				}
+
+				for id := range variant.DataElements {
+					allElementsIds.Add(id)
+				}
+
+				for _, id := range slices.Sorted(maps.Keys(allElementsIds)) {
+					var oldValue, newValue string
+					if prevVariant != nil && prevVariant.DataElements[id] != "" {
+						oldValue = prevVariant.DataElements[id]
+					} else {
+						oldValue = "none"
+					}
+
+					if variant.DataElements[id] != "" {
+						newValue = variant.DataElements[id]
+					} else {
+						newValue = "none"
+					}
+
+					updates = append(updates, fmt.Sprintf("Data Element %d: old=%s new=%s", id, oldValue, newValue))
+				}
 			}
 
 			item.Title = "Flight updated"

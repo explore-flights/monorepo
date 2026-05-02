@@ -24,6 +24,7 @@ import { DateTime, Duration, FixedOffsetZone } from 'luxon';
 import { FlightNumberList } from '../components/common/flight-link';
 import { AirportInlineText, AirportLongText } from '../components/common/text';
 import { RouterInlineLink } from '../components/common/router-link';
+import { BreakpointSeperator, Join } from '../components/common/join';
 
 export function FlightVersionsView() {
   const { id, departureAirport, departureDateLocal } = useParams();
@@ -80,6 +81,7 @@ interface FlightVersionTableItem extends BaseTableItem {
   aircraft: Changed<Aircraft>,
   aircraftConfigurationVersion: Changed<string>;
   codeShares: Changed<ReadonlyArray<[Airline, FlightNumber]>>;
+  dataElements: Changed<Record<number, string>>;
 }
 
 interface FlightCancelledTableItem extends BaseTableItem {
@@ -290,6 +292,15 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
               }, []),
             },
             {
+              id: 'data_elements',
+              header: 'Data Elements',
+              cell: useCallback((v: TableItem) => {
+                return v.type === 'scheduled'
+                  ? <WrapChanged changed={v.dataElements}><DataElements dataElements={v.dataElements[0]} /></WrapChanged>
+                  : '';
+              }, []),
+            },
+            {
               id: 'actions',
               header: 'Actions',
               cell: useCallback((v: TableItem) => {
@@ -310,6 +321,21 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
         />
       </ColumnLayout>
     </ContentLayout>
+  );
+}
+
+function DataElements({ dataElements }: { dataElements: Record<number, string> }) {
+  const nodes = useMemo(() => {
+    const result: Array<React.ReactNode> = [];
+    for (const [id, value] of Object.entries(dataElements).toSorted((a, b) => a[0].localeCompare(b[0]))) {
+      result.push(<Box key={id} variant={'samp'}>{`${id}: ${value}`}</Box>);
+    }
+
+    return result;
+  }, [dataElements]);
+
+  return (
+    <Join seperator={BreakpointSeperator} items={nodes} />
   );
 }
 
@@ -395,6 +421,7 @@ function processVersions(flightVersions: FlightScheduleVersions): [ReadonlyArray
           aircraft: buildChanged(aircraft, 'aircraft', previous),
           aircraftConfigurationVersion: buildChanged(variant.aircraftConfigurationVersion, 'aircraftConfigurationVersion', previous),
           codeShares: buildChanged(codeShares, 'codeShares', previous, isSameFlightNumberList),
+          dataElements: buildChanged(variant.dataElements, 'dataElements', previous, isSameDataElements),
         };
 
         items.push(item);
@@ -447,6 +474,24 @@ function compareFlightNumbersPlain(v1: FlightNumber, v2: FlightNumber) {
   return (v1.suffix ?? '').localeCompare(v2.suffix ?? '');
 }
 
+function isSameDataElements(v1: Record<number, string>, v2: Record<number, string>) {
+  const entries1 = Object.entries(v1).toSorted((a, b) => a[0].localeCompare(b[0]));
+  const entries2 = Object.entries(v2).toSorted((a, b) => a[0].localeCompare(b[0]));
+
+  if (entries1.length !== entries2.length) {
+    return false;
+  }
+
+  for (let i = 0; i < entries1.length; i++) {
+    const [k1, v1] = entries1[i];
+    const [k2, v2] = entries2[i];
+    if (k1 !== k2 || v1 !== v2) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 function isSameTime(a: DateTime<true>, b: DateTime<true>) {
   return a.toMillis() === b.toMillis();

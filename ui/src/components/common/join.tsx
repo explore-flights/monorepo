@@ -19,3 +19,7 @@ export function Join({ seperator, items }: { seperator: () => React.ReactNode, i
 export function BulletSeperator() {
   return <>&nbsp;&#8226;&nbsp;</>;
 }
+
+export function BreakpointSeperator() {
+  return <br />;
+}
