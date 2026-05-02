@@ -169,6 +169,7 @@ export interface FlightScheduleVariant {
   aircraftId: AircraftId;
   aircraftConfigurationVersion: string;
   codeShares: ReadonlyArray<FlightNumber>;
+  dataElements: Record<number, string>;
 }
 
 export interface FlightScheduleVersions {

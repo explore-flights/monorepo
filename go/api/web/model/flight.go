@@ -1,6 +1,7 @@
 package model
 
 import (
+	"maps"
 	"time"
 
 	"github.com/explore-flights/monorepo/go/api/db"
@@ -42,18 +43,19 @@ func FlightScheduleItemFromDb(item db.FlightScheduleItem) FlightScheduleItem {
 }
 
 type FlightScheduleVariant struct {
-	Id                           UUID            `json:"id"`
-	OperatedAs                   FlightNumber    `json:"operatedAs"`
-	DepartureTimeLocal           xtime.LocalTime `json:"departureTimeLocal"`
-	DepartureUtcOffsetSeconds    int64           `json:"departureUtcOffsetSeconds"`
-	DurationSeconds              int64           `json:"durationSeconds"`
-	ArrivalAirportIataCode       string          `json:"arrivalAirportId"`
-	ArrivalUtcOffsetSeconds      int64           `json:"arrivalUtcOffsetSeconds"`
-	ServiceType                  string          `json:"serviceType"`
-	AircraftOwner                string          `json:"aircraftOwner"`
-	AircraftIataCode             string          `json:"aircraftId"`
-	AircraftConfigurationVersion string          `json:"aircraftConfigurationVersion"`
-	CodeShares                   []FlightNumber  `json:"codeShares"`
+	Id                           UUID             `json:"id"`
+	OperatedAs                   FlightNumber     `json:"operatedAs"`
+	DepartureTimeLocal           xtime.LocalTime  `json:"departureTimeLocal"`
+	DepartureUtcOffsetSeconds    int64            `json:"departureUtcOffsetSeconds"`
+	DurationSeconds              int64            `json:"durationSeconds"`
+	ArrivalAirportIataCode       string           `json:"arrivalAirportId"`
+	ArrivalUtcOffsetSeconds      int64            `json:"arrivalUtcOffsetSeconds"`
+	ServiceType                  string           `json:"serviceType"`
+	AircraftOwner                string           `json:"aircraftOwner"`
+	AircraftIataCode             string           `json:"aircraftId"`
+	AircraftConfigurationVersion string           `json:"aircraftConfigurationVersion"`
+	CodeShares                   []FlightNumber   `json:"codeShares"`
+	DataElements                 map[int64]string `json:"dataElements"`
 }
 
 func FlightScheduleVariantFromDb(variant db.FlightScheduleVariant) FlightScheduleVariant {
@@ -70,6 +72,7 @@ func FlightScheduleVariantFromDb(variant db.FlightScheduleVariant) FlightSchedul
 		AircraftIataCode:             variant.AircraftIataCode,
 		AircraftConfigurationVersion: variant.AircraftConfigurationVersion,
 		CodeShares:                   make([]FlightNumber, 0, len(variant.CodeShares)),
+		DataElements:                 maps.Clone(variant.DataElements),
 	}
 
 	for cs := range variant.CodeShares {
