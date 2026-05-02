@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Aircraft, Airport } from '../../lib/api/api.model';
 import {
   Badge,
@@ -11,7 +11,10 @@ import {
 } from '@cloudscape-design/components';
 import { CodeView } from '@cloudscape-design/code-view';
 import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
-import { aircraftConfigurationVersionToName } from '../../lib/consts';
+import {
+  findAircraftConfigurationVersionNames,
+  findAnyAircraftConfigurationVersionNames,
+} from '../../lib/consts';
 import { MaplibreMapInline } from '../maplibre/maplibre-map';
 import { AirportMarker } from '../maplibre/marker';
 
@@ -150,9 +153,16 @@ function AircraftCellPopover({ value, children }: React.PropsWithChildren<{ valu
   );
 }
 
-export function AircraftConfigurationVersionText({ value, popoverContent }: { value: string, popoverContent?: React.ReactNode }) {
-  const name = aircraftConfigurationVersionToName(value);
-  const content = <Box variant={'samp'}>{name ?? value}</Box>;
+export function AircraftConfigurationVersionText({ airlineIataCode, aircraftIataCode, value, popoverContent }: { airlineIataCode?: string, aircraftIataCode?: string, value: string, popoverContent?: React.ReactNode }) {
+  const names = useMemo(() => {
+    if (airlineIataCode && aircraftIataCode) {
+      return findAircraftConfigurationVersionNames(airlineIataCode, aircraftIataCode, value);
+    }
+
+    return findAnyAircraftConfigurationVersionNames(value);
+  }, [airlineIataCode, aircraftIataCode, value]);
+
+  const content = <Box variant={'samp'}>{names?.short_name ?? value}</Box>;
 
   if (popoverContent) {
     return (
@@ -160,9 +170,19 @@ export function AircraftConfigurationVersionText({ value, popoverContent }: { va
     );
   }
 
-  if (name) {
+  if (names) {
     return (
-      <Popover content={value} dismissButton={false}>{content}</Popover>
+      <Popover
+        content={<KeyValuePairs
+          columns={3}
+          items={[
+            { label: 'Code', value: value },
+            { label: 'Name', value: names.name },
+            { label: 'Shortname', value: names.short_name },
+          ]}
+        />}
+        dismissButton={false}
+      >{content}</Popover>
     );
   }
 

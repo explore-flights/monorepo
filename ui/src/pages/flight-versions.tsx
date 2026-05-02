@@ -22,7 +22,7 @@ import { ErrorNotificationContent } from '../components/util/context/app-control
 import { airportToString, flightNumberToString } from '../lib/util/flight';
 import { DateTime, Duration, FixedOffsetZone } from 'luxon';
 import { FlightNumberList } from '../components/common/flight-link';
-import { AirportInlineText, AirportLongText } from '../components/common/text';
+import { AircraftConfigurationVersionText, AirportInlineText, AirportLongText } from '../components/common/text';
 import { RouterInlineLink } from '../components/common/router-link';
 import { BreakpointSeperator, Join } from '../components/common/join';
 
@@ -278,7 +278,15 @@ function FlightVersionsContent({ flightVersions }: { flightVersions: FlightSched
               header: 'Aircraft Configuration',
               cell: useCallback((v: TableItem) => {
                 return v.type === 'scheduled'
-                  ? <WrapChanged changed={v.aircraftConfigurationVersion}><Box variant={'samp'}>{v.aircraftConfigurationVersion[0]}</Box></WrapChanged>
+                  ? (
+                    <WrapChanged changed={v.aircraftConfigurationVersion}>
+                      <AircraftConfigurationVersionText
+                        airlineIataCode={v.operatedAs[0][0].iataCode}
+                        aircraftIataCode={v.aircraft[0].iataCode}
+                        value={v.aircraftConfigurationVersion[0]}
+                      />
+                    </WrapChanged>
+                  )
                   : '';
               }, []),
             },

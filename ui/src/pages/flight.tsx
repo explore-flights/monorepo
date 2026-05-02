@@ -350,6 +350,8 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
 
                   return (
                     <AircraftConfigurationVersionText
+                      airlineIataCode={v.operatedAs[0].iataCode}
+                      aircraftIataCode={v.aircraft.iataCode}
                       value={v.aircraftConfigurationVersion}
                       popoverContent={<KeyValuePairs
                         columns={2}
