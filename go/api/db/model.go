@@ -153,3 +153,10 @@ type FlightScheduleUpdate struct {
 	DepartureAirportIataCode string
 	FlightVariantId          sql.Null[uuid.UUID]
 }
+
+type FlightNumberUpdateReportItem struct {
+	Version time.Time
+	Removed int
+	Added   int
+	Updated int
+}

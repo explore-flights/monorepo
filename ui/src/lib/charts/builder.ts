@@ -32,18 +32,20 @@ export interface DateThresholdSeries {
   color?: string;
 }
 
+export type Domain<T> = [T, T];
+
 export class SeriesBuilder<ID extends Primitive, S extends Series<T>, D = ID, T extends ChartDataTypes = ChartDataTypes> {
 
   private readonly type: SeriesType<S>;
   private readonly idFn: (d: D) => ID;
-  private readonly finalizer: (data: D) => RemainingDataSeries<S, T>;
-  private readonly dataAndSeriesById: Map<ID, [D, MutableDataSeries<S, T>]>;
+  private readonly finalizer: (data: D, xDomain: Domain<DataType<S, T>>, yDomain: Domain<number>) => RemainingDataSeries<S, T>;
+  private readonly dataAndSeriesById: Map<ID, [D, MutableDataSeries<S, T>, Domain<DataType<S, T>>, Domain<number>]>;
   private readonly uniqueXValues: Array<DataType<S, T>>;
-  private xDomain: [DataType<S, T>, DataType<S, T>] | null;
-  private yDomain: [number, number] | null;
+  private globalXDomain: Domain<DataType<S, T>> | null;
+  private globalYDomain: [number, number] | null;
 
   constructor(type: SeriesType<S>,
-              finalizer: (data: D) => RemainingDataSeries<S, T>,
+              finalizer: (data: D, xDomain: Domain<DataType<S, T>>, yDomain: Domain<number>) => RemainingDataSeries<S, T>,
               ...idFn: IsEqual<ID, D> extends true ? [] : [(d: D) => ID]) {
 
     this.type = type;
@@ -57,20 +59,33 @@ export class SeriesBuilder<ID extends Primitive, S extends Series<T>, D = ID, T 
       this.idFn = (v) => v as unknown as ID;
     }
 
-    this.xDomain = null;
-    this.yDomain = null;
+    this.globalXDomain = null;
+    this.globalYDomain = null;
   }
 
   public add(data: D, x: DataType<S, T>, y: number) {
     const id = this.idFn(data);
 
-    let [, series] = this.dataAndSeriesById.get(id) ?? [undefined, undefined];
-    if (!series) {
-      series = {
-        type: this.type,
-        data: [],
-      };
-      this.dataAndSeriesById.set(id, [data, series]);
+    let series: MutableDataSeries<S, T>;
+    let xDomain: Domain<DataType<S, T>>;
+    let yDomain: Domain<number>;
+    {
+      let values = this.dataAndSeriesById.get(id);
+      if (!values) {
+        values = [
+          data,
+          {
+            type: this.type,
+            data: [],
+          },
+          [x, x],
+          [y, y]
+        ];
+
+        this.dataAndSeriesById.set(id, values);
+      }
+
+      [, series, xDomain, yDomain] = values;
     }
 
     if (series.type !== this.type) {
@@ -89,32 +104,44 @@ export class SeriesBuilder<ID extends Primitive, S extends Series<T>, D = ID, T 
       }
     }
 
-    if (this.xDomain) {
-      const sorted = [this.xDomain[0], this.xDomain[1], x].toSorted(compare<DataType<S, T>>);
-      this.xDomain = [sorted[0], sorted[2]];
-    } else {
-      this.xDomain = [x, x];
+    {
+      const sorted = [xDomain[0], xDomain[1], x].toSorted(compare<DataType<S, T>>);
+      xDomain[0] = sorted[0];
+      xDomain[1] = sorted[2];
     }
 
-    if (this.yDomain) {
-      const sorted = [this.yDomain[0], this.yDomain[1], y].toSorted(compare<number>);
-      this.yDomain = [sorted[0], sorted[2]];
+    {
+      const sorted = [yDomain[0], yDomain[1], y].toSorted(compare<number>);
+      yDomain[0] = sorted[0];
+      yDomain[1] = sorted[2];
+    }
+
+    if (this.globalXDomain) {
+      const sorted = [this.globalXDomain[0], this.globalXDomain[1], x].toSorted(compare<DataType<S, T>>);
+      this.globalXDomain = [sorted[0], sorted[2]];
     } else {
-      this.yDomain = [y, y];
+      this.globalXDomain = [x, x];
+    }
+
+    if (this.globalYDomain) {
+      const sorted = [this.globalYDomain[0], this.globalYDomain[1], y].toSorted(compare<number>);
+      this.globalYDomain = [sorted[0], sorted[2]];
+    } else {
+      this.globalYDomain = [y, y];
     }
   }
 
-  public series(fillMissingX?: boolean, sortX?: boolean): [ReadonlyArray<S>, [DataType<S, T>, DataType<S, T>] | undefined, [number, number] | undefined] {
+  public series(fillMissingX?: boolean, sortX?: boolean): [ReadonlyArray<S>, Domain<DataType<S, T>> | undefined, Domain<number> | undefined] {
     let uniqueXValues = this.uniqueXValues;
     if (sortX) {
       uniqueXValues = uniqueXValues.toSorted(compare<DataType<S, T>>);
     }
 
-    const series = Array.from(this.dataAndSeriesById.values()).map(([d, series]) => {
-      const remaining = [...series.data];
+    const series = Array.from(this.dataAndSeriesById.values()).map(([d, series, xDomain, yDomain]) => {
       let data: MutableSeriesDataArray<S, T>;
       
       if (fillMissingX) {
+        const remaining = [...series.data];
         data = [];
         
         for (const x of uniqueXValues) {
@@ -125,18 +152,20 @@ export class SeriesBuilder<ID extends Primitive, S extends Series<T>, D = ID, T 
             data.push(remaining.splice(idx, 1)[0]);
           }
         }
+      } else if (sortX) {
+        data = series.data.toSorted((a, b) => compare(a.x, b.x));
       } else {
-        data = remaining;
+        data = [...series.data];
       }
 
       return {
         ...series,
         data: data,
-        ...this.finalizer(d),
+        ...this.finalizer(d, xDomain, yDomain),
       } as unknown as S;
     });
 
-    return [series, this.xDomain ?? undefined, this.yDomain ?? undefined];
+    return [series, this.globalXDomain ?? undefined, this.globalYDomain ?? undefined];
   }
 }
 

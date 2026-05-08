@@ -39,6 +39,7 @@ type dataHandlerRepo interface {
 	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
 	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber, departureAirportIataCode string, departureDate xtime.LocalDate) (db.FlightScheduleVersions, error)
 	UpdatesForVersion(ctx context.Context, version time.Time, page int) ([]db.FlightScheduleUpdate, error)
+	FlightNumberUpdateReport(ctx context.Context, fn db.FlightNumber, version time.Time) ([]db.FlightNumberUpdateReportItem, error)
 }
 
 type DataHandler struct {
@@ -120,6 +121,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 
 	var flightSchedules db.FlightSchedules
 	var relatedFlightNumbers common.Set[db.FlightNumber]
+	var reportItems []db.FlightNumberUpdateReportItem
 	var airlines map[string]db.Airline
 	var airports map[string]db.Airport
 	var aircraft map[string]db.Aircraft
@@ -136,6 +138,12 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 		g.Go(func() error {
 			var err error
 			relatedFlightNumbers, err = dh.repo.RelatedFlightNumbers(ctx, fn, version)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			reportItems, err = dh.repo.FlightNumberUpdateReport(ctx, fn, version)
 			return err
 		})
 
@@ -166,6 +174,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 		FlightNumber:         model.FlightNumberFromDb(fn),
 		RelatedFlightNumbers: make([]model.FlightNumber, 0, len(relatedFlightNumbers)),
 		Items:                make([]model.FlightScheduleItem, 0, len(flightSchedules.Items)),
+		UpdateReport:         make([]model.FlightNumberUpdateReportItem, 0, len(reportItems)),
 		Variants:             make(map[model.UUID]model.FlightScheduleVariant, len(flightSchedules.Variants)),
 		Airlines:             make(map[string]model.Airline),
 		Airports:             make(map[string]model.Airport),
@@ -180,6 +189,15 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 	for _, item := range flightSchedules.Items {
 		fs.Items = append(fs.Items, model.FlightScheduleItemFromDb(item))
 		referencedAirports.Add(item.DepartureAirportIataCode)
+	}
+
+	for _, item := range reportItems {
+		fs.UpdateReport = append(fs.UpdateReport, model.FlightNumberUpdateReportItem{
+			Version: item.Version,
+			Removed: item.Removed,
+			Added:   item.Added,
+			Updated: item.Updated,
+		})
 	}
 
 	for variantId, variant := range flightSchedules.Variants {

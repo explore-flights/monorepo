@@ -12,6 +12,7 @@ type FlightSchedules struct {
 	FlightNumber         FlightNumber                   `json:"flightNumber"`
 	RelatedFlightNumbers []FlightNumber                 `json:"relatedFlightNumbers"`
 	Items                []FlightScheduleItem           `json:"items"`
+	UpdateReport         []FlightNumberUpdateReportItem `json:"updateReport"`
 	Variants             map[UUID]FlightScheduleVariant `json:"variants"`
 	Airlines             map[string]Airline             `json:"airlines"`
 	Airports             map[string]Airport             `json:"airports"`
@@ -96,4 +97,11 @@ type FlightScheduleVersions struct {
 type FlightScheduleVersion struct {
 	Version         time.Time `json:"version"`
 	FlightVariantId *UUID     `json:"flightVariantId,omitempty"`
+}
+
+type FlightNumberUpdateReportItem struct {
+	Version time.Time `json:"version"`
+	Removed int       `json:"removed"`
+	Added   int       `json:"added"`
+	Updated int       `json:"updated"`
 }

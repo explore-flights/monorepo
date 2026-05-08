@@ -564,6 +564,122 @@ ORDER BY departure_date_local ASC
 	}, nil
 }
 
+func (fr *FlightRepo) FlightNumberUpdateReport(ctx context.Context, fn FlightNumber, version time.Time) ([]FlightNumberUpdateReportItem, error) {
+	items := make([]FlightNumberUpdateReportItem, 0)
+	return items, fr.flightNumberUpdateReport(
+		ctx,
+		[]SelectExpression{
+			LiteralValueExpression("created_at"),
+			AggregationValueExpression{
+				Function: "SUM",
+				Expr:     LiteralValueExpression("added"),
+			},
+			AggregationValueExpression{
+				Function: "SUM",
+				Expr:     LiteralValueExpression("updated"),
+			},
+			AggregationValueExpression{
+				Function: "SUM",
+				Expr:     LiteralValueExpression("removed"),
+			},
+		},
+		AndCondition{
+			BaseCondition{
+				Filter: "airline_iata_code = ?",
+				Params: []any{fn.AirlineIataCode},
+			},
+			BaseCondition{
+				Filter: "number = ?",
+				Params: []any{fn.Number},
+			},
+			BaseCondition{
+				Filter: "suffix = ?",
+				Params: []any{fn.Suffix},
+			},
+			BaseCondition{
+				Filter: "created_at <= CAST(? AS TIMESTAMPTZ)",
+				Params: []any{version.Format(time.RFC3339)},
+			},
+		},
+		[]ValueExpression{
+			LiteralValueExpression("airline_iata_code"),
+			LiteralValueExpression("number"),
+			LiteralValueExpression("suffix"),
+			LiteralValueExpression("created_at"),
+		},
+		func(rows *sql.Rows) error {
+			for rows.Next() {
+				var ri FlightNumberUpdateReportItem
+				if err := rows.Scan(&ri.Version, &ri.Added, &ri.Updated, &ri.Removed); err != nil {
+					return err
+				}
+
+				items = append(items, ri)
+			}
+
+			return nil
+		},
+	)
+}
+
+func (fr *FlightRepo) flightNumberUpdateReport(ctx context.Context, selectFields []SelectExpression, filter Condition, groupBy []ValueExpression, scanner func(rows *sql.Rows) error) error {
+	if len(selectFields) < 1 {
+		return errors.New("at least one select field required")
+	}
+
+	var params []any
+	var selectStrs []string
+	var filterStr string
+	var groupByStrs []string
+
+	for _, selectField := range selectFields {
+		selectStr, selectParams := selectField.Select()
+		selectStrs = append(selectStrs, selectStr)
+		params = append(params, selectParams...)
+	}
+
+	if filter != nil {
+		var filterParams []any
+		filterStr, filterParams = filter.Condition()
+		params = append(params, filterParams...)
+	}
+
+	for _, groupByExpr := range groupBy {
+		groupByStr, groupByParams := groupByExpr.Value()
+		groupByStrs = append(groupByStrs, groupByStr)
+		params = append(params, groupByParams...)
+	}
+
+	query := "SELECT " + strings.Join(selectStrs, ",") + `
+FROM flight_number_update_report
+`
+	if filterStr != "" {
+		query += " WHERE " + filterStr
+	}
+
+	if len(groupByStrs) > 0 {
+		query += " GROUP BY " + strings.Join(groupByStrs, ",")
+	}
+
+	conn, err := fr.db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	rows, err := conn.QueryContext(ctx, query, params...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	if err = scanner(rows); err != nil {
+		return err
+	}
+
+	return rows.Err()
+}
+
 func (fr *FlightRepo) FlightSchedulesLatestRaw(ctx context.Context, filter Condition) (FlightSchedulesMany, error) {
 	var combinedFilter Condition = NewIsNullCondition("fvh.replaced_at")
 	if filter != nil {

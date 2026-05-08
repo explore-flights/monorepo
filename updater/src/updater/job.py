@@ -65,6 +65,7 @@ def run(settings: Settings) -> None:
                     _export_connections(conn, settings.parquet_bucket, f"{settings.parquet_prefix}connections.parquet")
                     _export_history(conn, settings.parquet_bucket, f"{settings.parquet_prefix}history/")
                     _export_latest(conn, settings.parquet_bucket, f"{settings.parquet_prefix}latest/")
+                    _export_flight_number_update_report(conn, settings.parquet_bucket, f"{settings.parquet_prefix}flight_number_update_report/")
                     done = True
 
                 if updated_database:
@@ -477,6 +478,51 @@ COPY (
   FORMAT parquet,
   COMPRESSION gzip,
   PARTITION_BY (year_utc, month_utc, day_utc),
+  OVERWRITE_OR_IGNORE
+)
+"""
+    )
+    conn.execute(f"SET threads TO {NUM_THREADS}")
+
+
+@timed(LOGGER, "export flight number update report")
+def _export_flight_number_update_report(conn: duckdb.DuckDBPyConnection, bucket: str, key_prefix: str) -> None:
+    export_uri = _build_parquet_file_uri(PARQUET_URI_SCHEMA, bucket, key_prefix)
+    conn.execute(f"USE {WORKING_DB_NAME}")
+    conn.execute("SET threads TO 1")
+    conn.execute(
+        f"""
+COPY (
+  SELECT
+    fvh.airline_iata_code,
+    fvh.number,
+    fvh.suffix,
+    fvh.created_at,
+    COUNT(*) FILTER (fvh.flight_variant_id IS NULL) AS removed,
+    COUNT(*) FILTER (fvh_previous.created_at IS NULL) AS added,
+    COUNT(*) FILTER (fvh.flight_variant_id IS NOT NULL AND fvh_previous.created_at IS NOT NULL) AS updated
+  FROM flight_variant_history fvh
+  LEFT JOIN flight_variant_history fvh_previous
+  ON fvh.airline_iata_code = fvh_previous.airline_iata_code
+  AND fvh.number = fvh_previous.number
+  AND fvh.suffix = fvh_previous.suffix
+  AND fvh.departure_airport_iata_code = fvh_previous.departure_airport_iata_code
+  AND fvh.departure_date_local = fvh_previous.departure_date_local
+  AND fvh.created_at = fvh_previous.replaced_at
+  GROUP BY
+    fvh.airline_iata_code,
+    fvh.number,
+    fvh.suffix,
+    fvh.created_at
+  ORDER BY
+    fvh.airline_iata_code ASC,
+    fvh.number ASC,
+    fvh.suffix ASC,
+    fvh.created_at ASC
+) TO '{export_uri}' (
+  FORMAT parquet,
+  COMPRESSION gzip,
+  PARTITION_BY (airline_iata_code),
   OVERWRITE_OR_IGNORE
 )
 """

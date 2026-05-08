@@ -28,7 +28,16 @@ import {
   useSeatMap
 } from '../components/util/state/data';
 import { ErrorNotificationContent } from '../components/util/context/app-controls';
-import { Aircraft, AircraftId, Airline, Airport, AirportId, FlightNumber, FlightSchedules } from '../lib/api/api.model';
+import {
+  Aircraft,
+  AircraftId,
+  Airline,
+  Airport,
+  AirportId,
+  FlightNumber,
+  FlightNumberUpdateReportItem,
+  FlightSchedules
+} from '../lib/api/api.model';
 import { DateTime, Duration, FixedOffsetZone, WeekdayNumbers } from 'luxon';
 import {
   PropertyFilterOperator,
@@ -264,7 +273,7 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
 
         <>
           <Map flights={filteredFlights} />
-          <Stats flights={filteredFlights} />
+          <Stats flights={filteredFlights} updateReport={flightSchedules.updateReport} />
           <Table
             items={items}
             {...collectionProps}
@@ -503,7 +512,7 @@ function Map({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
   );
 }
 
-function Stats({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
+function Stats({ flights, updateReport }: { flights: ReadonlyArray<FlightTableItem>, updateReport: ReadonlyArray<FlightNumberUpdateReportItem> }) {
   const scheduledFlights = useMemo(() => flights.filter((v) => v.type === 'scheduled'), [flights]);
   return (
     <ExpandableSection variant={'stacked'} headerText={'Stats'} headerInfo={<Box variant={'small'}>Table filters applied</Box>} defaultExpanded={false}>
@@ -528,6 +537,11 @@ function Stats({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
             id: 'operating_day',
             label: 'Operating Day',
             content: <OperatingDayStat flights={scheduledFlights} />,
+          },
+          {
+            id: 'update_report',
+            label: 'Updates',
+            content: <UpdateReportStat items={updateReport} />,
           },
         ]}
       />
@@ -668,6 +682,45 @@ function OperatingDayStat({ flights }: { flights: ReadonlyArray<ScheduledFlight>
 
   return (
     <PieChart data={data} />
+  );
+}
+
+function UpdateReportStat({ items }: { items: ReadonlyArray<FlightNumberUpdateReportItem> }) {
+  const [series, xDomain, yDomain] = useMemo(() => {
+    const builder = new SeriesBuilder<string, LineSeries<Date>>(
+      'line',
+      (title, xDomain, yDomain) => ({
+        title: title,
+        xDomain,
+        yDomain,
+      }),
+    );
+
+    for (const item of items) {
+      const date = DateTime.fromISO(item.version).toJSDate();
+      builder.add('Added', date, item.added);
+      builder.add('Removed', date, item.removed);
+      builder.add('Updated', date, item.updated);
+    }
+
+    const [series, xDomain, yDomain] = builder.series(false, true);
+    return [
+      series,
+      xDomain,
+      yDomain,
+    ] as const;
+  }, [items]);
+
+  return (
+    <LineChart
+      series={series}
+      xDomain={xDomain}
+      yDomain={yDomain ? [0, yDomain[1]] : undefined}
+      xScaleType={'time'}
+      xTitle={'Time'}
+      yTitle={'Updates'}
+      xTickFormatter={(e) => DateTime.fromJSDate(e).toISO() ?? ''}
+    />
   );
 }
 

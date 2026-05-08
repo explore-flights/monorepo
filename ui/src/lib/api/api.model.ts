@@ -142,6 +142,7 @@ export interface FlightSchedules {
   flightNumber: FlightNumber;
   relatedFlightNumbers: ReadonlyArray<FlightNumber>;
   items: ReadonlyArray<FlightScheduleItem>;
+  updateReport: ReadonlyArray<FlightNumberUpdateReportItem>;
   variants: Record<FlightVariantId, FlightScheduleVariant>;
   airlines: Record<AirlineId, Airline>;
   airports: Record<AirportId, Airport>;
@@ -353,4 +354,11 @@ export interface ConnectionGameChallenge {
   seed: string;
   departureAirportId: AirportId;
   arrivalAirportId: AirportId;
+}
+
+export interface FlightNumberUpdateReportItem {
+  version: string;
+  removed: number;
+  added: number;
+  updated: number;
 }

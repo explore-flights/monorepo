@@ -21,7 +21,7 @@ type Database struct {
 	err        error
 }
 
-func NewDatabase(baseDbPath, variantsParquetPath, reportParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath string) *Database {
+func NewDatabase(baseDbPath, variantsParquetPath, reportParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath, flightNumberUpdateReportPath string) *Database {
 	initDone := make(chan struct{})
 	db := Database{initDone: initDone}
 	go func() {
@@ -71,7 +71,7 @@ func NewDatabase(baseDbPath, variantsParquetPath, reportParquetPath, connections
 			return
 		}
 
-		if err = dbInit(context.Background(), conn, db.dbWorkPath, baseDbPath, variantsParquetPath, reportParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath); err != nil {
+		if err = dbInit(context.Background(), conn, db.dbWorkPath, baseDbPath, variantsParquetPath, reportParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath, flightNumberUpdateReportPath); err != nil {
 			err = errors.Join(err, conn.Close())
 			return
 		}
@@ -127,7 +127,18 @@ func (db *Database) Close() error {
 	return errors.Join(errs...)
 }
 
-func dbInit(ctx context.Context, conn *sql.Conn, dbWorkPath, baseDbPath, variantsParquetPath, reportParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath string) error {
+func dbInit(
+	ctx context.Context,
+	conn *sql.Conn,
+	dbWorkPath,
+	baseDbPath,
+	variantsParquetPath,
+	reportParquetPath,
+	connectionsParquetPath,
+	historyParquetPath,
+	latestParquetPath,
+	flightNumberUpdateReportPath string) error {
+
 	bootQueries := make([]common.Tuple[string, []any], 0)
 	bootQueries = append(bootQueries, []common.Tuple[string, []any]{
 		{
@@ -220,7 +231,10 @@ FROM read_parquet('%s', hive_partitioning = false)
 		},
 		{
 			fmt.Sprintf(
-				`CREATE OR REPLACE VIEW flight_variant_history AS SELECT * FROM read_parquet('%s', hive_partitioning = true, hive_types = {'airline_iata_code': TEXT, 'number_mod_10': USMALLINT})`,
+				`
+CREATE OR REPLACE VIEW flight_variant_history AS
+SELECT * FROM read_parquet('%s', hive_partitioning = true, hive_types = {'airline_iata_code': TEXT, 'number_mod_10': USMALLINT})
+`,
 				historyParquetPath+"/**/*.parquet",
 			),
 			nil,
@@ -240,6 +254,16 @@ SELECT
 FROM read_parquet('%s', hive_partitioning = true, hive_types = {'year_utc': USMALLINT, 'month_utc': USMALLINT, 'day_utc': USMALLINT})
 `,
 				latestParquetPath+"/**/*.parquet",
+			),
+			nil,
+		},
+		{
+			fmt.Sprintf(
+				`
+CREATE OR REPLACE VIEW flight_number_update_report AS
+SELECT * FROM read_parquet('%s', hive_partitioning = true, hive_types = {'airline_iata_code': TEXT})
+`,
+				flightNumberUpdateReportPath+"/**/*.parquet",
 			),
 			nil,
 		},

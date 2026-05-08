@@ -102,6 +102,7 @@ func (a accessor) Database() (*db.Database, error) {
 		filepath.Join(localS3BasePath, parquetBucketFolder, "connections.parquet"),
 		filepath.Join(localS3BasePath, parquetBucketFolder, "history"),
 		filepath.Join(localS3BasePath, parquetBucketFolder, "latest"),
+		filepath.Join(localS3BasePath, parquetBucketFolder, "flight_number_update_report"),
 	), nil
 }
 
