@@ -10,11 +10,7 @@ class Settings:
     full_database_key: str
     basedata_database_key: str
     parquet_bucket: str
-    variants_key: str
-    report_key: str
-    connections_key: str
-    history_prefix: str
-    latest_prefix: str
+    parquet_prefix: str
     input_bucket: str
     inputs: list[tuple[datetime, str]]
     update_summary_bucket: str
@@ -30,11 +26,7 @@ class Settings:
             self.full_database_key,
             self.basedata_database_key,
             self.parquet_bucket,
-            self.variants_key,
-            self.report_key,
-            self.connections_key,
-            self.history_prefix,
-            self.latest_prefix,
+            self.parquet_prefix,
         )
         if any(value == "" for value in required):
             raise ValueError("missing required updater arguments")

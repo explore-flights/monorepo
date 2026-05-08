@@ -37,11 +37,7 @@ def _parse_args() -> Settings:
     parser.add_argument("--full-database-key", required=True)
     parser.add_argument("--basedata-database-key", required=True)
     parser.add_argument("--parquet-bucket", required=True)
-    parser.add_argument("--variants-key", required=True)
-    parser.add_argument("--report-key", required=True)
-    parser.add_argument("--connections-key", required=True)
-    parser.add_argument("--history-prefix", required=True)
-    parser.add_argument("--latest-prefix", required=True)
+    parser.add_argument("--parquet-prefix", required=True)
     parser.add_argument("--input-bucket", default="")
     parser.add_argument("--input-key", default="")
     parser.add_argument("--update-summary-bucket", default="")
@@ -64,11 +60,7 @@ def _parse_args() -> Settings:
         full_database_key=args.full_database_key,
         basedata_database_key=args.basedata_database_key,
         parquet_bucket=args.parquet_bucket,
-        variants_key=args.variants_key,
-        report_key=args.report_key,
-        connections_key=args.connections_key,
-        history_prefix=args.history_prefix,
-        latest_prefix=args.latest_prefix,
+        parquet_prefix=args.parquet_prefix,
         input_bucket=args.input_bucket,
         inputs=inputs,
         update_summary_bucket=args.update_summary_bucket,

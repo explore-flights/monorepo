@@ -60,11 +60,11 @@ def run(settings: Settings) -> None:
                 # only export derivatives if there are no updates left to run
                 if len(inputs) < 1:
                     _create_and_upload_basedata_db(conn, storage, tmp_dir, settings.database_bucket, settings.basedata_database_key)
-                    _export_variants(conn, settings.parquet_bucket, settings.variants_key)
-                    _export_report(conn, settings.parquet_bucket, settings.report_key)
-                    _export_connections(conn, settings.parquet_bucket, settings.connections_key)
-                    _export_history(conn, settings.parquet_bucket, settings.history_prefix)
-                    _export_latest(conn, settings.parquet_bucket, settings.latest_prefix)
+                    _export_variants(conn, settings.parquet_bucket, f"{settings.parquet_prefix}variants.parquet")
+                    _export_report(conn, settings.parquet_bucket, f"{settings.parquet_prefix}report.parquet")
+                    _export_connections(conn, settings.parquet_bucket, f"{settings.parquet_prefix}connections.parquet")
+                    _export_history(conn, settings.parquet_bucket, f"{settings.parquet_prefix}history/")
+                    _export_latest(conn, settings.parquet_bucket, f"{settings.parquet_prefix}latest/")
                     done = True
 
                 if updated_database:

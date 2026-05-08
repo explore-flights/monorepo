@@ -23,9 +23,7 @@ type UpdateLambdaLayerParams struct {
 	DatabaseBucket      string `json:"databaseBucket"`
 	BaseDataDatabaseKey string `json:"baseDataDatabaseKey"`
 	ParquetBucket       string `json:"parquetBucket"`
-	VariantsKey         string `json:"variantsKey"`
-	ReportKey           string `json:"reportKey"`
-	ConnectionsKey      string `json:"connectionsKey"`
+	ParquetPrefix       string `json:"parquetPrefix"`
 	LayerName           string `json:"layerName"`
 	SsmParameterName    string `json:"ssmParameterName"`
 }
@@ -70,9 +68,7 @@ func (a *ullAction) Handle(ctx context.Context, params UpdateLambdaLayerParams) 
 		params.DatabaseBucket,
 		params.BaseDataDatabaseKey,
 		params.ParquetBucket,
-		params.VariantsKey,
-		params.ReportKey,
-		params.ConnectionsKey,
+		params.ParquetPrefix,
 		params.LayerName,
 		params.SsmParameterName,
 	)
@@ -80,13 +76,13 @@ func (a *ullAction) Handle(ctx context.Context, params UpdateLambdaLayerParams) 
 	return output, err
 }
 
-func (a *ullAction) updateLambdaLayer(ctx context.Context, version, databaseBucket, baseDataDatabaseKey, parquetBucket, variantsKey, reportKey, connectionsKey, layerName, ssmParameterName string) ([]string, error) {
+func (a *ullAction) updateLambdaLayer(ctx context.Context, version, databaseBucket, baseDataDatabaseKey, parquetBucket, parquetPrefix, layerName, ssmParameterName string) ([]string, error) {
 	// create layer zip
 	files := [][3]string{
 		{"data/basedata.db", databaseBucket, baseDataDatabaseKey},
-		{"data/variants.parquet", parquetBucket, variantsKey},
-		{"data/report.parquet", parquetBucket, reportKey},
-		{"data/connections.parquet", parquetBucket, connectionsKey},
+		{"data/variants.parquet", parquetBucket, parquetPrefix + "variants.parquet"},
+		{"data/report.parquet", parquetBucket, parquetPrefix + "report.parquet"},
+		{"data/connections.parquet", parquetBucket, parquetPrefix + "connections.parquet"},
 	}
 
 	var layerZipBuffer bytes.Buffer
