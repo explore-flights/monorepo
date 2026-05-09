@@ -38,6 +38,7 @@ type dataHandlerRepo interface {
 	RelatedFlightNumbers(ctx context.Context, fn db.FlightNumber, version time.Time) (common.Set[db.FlightNumber], error)
 	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
 	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber, departureAirportIataCode string, departureDate xtime.LocalDate) (db.FlightScheduleVersions, error)
+	GlobalUpdatesReport(ctx context.Context) ([]db.UpdateReportItem, error)
 	UpdatesReport(ctx context.Context, fn db.FlightNumber, version time.Time) ([]db.UpdateReportItem, error)
 	Destinations(ctx context.Context, departureAirportIataCode string) ([]string, error)
 }
@@ -192,12 +193,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 	}
 
 	for _, item := range reportItems {
-		fs.UpdateReport = append(fs.UpdateReport, model.UpdateReportItem{
-			Version: item.Version,
-			Removed: item.Removed,
-			Added:   item.Added,
-			Updated: item.Updated,
-		})
+		fs.UpdateReport = append(fs.UpdateReport, model.UpdateReportItemFromDb(item))
 	}
 
 	for variantId, variant := range flightSchedules.Variants {
@@ -226,6 +222,10 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 	}
 
 	model.AddReferencedAircraft(maps.Keys(referencedAircraft), aircraft, fs.Aircraft)
+
+	slices.SortFunc(fs.UpdateReport, func(a, b model.UpdateReportItem) int {
+		return a.Version.Compare(b.Version)
+	})
 
 	addExpirationHeaders(c, time.Now(), time.Hour)
 	return c.JSON(http.StatusOK, fs)
@@ -612,6 +612,24 @@ func (dh *DataHandler) Destinations(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, responseAirports)
+}
+
+func (dh *DataHandler) GlobalUpdates(c echo.Context) error {
+	reportItems, err := dh.repo.GlobalUpdatesReport(c.Request().Context())
+	if err != nil {
+		return err
+	}
+
+	result := make([]model.UpdateReportItem, 0, len(reportItems))
+	for _, reportItem := range reportItems {
+		result = append(result, model.UpdateReportItemFromDb(reportItem))
+	}
+
+	slices.SortFunc(result, func(a, b model.UpdateReportItem) int {
+		return a.Version.Compare(b.Version)
+	})
+
+	return c.JSON(http.StatusOK, result)
 }
 
 func (dh *DataHandler) LegacyFlightScheduleVersionsRSSFeed(c echo.Context) error {

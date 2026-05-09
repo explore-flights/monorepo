@@ -311,6 +311,18 @@ export function useDestinationsNoInitial(airportId?: AirportId) {
   });
 }
 
+export function useGlobalUpdates() {
+  const { apiClient } = useHttpClient();
+  return useQuery({
+    queryKey: ['global_updates'],
+    queryFn: async () => {
+      const { body } = expectSuccess(await apiClient.getGlobalUpdates());
+      return body;
+    },
+    retry: 5,
+  });
+}
+
 export function useConnectionGameChallenge(seed?: string, minFlights?: number, maxFlights?: number) {
   const { apiClient } = useHttpClient();
   return useQuery({

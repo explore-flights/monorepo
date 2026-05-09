@@ -19,7 +19,7 @@ import {
   FlightScheduleVersions,
   QuerySchedulesResponseV2,
   ConnectionGameChallenge,
-  AirportId,
+  AirportId, UpdateReportItem
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -138,6 +138,10 @@ export class ApiClient {
 
   getDestinations(departureAirport: AirportId): Promise<ApiResponse<ReadonlyArray<Airport>>> {
     return transform(this.httpClient.fetch(`/data/destinations/${encodeURIComponent(departureAirport)}?v=2`));
+  }
+
+  getGlobalUpdates(): Promise<ApiResponse<ReadonlyArray<UpdateReportItem>>> {
+    return transform(this.httpClient.fetch('/data/updates'));
   }
 
   getSpecialAircraftSchedules(identifier: string): Promise<ApiResponse<QuerySchedulesResponseV2>> {

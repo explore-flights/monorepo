@@ -105,3 +105,12 @@ type UpdateReportItem struct {
 	Added   int       `json:"added"`
 	Updated int       `json:"updated"`
 }
+
+func UpdateReportItemFromDb(item db.UpdateReportItem) UpdateReportItem {
+	return UpdateReportItem{
+		Version: item.Version,
+		Removed: item.Removed,
+		Added:   item.Added,
+		Updated: item.Updated,
+	}
+}

@@ -62,6 +62,7 @@ import { FitBounds, MaplibreMap, SmartLine } from '../components/maplibre/maplib
 import { Feature, Point } from 'geojson';
 import { bbox, featureCollection, point } from '@turf/turf';
 import { AirportMarker } from '../components/maplibre/marker';
+import { UpdateReportLineChart } from '../components/updates/updates-line-chart';
 
 export function FlightView() {
   const { id } = useParams();
@@ -541,7 +542,7 @@ function Stats({ flights, updateReport }: { flights: ReadonlyArray<FlightTableIt
           {
             id: 'update_report',
             label: 'Updates',
-            content: <UpdateReportStat items={updateReport} />,
+            content: <UpdateReportLineChart items={updateReport} />,
           },
         ]}
       />
@@ -682,45 +683,6 @@ function OperatingDayStat({ flights }: { flights: ReadonlyArray<ScheduledFlight>
 
   return (
     <PieChart data={data} />
-  );
-}
-
-function UpdateReportStat({ items }: { items: ReadonlyArray<UpdateReportItem> }) {
-  const [series, xDomain, yDomain] = useMemo(() => {
-    const builder = new SeriesBuilder<string, LineSeries<Date>>(
-      'line',
-      (title, xDomain, yDomain) => ({
-        title: title,
-        xDomain,
-        yDomain,
-      }),
-    );
-
-    for (const item of items) {
-      const date = DateTime.fromISO(item.version).toJSDate();
-      builder.add('Added', date, item.added);
-      builder.add('Removed', date, item.removed);
-      builder.add('Updated', date, item.updated);
-    }
-
-    const [series, xDomain, yDomain] = builder.series(false, true);
-    return [
-      series,
-      xDomain,
-      yDomain,
-    ] as const;
-  }, [items]);
-
-  return (
-    <LineChart
-      series={series}
-      xDomain={xDomain}
-      yDomain={yDomain ? [0, yDomain[1]] : undefined}
-      xScaleType={'time'}
-      xTitle={'Time'}
-      yTitle={'Updates'}
-      xTickFormatter={(e) => DateTime.fromJSDate(e).toISO() ?? ''}
-    />
   );
 }
 

@@ -19,6 +19,7 @@ import { TechAirports } from './game/tech-airports';
 import { DailyAirports } from './game/daily-airports';
 import { Allegris, LH747, LHA340, LHA380, SwissA350 } from './special-aircraft';
 import { About } from './about';
+import { Updates } from './updates';
 
 // region router
 const router = createBrowserRouter([
@@ -59,6 +60,10 @@ const router = createBrowserRouter([
       {
         path: 'airport',
         element: <Airports />,
+      },
+      {
+        path: 'updates',
+        element: <Updates />,
       },
       {
         path: 'game/techairportsanypercent',

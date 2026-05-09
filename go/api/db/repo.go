@@ -564,6 +564,44 @@ ORDER BY departure_date_local ASC
 	}, nil
 }
 
+func (fr *FlightRepo) GlobalUpdatesReport(ctx context.Context) ([]UpdateReportItem, error) {
+	items := make([]UpdateReportItem, 0)
+	return items, fr.updatesReport(
+		ctx,
+		[]SelectExpression{
+			LiteralValueExpression("created_at"),
+			AggregationValueExpression{
+				Function: "SUM",
+				Expr:     LiteralValueExpression("added"),
+			},
+			AggregationValueExpression{
+				Function: "SUM",
+				Expr:     LiteralValueExpression("updated"),
+			},
+			AggregationValueExpression{
+				Function: "SUM",
+				Expr:     LiteralValueExpression("removed"),
+			},
+		},
+		nil,
+		[]ValueExpression{
+			LiteralValueExpression("created_at"),
+		},
+		func(rows *sql.Rows) error {
+			for rows.Next() {
+				var ri UpdateReportItem
+				if err := rows.Scan(&ri.Version, &ri.Added, &ri.Updated, &ri.Removed); err != nil {
+					return err
+				}
+
+				items = append(items, ri)
+			}
+
+			return nil
+		},
+	)
+}
+
 func (fr *FlightRepo) UpdatesReport(ctx context.Context, fn FlightNumber, version time.Time) ([]UpdateReportItem, error) {
 	items := make([]UpdateReportItem, 0)
 	return items, fr.updatesReport(
