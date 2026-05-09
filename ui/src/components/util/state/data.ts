@@ -4,13 +4,14 @@ import { ApiError, expectSuccess } from '../../../lib/api/api';
 import { DateTime } from 'luxon';
 import {
   Aircraft,
-  AircraftId, AircraftReport,
+  AircraftId,
   Airline,
   AirlineId,
   Airport,
-  AirportId, DestinationReport, FlightScheduleUpdates,
-  QuerySchedulesRequest, QuerySchedulesResponseV2,
-  SearchResponse
+  AirportId,
+  QuerySchedulesRequest,
+  QuerySchedulesResponseV2,
+  SearchResponse,
 } from '../../../lib/api/api.model';
 
 export interface Airlines {
@@ -277,66 +278,36 @@ export function useSearch(query: string, enabled: boolean) {
   });
 }
 
-export function useDestinations(airport: string, year?: number, summerSchedule?: boolean) {
+export function useDestinations(airportId?: AirportId) {
   const { apiClient } = useHttpClient();
   return useQuery({
-    queryKey: ['destinations', airport, year, summerSchedule],
+    queryKey: ['destinations', airportId],
     queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getDestinations(airport, year, summerSchedule));
-      return body;
-    },
-    retry: 5,
-    initialData: [] satisfies ReadonlyArray<DestinationReport>,
-  });
-}
-
-export function useDestinationsNoInitial(airport?: string, year?: number, summerSchedule?: boolean) {
-  const { apiClient } = useHttpClient();
-  return useQuery({
-    queryKey: ['destinations_no_initial', airport, year, summerSchedule],
-    queryFn: async () => {
-      if (!airport) {
-        return [] satisfies ReadonlyArray<DestinationReport>;
+      if (!airportId) {
+        return [] satisfies ReadonlyArray<Airport>;
       }
 
-      const { body } = expectSuccess(await apiClient.getDestinations(airport, year, summerSchedule));
+      const { body } = expectSuccess(await apiClient.getDestinations(airportId));
       return body;
     },
     retry: 5,
+    initialData: [] satisfies ReadonlyArray<Airport>,
   });
 }
 
-export function useAircraftReport(airport: string, year?: number, summerSchedule?: boolean) {
+export function useDestinationsNoInitial(airportId?: AirportId) {
   const { apiClient } = useHttpClient();
   return useQuery({
-    queryKey: ['aircraft_report', airport, year, summerSchedule],
+    queryKey: ['destinations_no_initial', airportId],
     queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getAircraftReport(airport, year, summerSchedule));
-      return body;
-    },
-    retry: 5,
-    initialData: [] satisfies ReadonlyArray<AircraftReport>,
-  });
-}
-
-export function useUpdatesForVersion(version: string, active: boolean) {
-  const { apiClient } = useHttpClient();
-  return useQuery({
-    queryKey: ['version', version, active],
-    queryFn: async () => {
-      if (!active) {
-        return {
-          updates: [],
-          airlines: {},
-          airports: {},
-        } satisfies FlightScheduleUpdates;
+      if (!airportId) {
+        return [] satisfies ReadonlyArray<Airport>;
       }
 
-      const { body } = expectSuccess(await apiClient.getUpdatesForVersion(version));
+      const { body } = expectSuccess(await apiClient.getDestinations(airportId));
       return body;
     },
     retry: 5,
-    staleTime: Number.POSITIVE_INFINITY,
   });
 }
 

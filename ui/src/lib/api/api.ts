@@ -18,7 +18,8 @@ import {
   FlightSchedules,
   FlightScheduleVersions,
   QuerySchedulesResponseV2,
-  AircraftReport, FlightScheduleUpdates, DestinationReport, ConnectionGameChallenge
+  ConnectionGameChallenge,
+  AirportId,
 } from './api.model';
 import { ConcurrencyLimit } from './concurrency-limit';
 import { DateTime } from 'luxon';
@@ -135,6 +136,10 @@ export class ApiClient {
     return transform(this.httpClient.fetch(url));
   }
 
+  getDestinations(departureAirport: AirportId): Promise<ApiResponse<ReadonlyArray<Airport>>> {
+    return transform(this.httpClient.fetch(`/data/destinations/${encodeURIComponent(departureAirport)}?v=2`));
+  }
+
   getSpecialAircraftSchedules(identifier: string): Promise<ApiResponse<QuerySchedulesResponseV2>> {
     return transform(this.httpClient.fetch(`/data/schedule/${identifier}`));
   }
@@ -179,91 +184,6 @@ export class ApiClient {
     }
 
     return transform(this.httpClient.fetch(`/api/schedule/search?${params.toString()}`));
-  }
-
-  getDestinations(airport: string, year?: number, summerSchedule?: boolean): Promise<ApiResponse<ReadonlyArray<DestinationReport>>> {
-    const urlParts = [
-      '/data/destinations',
-      encodeURIComponent(airport),
-    ];
-
-    if (year) {
-      urlParts.push(year.toString());
-
-      if (summerSchedule !== undefined) {
-        urlParts.push(summerSchedule ? 'summer' : 'winter');
-      }
-    }
-
-    const url = urlParts.join('/');
-    return transform(this.httpClient.fetch(`${url}?v=1`));
-  }
-
-  getAircraftReport(airport: string, year?: number, summerSchedule?: boolean): Promise<ApiResponse<ReadonlyArray<AircraftReport>>> {
-    const urlParts = [
-      '/data/aircraft',
-      encodeURIComponent(airport),
-    ];
-
-    if (year) {
-      urlParts.push(year.toString());
-
-      if (summerSchedule !== undefined) {
-        urlParts.push(summerSchedule ? 'summer' : 'winter');
-      }
-    }
-
-    return transform(this.httpClient.fetch(urlParts.join('/')));
-  }
-
-  async getUpdatesForVersion(version: string): Promise<ApiResponse<FlightScheduleUpdates>> {
-    let page = 0;
-    let exhausted = false;
-    let lastHeaders = EMPTY_HEADERS;
-    let result: FlightScheduleUpdates = {
-      updates: [],
-      airlines: {},
-      airports: {},
-    };
-
-    while (!exhausted) {
-      const resp = await transform(
-        this.httpClient.fetch(`/data/version/${version}/${page++}`),
-        (status, body) => {
-          if (status === 204) {
-            return null;
-          }
-
-          return JSON.parse(body) as FlightScheduleUpdates;
-        },
-        200,
-        204
-      );
-
-      lastHeaders = resp.headers;
-
-      if (resp.kind !== KindSuccess) {
-        return resp;
-      }
-
-      if (resp.body !== null) {
-        result = {
-          updates: [...result.updates, ...resp.body.updates],
-          airlines: {...result.airlines, ...resp.body.airlines},
-          airports: {...result.airports, ...resp.body.airports},
-        };
-      } else {
-        exhausted = true;
-      }
-    }
-
-    return {
-      kind: KindSuccess,
-      status: 200,
-      headers: lastHeaders,
-      body: result,
-      error: undefined,
-    } satisfies SuccessResponse<FlightScheduleUpdates>;
   }
 
   search(query: string): Promise<ApiResponse<SearchResponse>> {

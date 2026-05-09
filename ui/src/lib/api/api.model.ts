@@ -142,7 +142,7 @@ export interface FlightSchedules {
   flightNumber: FlightNumber;
   relatedFlightNumbers: ReadonlyArray<FlightNumber>;
   items: ReadonlyArray<FlightScheduleItem>;
-  updateReport: ReadonlyArray<FlightNumberUpdateReportItem>;
+  updateReport: ReadonlyArray<UpdateReportItem>;
   variants: Record<FlightVariantId, FlightScheduleVariant>;
   airlines: Record<AirlineId, Airline>;
   airports: Record<AirportId, Airport>;
@@ -200,19 +200,6 @@ export interface QuerySchedulesResponseV2 {
 export interface FlightNumberAndScheduleItems {
   flightNumber: FlightNumber;
   items: ReadonlyArray<FlightScheduleItem>;
-}
-
-export interface FlightScheduleUpdates {
-  updates: ReadonlyArray<FlightScheduleUpdate>;
-  airlines: Record<AirlineId, Airline>;
-  airports: Record<AirportId, Airport>;
-}
-
-export interface FlightScheduleUpdate {
-  flightNumber: FlightNumber;
-  departureDateLocal: string;
-  departureAirportId: AirportId;
-  isRemoved: boolean;
 }
 
 export interface SeatMap {
@@ -340,23 +327,13 @@ export interface Notification {
   content?: string;
 }
 
-export interface AircraftReport {
-  aircraft: Aircraft;
-  flightsAndDuration: ReadonlyArray<[number, number]>;
-}
-
-export interface DestinationReport {
-  airport: Airport;
-  minDurationSeconds: number;
-}
-
 export interface ConnectionGameChallenge {
   seed: string;
   departureAirportId: AirportId;
   arrivalAirportId: AirportId;
 }
 
-export interface FlightNumberUpdateReportItem {
+export interface UpdateReportItem {
   version: string;
   removed: number;
   added: number;

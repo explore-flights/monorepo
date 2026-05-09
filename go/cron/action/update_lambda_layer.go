@@ -81,7 +81,6 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, version, databaseBuck
 	files := [][3]string{
 		{"data/basedata.db", databaseBucket, baseDataDatabaseKey},
 		{"data/variants.parquet", parquetBucket, parquetPrefix + "variants.parquet"},
-		{"data/report.parquet", parquetBucket, parquetPrefix + "report.parquet"},
 		{"data/connections.parquet", parquetBucket, parquetPrefix + "connections.parquet"},
 	}
 

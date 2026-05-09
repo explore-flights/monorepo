@@ -1,17 +1,18 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAirports, useDestinations } from '../components/util/state/data';
 import {
-  Badge, BreadcrumbGroup,
+  Badge,
+  BreadcrumbGroup,
   BreadcrumbGroupProps,
   Button,
-  Container,
   ContentLayout,
-  Header, SpaceBetween
+  Header,
+  SpaceBetween,
 } from '@cloudscape-design/components';
 import { distance } from '@turf/turf';
 import { MaplibreMap, SmartLine } from '../components/maplibre/maplibre-map';
 import { AirportMarker } from '../components/maplibre/marker';
-import { Airport, AirportId, DestinationReport } from '../lib/api/api.model';
+import { Airport, AirportId } from '../lib/api/api.model';
 import { WithRequired } from '@tanstack/react-query';
 
 export function Airports() {
@@ -75,35 +76,33 @@ export function Airports() {
 
   return (
     <ContentLayout header={<Header variant={'h1'}>Airports</Header>}>
-      <Container>
-        <MaplibreMap
-          height={'80vh'}
-          controls={[
-            (
-              <BreadcrumbGroup
-                items={breadcrumbItems}
-                onClick={(e) => {
-                  e.preventDefault();
-                  const index = e.detail.item.index;
-                  if (index >= 0) {
-                    setSelectionState((prev) => ({
-                      airports: prev.airports.toSpliced(index + 1, prev.airports.length - index - 1),
-                      tailShowConnections: true,
-                    }));
-                  } else {
-                    setSelectionState({
-                      airports: [],
-                      tailShowConnections: false,
-                    });
-                  }
-                }}
-              />
-            )
-          ]}
-        >
-          {markersAndLines}
-        </MaplibreMap>
-      </Container>
+      <MaplibreMap
+        height={'80vh'}
+        controls={[
+          (
+            <BreadcrumbGroup
+              items={breadcrumbItems}
+              onClick={(e) => {
+                e.preventDefault();
+                const index = e.detail.item.index;
+                if (index >= 0) {
+                  setSelectionState((prev) => ({
+                    airports: prev.airports.toSpliced(index + 1, prev.airports.length - index - 1),
+                    tailShowConnections: true,
+                  }));
+                } else {
+                  setSelectionState({
+                    airports: [],
+                    tailShowConnections: false,
+                  });
+                }
+              }}
+            />
+          )
+        ]}
+      >
+        {markersAndLines}
+      </MaplibreMap>
     </ContentLayout>
   );
 }
@@ -159,7 +158,7 @@ function SelectedAirportsMarkersWithTailConnections({ airports, ...props }: Sele
   );
 }
 
-function SelectedAirportsMarkers({ airports, tailConnections, addAirport, removeAirport, toggleShowConnections }: SelectedAirportProps & { tailConnections: ReadonlyArray<DestinationReport> }) {
+function SelectedAirportsMarkers({ airports, tailConnections, addAirport, removeAirport, toggleShowConnections }: SelectedAirportProps & { tailConnections: ReadonlyArray<Airport> }) {
   const nodes = useMemo(() => {
     const indexesByAirportId: Map<AirportId, Array<number>> = new Map();
     for (let i = 0; i < airports.length; i++) {
@@ -189,7 +188,7 @@ function SelectedAirportsMarkers({ airports, tailConnections, addAirport, remove
       // add the marker for the last index only
       if (i === indexes[indexes.length - 1]) {
         const isTail = i >= airports.length - 1;
-        const hasTailConnection = tailConnections.findIndex((v) => v.airport.id === airport.id) !== -1;
+        const hasTailConnection = tailConnections.findIndex((v) => v.id === airport.id) !== -1;
 
         if (isTail || !hasTailConnection) {
           nodes.push(
@@ -216,8 +215,8 @@ function SelectedAirportsMarkers({ airports, tailConnections, addAirport, remove
 
     if (previousAirportLocation != null) {
       for (let i = 0; i < tailConnections.length; i++) {
-        const _airport = tailConnections[i].airport;
-        if (!_airport.location || _airport.id === previousAirportId) {
+        const _airport = tailConnections[i];
+        if (_airport.id === previousAirportId) {
           continue;
         }
 

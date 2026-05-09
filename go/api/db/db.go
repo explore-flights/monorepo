@@ -21,7 +21,7 @@ type Database struct {
 	err        error
 }
 
-func NewDatabase(baseDbPath, variantsParquetPath, reportParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath, flightNumberUpdateReportPath string) *Database {
+func NewDatabase(baseDbPath, variantsParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath, flightNumberUpdateReportPath string) *Database {
 	initDone := make(chan struct{})
 	db := Database{initDone: initDone}
 	go func() {
@@ -71,7 +71,7 @@ func NewDatabase(baseDbPath, variantsParquetPath, reportParquetPath, connections
 			return
 		}
 
-		if err = dbInit(context.Background(), conn, db.dbWorkPath, baseDbPath, variantsParquetPath, reportParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath, flightNumberUpdateReportPath); err != nil {
+		if err = dbInit(context.Background(), conn, db.dbWorkPath, baseDbPath, variantsParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath, flightNumberUpdateReportPath); err != nil {
 			err = errors.Join(err, conn.Close())
 			return
 		}
@@ -133,7 +133,6 @@ func dbInit(
 	dbWorkPath,
 	baseDbPath,
 	variantsParquetPath,
-	reportParquetPath,
 	connectionsParquetPath,
 	historyParquetPath,
 	latestParquetPath,
@@ -206,24 +205,6 @@ FROM read_parquet('%s', hive_partitioning = false)
 		},
 		{
 			fmt.Sprintf(
-				`
-CREATE OR REPLACE VIEW report AS
-SELECT
-	*,
-	CONCAT(
-		IF(seats_first = 0, '', CONCAT('F', seats_first)),
-		IF(seats_business = 0, '', CONCAT('C', seats_business)),
-		IF(seats_premium = 0, '', CONCAT('E', seats_premium)),
-		IF(seats_economy = 0, '', CONCAT('M', seats_economy))
-	) AS aircraft_configuration_version
-FROM read_parquet('%s', hive_partitioning = false)
-`,
-				reportParquetPath,
-			),
-			nil,
-		},
-		{
-			fmt.Sprintf(
 				`CREATE OR REPLACE VIEW connections AS SELECT * FROM read_parquet('%s', hive_partitioning = false)`,
 				connectionsParquetPath,
 			),
@@ -260,7 +241,7 @@ FROM read_parquet('%s', hive_partitioning = true, hive_types = {'year_utc': USMA
 		{
 			fmt.Sprintf(
 				`
-CREATE OR REPLACE VIEW flight_number_update_report AS
+CREATE OR REPLACE VIEW updates_report AS
 SELECT * FROM read_parquet('%s', hive_partitioning = true, hive_types = {'airline_iata_code': TEXT})
 `,
 				flightNumberUpdateReportPath+"/**/*.parquet",

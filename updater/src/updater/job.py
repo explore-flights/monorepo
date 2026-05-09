@@ -61,11 +61,10 @@ def run(settings: Settings) -> None:
                 if len(inputs) < 1:
                     _create_and_upload_basedata_db(conn, storage, tmp_dir, settings.database_bucket, settings.basedata_database_key)
                     _export_variants(conn, settings.parquet_bucket, f"{settings.parquet_prefix}variants.parquet")
-                    _export_report(conn, settings.parquet_bucket, f"{settings.parquet_prefix}report.parquet")
                     _export_connections(conn, settings.parquet_bucket, f"{settings.parquet_prefix}connections.parquet")
                     _export_history(conn, settings.parquet_bucket, f"{settings.parquet_prefix}history/")
                     _export_latest(conn, settings.parquet_bucket, f"{settings.parquet_prefix}latest/")
-                    _export_flight_number_update_report(conn, settings.parquet_bucket, f"{settings.parquet_prefix}flight_number_update_report/")
+                    _export_updates_report(conn, settings.parquet_bucket, f"{settings.parquet_prefix}updates_report/")
                     done = True
 
                 if updated_database:
@@ -246,147 +245,6 @@ def _export_variants(conn: duckdb.DuckDBPyConnection, bucket: str, key: str) -> 
     conn.execute(f"SET threads TO {NUM_THREADS}")
 
 
-@timed(LOGGER, "export report")
-def _export_report(conn: duckdb.DuckDBPyConnection, bucket: str, key: str) -> None:
-    export_uri = _build_parquet_file_uri(PARQUET_URI_SCHEMA, bucket, key)
-    conn.execute(f"USE {WORKING_DB_NAME}")
-    conn.execute("SET threads TO 1")
-    conn.execute(
-        """
-CREATE OR REPLACE MACRO last_day_of_month(date, month) AS LAST_DAY(MAKE_DATE(YEAR(date), month, 1)) ;
-
-CREATE OR REPLACE MACRO last_weekday_of_month(date, month, weekday) AS CASE
-  WHEN DATE_PART('weekday', LAST_DAY_OF_MONTH(date, month)) = weekday THEN LAST_DAY_OF_MONTH(date, month)
-  ELSE CAST(DATE_ADD(LAST_DAY_OF_MONTH(date, month), -INTERVAL ((DATE_PART('weekday', LAST_DAY_OF_MONTH(date, month)) - weekday + 7) % 7) DAY) AS DATE)
-END ;
-
-CREATE OR REPLACE MACRO is_summer_schedule(date) AS date >= LAST_WEEKDAY_OF_MONTH(date, 3, 0) AND date <= LAST_WEEKDAY_OF_MONTH(date, 10, 6) ;
-"""
-    )
-    conn.execute(
-        f"""
-COPY (
-	WITH latest_active_history AS (
-		SELECT *
-		FROM flight_variant_history
-		WHERE replaced_at IS NULL
-		AND flight_variant_id IS NOT NULL
-	)
-	SELECT
-		YEAR(fvh.departure_date_local) AS year_local,
-		MONTH(fvh.departure_date_local) AS month_local,
-		CASE
-			WHEN IS_SUMMER_SCHEDULE(fvh.departure_date_local) THEN YEAR(fvh.departure_date_local)
-			ELSE IF(MONTH(fvh.departure_date_local) >= 10, YEAR(fvh.departure_date_local), YEAR(fvh.departure_date_local) - 1)
-		END AS schedule_year,
-		IS_SUMMER_SCHEDULE(fvh.departure_date_local) AS is_summer_schedule,
-		fvh.airline_iata_code,
-		fvh.number,
-		fvh.suffix,
-		fvh.departure_airport_iata_code,
-		fv.arrival_airport_iata_code,
-		fv.aircraft_iata_code,
-		fv.seats_first,
-		fv.seats_business,
-		fv.seats_premium,
-		fv.seats_economy,
-		(fvh.airline_iata_code = fv.operating_airline_iata_code AND fvh.number = fv.operating_number AND fvh.suffix = fv.operating_suffix) AS is_operating,
-		fv.duration_seconds - (fv.duration_seconds % (60 * 5)) AS duration_seconds_5m_trunc,
-		COUNT(*) AS count,
-		MIN(fv.duration_seconds) AS min_duration_seconds,
-		MAX(fv.duration_seconds) AS max_duration_seconds,
-		SUM(fv.duration_seconds) AS sum_duration_seconds
-	FROM latest_active_history fvh
-	INNER JOIN flight_variants fv
-	ON fvh.flight_variant_id = fv.id
-	WHERE fv.service_type = 'J' OR fv.service_type = 'U'
-	GROUP BY
-		YEAR(fvh.departure_date_local),
-		MONTH(fvh.departure_date_local),
-		IS_SUMMER_SCHEDULE(fvh.departure_date_local),
-		fvh.airline_iata_code,
-		fvh.number,
-		fvh.suffix,
-		fvh.departure_airport_iata_code,
-		fv.arrival_airport_iata_code,
-		fv.aircraft_iata_code,
-		fv.seats_first,
-		fv.seats_business,
-		fv.seats_premium,
-		fv.seats_economy,
-		(fvh.airline_iata_code = fv.operating_airline_iata_code AND fvh.number = fv.operating_number AND fvh.suffix = fv.operating_suffix),
-		fv.duration_seconds - (fv.duration_seconds % (60 * 5))
-) TO '{export_uri}' (
-	FORMAT parquet,
-	COMPRESSION gzip,
-	OVERWRITE_OR_IGNORE
-)
-"""
-    )
-    conn.execute("DROP MACRO is_summer_schedule; DROP MACRO last_weekday_of_month; DROP MACRO last_day_of_month;")
-    conn.execute(f"SET threads TO {NUM_THREADS}")
-
-
-@timed(LOGGER, "export connections")
-def _export_connections(conn: duckdb.DuckDBPyConnection, bucket: str, key: str) -> None:
-    export_uri = _build_parquet_file_uri(PARQUET_URI_SCHEMA, bucket, key)
-    conn.execute(f"USE {WORKING_DB_NAME}")
-    conn.execute("SET threads TO 1")
-    conn.execute(
-        f"""
-CREATE TABLE airport_connections AS
-SELECT DISTINCT fv.departure_airport_iata_code, fv.arrival_airport_iata_code
-FROM flight_variants fv
-INNER JOIN flight_variant_history fvh
-ON fv.id = fvh.flight_variant_id
-WHERE fvh.replaced_at IS NULL ;
-
-CREATE TABLE airport_connections_full AS
-WITH RECURSIVE reachable_airports(departure_airport_iata_code, arrival_airport_iata_code, via, len) USING KEY (departure_airport_iata_code, arrival_airport_iata_code) AS (
-	SELECT
-		departure_airport_iata_code,
-		arrival_airport_iata_code,
-		arrival_airport_iata_code AS via,
-		CAST(1 AS DOUBLE) AS len
-	FROM airport_connections
-	
-	UNION
-	
-	(
-		SELECT
-			ac.departure_airport_iata_code,
-			r.arrival_airport_iata_code,
-			r.departure_airport_iata_code AS via,
-			r.len + 1 AS len
-		FROM reachable_airports r
-		JOIN airport_connections ac
-		ON ac.arrival_airport_iata_code = r.departure_airport_iata_code
-		AND ac.departure_airport_iata_code != r.arrival_airport_iata_code
-		LEFT JOIN recurring.reachable_airports AS rec
-		ON rec.departure_airport_iata_code = ac.departure_airport_iata_code
-		AND rec.arrival_airport_iata_code = r.arrival_airport_iata_code
-		WHERE (r.len + 1) < COALESCE(rec.len, CAST('Infinity' AS DOUBLE))
-	)
-)
-SELECT departure_airport_iata_code, arrival_airport_iata_code, MIN(len) AS min_flights
-FROM reachable_airports
-GROUP BY departure_airport_iata_code, arrival_airport_iata_code ;
-
-SET threads TO 1 ;
-
-COPY airport_connections_full TO '{export_uri}' (
-	FORMAT parquet,
-	COMPRESSION gzip,
-	OVERWRITE_OR_IGNORE
-) ;
-
-DROP TABLE airport_connections_full ;
-DROP TABLE airport_connections ;
-"""
-    )
-    conn.execute(f"SET threads TO {NUM_THREADS}")
-
-
 @timed(LOGGER, "export history")
 def _export_history(conn: duckdb.DuckDBPyConnection, bucket: str, key_prefix: str) -> None:
     export_uri = _build_parquet_file_uri(PARQUET_URI_SCHEMA, bucket, key_prefix)
@@ -486,7 +344,7 @@ COPY (
 
 
 @timed(LOGGER, "export flight number update report")
-def _export_flight_number_update_report(conn: duckdb.DuckDBPyConnection, bucket: str, key_prefix: str) -> None:
+def _export_updates_report(conn: duckdb.DuckDBPyConnection, bucket: str, key_prefix: str) -> None:
     export_uri = _build_parquet_file_uri(PARQUET_URI_SCHEMA, bucket, key_prefix)
     conn.execute(f"USE {WORKING_DB_NAME}")
     conn.execute("SET threads TO 1")
@@ -525,6 +383,66 @@ COPY (
   PARTITION_BY (airline_iata_code),
   OVERWRITE_OR_IGNORE
 )
+"""
+    )
+    conn.execute(f"SET threads TO {NUM_THREADS}")
+
+
+@timed(LOGGER, "export connections report")
+def _export_connections(conn: duckdb.DuckDBPyConnection, bucket: str, key: str) -> None:
+    export_uri = _build_parquet_file_uri(PARQUET_URI_SCHEMA, bucket, key)
+    conn.execute(f"USE {WORKING_DB_NAME}")
+    conn.execute("SET threads TO 1")
+    conn.execute(
+        f"""
+CREATE TABLE airport_connections AS
+SELECT DISTINCT fv.departure_airport_iata_code, fv.arrival_airport_iata_code
+FROM flight_variants fv
+INNER JOIN flight_variant_history fvh
+ON fv.id = fvh.flight_variant_id
+WHERE fvh.replaced_at IS NULL ;
+
+CREATE TABLE airport_connections_full AS
+WITH RECURSIVE reachable_airports(departure_airport_iata_code, arrival_airport_iata_code, via, len) USING KEY (departure_airport_iata_code, arrival_airport_iata_code) AS (
+	SELECT
+		departure_airport_iata_code,
+		arrival_airport_iata_code,
+		arrival_airport_iata_code AS via,
+		CAST(1 AS DOUBLE) AS len
+	FROM airport_connections
+	
+	UNION
+	
+	(
+		SELECT
+			ac.departure_airport_iata_code,
+			r.arrival_airport_iata_code,
+			r.departure_airport_iata_code AS via,
+			r.len + 1 AS len
+		FROM reachable_airports r
+		JOIN airport_connections ac
+		ON ac.arrival_airport_iata_code = r.departure_airport_iata_code
+		AND ac.departure_airport_iata_code != r.arrival_airport_iata_code
+		LEFT JOIN recurring.reachable_airports AS rec
+		ON rec.departure_airport_iata_code = ac.departure_airport_iata_code
+		AND rec.arrival_airport_iata_code = r.arrival_airport_iata_code
+		WHERE (r.len + 1) < COALESCE(rec.len, CAST('Infinity' AS DOUBLE))
+	)
+)
+SELECT departure_airport_iata_code, arrival_airport_iata_code, MIN(len) AS min_flights
+FROM reachable_airports
+GROUP BY departure_airport_iata_code, arrival_airport_iata_code ;
+
+SET threads TO 1 ;
+
+COPY airport_connections_full TO '{export_uri}' (
+	FORMAT parquet,
+	COMPRESSION gzip,
+	OVERWRITE_OR_IGNORE
+) ;
+
+DROP TABLE airport_connections_full ;
+DROP TABLE airport_connections ;
 """
     )
     conn.execute(f"SET threads TO {NUM_THREADS}")

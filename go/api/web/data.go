@@ -38,8 +38,8 @@ type dataHandlerRepo interface {
 	RelatedFlightNumbers(ctx context.Context, fn db.FlightNumber, version time.Time) (common.Set[db.FlightNumber], error)
 	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
 	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber, departureAirportIataCode string, departureDate xtime.LocalDate) (db.FlightScheduleVersions, error)
-	UpdatesForVersion(ctx context.Context, version time.Time, page int) ([]db.FlightScheduleUpdate, error)
-	FlightNumberUpdateReport(ctx context.Context, fn db.FlightNumber, version time.Time) ([]db.FlightNumberUpdateReportItem, error)
+	UpdatesReport(ctx context.Context, fn db.FlightNumber, version time.Time) ([]db.UpdateReportItem, error)
+	Destinations(ctx context.Context, departureAirportIataCode string) ([]string, error)
 }
 
 type DataHandler struct {
@@ -121,7 +121,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 
 	var flightSchedules db.FlightSchedules
 	var relatedFlightNumbers common.Set[db.FlightNumber]
-	var reportItems []db.FlightNumberUpdateReportItem
+	var reportItems []db.UpdateReportItem
 	var airlines map[string]db.Airline
 	var airports map[string]db.Airport
 	var aircraft map[string]db.Aircraft
@@ -143,7 +143,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 
 		g.Go(func() error {
 			var err error
-			reportItems, err = dh.repo.FlightNumberUpdateReport(ctx, fn, version)
+			reportItems, err = dh.repo.UpdatesReport(ctx, fn, version)
 			return err
 		})
 
@@ -174,7 +174,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 		FlightNumber:         model.FlightNumberFromDb(fn),
 		RelatedFlightNumbers: make([]model.FlightNumber, 0, len(relatedFlightNumbers)),
 		Items:                make([]model.FlightScheduleItem, 0, len(flightSchedules.Items)),
-		UpdateReport:         make([]model.FlightNumberUpdateReportItem, 0, len(reportItems)),
+		UpdateReport:         make([]model.UpdateReportItem, 0, len(reportItems)),
 		Variants:             make(map[model.UUID]model.FlightScheduleVariant, len(flightSchedules.Variants)),
 		Airlines:             make(map[string]model.Airline),
 		Airports:             make(map[string]model.Airport),
@@ -192,7 +192,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 	}
 
 	for _, item := range reportItems {
-		fs.UpdateReport = append(fs.UpdateReport, model.FlightNumberUpdateReportItem{
+		fs.UpdateReport = append(fs.UpdateReport, model.UpdateReportItem{
 			Version: item.Version,
 			Removed: item.Removed,
 			Added:   item.Added,
@@ -575,6 +575,45 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 	return feed
 }
 
+func (dh *DataHandler) Destinations(c echo.Context) error {
+	ctx := c.Request().Context()
+	departureAirportRaw := c.Param("departureAirport")
+	departureAirportIataCode, err := dh.parseAirport(ctx, departureAirportRaw)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err))
+	}
+
+	var destinationAirportIataCodes []string
+	var airports map[string]db.Airport
+	{
+		g, ctx := errgroup.WithContext(ctx)
+		g.Go(func() error {
+			var err error
+			destinationAirportIataCodes, err = dh.repo.Destinations(ctx, departureAirportIataCode)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			airports, err = dh.repo.Airports(ctx)
+			return err
+		})
+
+		if err := g.Wait(); err != nil {
+			return err
+		}
+	}
+
+	responseAirports := make([]model.Airport, 0, len(destinationAirportIataCodes))
+	for _, destinationAirportIataCode := range destinationAirportIataCodes {
+		if airport, ok := airports[destinationAirportIataCode]; ok {
+			responseAirports = append(responseAirports, model.AirportFromDb(airport))
+		}
+	}
+
+	return c.JSON(http.StatusOK, responseAirports)
+}
+
 func (dh *DataHandler) LegacyFlightScheduleVersionsRSSFeed(c echo.Context) error {
 	return dh.legacyFlightScheduleVersionsFeed(c, "application/rss+xml", (*feeds.Feed).WriteRss)
 }
@@ -772,58 +811,6 @@ func (dh *DataHandler) loadFlightScheduleVersions(ctx context.Context, fnRaw, de
 	model.AddReferencedAircraft(maps.Keys(referencedAircraft), aircraft, fs.Aircraft)
 
 	return fs, nil
-}
-
-func (dh *DataHandler) Version(c echo.Context) error {
-	versionRaw := c.Param("version")
-	pageRaw := c.Param("page")
-	version, err := time.Parse(time.RFC3339, versionRaw)
-	if err != nil {
-		return NewHTTPError(http.StatusBadRequest, WithMessage("Invalid version format"), WithCause(err))
-	}
-
-	page, err := strconv.Atoi(pageRaw)
-	if err != nil {
-		return NewHTTPError(http.StatusBadRequest, WithMessage("Invalid page format"), WithCause(err))
-	}
-
-	var dbResult []db.FlightScheduleUpdate
-	var airlines map[string]db.Airline
-	var airports map[string]db.Airport
-
-	{
-		g, ctx := errgroup.WithContext(c.Request().Context())
-
-		g.Go(func() error {
-			var err error
-			dbResult, err = dh.repo.UpdatesForVersion(c.Request().Context(), version, page)
-			return err
-		})
-
-		g.Go(func() error {
-			var err error
-			airlines, err = dh.repo.Airlines(ctx)
-			return err
-		})
-
-		g.Go(func() error {
-			var err error
-			airports, err = dh.repo.Airports(ctx)
-			return err
-		})
-
-		if err := g.Wait(); err != nil {
-			return NewHTTPError(http.StatusInternalServerError, WithCause(err))
-		}
-	}
-
-	addExpirationHeaders(c, time.Now(), time.Hour*24*3)
-
-	if len(dbResult) < 1 {
-		return c.NoContent(http.StatusNoContent)
-	}
-
-	return c.JSON(http.StatusOK, model.FlightScheduleUpdatesFromDb(dbResult, airlines, airports))
 }
 
 func (dh *DataHandler) parseFlightNumber(ctx context.Context, raw string) (db.FlightNumber, error) {

@@ -564,9 +564,9 @@ ORDER BY departure_date_local ASC
 	}, nil
 }
 
-func (fr *FlightRepo) FlightNumberUpdateReport(ctx context.Context, fn FlightNumber, version time.Time) ([]FlightNumberUpdateReportItem, error) {
-	items := make([]FlightNumberUpdateReportItem, 0)
-	return items, fr.flightNumberUpdateReport(
+func (fr *FlightRepo) UpdatesReport(ctx context.Context, fn FlightNumber, version time.Time) ([]UpdateReportItem, error) {
+	items := make([]UpdateReportItem, 0)
+	return items, fr.updatesReport(
 		ctx,
 		[]SelectExpression{
 			LiteralValueExpression("created_at"),
@@ -609,7 +609,7 @@ func (fr *FlightRepo) FlightNumberUpdateReport(ctx context.Context, fn FlightNum
 		},
 		func(rows *sql.Rows) error {
 			for rows.Next() {
-				var ri FlightNumberUpdateReportItem
+				var ri UpdateReportItem
 				if err := rows.Scan(&ri.Version, &ri.Added, &ri.Updated, &ri.Removed); err != nil {
 					return err
 				}
@@ -622,7 +622,7 @@ func (fr *FlightRepo) FlightNumberUpdateReport(ctx context.Context, fn FlightNum
 	)
 }
 
-func (fr *FlightRepo) flightNumberUpdateReport(ctx context.Context, selectFields []SelectExpression, filter Condition, groupBy []ValueExpression, scanner func(rows *sql.Rows) error) error {
+func (fr *FlightRepo) updatesReport(ctx context.Context, selectFields []SelectExpression, filter Condition, groupBy []ValueExpression, scanner func(rows *sql.Rows) error) error {
 	if len(selectFields) < 1 {
 		return errors.New("at least one select field required")
 	}
@@ -651,7 +651,7 @@ func (fr *FlightRepo) flightNumberUpdateReport(ctx context.Context, selectFields
 	}
 
 	query := "SELECT " + strings.Join(selectStrs, ",") + `
-FROM flight_number_update_report
+FROM updates_report
 `
 	if filterStr != "" {
 		query += " WHERE " + filterStr
@@ -1038,9 +1038,7 @@ AND day_utc = ?
 	return flights, rows.Err()
 }
 
-func (fr *FlightRepo) UpdatesForVersion(ctx context.Context, version time.Time, page int) ([]FlightScheduleUpdate, error) {
-	const limit = 10_000
-
+func (fr *FlightRepo) Destinations(ctx context.Context, departureAirportIataCode string) ([]string, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -1050,118 +1048,29 @@ func (fr *FlightRepo) UpdatesForVersion(ctx context.Context, version time.Time, 
 	rows, err := conn.QueryContext(
 		ctx,
 		`
-SELECT DISTINCT
-    base.airline_iata_code,
-    base.number,
-    base.suffix,
-    base.departure_date_local,
-    base.departure_airport_iata_code,
-    base.flight_variant_id
-FROM flight_variant_history base
-WHERE base.created_at >= ?
-AND base.created_at <= ?
-AND EXISTS(
-    FROM flight_variant_history prev
-	WHERE base.airline_iata_code = prev.airline_iata_code
-	AND base.number = prev.number
-	AND base.suffix = prev.suffix
-	AND base.departure_date_local = prev.departure_date_local
-	AND base.departure_airport_iata_code = prev.departure_airport_iata_code
-	AND base.created_at = prev.replaced_at
-)
-ORDER BY
-    base.airline_iata_code,
-    base.number,
-    base.suffix,
-    base.departure_date_local,
-    base.departure_airport_iata_code,
-    base.flight_variant_id
-LIMIT ?
-OFFSET ?
+SELECT DISTINCT arrival_airport_iata_code
+FROM connections
+WHERE departure_airport_iata_code = ?
+AND min_flights = 1
 `,
-		version.Format(time.RFC3339),
-		version.Format(time.RFC3339),
-		limit,
-		limit*page,
+		departureAirportIataCode,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	updates := make([]FlightScheduleUpdate, 0)
+	destinations := make([]string, 0)
 	for rows.Next() {
-		var update FlightScheduleUpdate
-		if err := rows.Scan(&update.AirlineIataCode, &update.Number, &update.Suffix, &update.DepartureDateLocal, &update.DepartureAirportIataCode, &update.FlightVariantId); err != nil {
+		var destination string
+		if err = rows.Scan(&destination); err != nil {
 			return nil, err
 		}
 
-		updates = append(updates, update)
+		destinations = append(destinations, destination)
 	}
 
-	return updates, rows.Err()
-}
-
-func (fr *FlightRepo) Report(ctx context.Context, selectFields []SelectExpression, filter Condition, groupBy []ValueExpression, scanner func(rows *sql.Rows) error) error {
-	if len(selectFields) < 1 {
-		return errors.New("at least one select field required")
-	}
-
-	var params []any
-	var selectStrs []string
-	var filterStr string
-	var groupByStrs []string
-
-	for _, selectField := range selectFields {
-		selectStr, selectParams := selectField.Select()
-		selectStrs = append(selectStrs, selectStr)
-		params = append(params, selectParams...)
-	}
-
-	if filter != nil {
-		var filterParams []any
-		filterStr, filterParams = filter.Condition()
-		params = append(params, filterParams...)
-	}
-
-	for _, groupByExpr := range groupBy {
-		groupByStr, groupByParams := groupByExpr.Value()
-		groupByStrs = append(groupByStrs, groupByStr)
-		params = append(params, groupByParams...)
-	}
-
-	query := "SELECT " + strings.Join(selectStrs, ",") + `
-FROM report r
-INNER JOIN aircraft ac
-ON r.aircraft_iata_code = ac.iata_code
-LEFT JOIN aircraft acp
-ON ac.parent_iata_code = acp.iata_code
-`
-	if filterStr != "" {
-		query += " WHERE " + filterStr
-	}
-
-	if len(groupByStrs) > 0 {
-		query += " GROUP BY " + strings.Join(groupByStrs, ",")
-	}
-
-	conn, err := fr.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	rows, err := conn.QueryContext(ctx, query, params...)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	if err = scanner(rows); err != nil {
-		return err
-	}
-
-	return rows.Err()
+	return destinations, rows.Err()
 }
 
 func (fr *FlightRepo) FindConnection(ctx context.Context, minFlights, maxFlights int, seed string) ([2]string, error) {

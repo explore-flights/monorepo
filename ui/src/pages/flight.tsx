@@ -35,7 +35,7 @@ import {
   Airport,
   AirportId,
   FlightNumber,
-  FlightNumberUpdateReportItem,
+  UpdateReportItem,
   FlightSchedules
 } from '../lib/api/api.model';
 import { DateTime, Duration, FixedOffsetZone, WeekdayNumbers } from 'luxon';
@@ -512,7 +512,7 @@ function Map({ flights }: { flights: ReadonlyArray<FlightTableItem> }) {
   );
 }
 
-function Stats({ flights, updateReport }: { flights: ReadonlyArray<FlightTableItem>, updateReport: ReadonlyArray<FlightNumberUpdateReportItem> }) {
+function Stats({ flights, updateReport }: { flights: ReadonlyArray<FlightTableItem>, updateReport: ReadonlyArray<UpdateReportItem> }) {
   const scheduledFlights = useMemo(() => flights.filter((v) => v.type === 'scheduled'), [flights]);
   return (
     <ExpandableSection variant={'stacked'} headerText={'Stats'} headerInfo={<Box variant={'small'}>Table filters applied</Box>} defaultExpanded={false}>
@@ -685,7 +685,7 @@ function OperatingDayStat({ flights }: { flights: ReadonlyArray<ScheduledFlight>
   );
 }
 
-function UpdateReportStat({ items }: { items: ReadonlyArray<FlightNumberUpdateReportItem> }) {
+function UpdateReportStat({ items }: { items: ReadonlyArray<UpdateReportItem> }) {
   const [series, xDomain, yDomain] = useMemo(() => {
     const builder = new SeriesBuilder<string, LineSeries<Date>>(
       'line',

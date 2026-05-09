@@ -13,7 +13,6 @@ import (
 
 	"github.com/explore-flights/monorepo/go/api/business/connections"
 	"github.com/explore-flights/monorepo/go/api/business/raw"
-	"github.com/explore-flights/monorepo/go/api/business/report"
 	"github.com/explore-flights/monorepo/go/api/business/schedulesearch"
 	"github.com/explore-flights/monorepo/go/api/business/seatmap"
 	"github.com/explore-flights/monorepo/go/api/config"
@@ -58,6 +57,7 @@ func main() {
 	sshHandler := web.NewScheduleSearchHandler(fr, schedulesearch.NewSearch(fr))
 
 	e := echo.New()
+	defer e.Close()
 	e.Use(
 		lwamw.EchoMiddleware(
 			lwamw.WithMaskError(),
@@ -100,7 +100,6 @@ func main() {
 		group.GET("/airlines.json", dh.Airlines)
 		group.GET("/airports.json", dh.Airports)
 		group.GET("/aircraft.json", dh.Aircraft)
-		group.GET("/version/:version/:page", dh.Version)
 		group.GET("/flight/:fn", dh.FlightSchedule)
 		group.GET("/flight/:fn/:version", dh.FlightSchedule)
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal", dh.FlightScheduleVersions)
@@ -108,6 +107,7 @@ func main() {
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal/feed.atom", dh.FlightScheduleVersionsAtomFeed)
 		group.GET("/flight/:fn/:version/:departureAirport/:departureDateLocal/raw.json", dh.FlightScheduleVersionRaw)
 		group.GET("/flight/:fn/seatmap/:departureAirport/:departureDateLocal", dh.SeatMap)
+		group.GET("/destinations/:departureAirport", dh.Destinations)
 		group.GET("/schedule/allegris", sshHandler.Allegris)
 		group.GET("/schedule/allegris/feed.rss", sshHandler.AllegrisRSSFeed)
 		group.GET("/schedule/allegris/feed.atom", sshHandler.AllegrisAtomFeed)
@@ -121,16 +121,6 @@ func main() {
 		// region deprecated feed endpoints
 		group.GET("/:fn/:departureDate/:departureAirport/feed.rss", dh.LegacyFlightScheduleVersionsRSSFeed)
 		group.GET("/:fn/:departureDate/:departureAirport/feed.atom", dh.LegacyFlightScheduleVersionsAtomFeed)
-		// endregion
-
-		// region reports
-		reportHandler := web.NewReportHandler(fr, report.NewSearch(fr))
-		group.GET("/destinations/:airport", reportHandler.Destinations)
-		group.GET("/destinations/:airport/:year", reportHandler.Destinations)
-		group.GET("/destinations/:airport/:year/:schedule", reportHandler.Destinations)
-		group.GET("/aircraft/:airport", reportHandler.Aircraft)
-		group.GET("/aircraft/:airport/:year", reportHandler.Aircraft)
-		group.GET("/aircraft/:airport/:year/:schedule", reportHandler.Aircraft)
 		// endregion
 
 		sitemapHandler := web.NewSitemapHandler(fr)
