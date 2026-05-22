@@ -1,4 +1,5 @@
 import { resolve } from 'path';
+// @ts-ignore
 import { defineConfig, ProxyOptions } from 'vite';
 // @ts-ignore
 import react from '@vitejs/plugin-react';
