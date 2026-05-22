@@ -25,8 +25,9 @@ import { bbox, featureCollection, point } from '@turf/turf';
 import { FitBounds, MaplibreMap, SmartLine } from '../maplibre/maplibre-map';
 import { useConsent } from '../util/state/use-consent';
 import { ConsentLevel } from '../../lib/consent.model';
-import { generateThresholds, LineSeries, SeriesBuilder } from '../../lib/charts/builder';
+import { generateThresholds, isSummerSchedule, LineSeries, SeriesBuilder } from '../../lib/charts/builder';
 import { AirportMarker } from '../maplibre/marker';
+import { flightNumberToString } from '../../lib/util/flight';
 
 export interface FlightItem {
   flightNumber: [Airline, FlightNumber];
@@ -107,6 +108,15 @@ export function QueryScheduleResult({ data, flightLinkQuery, loading, showMap, s
     propertyFiltering: {
       filteringProperties: [
         {
+          key: 'flight_number',
+          operators: [
+            { operator: '=', tokenType: 'enum' },
+            { operator: '!=', tokenType: 'enum' },
+          ],
+          propertyLabel: 'Flight Number',
+          groupValuesLabel: 'Flight Number values',
+        },
+        {
           key: 'departure_time_iso',
           operators: ['>=', '>', '<=', '<'],
           propertyLabel: 'Departure Time',
@@ -148,6 +158,15 @@ export function QueryScheduleResult({ data, flightLinkQuery, loading, showMap, s
           propertyLabel: 'Aircraft Configuration',
           groupValuesLabel: 'Aircraft Configuration values',
         },
+        {
+          key: 'schedule',
+          operators: [
+            { operator: '=', tokenType: 'enum' },
+            { operator: '!=', tokenType: 'enum' },
+          ],
+          propertyLabel: 'Schedule',
+          groupValuesLabel: 'Schedule values',
+        },
       ],
       filteringFunction: evaluateFilter,
       defaultQuery: {
@@ -166,12 +185,24 @@ export function QueryScheduleResult({ data, flightLinkQuery, loading, showMap, s
 
   const filteringOptions = useMemo(() => {
     const filteringOptions: Array<PropertyFilterProps.FilteringOption> = [];
+    const uniqueFlightNumbers = new Set<string>();
     const uniqueDepartureAirportIds = new Set<AirportId>();
     const uniqueArrivalAirportIds = new Set<AirportId>();
     const uniqueAircraftIds = new Set<AircraftId>();
     const uniqueAircraftConfigurations = new Set<string>();
+    const uniqueScheduleValues = new Set<string>();
 
     for (const flight of flights) {
+      const flightNumber = flightNumberToString(flight.flightNumber[1], flight.flightNumber[0]);
+      if (!uniqueFlightNumbers.has(flightNumber)) {
+        uniqueFlightNumbers.add(flightNumber);
+        filteringOptions.push({
+          propertyKey: 'flight_number',
+          label: flightNumber,
+          value: flightNumber,
+        });
+      }
+
       if (!uniqueDepartureAirportIds.has(flight.departureAirport.id)) {
         uniqueDepartureAirportIds.add(flight.departureAirport.id);
 
@@ -223,6 +254,16 @@ export function QueryScheduleResult({ data, flightLinkQuery, loading, showMap, s
           propertyKey: 'aircraft_configuration_version',
           label: aircraftConfigurationVersionToName(flight.aircraftConfigurationVersion),
           value: flight.aircraftConfigurationVersion,
+        });
+      }
+
+      const schedule = scheduleValueAndName(flight.departureTime);
+      if (!uniqueScheduleValues.has(schedule.value)) {
+        uniqueScheduleValues.add(schedule.value);
+        filteringOptions.push({
+          propertyKey: 'schedule',
+          label: schedule.name,
+          value: schedule.value,
         });
       }
     }
@@ -552,6 +593,11 @@ function evaluateTokenSingle(flight: FlightItem, propertyKey: string, operator: 
   let cmpResult = 0;
 
   switch (propertyKey) {
+    case 'flight_number':
+      const flightNumber = flightNumberToString(flight.flightNumber[1], flight.flightNumber[0]);
+      cmpResult = flightNumber.localeCompare(filterValue);
+      break;
+
     case 'departure_time_iso':
       cmpResult = flight.departureTime.toMillis() - DateTime.fromISO(filterValue, { setZone: true }).toMillis();
       break;
@@ -570,6 +616,11 @@ function evaluateTokenSingle(flight: FlightItem, propertyKey: string, operator: 
 
     case 'aircraft_configuration_version':
       cmpResult = flight.aircraftConfigurationVersion.localeCompare(filterValue);
+      break;
+
+    case 'schedule':
+      const { value } = scheduleValueAndName(flight.departureTime);
+      cmpResult = value.localeCompare(filterValue);
       break;
   }
 
@@ -598,4 +649,26 @@ function evaluateTokenSingle(flight: FlightItem, propertyKey: string, operator: 
   }
 
   return false;
+}
+
+function scheduleValueAndName(time: DateTime<true>): { value: string, name: string } {
+  time = time.toUTC();
+
+  let value = '';
+  let name = '';
+
+  if (isSummerSchedule(time)) {
+    value = `s_${time.year}`;
+    name = `Summer ${time.year}`;
+  } else {
+    let year = time.year;
+    if (time.month < 10) {
+      year -= 1;
+    }
+
+    value = `w_${year}`;
+    name = `Winter ${year}/${year + 1}`;
+  }
+
+  return { value, name } as const;
 }
