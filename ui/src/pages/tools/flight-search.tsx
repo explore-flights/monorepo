@@ -404,7 +404,7 @@ function AircraftConfigurationSelect({ selectedAirlineIds, selectedAircraftId, s
         if (selectedAirlineIds.length < 1 || selectedAirlineIds.includes(airlineId as AirlineId)) {
           for (const configuration of configurations) {
             if ((!selectedAircraftId || selectedAircraftId === ac.id) && !optionByConfiguration[configuration]) {
-              const configName = aircraftConfigurationVersionToName(configuration) ?? configuration;
+              const configName = aircraftConfigurationVersionToName(configuration, undefined, undefined, { style: 'full' });
 
               const option = {
                 label: configName,

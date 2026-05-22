@@ -252,7 +252,12 @@ export function QueryScheduleResult({ data, flightLinkQuery, loading, showMap, s
         uniqueAircraftConfigurations.add(flight.aircraftConfigurationVersion);
         filteringOptions.push({
           propertyKey: 'aircraft_configuration_version',
-          label: aircraftConfigurationVersionToName(flight.aircraftConfigurationVersion),
+          label: aircraftConfigurationVersionToName(
+            flight.aircraftConfigurationVersion,
+            flight.flightNumber[0].iataCode,
+            flight.aircraft.iataCode,
+            { style: 'full' }
+          ),
           value: flight.aircraftConfigurationVersion,
         });
       }
@@ -450,7 +455,7 @@ function AircraftStats({ flights }: { flights: ReadonlyArray<FlightItem> }) {
     if (aircraftOnly) {
       formatFn = (aircraft, _) => aircraft.name ?? aircraft.icaoCode ?? aircraft.iataCode ?? aircraft.id;
     } else {
-      formatFn = (aircraft, configuration) => `${aircraft.name ?? aircraft.icaoCode ?? aircraft.iataCode ?? aircraft.id} (${aircraftConfigurationVersionToName(configuration) ?? configuration})`;
+      formatFn = (aircraft, configuration) => `${aircraft.name ?? aircraft.icaoCode ?? aircraft.iataCode ?? aircraft.id} (${aircraftConfigurationVersionToName(configuration, undefined, aircraft.iataCode, { style: 'long' })})`;
     }
 
     const [series, xDomain, yDomain] = builder.series(true, true);

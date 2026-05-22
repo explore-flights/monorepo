@@ -573,7 +573,7 @@ function AircraftStat({ flights }: { flights: ReadonlyArray<ScheduledFlight> }) 
     const builder = new SeriesBuilder<string, LineSeries<Date>, [Aircraft, string]>(
       'line',
       ([ac, config]) => ({
-        title: `${ac.name ?? ac.icaoCode ?? ac.iataCode ?? ac.id} (${aircraftConfigurationVersionToName(config) ?? config})`,
+        title: `${ac.name ?? ac.icaoCode ?? ac.iataCode ?? ac.id} (${aircraftConfigurationVersionToName(config, undefined, ac.iataCode, { style: 'long' })})`,
       }),
       ([ac, acc]) => ac.id + acc,
     );
@@ -739,7 +739,7 @@ function TableFilter({ query, setQuery, summary }: TableFilterProps) {
       onChange={(e) => setQuery(e.detail)}
       filteringOptions={[
         ...(summary.aircraft.map(([v]) => ({ propertyKey: 'aircraft_id', value: v.id, label: v.icaoCode ?? v.name ?? v.iataCode ?? v.id }))),
-        ...(summary.aircraftConfigurationVersions.map((v) => ({ propertyKey: 'aircraft_configuration_version', value: v, label: aircraftConfigurationVersionToName(v) ?? v }))),
+        ...(summary.aircraftConfigurationVersions.map((v) => ({ propertyKey: 'aircraft_configuration_version', value: v, label: aircraftConfigurationVersionToName(v, undefined, undefined, { style: 'long' }) }))),
         ...(summary.departureAirports.map((v) => ({ propertyKey: 'departure_airport_id', value: v.id, label: v.iataCode }))),
         ...(summary.arrivalAirports.map((v) => ({ propertyKey: 'arrival_airport_id', value: v.id, label: v.iataCode }))),
         ...(([1, 2, 3, 4, 5, 6, 7] satisfies Array<WeekdayNumbers>).map((v) => ({ propertyKey: 'operating_day', value: v.toString(10), label: weekdayNumberToName(v) }))),
