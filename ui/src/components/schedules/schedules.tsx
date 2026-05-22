@@ -28,6 +28,7 @@ import { ConsentLevel } from '../../lib/consent.model';
 import { generateThresholds, isSummerSchedule, LineSeries, SeriesBuilder } from '../../lib/charts/builder';
 import { AirportMarker } from '../maplibre/marker';
 import { flightNumberToString } from '../../lib/util/flight';
+import { SchedulesSummary } from './schedules-summary';
 
 export interface FlightItem {
   flightNumber: [Airline, FlightNumber];
@@ -82,7 +83,7 @@ function querySchedulesResponseV2ToFlights(data: QuerySchedulesResponseV2): Read
   return result;
 }
 
-export function QueryScheduleResult({ data, flightLinkQuery, loading, showMap, showStats }: { data: QuerySchedulesResponseV2 | undefined, flightLinkQuery: ((item: FlightItem) => URLSearchParams), loading: boolean, showMap: boolean, showStats: boolean }) {
+export function QueryScheduleResult({ data, flightLinkQuery, loading, showSummary, showMap, showStats }: { data: QuerySchedulesResponseV2 | undefined, flightLinkQuery: ((item: FlightItem) => URLSearchParams), loading: boolean, showSummary: boolean, showMap: boolean, showStats: boolean }) {
   const flights = useMemo(() => {
     if (!data) {
       const result: ReadonlyArray<FlightItem> = [];
@@ -278,14 +279,15 @@ export function QueryScheduleResult({ data, flightLinkQuery, loading, showMap, s
 
   return (
     <>
+      {showSummary ? <SchedulesSummary flights={allPageItems} loading={loading} /> : null}
       {showMap ? <AircraftMap flights={allPageItems} loading={loading} /> : null}
-      {showStats ? <AircraftStats flights={allPageItems} /> : null}
+      {showStats ? <AircraftStats flights={allPageItems} loading={loading} /> : null}
       <Table
         {...collectionProps}
         loading={loading}
         variant={'stacked'}
         items={items}
-        header={<Header counter={filteredItemsCount && filteredItemsCount < flights.length ? `${filteredItemsCount}/${flights.length}` : `(${flights.length})`}>Flights</Header>}
+        header={<Header counter={filteredItemsCount && filteredItemsCount < flights.length ? `(${filteredItemsCount}/${flights.length})` : `(${flights.length})`}>Flights</Header>}
         pagination={<Pagination {...paginationProps}  />}
         filter={<PropertyFilter {...propertyFilterProps} filteringOptions={filteringOptions} />}
         columnDefinitions={[
@@ -433,7 +435,7 @@ function AircraftMap({ flights, loading }: { flights: ReadonlyArray<FlightItem>,
   );
 }
 
-function AircraftStats({ flights }: { flights: ReadonlyArray<FlightItem> }) {
+function AircraftStats({ flights, loading }: { flights: ReadonlyArray<FlightItem>, loading: boolean }) {
   const now = useMemo(() => DateTime.now(), []);
   const [aircraftOnly, setAircraftOnly] = useState(false);
   const [series, xDomain, yDomain] = useMemo(() => {
@@ -473,11 +475,12 @@ function AircraftStats({ flights }: { flights: ReadonlyArray<FlightItem> }) {
   return (
     <ExpandableSection
       variant={'stacked'}
-      headerText={'Stats'}
+      headerText={'Flights over time'}
       headerInfo={<Box variant={'small'}>Table filters applied</Box>}
       defaultExpanded={false}
     >
       <LineChart
+        statusType={loading ? 'loading' : 'finished'}
         series={series}
         xDomain={xDomain}
         yDomain={yDomain ? [0, yDomain[1]] : undefined}

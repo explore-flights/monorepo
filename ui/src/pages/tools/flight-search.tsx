@@ -490,6 +490,7 @@ function SearchResults({ title, query }: { title: string, query: UseQueryResult<
         return query;
       }, [])}
       loading={query.isPending}
+      showSummary={true}
       showMap={true}
       showStats={true}
     />

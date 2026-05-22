@@ -122,6 +122,7 @@ function SpecialAircraftPage({ name, identifier, query, flightLinkQuery }: { nam
         data={query.data}
         flightLinkQuery={flightLinkQuery}
         loading={query.isPending}
+        showSummary={true}
         showMap={true}
         showStats={true}
       />
