@@ -192,6 +192,7 @@ export function QueryScheduleResult({ data, flightLinkQuery, loading, showSummar
     const uniqueAircraftIds = new Set<AircraftId>();
     const uniqueAircraftConfigurations = new Set<string>();
     const uniqueScheduleValues = new Set<string>();
+    const scheduleValuesTemp: Array<[string, string, number]> = [];
 
     for (const flight of flights) {
       const flightNumber = flightNumberToString(flight.flightNumber[1], flight.flightNumber[0]);
@@ -266,13 +267,18 @@ export function QueryScheduleResult({ data, flightLinkQuery, loading, showSummar
       const schedule = scheduleValueAndName(flight.departureTime);
       if (!uniqueScheduleValues.has(schedule.value)) {
         uniqueScheduleValues.add(schedule.value);
-        filteringOptions.push({
-          propertyKey: 'schedule',
-          label: schedule.name,
-          value: schedule.value,
-        });
+        scheduleValuesTemp.push([schedule.name, schedule.value, schedule.order]);
       }
     }
+
+    scheduleValuesTemp.sort((a, b) => a[2] - b[2]);
+    scheduleValuesTemp.forEach(([name, value]) => {
+      filteringOptions.push({
+        propertyKey: 'schedule',
+        label: name,
+        value: value,
+      });
+    });
 
     return filteringOptions;
   }, [flights]);
@@ -659,15 +665,17 @@ function evaluateTokenSingle(flight: FlightItem, propertyKey: string, operator: 
   return false;
 }
 
-function scheduleValueAndName(time: DateTime<true>): { value: string, name: string } {
+function scheduleValueAndName(time: DateTime<true>): { value: string, name: string, order: number } {
   time = time.toUTC();
 
   let value = '';
   let name = '';
+  let order = 0;
 
   if (isSummerSchedule(time)) {
     value = `s_${time.year}`;
     name = `Summer ${time.year}`;
+    order = time.year * 10;
   } else {
     let year = time.year;
     if (time.month < 10) {
@@ -676,7 +684,8 @@ function scheduleValueAndName(time: DateTime<true>): { value: string, name: stri
 
     value = `w_${year}`;
     name = `Winter ${year}/${year + 1}`;
+    order = (year * 10) + 1;
   }
 
-  return { value, name } as const;
+  return { value, name, order } as const;
 }
