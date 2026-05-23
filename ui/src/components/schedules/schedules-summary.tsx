@@ -39,7 +39,7 @@ export function SchedulesSummary({ flights, loading }: { flights: ReadonlyArray<
       ].join('|');
 
       let index = indexByKey.get(key);
-      if (!index) {
+      if (index === undefined) {
         index = result.length;
         result.push({
           flightNumber: flight.flightNumber,
