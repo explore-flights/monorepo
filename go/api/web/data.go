@@ -629,6 +629,8 @@ func (dh *DataHandler) GlobalUpdates(c echo.Context) error {
 		return a.Version.Compare(b.Version)
 	})
 
+	addExpirationHeaders(c, time.Now(), time.Hour)
+
 	return c.JSON(http.StatusOK, result)
 }
 
