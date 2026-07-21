@@ -412,6 +412,7 @@ func (h *ScheduleSearchHandler) queryAllegris(ctx context.Context) (model.Flight
 		schedulesearch.WithAll(
 			schedulesearch.WithAirlines("LH"),
 			schedulesearch.WithAny(
+    schedulesearch.WithAircraftIataCode("351"),
 				schedulesearch.WithAll(
 					schedulesearch.WithAircraftIataCode("359"),
 					schedulesearch.WithAny(
