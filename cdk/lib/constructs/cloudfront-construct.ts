@@ -58,7 +58,7 @@ export class CloudfrontConstruct extends Construct {
             `style-src 'self' 'unsafe-inline'`,
             `font-src data:`,
             `img-src 'self' data: blob:`,
-            `worker-src blob:`,
+            `worker-src 'self' blob:`,
             `child-src blob:`,
           ].join('; '),
           override: true,
