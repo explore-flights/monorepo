@@ -21,9 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: 'Setup go'
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'go/common/go.mod'
           cache-dependency-path: 'go/common/go.sum'
@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: 'Build'
         uses: explore-flights/libduckdb/.github/actions/build_go_provided@v1.5.3-v1+parquet.json.icu.httpfs.aws
         with:
@@ -50,7 +50,7 @@ jobs:
           go_build_relative_dir: 'go/api'
           go_build_output_file: 'go/api/bootstrap'
       - name: 'Store API artifact'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_API }}
           path: 'go/api/bootstrap'
@@ -61,9 +61,9 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: 'Setup go'
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'go/cron/go.mod'
           cache-dependency-path: 'go/cron/go.sum'
@@ -80,7 +80,7 @@ jobs:
         run: |
           go build -o bootstrap -tags "lambda,lambda.norpc"
       - name: 'Store cron artifact'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_CRON }}
           path: 'go/cron/bootstrap'
@@ -91,9 +91,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: 'Setup node'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
       - name: 'Install npm dependencies'
@@ -106,7 +106,7 @@ jobs:
         working-directory: 'ui/dist'
         run: 'zip -r ../${{ env.WORKSPACE_ARTIFACT_UI }}.zip .'
       - name: 'Store UI artifact'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_UI }}
           path: 'ui/${{ env.WORKSPACE_ARTIFACT_UI }}.zip'
@@ -117,11 +117,11 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           submodules: 'true'
       - name: 'Setup go'
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: 'opentelemetry-lambda/collector/go.mod'
           cache-dependency-path: 'opentelemetry-lambda/collector/go.sum'
@@ -135,7 +135,7 @@ jobs:
         run: |
           make build
       - name: 'Store otel collector artifact'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_OTEL_COLLECTOR }}
           path: 'opentelemetry-lambda/collector/build/extensions/collector'
@@ -152,28 +152,28 @@ jobs:
       - build_otel_collector
     steps:
       - name: 'Checkout'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: 'Download API artifact'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_API }}
           path: .
       - name: 'Prepare API lambda bundle'
         run: '(chmod +x bootstrap && zip -q cdk/api_lambda_bundle.zip bootstrap && rm bootstrap)'
       - name: 'Download cron artifact'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_CRON }}
           path: .
       - name: 'Prepare cron lambda bundle'
         run: '(chmod +x bootstrap && zip -q cdk/cron_lambda_bundle.zip bootstrap && rm bootstrap)'
       - name: 'Download UI artifact'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_UI }}
           path: 'cdk/'
       - name: 'Download otel collector artifact'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_OTEL_COLLECTOR }}
           path: .
@@ -187,7 +187,7 @@ jobs:
           (cd lambda_layer_bundle && zip -r ../cdk/otel_collector_layer_bundle.zip .)
           rm -rf lambda_layer_bundle
       - name: 'Setup node'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
       - name: 'Install npm dependencies'
@@ -200,7 +200,7 @@ jobs:
         working-directory: 'cdk'
         run: 'cdk synth'
       - name: 'Store cdk synth artifact'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_CDK }}
           path: |
@@ -220,12 +220,12 @@ jobs:
       - build_and_synth_cdk
     steps:
       - name: 'Download cdk synth artifact'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_CDK }}
           path: .
       - name: 'Setup node'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
       - name: 'Install cdk'
@@ -233,9 +233,9 @@ jobs:
       - name: 'Setup QEMU'
         uses: docker/setup-qemu-action@v3
       - name: 'Setup Docker Buildx'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: 'AWS Credentials'
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_CDK_ROLE }}
           aws-region: ${{ secrets.AWS_CDK_REGION }}
@@ -255,22 +255,22 @@ jobs:
       - build_and_synth_cdk
     steps:
       - name: 'Download cdk synth artifact'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.WORKSPACE_ARTIFACT_CDK }}
           path: .
       - name: 'Setup node'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
       - name: 'Install cdk'
         run: 'npm install -g aws-cdk'
       - name: 'Setup QEMU'
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
       - name: 'Setup Docker Buildx'
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: 'AWS Credentials'
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_CDK_ROLE }}
           aws-region: ${{ secrets.AWS_CDK_REGION }}
