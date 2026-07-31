@@ -189,7 +189,7 @@ jobs:
       - name: 'Setup node'
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26'
       - name: 'Install npm dependencies'
         working-directory: 'cdk'
         run: 'npm install --legacy-peer-deps'
@@ -227,7 +227,7 @@ jobs:
       - name: 'Setup node'
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26'
       - name: 'Install cdk'
         run: 'npm install -g aws-cdk'
       - name: 'Setup QEMU'
@@ -262,7 +262,7 @@ jobs:
       - name: 'Setup node'
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '26'
       - name: 'Install cdk'
         run: 'npm install -g aws-cdk'
       - name: 'Setup QEMU'
