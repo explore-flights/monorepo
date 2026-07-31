@@ -38,7 +38,7 @@ jobs:
       - name: 'Checkout'
         uses: actions/checkout@v7
       - name: 'Build'
-        uses: explore-flights/libduckdb/.github/actions/build_go_provided@v1.5.3-v1+parquet.json.icu.httpfs.aws
+        uses: explore-flights/libduckdb/.github/actions/build_go_provided@v1.5.5-v1+parquet.json.icu.httpfs.aws
         with:
           file: 'libduckdb_bundle-arm64-linux.a'
           platform: 'linux/arm64'
