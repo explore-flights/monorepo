@@ -1,4 +1,5 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import classes from './maplibre-map.module.scss';
 import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
@@ -159,6 +160,7 @@ function MaplibreMapInternal({ children, height, controls, initialLat, initialLn
       }}
       projection={projection}
       mapStyle={mapStyle}
+      workerUrl={workerUrl}
     >
       <ComponentResize />
       <div style={{ float: 'left', marginTop: '10px', marginLeft: '10px' }}>

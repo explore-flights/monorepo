@@ -25,9 +25,9 @@ const proxyConfig: Record<string, string | ProxyOptions> = {
 };
 
 export default defineConfig({
-  root: resolve(__dirname, 'src/pages'),
-  publicDir: resolve(__dirname, 'public'),
-  envDir: resolve(__dirname),
+  root: resolve(import.meta.dirname, 'src/pages'),
+  publicDir: resolve(import.meta.dirname, 'public'),
+  envDir: resolve(import.meta.dirname),
   plugins: [react()],
   server: {
     port: 4200,
@@ -45,6 +45,6 @@ export default defineConfig({
     },*/
   },
   build: {
-    outDir: resolve(__dirname, './dist'),
+    outDir: resolve(import.meta.dirname, './dist'),
   },
 });

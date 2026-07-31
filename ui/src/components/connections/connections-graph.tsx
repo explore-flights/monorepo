@@ -84,7 +84,7 @@ function ConnectionsGraphInternal({ connections }: ConnectionsGraphProps) {
     g.setGraph({ rankdir: 'LR', ranksep: 300, nodesep: 120 });
 
     edges.forEach((edge) => g.setEdge(edge.source, edge.target));
-    nodes.forEach((node) => g.setNode(node.id, node as Dagre.Label));
+    nodes.forEach((node) => g.setNode(node.id, node));
 
     Dagre.layout(g);
 
