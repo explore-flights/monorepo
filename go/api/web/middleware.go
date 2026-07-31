@@ -1,15 +1,44 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/labstack/echo/v4"
 )
+
+type yearRequestContextKey struct{}
+
+func YearMiddleware() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			yearRaw := c.Param("year")
+			if len(yearRaw) != 4 {
+				return NewHTTPError(http.StatusBadRequest, WithMessage("Invalid year format"))
+			}
+
+			year, err := strconv.Atoi(yearRaw)
+			if err != nil || year < 1 || year > 9999 {
+				return NewHTTPError(http.StatusBadRequest, WithMessage("Invalid year format"), WithCause(err))
+			}
+
+			req := c.Request()
+			c.SetRequest(req.WithContext(context.WithValue(req.Context(), yearRequestContextKey{}, year)))
+			return next(c)
+		}
+	}
+}
+
+func requestContextYear(ctx context.Context) (int, bool) {
+	year, ok := ctx.Value(yearRequestContextKey{}).(int)
+	return year, ok
+}
 
 func VersionHeaderMiddleware(version string) echo.MiddlewareFunc {
 	readVersion := sync.OnceValues(func() (time.Time, error) {

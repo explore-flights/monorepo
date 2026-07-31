@@ -87,13 +87,13 @@ export class ApiClient {
     return transform(this.httpClient.fetch('/data/aircraft.json?v=4'));
   }
 
-  getFlightSchedule(flightNumber: string, version?: DateTime<true>): Promise<ApiResponse<FlightSchedules>> {
+  getFlightSchedule(flightNumber: string, year: number, version?: DateTime<true>): Promise<ApiResponse<FlightSchedules>> {
     let suffix = '';
     if (version) {
       suffix = `/${version.toUTC().toISO()}`;
     }
 
-    return transform(this.httpClient.fetch(`/data/flight/${encodeURIComponent(flightNumber)}${suffix}?v=7`));
+    return transform(this.httpClient.fetch(`/data/${encodeURIComponent(year)}/flight/${encodeURIComponent(flightNumber)}${suffix}?v=8`));
   }
 
   getFlightScheduleVersions(flightNumber: string, departureAirport: string, departureDateLocal: string): Promise<ApiResponse<FlightScheduleVersions>> {
@@ -144,8 +144,8 @@ export class ApiClient {
     return transform(this.httpClient.fetch('/data/updates'));
   }
 
-  getSpecialAircraftSchedules(identifier: string): Promise<ApiResponse<QuerySchedulesResponseV2>> {
-    return transform(this.httpClient.fetch(`/data/schedule/${identifier}`));
+  getSpecialAircraftSchedules(identifier: string, year: number): Promise<ApiResponse<QuerySchedulesResponseV2>> {
+    return transform(this.httpClient.fetch(`/data/${encodeURIComponent(year)}/schedule/${encodeURIComponent(identifier)}`));
   }
 
   queryFlightSchedules(req: QuerySchedulesRequest): Promise<ApiResponse<QuerySchedulesResponseV2>> {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/common"
+	"github.com/explore-flights/monorepo/go/common/xtime"
 )
 
 type Condition struct {
@@ -135,6 +136,20 @@ func WithMaxDepartureTime(maxDepartureTime time.Time) Condition {
 		Filter: "(fvh.departure_date_local + fv.departure_time_local - TO_SECONDS(fv.departure_utc_offset_seconds)) <= CAST(? AS TIMESTAMPTZ)",
 		Params: []any{maxDepartureTime.UTC().Format(time.RFC3339)},
 	}}
+}
+
+func WithMaxDepartureTimeExcl(maxDepartureTime time.Time) Condition {
+	return Condition{db.BaseCondition{
+		Filter: "(fvh.departure_date_local + fv.departure_time_local - TO_SECONDS(fv.departure_utc_offset_seconds)) < CAST(? AS TIMESTAMPTZ)",
+		Params: []any{maxDepartureTime.UTC().Format(time.RFC3339)},
+	}}
+}
+
+func WithDepartureDateRangeUTC(minDepartureDate, maxDepartureDate xtime.LocalDate) Condition {
+	return WithAll(
+		WithMinDepartureTime(minDepartureDate.Time(time.UTC)),
+		WithMaxDepartureTimeExcl(maxDepartureDate.Time(time.UTC)),
+	)
 }
 
 func WithAll(opts ...Condition) Condition {

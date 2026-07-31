@@ -480,7 +480,7 @@ ON (
 	return result, rows.Err()
 }
 
-func (fr *FlightRepo) FlightSchedules(ctx context.Context, fn FlightNumber, version time.Time) (FlightSchedules, error) {
+func (fr *FlightRepo) FlightSchedules(ctx context.Context, fn FlightNumber, version time.Time, departureDateRangeUTC *xtime.LocalDateRange) (FlightSchedules, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return FlightSchedules{}, err
@@ -490,22 +490,47 @@ func (fr *FlightRepo) FlightSchedules(ctx context.Context, fn FlightNumber, vers
 	items := make([]FlightScheduleItem, 0)
 	variantIds := make(common.Set[uuid.UUID])
 	err = func() error {
-		rows, err := conn.QueryContext(
-			ctx,
-			`
+		query := `
 WITH filtered_flight_variant_history AS (
     SELECT
-        departure_date_local,
-		departure_airport_iata_code,
-		flight_variant_id,
-		created_at
-    FROM flight_variant_history
-	WHERE airline_iata_code = ?
-	AND number_mod_10 = (? % 10)
-	AND number = ?
-	AND suffix = ?
-	AND created_at <= CAST(? AS TIMESTAMPTZ)
-)
+        fvh.departure_date_local,
+		fvh.departure_airport_iata_code,
+		fvh.flight_variant_id,
+		fvh.created_at
+    FROM flight_variant_history fvh
+`
+		if departureDateRangeUTC != nil {
+			query += "LEFT JOIN flight_variants fv ON fvh.flight_variant_id = fv.id"
+		}
+
+		query += `
+	WHERE fvh.airline_iata_code = ?
+	AND fvh.number_mod_10 = (? % 10)
+	AND fvh.number = ?
+	AND fvh.suffix = ?
+	AND fvh.created_at <= CAST(? AS TIMESTAMPTZ)
+`
+		params := []any{
+			fn.AirlineIataCode,
+			fn.Number,
+			fn.Number,
+			fn.Suffix,
+			version.Format(time.RFC3339),
+		}
+
+		if departureDateRangeUTC != nil {
+			query += `
+	AND (fvh.departure_date_local + fv.departure_time_local - TO_SECONDS(fv.departure_utc_offset_seconds)) >= CAST(? AS TIMESTAMPTZ)
+	AND (fvh.departure_date_local + fv.departure_time_local - TO_SECONDS(fv.departure_utc_offset_seconds)) < CAST(? AS TIMESTAMPTZ)
+`
+			params = append(
+				params,
+				departureDateRangeUTC[0].Time(time.UTC).Format(time.RFC3339),
+				departureDateRangeUTC[1].Time(time.UTC).Format(time.RFC3339),
+			)
+		}
+
+		query += `)
 SELECT
     departure_date_local,
     departure_airport_iata_code,
@@ -515,13 +540,9 @@ SELECT
 FROM filtered_flight_variant_history
 GROUP BY departure_date_local, departure_airport_iata_code
 ORDER BY departure_date_local ASC
-`,
-			fn.AirlineIataCode,
-			fn.Number,
-			fn.Number,
-			fn.Suffix,
-			version.Format(time.RFC3339),
-		)
+`
+
+		rows, err := conn.QueryContext(ctx, query, params...)
 		if err != nil {
 			return err
 		}

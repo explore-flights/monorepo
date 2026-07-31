@@ -23,7 +23,7 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type searchRepo interface {
-	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time) (db.FlightSchedules, error)
+	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time, departureDateRangeUTC *xtime.LocalDateRange) (db.FlightSchedules, error)
 	Airlines(ctx context.Context) (map[string]db.Airline, error)
 	Airports(ctx context.Context) (map[string]db.Airport, error)
 }
@@ -51,7 +51,7 @@ func NewSearch(s3c interface {
 }
 
 func (s *Search) SeatMap(ctx context.Context, fn db.FlightNumber, departureAirportIataCode string, departureDateLocal xtime.LocalDate) (SeatMap, error) {
-	fs, err := s.repo.FlightSchedules(ctx, fn, time.Now())
+	fs, err := s.repo.FlightSchedules(ctx, fn, time.Now(), nil)
 	if err != nil {
 		return SeatMap{}, err
 	}

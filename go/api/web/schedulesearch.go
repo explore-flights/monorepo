@@ -502,16 +502,23 @@ func (h *ScheduleSearchHandler) queryInternal(ctx context.Context, condition sch
 
 		g.Go(func() error {
 			var err error
+			conditions := []schedulesearch.Condition{
+				schedulesearch.WithAny(
+					schedulesearch.WithServiceType("J"),
+					schedulesearch.WithServiceType("U"),
+				),
+				schedulesearch.WithIgnoreCodeShares(),
+				condition,
+			}
+			if year, ok := requestContextYear(ctx); ok {
+				minDepartureDate := xtime.NewLocalDateFromParts(year, time.January, 1)
+				maxDepartureDate := xtime.NewLocalDateFromParts(year+1, time.January, 1)
+				conditions = append(conditions, schedulesearch.WithDepartureDateRangeUTC(minDepartureDate, maxDepartureDate))
+			}
+
 			dbResult, err = h.search.QuerySchedules(
 				ctx,
-				schedulesearch.WithAll(
-					schedulesearch.WithAny(
-						schedulesearch.WithServiceType("J"),
-						schedulesearch.WithServiceType("U"),
-					),
-					schedulesearch.WithIgnoreCodeShares(),
-					condition,
-				),
+				schedulesearch.WithAll(conditions...),
 			)
 			return err
 		})

@@ -83,7 +83,7 @@ function querySchedulesResponseV2ToFlights(data: QuerySchedulesResponseV2): Read
   return result;
 }
 
-export function QueryScheduleResult({ data, flightLinkQuery, loading, showSummary, showMap, showStats }: { data: QuerySchedulesResponseV2 | undefined, flightLinkQuery: ((item: FlightItem) => URLSearchParams), loading: boolean, showSummary: boolean, showMap: boolean, showStats: boolean }) {
+export function QueryScheduleResult({ data, flightLinkQuery, yearRangeControl, loading, showSummary, showMap, showStats }: { data: QuerySchedulesResponseV2 | undefined, flightLinkQuery: ((item: FlightItem) => URLSearchParams), yearRangeControl?: React.ReactNode, loading: boolean, showSummary: boolean, showMap: boolean, showStats: boolean }) {
   const flights = useMemo(() => {
     if (!data) {
       const result: ReadonlyArray<FlightItem> = [];
@@ -293,7 +293,10 @@ export function QueryScheduleResult({ data, flightLinkQuery, loading, showSummar
         loading={loading}
         variant={'stacked'}
         items={items}
-        header={<Header counter={filteredItemsCount && filteredItemsCount < flights.length ? `(${filteredItemsCount}/${flights.length})` : `(${flights.length})`}>Flights</Header>}
+        header={<Header
+          actions={yearRangeControl}
+          counter={filteredItemsCount && filteredItemsCount < flights.length ? `(${filteredItemsCount}/${flights.length})` : `(${flights.length})`}
+        >Flights</Header>}
         pagination={<Pagination {...paginationProps}  />}
         filter={<PropertyFilter {...propertyFilterProps} filteringOptions={filteringOptions} />}
         columnDefinitions={[

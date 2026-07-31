@@ -1,27 +1,27 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   ContentLayout,
   Header,
   SpaceBetween,
 } from '@cloudscape-design/components';
-import { useSpecialAircraftSchedules } from '../components/util/state/data';
-import { UseQueryResult } from '@tanstack/react-query';
-import {
-  QuerySchedulesResponseV2
-} from '../lib/api/api.model';
+import { QuerySchedulesResponseForYears, ScheduleQueryResult, YearRange, defaultScheduleYearRange, useSpecialAircraftSchedules } from '../components/util/state/data';
 import { ErrorNotificationContent, useAppControls } from '../components/util/context/app-controls';
 import { withAircraftConfigurationVersionFilter, withAircraftIdFilter } from './flight';
 import { ALL_ALLEGRIS } from '../lib/consts';
 import { FlightItem, QueryScheduleResult } from '../components/schedules/schedules';
+import { YearRangeSelector } from '../components/common/year-range-selector';
 
 export function Allegris() {
-  const query = useSpecialAircraftSchedules('allegris');
+  const [yearRange, setYearRange] = useState<YearRange>(defaultScheduleYearRange);
+  const query = useSpecialAircraftSchedules('allegris', yearRange);
   return (
     <SpecialAircraftPage
       name={'Allegris'}
       identifier={'allegris'}
       query={query}
+      yearRange={yearRange}
+      setYearRange={setYearRange}
       flightLinkQuery={useCallback((_: FlightItem) => {
         let query = new URLSearchParams();
 
@@ -36,12 +36,15 @@ export function Allegris() {
 }
 
 export function SwissA350() {
-  const query = useSpecialAircraftSchedules('swiss350');
+  const [yearRange, setYearRange] = useState<YearRange>(defaultScheduleYearRange);
+  const query = useSpecialAircraftSchedules('swiss350', yearRange);
   return (
     <SpecialAircraftPage
       name={'Swiss A350'}
       identifier={'swiss350'}
       query={query}
+      yearRange={yearRange}
+      setYearRange={setYearRange}
       flightLinkQuery={useCallback((v: FlightItem) => {
         let query = new URLSearchParams();
         query = withAircraftIdFilter(query, v.aircraft.id);
@@ -80,11 +83,14 @@ export function LH747() {
 }
 
 function SpecialAircraftPageBasic({ name, identifier }: { name: string, identifier: string }) {
-  const query = useSpecialAircraftSchedules(identifier);
+  const [yearRange, setYearRange] = useState<YearRange>(defaultScheduleYearRange);
+  const query = useSpecialAircraftSchedules(identifier, yearRange);
   return (
     <SpecialAircraftPage
       name={name}
       query={query}
+      yearRange={yearRange}
+      setYearRange={setYearRange}
       flightLinkQuery={useCallback((v: FlightItem) => {
         let query = new URLSearchParams();
         query = withAircraftIdFilter(query, v.aircraft.id);
@@ -94,7 +100,7 @@ function SpecialAircraftPageBasic({ name, identifier }: { name: string, identifi
   );
 }
 
-function SpecialAircraftPage({ name, identifier, query, flightLinkQuery }: { name: string, identifier?: string, query: UseQueryResult<QuerySchedulesResponseV2>, flightLinkQuery: ((item: FlightItem) => URLSearchParams) }) {
+function SpecialAircraftPage({ name, identifier, query, flightLinkQuery, yearRange, setYearRange }: { name: string, identifier?: string, query: ScheduleQueryResult<QuerySchedulesResponseForYears>, flightLinkQuery: ((item: FlightItem) => URLSearchParams), yearRange: YearRange, setYearRange: (v: YearRange) => void }) {
   const { notification } = useAppControls();
   const actions = identifier
     ? (
@@ -121,6 +127,7 @@ function SpecialAircraftPage({ name, identifier, query, flightLinkQuery }: { nam
       <QueryScheduleResult
         data={query.data}
         flightLinkQuery={flightLinkQuery}
+        yearRangeControl={<YearRangeSelector value={yearRange} onChange={setYearRange} />}
         loading={query.isPending}
         showSummary={true}
         showMap={true}

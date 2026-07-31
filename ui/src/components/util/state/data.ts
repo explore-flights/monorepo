@@ -1,5 +1,5 @@
 import { useHttpClient } from '../context/http-client';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery, UseQueryResult } from '@tanstack/react-query';
 import { ApiError, expectSuccess } from '../../../lib/api/api';
 import { DateTime } from 'luxon';
 import {
@@ -9,10 +9,33 @@ import {
   AirlineId,
   Airport,
   AirportId,
+  FlightNumber,
+  FlightSchedules,
+  FlightScheduleItem,
   QuerySchedulesRequest,
   QuerySchedulesResponseV2,
   SearchResponse,
 } from '../../../lib/api/api.model';
+
+export interface LoadedYears {
+  readonly loadedYears: ReadonlyArray<number>;
+}
+
+export type YearRange = [number, number];
+export type FlightSchedulesForYears = FlightSchedules & LoadedYears;
+export type QuerySchedulesResponseForYears = QuerySchedulesResponseV2 & LoadedYears;
+
+export interface ScheduleQueryResult<T> {
+  readonly data: T | undefined;
+  readonly error: Error | null;
+  readonly status: 'pending' | 'error' | 'success';
+  readonly isPending: boolean;
+}
+
+export function defaultScheduleYearRange(): YearRange {
+  const currentYear = DateTime.now().year;
+  return [currentYear, currentYear + 1];
+}
 
 export interface Airlines {
   readonly airlines: ReadonlyArray<Airline>;
@@ -146,25 +169,31 @@ export function useAircrafts() {
   });
 }
 
-export function useFlightSchedule(flightNumber: string, version?: DateTime<true>) {
+export function useFlightSchedule(flightNumber: string, yearRange: YearRange, version?: DateTime<true>) {
   const { apiClient } = useHttpClient();
-  return useQuery({
-    queryKey: ['flight_schedule', flightNumber, version],
-    queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getFlightSchedule(flightNumber, version));
-      return body;
-    },
-    retry: (count, e) => {
-      if (count > 3) {
-        return false;
-      } else if (e instanceof ApiError && (e.response.status === 400 || e.response.status === 404)) {
-        return false;
-      }
-
-      return true;
-    },
-    staleTime: 1000 * 60 * 15,
+  const years = yearsInRange(yearRange);
+  return useQueries({
+    queries: years.map((year) => ({
+      queryKey: ['flight_schedule', flightNumber, year, version],
+      queryFn: async () => {
+        const { body } = expectSuccess(await apiClient.getFlightSchedule(flightNumber, year, version));
+        return body;
+      },
+      retry: shouldRetryScheduleQuery,
+      staleTime: 1000 * 60 * 15,
+    })),
+    combine: (results) => combineScheduleQueries(years, results, mergeFlightSchedules),
   });
+}
+
+function shouldRetryScheduleQuery(count: number, e: Error): boolean {
+  if (count > 3) {
+    return false;
+  } else if (e instanceof ApiError && (e.response.status === 400 || e.response.status === 404)) {
+    return false;
+  }
+
+  return true;
 }
 
 export function useFlightScheduleVersions(flightNumber: string, departureAirport: string, departureDateLocal: string) {
@@ -208,24 +237,131 @@ export function useSeatMap(flightNumber: string, departureAirport: string, depar
   });
 }
 
-export function useSpecialAircraftSchedules(identifier: string) {
+export function useSpecialAircraftSchedules(identifier: string, yearRange: YearRange) {
   const { apiClient } = useHttpClient();
-  return useQuery({
-    queryKey: ['special_schedule', identifier],
-    queryFn: async () => {
-      const { body } = expectSuccess(await apiClient.getSpecialAircraftSchedules(identifier));
-      return body;
-    },
-    retry: (count, e) => {
-      if (count > 3) {
-        return false;
-      } else if (e instanceof ApiError && (e.response.status === 400 || e.response.status === 404)) {
-        return false;
-      }
-
-      return true;
-    },
+  const years = yearsInRange(yearRange);
+  return useQueries({
+    queries: years.map((year) => ({
+      queryKey: ['special_schedule', identifier, year],
+      queryFn: async () => {
+        const { body } = expectSuccess(await apiClient.getSpecialAircraftSchedules(identifier, year));
+        return body;
+      },
+      retry: shouldRetryScheduleQuery,
+    })),
+    combine: (results) => combineScheduleQueries(years, results, mergeQuerySchedules),
   });
+}
+
+function combineScheduleQueries<TSchedule, TMerged>(
+  years: ReadonlyArray<number>,
+  results: ReadonlyArray<UseQueryResult<TSchedule>>,
+  merge: (years: ReadonlyArray<number>, schedules: ReadonlyArray<TSchedule>) => TMerged,
+): ScheduleQueryResult<TMerged> {
+
+  const error = results.find((result) => result.error)?.error ?? null;
+  const status = error
+    ? 'error'
+    : results.some((result) => result.isPending)
+      ? 'pending'
+      : 'success';
+  const schedules = results.every((result) => result.data !== undefined)
+    ? results.map((result) => result.data as TSchedule)
+    : undefined;
+
+  return {
+    data: schedules ? merge(years, schedules) : undefined,
+    error: error,
+    status: status,
+    isPending: status === 'pending',
+  };
+}
+
+function yearsInRange([startYear, endYear]: YearRange): ReadonlyArray<number> {
+  if (!Number.isInteger(startYear) || !Number.isInteger(endYear) || startYear > endYear) {
+    throw new Error(`invalid year range: ${startYear} - ${endYear}`);
+  }
+
+  return Array.from({ length: endYear - startYear + 1 }, (_, index) => startYear + index);
+}
+
+function mergeFlightSchedules(years: ReadonlyArray<number>, schedules: ReadonlyArray<FlightSchedules>): FlightSchedulesForYears {
+  const first = schedules[0];
+  if (!first) {
+    throw new Error('at least one flight schedule is required');
+  }
+
+  const relatedFlightNumbers = new Map<string, FlightNumber>();
+  const items: Array<FlightScheduleItem> = [];
+  const variants = {} as FlightSchedules['variants'];
+  const airlines = {} as FlightSchedules['airlines'];
+  const airports = {} as FlightSchedules['airports'];
+  const aircraft = {} as FlightSchedules['aircraft'];
+
+  for (const schedule of schedules) {
+    for (const flightNumber of schedule.relatedFlightNumbers) {
+      relatedFlightNumbers.set(flightNumberKey(flightNumber), flightNumber);
+    }
+    items.push(...schedule.items);
+    Object.assign(variants, schedule.variants);
+    Object.assign(airlines, schedule.airlines);
+    Object.assign(airports, schedule.airports);
+    Object.assign(aircraft, schedule.aircraft);
+  }
+
+  items.sort((a, b) => a.departureDateLocal.localeCompare(b.departureDateLocal));
+
+  return {
+    ...first,
+    relatedFlightNumbers: Array.from(relatedFlightNumbers.values()),
+    items: items,
+    variants: variants,
+    airlines: airlines,
+    airports: airports,
+    aircraft: aircraft,
+    loadedYears: years,
+  };
+}
+
+function mergeQuerySchedules(years: ReadonlyArray<number>, responses: ReadonlyArray<QuerySchedulesResponseV2>): QuerySchedulesResponseForYears {
+  const schedulesByFlightNumber = new Map<string, { flightNumber: FlightNumber, items: Array<FlightScheduleItem> }>();
+  const variants = {} as QuerySchedulesResponseV2['variants'];
+  const airlines = {} as QuerySchedulesResponseV2['airlines'];
+  const airports = {} as QuerySchedulesResponseV2['airports'];
+  const aircraft = {} as QuerySchedulesResponseV2['aircraft'];
+
+  for (const response of responses) {
+    for (const schedule of response.schedules) {
+      const key = flightNumberKey(schedule.flightNumber);
+      let merged = schedulesByFlightNumber.get(key);
+      if (!merged) {
+        merged = { flightNumber: schedule.flightNumber, items: [] };
+        schedulesByFlightNumber.set(key, merged);
+      }
+      merged.items.push(...schedule.items);
+    }
+    Object.assign(variants, response.variants);
+    Object.assign(airlines, response.airlines);
+    Object.assign(airports, response.airports);
+    Object.assign(aircraft, response.aircraft);
+  }
+
+  for (const schedule of schedulesByFlightNumber.values()) {
+    schedule.items.sort((a, b) => a.departureDateLocal.localeCompare(b.departureDateLocal));
+  }
+
+  return {
+    schedules: Array.from(schedulesByFlightNumber.values()),
+    variants: variants,
+    airlines: airlines,
+    airports: airports,
+    aircraft: aircraft,
+    loadedYears: years,
+  };
+}
+
+function flightNumberKey(flightNumber: FlightNumber): string {
+  return `${flightNumber.airlineId}:${flightNumber.number}:${flightNumber.suffix ?? ''}`;
 }
 
 export function useQueryFlightSchedules(req: QuerySchedulesRequest) {

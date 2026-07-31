@@ -24,6 +24,9 @@ import {
 import { CodeView } from '@cloudscape-design/code-view';
 import jsonHighlight from '@cloudscape-design/code-view/highlight/json';
 import {
+  FlightSchedulesForYears,
+  YearRange,
+  defaultScheduleYearRange,
   useFlightSchedule,
   useSeatMap
 } from '../components/util/state/data';
@@ -63,6 +66,7 @@ import { Feature, Point } from 'geojson';
 import { bbox, featureCollection, point } from '@turf/turf';
 import { AirportMarker } from '../components/maplibre/marker';
 import { UpdateReportLineChart } from '../components/updates/updates-line-chart';
+import { YearRangeSelector } from '../components/common/year-range-selector';
 
 export function FlightView() {
   const { id } = useParams();
@@ -71,7 +75,8 @@ export function FlightView() {
   }
 
   const [version, setVersion] = useState<DateTime<true>>();
-  const { data, status, error: queryError } = useFlightSchedule(id, version);
+  const [yearRange, setYearRange] = useState<YearRange>(defaultScheduleYearRange);
+  const { data, status, error: queryError } = useFlightSchedule(id, yearRange, version);
 
   if (!data) {
     let content: React.ReactNode;
@@ -102,7 +107,13 @@ export function FlightView() {
   }
 
   return (
-    <FlightScheduleContent flightSchedules={data} version={version} setVersion={setVersion} />
+    <FlightScheduleContent
+      flightSchedules={data}
+      version={version}
+      setVersion={setVersion}
+      yearRange={yearRange}
+      setYearRange={setYearRange}
+    />
   );
 }
 
@@ -176,7 +187,7 @@ interface ProcessedFlightSchedule {
   flights: ReadonlyArray<FlightTableItem>;
 }
 
-function FlightScheduleContent({ flightSchedules, version, setVersion }: { flightSchedules: FlightSchedules, version?: DateTime<true>, setVersion: (v: DateTime<true>) => void }) {
+function FlightScheduleContent({ flightSchedules, version, setVersion, yearRange, setYearRange }: { flightSchedules: FlightSchedulesForYears, version?: DateTime<true>, setVersion: (v: DateTime<true>) => void, yearRange: YearRange, setYearRange: (v: YearRange) => void }) {
   const [searchParams] = useSearchParams();
   const [filterQuery, setFilterQuery] = useState<PropertyFilterProps.Query>(parseSearchParams(searchParams) ?? {
     operation: 'and',
@@ -278,7 +289,10 @@ function FlightScheduleContent({ flightSchedules, version, setVersion }: { fligh
           <Table
             items={items}
             {...collectionProps}
-            header={<Header counter={`(${filteredFlights.length}/${flights.length})`}>Flights</Header>}
+            header={<Header
+              actions={<YearRangeSelector value={yearRange} onChange={setYearRange} />}
+              counter={`(${filteredFlights.length}/${flights.length})`}
+            >Flights</Header>}
             pagination={<Pagination {...paginationProps}  />}
             filter={<TableFilter
               query={filterQuery}
