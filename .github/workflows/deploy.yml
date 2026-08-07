@@ -86,6 +86,34 @@ jobs:
           path: 'go/cron/bootstrap'
           retention-days: 1
 
+  build_ui_legacy:
+    name: 'Build UI (legacy)'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v7
+        with:
+          ref: '61587c7059971705cb5173b55d753ee91a2953dc'
+      - name: 'Setup node'
+        uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+      - name: 'Install npm dependencies'
+        working-directory: 'ui'
+        run: 'npm ci --legacy-peer-deps'
+      - name: 'Build'
+        working-directory: 'ui'
+        run: 'npm run build'
+      - name: 'Prepare UI resources bundle'
+        working-directory: 'ui/dist'
+        run: 'zip -r ../${{ env.WORKSPACE_ARTIFACT_UI }}_legacy.zip .'
+      - name: 'Store UI artifact'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.WORKSPACE_ARTIFACT_UI }}_legacy
+          path: 'ui/${{ env.WORKSPACE_ARTIFACT_UI }}_legacy.zip'
+          retention-days: 1
+
   build_ui:
     name: 'Build UI'
     runs-on: ubuntu-latest
@@ -98,7 +126,7 @@ jobs:
           node-version: '26'
       - name: 'Install npm dependencies'
         working-directory: 'ui'
-        run: 'npm install --legacy-peer-deps'
+        run: 'npm ci --legacy-peer-deps'
       - name: 'Build'
         working-directory: 'ui'
         run: 'npm run build'
@@ -148,6 +176,7 @@ jobs:
       - test_common
       - build_and_test_api
       - build_and_test_cron
+      - build_ui_legacy
       - build_ui
       - build_otel_collector
     steps:
@@ -167,6 +196,11 @@ jobs:
           path: .
       - name: 'Prepare cron lambda bundle'
         run: '(chmod +x bootstrap && zip -q cdk/cron_lambda_bundle.zip bootstrap && rm bootstrap)'
+      - name: 'Download UI artifact (legacy)'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ env.WORKSPACE_ARTIFACT_UI }}_legacy
+          path: 'cdk/'
       - name: 'Download UI artifact'
         uses: actions/download-artifact@v8
         with:
@@ -192,7 +226,7 @@ jobs:
           node-version: '26'
       - name: 'Install npm dependencies'
         working-directory: 'cdk'
-        run: 'npm install --legacy-peer-deps'
+        run: 'npm ci --legacy-peer-deps'
       - name: 'Install cdk'
         working-directory: 'cdk'
         run: 'npm install -g aws-cdk'
