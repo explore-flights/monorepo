@@ -23,7 +23,7 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type searchRepo interface {
-	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time, departureDateRangeUTC *xtime.LocalDateRange) (db.FlightSchedules, error)
+	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time, departureDateRangeLocal *xtime.LocalDateRange) (db.FlightSchedules, error)
 	Airlines(ctx context.Context) (map[string]db.Airline, error)
 	Airports(ctx context.Context) (map[string]db.Airport, error)
 }

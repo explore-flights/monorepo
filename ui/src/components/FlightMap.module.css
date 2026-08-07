@@ -1,0 +1,103 @@
+.wrap {
+  height: var(--flight-map-height);
+  overflow: hidden;
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+}
+
+.wrap :global(.maplibregl-map) {
+  font-family: inherit;
+}
+
+.marker {
+  position: relative;
+  z-index: var(--layer-content);
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-75);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1-25);
+  font: inherit;
+  color: var(--map-marker);
+  background: var(--map-marker-surface);
+  border: var(--border-width) solid var(--map-marker-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-map-marker);
+  cursor: pointer;
+  transition:
+    opacity var(--duration-fast) ease,
+    transform var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.marker:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-map-marker-hover);
+}
+
+.marker:focus-visible {
+  outline: var(--focus-ring-width) solid
+    color-mix(in srgb, var(--primary) 70%, var(--color-on-accent));
+  outline-offset: var(--space-0-75);
+}
+
+.marker.active {
+  color: var(--map-marker-active);
+  border-color: var(--map-marker);
+  box-shadow: var(--shadow-map-marker-active);
+}
+
+.marker.muted {
+  opacity: 0.58;
+}
+
+.marker svg {
+  flex: none;
+  fill: var(--map-marker-icon);
+  stroke-width: 2.5;
+}
+
+.marker span {
+  color: var(--map-marker-text);
+  font-size: var(--font-xs);
+  font-weight: 850;
+  line-height: 1;
+  letter-spacing: 0.025em;
+}
+
+.consent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: radial-gradient(circle at 50% 25%, var(--primary-soft), var(--surface) 65%);
+}
+
+.consentIcon {
+  display: grid;
+  width: 54px;
+  height: var(--control-height-2xl);
+  place-items: center;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: 50%;
+}
+
+.consent h3 {
+  margin: var(--space-3-5) 0 var(--space-1-25);
+}
+
+.consent p {
+  max-width: 420px;
+  margin: 0 0 var(--space-4);
+  color: var(--muted);
+  font-size: var(--font-supporting);
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    height: min(var(--flight-map-height), 480px);
+  }
+}

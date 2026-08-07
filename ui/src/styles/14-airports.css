@@ -1,0 +1,209 @@
+/* Airport */
+.airport-count {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  color: var(--muted);
+}
+.directory-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+}
+.search-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2-5);
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+}
+.search-input svg {
+  color: var(--muted);
+}
+.search-input input {
+  width: 100%;
+  padding: var(--space-2) 0;
+  font-size: var(--font-xs);
+  background: transparent;
+  border: 0;
+}
+.directory-toolbar > label:last-child {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.directory-toolbar select {
+  width: 100%;
+  padding: var(--space-2);
+  font-size: var(--font-xs);
+}
+.airport-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+.airport-card {
+  display: grid;
+  grid-template-columns: 65px 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 92px;
+  padding: var(--space-3-5);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  transition: var(--duration-fast);
+}
+.airport-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--primary);
+  box-shadow: var(--shadow);
+}
+.airport-code {
+  display: grid;
+  height: var(--control-height-2xl);
+  place-items: center;
+  font-size: var(--font-lg);
+  font-weight: 850;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: var(--radius-md);
+}
+.airport-info {
+  min-width: 0;
+}
+.airport-info h2 {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--font-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.airport-info p {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-1-25) 0 0;
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.airport-info > span {
+  display: block;
+  margin-top: var(--space-0-75);
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.airport-open {
+  color: var(--muted);
+}
+.airport-title-code {
+  display: inline-flex;
+  margin-right: var(--space-4);
+  color: var(--primary);
+}
+.subnav {
+  display: flex;
+  gap: var(--space-0-75);
+  margin: 0 0 var(--space-6);
+  padding: var(--space-1);
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.subnav a,
+.subnav button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+}
+.subnav a.active,
+.subnav button.active {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.airport-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.3fr);
+  gap: var(--space-3);
+}
+.airport-overview-grid > .card {
+  padding: var(--space-4-5);
+}
+.airport-facts dl {
+  margin: var(--space-4) 0 0;
+}
+.airport-facts dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-2) 0;
+  font-size: var(--font-xs);
+  border-top: var(--border-width) solid var(--border);
+}
+.airport-facts dt {
+  color: var(--muted);
+}
+.airport-facts dd {
+  margin: 0;
+  font-weight: 650;
+}
+.top-destinations > div:last-child {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-1-5);
+  margin-top: var(--space-4);
+}
+.top-destinations > div:last-child a {
+  display: grid;
+  grid-template-columns: 42px 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+}
+.top-destinations a strong {
+  color: var(--primary);
+}
+.top-destinations a span {
+  overflow: hidden;
+  font-size: var(--font-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.top-destinations a small {
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.muted-copy {
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.large-code,
+.data-table td > strong.large-code {
+  font-size: var(--font-sm);
+  color: var(--primary);
+}
+.icon-link,
+.data-table td > a.icon-link {
+  justify-content: center;
+  color: var(--primary);
+}

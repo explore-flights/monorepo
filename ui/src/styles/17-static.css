@@ -1,0 +1,187 @@
+/* Dialogs, static */
+.consent-banner {
+  position: fixed;
+  z-index: var(--layer-banner);
+  right: 20px;
+  bottom: 20px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-6);
+  width: min(740px, calc(100% - 40px));
+  padding: var(--space-4-5) var(--space-5);
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-banner);
+  backdrop-filter: blur(18px);
+}
+.consent-banner strong {
+  font-size: var(--font-sm);
+}
+.consent-banner p {
+  margin: var(--space-1-25) 0 0;
+  font-size: var(--font-xs);
+  line-height: 1.5;
+  color: var(--muted);
+}
+.consent-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+.modal-layer {
+  position: fixed;
+  z-index: var(--layer-modal);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4-5);
+  background: var(--overlay);
+  backdrop-filter: blur(4px);
+}
+.dialog {
+  width: min(500px, 100%);
+  overflow: hidden;
+  background: var(--surface);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-dialog);
+}
+.dialog > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  padding: var(--space-5) var(--space-5);
+  border-bottom: var(--border-width) solid var(--border);
+}
+.dialog h2 {
+  margin: var(--space-0-75) 0 0;
+  font-size: var(--font-xl);
+}
+.dialog-body {
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-5);
+}
+.dialog fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.dialog legend {
+  margin-bottom: var(--space-2);
+  font-size: var(--font-xs);
+  font-weight: 780;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-0-75);
+  padding: var(--space-0-75);
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+}
+.segmented button {
+  padding: var(--space-2);
+  font-size: var(--font-xs);
+  text-transform: capitalize;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+}
+.segmented button.active {
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-3) 0;
+  border-top: var(--border-width) solid var(--border);
+}
+.toggle-row > span {
+  display: grid;
+}
+.toggle-row strong {
+  font-size: var(--font-xs);
+}
+.toggle-row small {
+  margin-top: var(--space-0-75);
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.toggle-row input {
+  width: 35px;
+  height: 19px;
+  accent-color: var(--primary);
+}
+.dialog > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  background: var(--surface-2);
+  border-top: var(--border-width) solid var(--border);
+}
+.prose-card {
+  padding: var(--space-6);
+}
+.prose-card h2 {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: var(--font-lg);
+}
+.prose-card h2:first-child {
+  margin-top: 0;
+}
+.prose-card p {
+  margin: 0;
+  font-size: var(--font-sm);
+  line-height: 1.7;
+  color: var(--text-2);
+}
+.inline-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+}
+.standalone-state {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  text-align: center;
+  background: var(--bg);
+}
+.standalone-state h1 {
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: var(--font-3xl);
+  letter-spacing: -0.04em;
+}
+.standalone-state p {
+  margin: 0 0 var(--space-6);
+  color: var(--muted);
+}
+.standalone-state .button {
+  margin: var(--space-1);
+}
+
+.route-spinner {
+  width: 32px;
+  height: var(--control-height-sm);
+  margin-bottom: var(--space-3);
+  border: var(--border-width-strong) solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}

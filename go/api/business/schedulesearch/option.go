@@ -138,18 +138,11 @@ func WithMaxDepartureTime(maxDepartureTime time.Time) Condition {
 	}}
 }
 
-func WithMaxDepartureTimeExcl(maxDepartureTime time.Time) Condition {
+func WithDepartureDateRangeLocal(minDepartureDate, maxDepartureDate xtime.LocalDate) Condition {
 	return Condition{db.BaseCondition{
-		Filter: "(fvh.departure_date_local + fv.departure_time_local - TO_SECONDS(fv.departure_utc_offset_seconds)) < CAST(? AS TIMESTAMPTZ)",
-		Params: []any{maxDepartureTime.UTC().Format(time.RFC3339)},
+		Filter: "fvh.departure_date_local >= CAST(? AS DATE) AND fvh.departure_date_local < CAST(? AS DATE)",
+		Params: []any{minDepartureDate.String(), maxDepartureDate.String()},
 	}}
-}
-
-func WithDepartureDateRangeUTC(minDepartureDate, maxDepartureDate xtime.LocalDate) Condition {
-	return WithAll(
-		WithMinDepartureTime(minDepartureDate.Time(time.UTC)),
-		WithMaxDepartureTimeExcl(maxDepartureDate.Time(time.UTC)),
-	)
 }
 
 func WithAll(opts ...Condition) Condition {

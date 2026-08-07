@@ -1,0 +1,76 @@
+@media (max-width: 1200px) {
+  .query-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .global-status {
+    padding-inline: var(--space-8);
+  }
+}
+@media (max-width: 960px) {
+  .global-status {
+    top: var(--space-3);
+    margin: 0 auto;
+    padding-inline: var(--space-5);
+  }
+  .include-exclude-grid {
+    grid-template-columns: 1fr;
+  }
+  .schedule-details {
+    grid-template-columns: 1fr;
+  }
+  .schedule-details dl {
+    grid-template-columns: 1fr 1fr;
+  }
+  .flight-table-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .flight-table-filters > div {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 640px) {
+  .query-grid,
+  .query-grid.two,
+  .flight-table-filters {
+    grid-template-columns: 1fr;
+  }
+  .query-search-card form > footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-2-5);
+  }
+  .query-search-card form > footer .button {
+    width: 100%;
+  }
+  .rule-row,
+  .route-rule {
+    grid-template-columns: 1fr auto;
+  }
+  .route-rule > span {
+    display: none;
+  }
+  .rule-row select,
+  .rule-row input {
+    grid-column: 1;
+  }
+  .rule-row .button {
+    grid-column: 2;
+    grid-row: 1/3;
+  }
+  .schedule-details dl,
+  .storage-grid {
+    grid-template-columns: 1fr;
+  }
+  .global-status {
+    padding-inline: var(--space-3-5);
+  }
+  .include-exclude-grid {
+    grid-template-columns: 1fr;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stat {
+    min-width: 0;
+  }
+}

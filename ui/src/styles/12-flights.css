@@ -1,0 +1,272 @@
+/* Flights and tables */
+.flight-search-panel {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8);
+}
+.flight-search-visual {
+  position: relative;
+  display: grid;
+  height: 150px;
+  place-items: center;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+.flight-search-visual svg {
+  position: relative;
+  z-index: var(--layer-content);
+  transform: rotate(5deg);
+}
+.flight-path {
+  position: absolute;
+  width: 190px;
+  height: 80px;
+  border-top: var(--border-width) dashed color-mix(in srgb, var(--primary) 40%, transparent);
+  border-radius: 50%;
+  transform: rotate(-16deg);
+}
+.flight-search-panel label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-xs);
+  font-weight: 750;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.large-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+.large-input:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 var(--focus-ring-width) color-mix(in srgb, var(--primary) 13%, transparent);
+}
+.large-input > svg {
+  color: var(--muted);
+}
+.large-input input {
+  width: 100%;
+  padding: var(--space-4) 0;
+  font-size: var(--font-xl);
+  font-weight: 750;
+  text-transform: uppercase;
+  background: transparent;
+  border: 0;
+}
+.large-input .button {
+  margin: var(--space-1-25);
+}
+.flight-search-panel form > p {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.explain-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-top: var(--space-3-5);
+}
+.explain-grid .card {
+  padding: var(--space-5);
+}
+.explain-grid h2 {
+  margin: var(--space-3) 0 var(--space-1-25);
+  font-size: var(--font-lg);
+}
+.explain-grid p {
+  margin: 0;
+  font-size: var(--font-xs);
+  line-height: 1.55;
+  color: var(--muted);
+}
+.popular-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.popular-row button {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.year-switcher {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-75);
+  padding: var(--space-0-75);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+}
+.year-switcher strong {
+  min-width: 48px;
+  text-align: center;
+  font-size: var(--font-sm);
+}
+.year-switcher .button {
+  min-width: 30px;
+  min-height: 30px;
+  padding: var(--space-1);
+}
+.flight-header-details {
+  display: grid;
+  gap: var(--space-2);
+}
+.header-related-flights,
+.header-related-flights > span:last-child {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+}
+.header-related-flights > span:first-child {
+  margin-right: var(--space-0-75);
+  color: var(--muted);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.table-card {
+  overflow: hidden;
+}
+.table-scroll {
+  overflow-x: auto;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-xs);
+}
+.data-table th {
+  padding: var(--space-3) var(--space-3-5);
+  text-align: left;
+  font-size: var(--font-xs);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface-2);
+  border-bottom: var(--border-width) solid var(--border);
+}
+.data-table td {
+  padding: var(--space-3) var(--space-3-5);
+  color: var(--text-2);
+  border-bottom: var(--border-width) solid var(--border);
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.data-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+.data-table td > strong,
+.data-table td > span:not(.change-number),
+.data-table td > a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-25);
+  color: var(--text);
+}
+.data-table td > small,
+.route-cell small {
+  display: block;
+  max-width: 280px;
+  margin-top: var(--space-1);
+  overflow: hidden;
+  font-size: var(--font-xs);
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.route-cell {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  justify-content: start;
+  align-items: center;
+  gap: var(--space-1-25);
+}
+.route-cell small {
+  grid-column: 1/-1;
+}
+.history-link,
+.data-table td > a.history-link {
+  color: var(--primary);
+  font-size: var(--font-xs);
+  font-weight: 700;
+}
+.leg-history-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-25);
+  white-space: nowrap;
+}
+.leg-history-link svg {
+  flex: none;
+}
+.load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border-top: var(--border-width) solid var(--border);
+}
+.load-more span {
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.update-strip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-2);
+}
+.update-strip .card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1-25) var(--space-2);
+  padding: var(--space-3);
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.update-strip svg {
+  grid-row: 1/4;
+  color: var(--primary);
+}
+.update-strip strong {
+  font-size: var(--font-xs);
+  color: var(--text);
+}
+.update-strip span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.update-strip i,
+.chart-legend i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.green-dot {
+  background: var(--green);
+}
+.amber-dot {
+  background: var(--amber);
+}

@@ -480,7 +480,7 @@ ON (
 	return result, rows.Err()
 }
 
-func (fr *FlightRepo) FlightSchedules(ctx context.Context, fn FlightNumber, version time.Time, departureDateRangeUTC *xtime.LocalDateRange) (FlightSchedules, error) {
+func (fr *FlightRepo) FlightSchedules(ctx context.Context, fn FlightNumber, version time.Time, departureDateRangeLocal *xtime.LocalDateRange) (FlightSchedules, error) {
 	conn, err := fr.db.Conn(ctx)
 	if err != nil {
 		return FlightSchedules{}, err
@@ -498,12 +498,6 @@ WITH filtered_flight_variant_history AS (
 		fvh.flight_variant_id,
 		fvh.created_at
     FROM flight_variant_history fvh
-`
-		if departureDateRangeUTC != nil {
-			query += "LEFT JOIN flight_variants fv ON fvh.flight_variant_id = fv.id"
-		}
-
-		query += `
 	WHERE fvh.airline_iata_code = ?
 	AND fvh.number_mod_10 = (? % 10)
 	AND fvh.number = ?
@@ -518,26 +512,35 @@ WITH filtered_flight_variant_history AS (
 			version.Format(time.RFC3339),
 		}
 
-		if departureDateRangeUTC != nil {
+		if departureDateRangeLocal != nil {
 			query += `
-	AND (fvh.departure_date_local + fv.departure_time_local - TO_SECONDS(fv.departure_utc_offset_seconds)) >= CAST(? AS TIMESTAMPTZ)
-	AND (fvh.departure_date_local + fv.departure_time_local - TO_SECONDS(fv.departure_utc_offset_seconds)) < CAST(? AS TIMESTAMPTZ)
+	AND fvh.departure_date_local >= CAST(? AS DATE)
+	AND fvh.departure_date_local < CAST(? AS DATE)
 `
 			params = append(
 				params,
-				departureDateRangeUTC[0].Time(time.UTC).Format(time.RFC3339),
-				departureDateRangeUTC[1].Time(time.UTC).Format(time.RFC3339),
+				departureDateRangeLocal[0].String(),
+				departureDateRangeLocal[1].String(),
 			)
 		}
 
-		query += `)
+		query += `), ranked_flight_variant_history AS (
+	SELECT
+		*,
+		DENSE_RANK() OVER (
+			PARTITION BY departure_date_local, departure_airport_iata_code
+			ORDER BY created_at DESC
+		) AS history_rank
+	FROM filtered_flight_variant_history
+)
 SELECT
     departure_date_local,
     departure_airport_iata_code,
     FIRST(flight_variant_id ORDER BY created_at DESC),
+    FIRST(flight_variant_id ORDER BY created_at DESC) FILTER (WHERE history_rank = 2),
     FIRST(created_at ORDER BY created_at DESC),
     COUNT(DISTINCT created_at)
-FROM filtered_flight_variant_history
+FROM ranked_flight_variant_history
 GROUP BY departure_date_local, departure_airport_iata_code
 ORDER BY departure_date_local ASC
 `
@@ -554,6 +557,7 @@ ORDER BY departure_date_local ASC
 				&fsi.DepartureDateLocal,
 				&fsi.DepartureAirportIataCode,
 				&fsi.FlightVariantId,
+				&fsi.PreviousFlightVariantId,
 				&fsi.Version,
 				&fsi.VersionCount,
 			)
@@ -565,6 +569,9 @@ ORDER BY departure_date_local ASC
 
 			if fsi.FlightVariantId.Valid {
 				variantIds.Add(fsi.FlightVariantId.V)
+			}
+			if fsi.PreviousFlightVariantId.Valid {
+				variantIds.Add(fsi.PreviousFlightVariantId.V)
 			}
 		}
 

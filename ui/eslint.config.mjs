@@ -17,7 +17,11 @@ export default defineConfig([
   globalIgnores(['vite.config.ts', 'src/vite-env.d.ts']),
   {
     rules: {
-      'quotes': ['warn', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
+      'brace-style': ['error', '1tbs', { allowSingleLine: false }],
+      curly: ['error', 'all'],
+      'no-nested-ternary': 'error',
+      'nonblock-statement-body-position': ['error', 'below'],
+      quotes: ['warn', 'single', { avoidEscape: true, allowTemplateLiterals: true }],
       'import/prefer-default-export': 0,
       'no-unused-vars': ['warn', { argsIgnorePattern: '^[_]+$', varsIgnorePattern: '^[_]+$' }],
       'object-shorthand': 0,
@@ -30,13 +34,13 @@ export default defineConfig([
       'no-trailing-spaces': 0,
       'no-bitwise': 0,
       'no-case-declarations': 0,
-      'semi': 'warn',
+      semi: 'warn',
     },
   },
   {
     files: ['**/*.js', '**/*.jsx'],
     plugins: {
-      'js': js,
+      js: js,
     },
     extends: ['js/recommended'],
   },
@@ -52,22 +56,27 @@ export default defineConfig([
 
     plugins: {
       '@typescript-eslint': tsEslint,
-      'eslint-plugin-react': reactEslint,
-      'eslint-plugin-react-hooks': reactHooksEslint,
+      react: reactEslint,
+      'react-hooks': reactHooksEslint,
     },
 
     extends: ['@typescript-eslint/recommended'],
 
     rules: {
       'no-unused-vars': 0,
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^[_]+$', varsIgnorePattern: '^[_]+$' }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^[_]+$', varsIgnorePattern: '^[_]+$' },
+      ],
       '@typescript-eslint/no-var-requires': 0,
-      '@typescript-eslint/no-non-null-assertion': 0,
+      '@typescript-eslint/no-non-null-assertion': 'error',
       '@typescript-eslint/lines-between-class-members': 0,
       '@typescript-eslint/no-use-before-define': 0,
       '@typescript-eslint/array-type': 0,
       'typescript-sort-keys/string-enum': 0,
       'typescript-sort-keys/interface': 0,
+      'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/rules-of-hooks': 'error',
     },
   },
 ]);

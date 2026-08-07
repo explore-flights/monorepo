@@ -1,0 +1,87 @@
+/* Updates */
+.updates-chart-card {
+  padding: var(--space-4-5);
+}
+.updates-chart-card .card-heading {
+  flex-wrap: wrap;
+}
+.chart-legend {
+  display: flex;
+  gap: var(--space-3);
+  margin-left: auto;
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.chart-legend span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-25);
+}
+.legend-add {
+  background: var(--green);
+}
+.legend-update {
+  background: var(--amber);
+}
+.legend-remove {
+  background: var(--red);
+}
+.svg-chart {
+  margin-top: var(--space-4-5);
+}
+.svg-chart svg {
+  display: block;
+  width: 100%;
+  height: 280px;
+  overflow: visible;
+}
+.grid-lines line {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.svg-chart polyline {
+  fill: none;
+  stroke-width: 2.4;
+  vector-effect: non-scaling-stroke;
+}
+.line-added {
+  stroke: var(--green);
+}
+.line-updated {
+  stroke: var(--amber);
+}
+.line-removed {
+  stroke: var(--red);
+}
+.chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin: var(--space-0-75) var(--space-7) 0;
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+.empty-chart {
+  display: flex;
+  height: 260px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  color: var(--muted);
+}
+.change-number {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: var(--space-1);
+  font-weight: 700;
+}
+.change-number.added {
+  color: var(--green);
+}
+.change-number.updated {
+  color: var(--amber);
+}
+.change-number.removed {
+  color: var(--red);
+}

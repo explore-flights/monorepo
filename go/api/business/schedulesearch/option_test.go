@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestWithDepartureDateRangeUTC(t *testing.T) {
-	condition := WithDepartureDateRangeUTC(
+func TestWithDepartureDateRangeLocal(t *testing.T) {
+	condition := WithDepartureDateRangeLocal(
 		xtime.NewLocalDateFromParts(2026, time.January, 1),
 		xtime.NewLocalDateFromParts(2027, time.January, 1),
 	)
@@ -17,8 +17,8 @@ func TestWithDepartureDateRangeUTC(t *testing.T) {
 	filter, params := condition.cond.Condition()
 	assert.Equal(
 		t,
-		"( ( (fvh.departure_date_local + fv.departure_time_local - TO_SECONDS(fv.departure_utc_offset_seconds)) >= CAST(? AS TIMESTAMPTZ) ) AND ( (fvh.departure_date_local + fv.departure_time_local - TO_SECONDS(fv.departure_utc_offset_seconds)) < CAST(? AS TIMESTAMPTZ) ) )",
+		"fvh.departure_date_local >= CAST(? AS DATE) AND fvh.departure_date_local < CAST(? AS DATE)",
 		filter,
 	)
-	assert.Equal(t, []any{"2026-01-01T00:00:00Z", "2027-01-01T00:00:00Z"}, params)
+	assert.Equal(t, []any{"2026-01-01", "2027-01-01"}, params)
 }

@@ -1,0 +1,182 @@
+/* Readable content type scale */
+.fleet-hero p,
+.prose-card p,
+.prose-card ul {
+  font-size: var(--font-body);
+}
+
+.button {
+  min-height: var(--control-height-md);
+  font-size: var(--font-sm);
+}
+.badge {
+  padding: var(--space-1-25) var(--space-2);
+  font-size: var(--font-supporting);
+}
+.eyebrow,
+.stat > span,
+.flight-lookup label,
+.airport-field > span,
+.search-grid label > span,
+.flight-search-panel label,
+.dialog legend,
+.query-grid > label > span,
+.standalone-config > span,
+.rule-group label > span,
+.flight-table-filters label > span,
+.analytics-filters label > span,
+.schedule-details dt,
+.schedule-details > div > span,
+.change-groups h3,
+.storage-grid dt {
+  font-size: var(--font-label);
+}
+
+.section-heading p,
+.card-heading p,
+.quick-flights,
+.quick-flights button,
+.fleet-preview-card > span,
+.fleet-preview-card p,
+.advanced-toggle,
+.advanced-grid label,
+.journey-number,
+.journey-summary div > span,
+.graph-node-head,
+.graph-times,
+.flight-search-panel form > p,
+.popular-row,
+.related-flights,
+.timeline-head p,
+.airport-info p,
+.airport-info > span,
+.airport-facts dl > div,
+.top-destinations a span,
+.top-destinations a small,
+.muted-copy,
+.bar-value,
+.bar-column small,
+.route-ranking > div:last-child > div,
+.chart-legend,
+.chart-axis,
+.consent-banner p,
+.toggle-row small,
+.mini-chart-heading small,
+.monthly-chart button > span,
+.monthly-chart button small,
+.weekday-chart button,
+.distribution h3,
+.distribution button,
+.filter-tabs button b,
+.version-route > div small,
+.rule-list-heading,
+.query-search-card form > footer small,
+.pagination span,
+.schedule-details dd,
+.detail-links,
+.data-elements,
+.connection-toggle small,
+.rule-group p,
+.leg-codeshares,
+.share-result label span,
+.notification-query-error,
+.storage-grid dd {
+  font-size: var(--font-supporting);
+}
+
+.section-heading > a,
+.section-heading-action,
+.card-heading > a,
+.search-grid input,
+.search-grid select,
+.advanced-grid input:not([type='range']),
+.view-tabs button,
+.filter-tabs button,
+.share-result,
+.share-result input,
+.leg-times > span,
+.leg-route b,
+.leg-route small,
+.leg-meta,
+.explain-grid p,
+.year-switcher strong,
+.data-table,
+.history-link,
+.load-more span,
+.update-strip .card,
+.update-strip strong,
+.timeline-content header strong,
+.timeline-content header > span,
+.version-route span,
+.version-meta,
+.version-removed span,
+.change-list > div,
+.airport-count,
+.search-input input,
+.directory-toolbar > label:last-child,
+.directory-toolbar select,
+.airport-info h2,
+.subnav a,
+.subnav button,
+.consent-banner strong,
+.segmented button,
+.toggle-row strong,
+.analytics-tabs button,
+.analytics-filters select,
+.mini-chart-heading,
+.schedule-times strong,
+.schedule-times span,
+.schedule-times small,
+.rule-row select,
+.rule-row input,
+.query-search-card form > footer strong,
+.connection-toggle strong,
+.flight-table-filters > div,
+.flight-table-filters input {
+  font-size: var(--font-sm);
+}
+
+.flight-lookup p,
+.feature-card p {
+  font-size: var(--font-sm);
+}
+.stat small {
+  font-size: var(--font-supporting);
+}
+.data-table th {
+  font-size: var(--font-label);
+}
+.data-table td > small,
+.route-cell small {
+  font-size: var(--font-supporting);
+}
+.schedule-times small {
+  font-size: var(--font-supporting);
+}
+.monthly-chart button small {
+  font-size: var(--font-label);
+}
+.global-status {
+  gap: var(--space-2);
+}
+.global-notification {
+  gap: var(--space-3);
+  padding: var(--space-3-5) var(--space-4);
+}
+.global-notification strong {
+  font-size: var(--font-body);
+}
+.global-notification p {
+  margin-top: var(--space-1);
+  font-size: var(--font-sm);
+  line-height: 1.55;
+}
+.analytics-header p,
+.schedule-heading p {
+  font-size: var(--font-sm);
+  line-height: 1.5;
+}
+.analytics-filters select,
+.flight-table-filters input {
+  min-height: var(--control-height-md);
+}

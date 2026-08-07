@@ -1,0 +1,69 @@
+/* Notifications and freshness */
+.global-status {
+  position: absolute;
+  z-index: var(--layer-floating);
+  inset: var(--space-3-5) 0 auto;
+  display: grid;
+  gap: var(--space-2);
+  max-width: 1450px;
+  margin: 0 auto;
+  padding: 0 var(--space-12);
+  pointer-events: none;
+}
+.global-notification {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: var(--space-2);
+  padding: var(--space-2-5) var(--space-3);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border);
+  border-left: var(--focus-ring-width) solid var(--primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+}
+.global-notification > svg {
+  color: var(--primary);
+}
+.global-notification strong {
+  font-size: var(--font-xs);
+}
+.global-notification p {
+  margin: var(--space-0-75) 0 0;
+  color: var(--muted);
+  font-size: var(--font-xs);
+  line-height: 1.45;
+}
+.global-notification > button {
+  padding: var(--space-0-5);
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+}
+.notification-warning {
+  border-left-color: var(--amber);
+}
+.notification-warning > svg {
+  color: var(--amber);
+}
+.notification-error {
+  border-left-color: var(--red);
+}
+.notification-error > svg {
+  color: var(--red);
+}
+.notification-success {
+  border-left-color: var(--green);
+}
+.notification-success > svg {
+  color: var(--green);
+}
+.notification-query-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-25);
+  width: fit-content;
+  color: var(--muted);
+  font-size: var(--font-xs);
+}

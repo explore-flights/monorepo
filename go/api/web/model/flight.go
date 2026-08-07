@@ -23,6 +23,7 @@ type FlightScheduleItem struct {
 	DepartureDateLocal       xtime.LocalDate `json:"departureDateLocal"`
 	DepartureAirportIataCode string          `json:"departureAirportId"`
 	FlightVariantId          *UUID           `json:"flightVariantId,omitempty"`
+	PreviousFlightVariantId  *UUID           `json:"previousFlightVariantId,omitempty"`
 	Version                  time.Time       `json:"version"`
 	VersionCount             int             `json:"versionCount"`
 }
@@ -33,11 +34,17 @@ func FlightScheduleItemFromDb(item db.FlightScheduleItem) FlightScheduleItem {
 		id := UUID(item.FlightVariantId.V)
 		flightVariantId = &id
 	}
+	var previousFlightVariantId *UUID
+	if item.PreviousFlightVariantId.Valid {
+		id := UUID(item.PreviousFlightVariantId.V)
+		previousFlightVariantId = &id
+	}
 
 	return FlightScheduleItem{
 		DepartureDateLocal:       item.DepartureDateLocal,
 		DepartureAirportIataCode: item.DepartureAirportIataCode,
 		FlightVariantId:          flightVariantId,
+		PreviousFlightVariantId:  previousFlightVariantId,
 		Version:                  item.Version,
 		VersionCount:             item.VersionCount,
 	}
