@@ -1,4 +1,5 @@
 import 'maplibre-gl/dist/maplibre-gl.css';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import MapCanvas, { Layer, Marker, NavigationControl, Source } from 'react-map-gl/maplibre';
 import { MapPin } from 'lucide-react';
 import { colorful } from '@versatiles/style';
@@ -100,6 +101,7 @@ export function FlightMap({
             : { longitude: 8, latitude: 35, zoom: 1.5 }
         }
         mapStyle={mapStyle}
+        workerUrl={workerUrl}
       >
         <NavigationControl position='top-right' />
         <Source id='routes' type='geojson' data={geojson}>
