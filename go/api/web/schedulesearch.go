@@ -513,7 +513,7 @@ func (h *ScheduleSearchHandler) queryInternal(ctx context.Context, condition sch
 			if year, ok := requestContextYear(ctx); ok {
 				minDepartureDate := xtime.NewLocalDateFromParts(year, time.January, 1)
 				maxDepartureDate := xtime.NewLocalDateFromParts(year+1, time.January, 1)
-				conditions = append(conditions, schedulesearch.WithDepartureDateRangeUTC(minDepartureDate, maxDepartureDate))
+				conditions = append(conditions, schedulesearch.WithDepartureDateRangeLocal(minDepartureDate, maxDepartureDate))
 			}
 
 			dbResult, err = h.search.QuerySchedules(

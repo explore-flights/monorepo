@@ -1,0 +1,28 @@
+@layer framework;
+/* Tailwind supplies Preflight; application styles use semantic classes in the modules below. */
+@import 'tailwindcss' layer(framework);
+
+@import './styles/00-tokens.css';
+@import './styles/01-base.css';
+@import './styles/10-home.css';
+@import './styles/11-connections.css';
+@import './styles/12-flights.css';
+@import './styles/13-history.css';
+@import './styles/14-airports.css';
+@import './styles/15-fleet.css';
+@import './styles/16-updates.css';
+@import './styles/17-static.css';
+@import './styles/18-flight-analytics.css';
+@import './styles/19-flight-comparisons.css';
+@import './styles/30-foundation-responsive.css';
+@import './styles/31-schedule-search.css';
+@import './styles/32-schedule-explorer.css';
+@import './styles/33-connections-expanded.css';
+@import './styles/34-notifications.css';
+@import './styles/35-static-extended.css';
+@import './styles/40-type-scale.css';
+@import './styles/50-schedule-workspace.css';
+@import './styles/51-schedule-workspace-responsive.css';
+@import './styles/52-tools-responsive.css';
+@import './styles/53-fleet-responsive.css';
+@import './styles/54-simple-select.css';

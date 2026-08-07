@@ -36,7 +36,7 @@ type dataHandlerRepo interface {
 	Airports(ctx context.Context) (map[string]db.Airport, error)
 	Aircraft(ctx context.Context) (map[string]db.Aircraft, error)
 	RelatedFlightNumbers(ctx context.Context, fn db.FlightNumber, version time.Time) (common.Set[db.FlightNumber], error)
-	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time, departureDateRangeUTC *xtime.LocalDateRange) (db.FlightSchedules, error)
+	FlightSchedules(ctx context.Context, fn db.FlightNumber, version time.Time, departureDateRangeLocal *xtime.LocalDateRange) (db.FlightSchedules, error)
 	FlightScheduleVersions(ctx context.Context, fn db.FlightNumber, departureAirportIataCode string, departureDate xtime.LocalDate) (db.FlightScheduleVersions, error)
 	GlobalUpdatesReport(ctx context.Context) ([]db.UpdateReportItem, error)
 	UpdatesReport(ctx context.Context, fn db.FlightNumber, version time.Time) ([]db.UpdateReportItem, error)
@@ -104,7 +104,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 	fnRaw := c.Param("fn")
 	versionRaw := c.Param("version")
 	year, _ := requestContextYear(ctx)
-	departureDateRangeUTC := xtime.LocalDateRange{
+	departureDateRangeLocal := xtime.LocalDateRange{
 		xtime.NewLocalDateFromParts(year, time.January, 1),
 		xtime.NewLocalDateFromParts(year+1, time.January, 1),
 	}
@@ -137,7 +137,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 
 		g.Go(func() error {
 			var err error
-			flightSchedules, err = dh.repo.FlightSchedules(ctx, fn, version, &departureDateRangeUTC)
+			flightSchedules, err = dh.repo.FlightSchedules(ctx, fn, version, &departureDateRangeLocal)
 			return err
 		})
 

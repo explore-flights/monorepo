@@ -1,0 +1,127 @@
+.chip,
+.more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 180px;
+  padding: var(--space-1) var(--space-1-5);
+  overflow: hidden;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: var(--radius-xs);
+  font-size: var(--font-sm);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip button {
+  display: grid;
+  flex: 0 0 auto;
+  padding: 0;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+  border: 0;
+}
+
+.optionContent {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 25px 1fr;
+  align-items: center;
+}
+
+.checkbox {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  color: var(--color-on-accent);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-xs);
+}
+
+.optionContent:has(.checkbox svg) .checkbox {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.optionText {
+  display: grid;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.optionText strong,
+.optionText small {
+  font-size: var(--font-sm);
+}
+
+.optionText small {
+  color: var(--muted);
+}
+
+.tagInput {
+  min-height: 42px;
+  padding: var(--space-1-25) var(--space-2);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+
+.tagValues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.tagValues > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0-75);
+  padding: var(--space-0-75) var(--space-1-25);
+  color: var(--primary);
+  font-size: var(--font-sm);
+  font-weight: 700;
+  background: var(--primary-soft);
+  border-radius: var(--radius-xs);
+}
+
+.tagValues button {
+  display: grid;
+  padding: 0;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+  border: 0;
+}
+
+.tagInput > input {
+  width: 100%;
+  min-height: 29px;
+  padding: var(--space-1);
+  font-size: var(--font-sm);
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .optionContent {
+    grid-template-columns: 34px 1fr;
+  }
+
+  .checkbox {
+    width: 21px;
+    height: 21px;
+  }
+
+  .optionText strong {
+    font-size: var(--font-lg);
+  }
+
+  .optionText small {
+    font-size: var(--font-sm);
+    line-height: 1.35;
+  }
+}

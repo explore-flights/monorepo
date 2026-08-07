@@ -1,0 +1,111 @@
+/* Shared schedule dates table */
+.schedule-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3-5) var(--space-4);
+  border-bottom: var(--border-width) solid var(--border);
+}
+.schedule-table-header h2 {
+  margin: var(--space-0-75) 0 0;
+  font-size: var(--font-lg);
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-25);
+}
+.pagination span {
+  color: var(--muted);
+  font-size: var(--font-xs);
+}
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+}
+.row-expand {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.row-expand:hover {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+.rich-schedule-table td:first-child,
+.rich-schedule-table th:first-child,
+.schedule-table td:first-child,
+.schedule-table th:first-child {
+  width: 40px;
+  padding-right: var(--space-1);
+}
+.expanded-table-row > td,
+.data-table tbody .expanded-table-row > td {
+  padding: 0;
+  background: var(--surface-2);
+}
+.schedule-details {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--space-3-5) var(--space-5);
+  padding: var(--space-3-5) var(--space-4-5);
+  border-left: var(--focus-ring-width) solid var(--primary);
+}
+.schedule-details dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin: 0;
+}
+.schedule-details dl > div {
+  padding: var(--space-2);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.schedule-details dt,
+.schedule-details > div > span {
+  margin-bottom: var(--space-0-75);
+  color: var(--muted);
+  font-size: var(--font-xs);
+  font-weight: 780;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.schedule-details dd {
+  margin: 0;
+  font-size: var(--font-xs);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.detail-links,
+.data-elements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1-25);
+  margin-top: var(--space-1-25);
+  font-size: var(--font-xs);
+}
+.detail-links a,
+.data-elements code {
+  padding: var(--space-1) var(--space-1-5);
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: var(--radius-xs);
+}
+.schedule-details > .schedule-details-data-elements {
+  grid-column: 1/-1;
+}

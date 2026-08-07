@@ -3,6 +3,8 @@ import { resolve } from 'path';
 import { defineConfig, ProxyOptions } from 'vite';
 // @ts-ignore
 import react from '@vitejs/plugin-react';
+// @ts-ignore
+import tailwindcss from '@tailwindcss/vite';
 
 // https://vitejs.dev/config/
 function localTarget(target: string): ProxyOptions {
@@ -15,7 +17,7 @@ function localTarget(target: string): ProxyOptions {
       'Cloudfront-Viewer-Latitude': '52.5162778',
       'Cloudfront-Viewer-Longitude': '13.3755154',
     },
-  }
+  };
 }
 
 const proxyConfig: Record<string, string | ProxyOptions> = {
@@ -25,10 +27,18 @@ const proxyConfig: Record<string, string | ProxyOptions> = {
 };
 
 export default defineConfig({
-  root: resolve(import.meta.dirname, 'src/pages'),
+  root: resolve(import.meta.dirname),
   publicDir: resolve(import.meta.dirname, 'public'),
   envDir: resolve(import.meta.dirname),
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      '@': resolve(import.meta.dirname, 'src'),
+    },
+  },
+  optimizeDeps: {
+    exclude: ['maplibre-gl'],
+  },
   server: {
     port: 4200,
     proxy: proxyConfig,
@@ -45,6 +55,6 @@ export default defineConfig({
     },*/
   },
   build: {
-    outDir: resolve(import.meta.dirname, './dist'),
+    outDir: resolve(import.meta.dirname, 'dist'),
   },
 });

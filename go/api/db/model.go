@@ -113,6 +113,7 @@ type FlightScheduleItem struct {
 	DepartureDateLocal       xtime.LocalDate
 	DepartureAirportIataCode string
 	FlightVariantId          sql.Null[uuid.UUID]
+	PreviousFlightVariantId  sql.Null[uuid.UUID]
 	Version                  time.Time
 	VersionCount             int
 }

@@ -1,0 +1,83 @@
+/* Flight filters and long-form static pages */
+.flight-table-filters {
+  display: grid;
+  grid-template-columns: auto 1.4fr 1fr 1fr auto;
+  align-items: end;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  box-shadow: none;
+}
+.flight-table-filters > div {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  align-self: center;
+  color: var(--primary);
+  font-size: var(--font-xs);
+}
+.flight-table-filters input {
+  width: 100%;
+  min-height: var(--control-height-compact);
+  padding: var(--space-1-5) var(--space-2);
+  font-size: var(--font-xs);
+}
+.prose-page {
+  max-width: 1000px;
+}
+.prose-page > .prose-card {
+  margin-top: var(--space-3);
+}
+.prose-card h2 {
+  margin-top: 0;
+}
+.prose-card p + .prose-card p {
+  margin-top: var(--space-2-5);
+}
+.prose-card p + p {
+  margin-top: var(--space-2-5);
+}
+.prose-card ul {
+  padding-left: var(--space-5);
+  color: var(--text-2);
+  font-size: var(--font-sm);
+  line-height: 1.7;
+}
+.prose-card a {
+  color: var(--primary);
+}
+.storage-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.storage-grid > div {
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+}
+.storage-grid code {
+  color: var(--primary);
+  font-weight: 750;
+}
+.storage-grid dl {
+  display: flex;
+  gap: var(--space-3);
+  margin: var(--space-2-5) 0;
+}
+.storage-grid dl > div {
+  display: grid;
+  gap: var(--space-0-5);
+}
+.storage-grid dt {
+  color: var(--muted);
+  font-size: var(--font-xs);
+  text-transform: uppercase;
+}
+.storage-grid dd {
+  margin: 0;
+  font-size: var(--font-xs);
+  font-weight: 650;
+}

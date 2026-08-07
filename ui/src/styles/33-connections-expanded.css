@@ -1,0 +1,78 @@
+/* Expanded connection finder */
+.connection-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-2-5) var(--space-3);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+}
+.connection-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+}
+.connection-toggle > span {
+  display: grid;
+  gap: var(--space-0-5);
+}
+.connection-toggle strong {
+  font-size: var(--font-xs);
+}
+.connection-toggle small {
+  color: var(--muted);
+  font-size: var(--font-xs);
+}
+.connection-advanced {
+  padding-top: var(--space-2-5);
+}
+.include-exclude-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2-5);
+  margin-top: var(--space-2-5);
+}
+.rule-group {
+  padding: var(--space-3-5);
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+}
+.rule-group header {
+  margin-bottom: var(--space-3);
+}
+.rule-group h3 {
+  margin: 0;
+  font-size: var(--font-sm);
+}
+.rule-group p {
+  margin: var(--space-1) 0 0;
+  color: var(--muted);
+  font-size: var(--font-xs);
+  line-height: 1.45;
+}
+.rule-group label {
+  display: block;
+  margin-top: var(--space-2-5);
+}
+.leg-codeshares {
+  margin-top: var(--space-2);
+  color: var(--muted);
+  font-size: var(--font-xs);
+}
+.leg-codeshares a {
+  margin-left: var(--space-1-25);
+  color: var(--primary);
+}
+.share-result {
+  grid-template-columns: 1fr 2fr auto;
+}
+.share-result label {
+  display: grid;
+  gap: var(--space-0-75);
+}
+.share-result label span {
+  color: var(--muted);
+  font-size: var(--font-xs);
+}
