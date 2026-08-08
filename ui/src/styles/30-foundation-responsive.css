@@ -177,7 +177,32 @@
     grid-template-columns: 1fr;
   }
   .change-groups section {
-    grid-template-columns: 80px 1fr;
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+  .change-groups h3 {
+    margin: var(--space-1) 0 0;
+  }
+  .change-list > div {
+    grid-template-areas:
+      'label label label'
+      'before arrow after';
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: start;
+    row-gap: var(--space-1);
+  }
+  .change-list > div > span {
+    grid-area: label;
+  }
+  .change-list del {
+    grid-area: before;
+  }
+  .change-list svg {
+    grid-area: arrow;
+    align-self: center;
+  }
+  .change-list ins {
+    grid-area: after;
   }
 }
 
@@ -302,15 +327,6 @@
   .flight-search-visual {
     height: 90px;
   }
-  .large-input {
-    display: grid;
-    grid-template-columns: 1fr;
-    padding: var(--space-1-25);
-  }
-  .large-input .button {
-    width: 100%;
-    margin: 0;
-  }
   .explain-grid {
     grid-template-columns: 1fr;
   }
@@ -378,17 +394,18 @@
     width: 100%;
     justify-content: space-between;
   }
-  .change-groups section {
-    grid-template-columns: 1fr;
-  }
-  .change-groups h3 {
-    margin-bottom: calc(var(--space-0-75) * -1);
-  }
   .change-list > div {
-    grid-template-columns: 80px 1fr;
+    grid-template-areas:
+      'label'
+      'before'
+      'arrow'
+      'after';
+    grid-template-columns: minmax(0, 1fr);
   }
   .change-list svg {
-    display: none;
+    display: block;
+    justify-self: center;
+    transform: rotate(90deg);
   }
   .timeline {
     padding-inline: var(--space-2-5);

@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, CalendarRange, History, Plane } from 'lucide-react';
-import { Badge, Button, Card, PageHeader } from '@/components/primitives';
+import { Badge, Card, PageHeader } from '@/components/primitives';
 import { FlightAutocomplete } from '@/components/FlightAutocomplete';
 import { normalizeFlightNumber } from '@/lib/format';
 
@@ -29,20 +29,19 @@ export function FlightsPage() {
         </div>
         <form onSubmit={submit}>
           <label>Marketing flight number</label>
-          <div className='large-input'>
+          <div className='input-action large-input'>
             <FlightAutocomplete
-              showSearchIcon
               value={value}
               onChange={setValue}
-              onSelect={(flight) => navigate(`/flight/${flight}`)}
-              placeholder='e.g. LH400'
+              onSelect={(flight) => navigate(`/flight/${encodeURIComponent(flight)}`)}
+              placeholder='LH 400'
               autoFocus
             />
-            <Button type='submit' disabled={!value.trim()}>
-              View schedule <ArrowRight size={17} />
-            </Button>
+            <button type='submit' aria-label='Open flight' disabled={!value.trim()}>
+              <ArrowRight size={22} strokeWidth={2.5} />
+            </button>
           </div>
-          <p>Suggestions come directly from the published flight-number search index.</p>
+          <p>Enter a flight number to explore its routes, schedule and aircraft.</p>
         </form>
       </Card>
       <div className='explain-grid'>
@@ -68,7 +67,7 @@ export function FlightsPage() {
       </div>
       <div className='popular-row'>
         <span>Popular lookups</span>
-        {['LH400', 'LH441', 'LX16', 'BA281', 'UA960'].map((flight) => (
+        {['LH400', 'LH441', 'LX16', 'UA960'].map((flight) => (
           <button key={flight} onClick={() => navigate(`/flight/${flight}`)}>
             <Badge tone='neutral'>{flight}</Badge>
           </button>

@@ -1,0 +1,69 @@
+.root {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.token,
+.more {
+  display: inline-flex;
+  max-width: 180px;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-1-5);
+  overflow: hidden;
+  color: var(--primary);
+  font-size: var(--font-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--primary-soft);
+  border-radius: var(--radius-xs);
+}
+
+.tokenLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.token button {
+  display: grid;
+  flex: 0 0 auto;
+  padding: 0;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+  border: 0;
+}
+
+.input {
+  width: auto;
+  min-width: 72px;
+  flex: 1 1 96px;
+  padding: var(--space-1) 0;
+  color: inherit;
+  font-size: var(--font-sm);
+  font-weight: 400;
+  text-transform: none;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.input::placeholder {
+  color: var(--muted);
+}
+
+.stacked .input {
+  width: 100%;
+  min-height: 29px;
+  flex-basis: 100%;
+  padding: var(--space-1);
+}
+
+.mobile .input {
+  min-height: 30px;
+  font-size: var(--font-lg);
+}

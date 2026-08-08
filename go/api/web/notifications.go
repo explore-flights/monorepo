@@ -20,9 +20,10 @@ const (
 )
 
 type notification struct {
-	Type    notificationType `json:"type"`
-	Header  string           `json:"header,omitempty"`
-	Content string           `json:"content,omitempty"`
+	Timestamp time.Time        `json:"timestamp"`
+	Type      notificationType `json:"type"`
+	Header    string           `json:"header,omitempty"`
+	Content   string           `json:"content,omitempty"`
 }
 
 type NotificationHandler struct {
@@ -34,17 +35,21 @@ func NewNotificationHandler(version string) *NotificationHandler {
 }
 
 func (nh *NotificationHandler) Notifications(c echo.Context) error {
-	t, err := time.Parse(time.RFC3339, nh.version)
+	const showNotificationAfter = time.Hour * 36
+
+	now := time.Now()
+	currentDataVersion, err := time.Parse(time.RFC3339, nh.version)
 	if err != nil {
 		return err
 	}
 
 	notifications := make([]notification, 0)
-	if timeSinceLastUpdate := time.Since(t); timeSinceLastUpdate >= time.Hour*36 {
+	if timeSinceLastUpdate := now.Sub(currentDataVersion); timeSinceLastUpdate >= showNotificationAfter {
 		notifications = append(notifications, notification{
-			Type:    notificationTypeInfo,
-			Header:  "Information outdated",
-			Content: fmt.Sprintf("We are having issues updating the data shown on this website and are working on a fix. The schedules have last been updated at %s (%s ago).", t.Format(time.RFC3339), nh.humanReadableDuration(timeSinceLastUpdate)),
+			Timestamp: currentDataVersion.Add(showNotificationAfter),
+			Type:      notificationTypeInfo,
+			Header:    "Information outdated",
+			Content:   fmt.Sprintf("We are having issues updating the data shown on this website and are working on a fix. The schedules have last been updated at %s (%s ago).", currentDataVersion.Format(time.RFC3339), nh.humanReadableDuration(timeSinceLastUpdate)),
 		})
 	}
 

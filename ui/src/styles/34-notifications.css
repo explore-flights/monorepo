@@ -1,18 +1,65 @@
 /* Notifications and freshness */
 .global-status {
-  position: absolute;
+  position: fixed;
   z-index: var(--layer-floating);
-  inset: var(--space-3-5) 0 auto;
-  display: grid;
+  top: var(--space-5);
+  right: var(--space-5);
+  display: flex;
+  width: min(420px, calc(100% - var(--space-10)));
+  flex-direction: column;
+  align-items: flex-end;
   gap: var(--space-2);
-  max-width: 1450px;
-  margin: 0 auto;
-  padding: 0 var(--space-12);
   pointer-events: none;
+}
+.global-status-nudge {
+  position: relative;
+  display: flex;
+  width: var(--control-height-md);
+  min-height: var(--control-height-md);
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: 50%;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  pointer-events: auto;
+}
+.global-status-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.global-status-count {
+  position: absolute;
+  top: calc(var(--space-1) * -1);
+  right: calc(var(--space-1) * -1);
+  display: inline-grid;
+  min-width: var(--space-5);
+  height: var(--space-5);
+  place-items: center;
+  padding: 0 var(--space-1);
+  font-size: var(--font-sm);
+  font-weight: 750;
+  color: var(--color-on-accent);
+  background: var(--red);
+  border: var(--border-width-strong) solid var(--surface);
+  border-radius: var(--radius-pill);
+}
+.global-status-nudge > svg {
+  color: var(--primary);
+}
+.global-status-panel {
+  display: grid;
+  width: 100%;
+  gap: var(--space-2);
+  pointer-events: auto;
 }
 .global-notification {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   align-items: start;
   gap: var(--space-2);
   padding: var(--space-2-5) var(--space-3);
@@ -35,11 +82,9 @@
   font-size: var(--font-xs);
   line-height: 1.45;
 }
-.global-notification > button {
-  padding: var(--space-0-5);
-  color: var(--muted);
-  background: transparent;
-  border: 0;
+.global-status-mark-read {
+  min-height: var(--control-height-compact);
+  pointer-events: auto;
 }
 .notification-warning {
   border-left-color: var(--amber);
@@ -66,4 +111,15 @@
   width: fit-content;
   color: var(--muted);
   font-size: var(--font-xs);
+}
+@media (max-width: 1024px) {
+  .global-status {
+    top: calc(var(--mobile-header-height) + var(--space-3));
+  }
+}
+@media (max-width: 640px) {
+  .global-status {
+    right: var(--space-3);
+    width: min(420px, calc(100% - var(--space-6)));
+  }
 }

@@ -1,0 +1,57 @@
+.optionContent {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 25px 1fr;
+  align-items: center;
+}
+
+.checkbox {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  color: var(--color-on-accent);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-xs);
+}
+
+.optionContent:has(.checkbox svg) .checkbox {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.optionText {
+  display: grid;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.optionText strong,
+.optionText small {
+  font-size: var(--font-sm);
+}
+
+.optionText small {
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .optionContent {
+    grid-template-columns: 34px 1fr;
+  }
+
+  .checkbox {
+    width: 21px;
+    height: 21px;
+  }
+
+  .optionText strong {
+    font-size: var(--font-lg);
+  }
+
+  .optionText small {
+    font-size: var(--font-sm);
+    line-height: 1.35;
+  }
+}

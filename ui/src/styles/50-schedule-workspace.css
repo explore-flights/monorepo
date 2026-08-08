@@ -68,7 +68,7 @@
   gap: var(--space-1-25);
   min-width: 0;
 }
-.workspace-filter-grid label > span,
+.workspace-filter-grid label > span:not(.temporal-control),
 .facet-group > span {
   color: var(--muted);
   font-size: var(--font-xs);

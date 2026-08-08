@@ -37,7 +37,6 @@
   display: grid;
   gap: var(--space-4-5);
   padding: var(--space-7);
-  overflow: hidden;
 }
 .flight-lookup::after {
   content: '';
@@ -46,7 +45,9 @@
   right: 0;
   width: 110px;
   height: 110px;
+  pointer-events: none;
   background: radial-gradient(circle 127px at 90px 20px, var(--primary-soft), transparent 70%);
+  border-radius: inherit;
 }
 .lookup-icon {
   display: grid;
@@ -126,11 +127,6 @@
 }
 .input-action > button svg {
   display: block;
-}
-
-.flight-lookup:has(.input-action [aria-expanded='true']) {
-  z-index: var(--layer-content);
-  overflow: visible;
 }
 
 .quick-flights {

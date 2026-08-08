@@ -20,6 +20,7 @@ import { ActiveFilterRow, type ActiveFilter } from '@/components/ScheduleControl
 import { ScheduleScopeTabs } from '@/components/ScheduleScopeTabs';
 import { ShowMore } from '@/components/ShowMore';
 import { SimpleSelect } from '@/components/SimpleSelect';
+import { TemporalInput } from '@/components/TemporalInput';
 import { ScheduleDatesTable } from '@/features/schedules/ScheduleDatesTable';
 import {
   CalendarDateButton,
@@ -389,7 +390,7 @@ export function FleetScheduleWorkspace({
           </label>
           <label>
             <span>From date</span>
-            <input
+            <TemporalInput
               type='date'
               value={dateFrom}
               onChange={(event) => setDateFrom(event.target.value)}
@@ -397,7 +398,11 @@ export function FleetScheduleWorkspace({
           </label>
           <label>
             <span>To date</span>
-            <input type='date' value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+            <TemporalInput
+              type='date'
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+            />
           </label>
           <label>
             <span>Date basis</span>

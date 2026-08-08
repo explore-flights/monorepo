@@ -192,6 +192,7 @@ export interface SearchResponse {
 }
 
 export interface Notification {
+  timestamp: string;
   type: 'success' | 'info' | 'warning' | 'error' | 'in-progress';
   header?: string;
   content?: string;

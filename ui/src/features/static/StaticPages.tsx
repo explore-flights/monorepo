@@ -222,6 +222,9 @@ export function PrivacyPolicyPage() {
           <Storage name='FLIGHTS:PREFERENCES' type='Functional'>
             Remembers interface preferences such as color scheme and density.
           </Storage>
+          <Storage name='FLIGHTS:NOTIFICATION_READ_MARKER' type='Functional'>
+            Remembers the newest notification marked as read on this device.
+          </Storage>
         </div>
       </ProseSection>
       <ProseSection title='How we use collected information'>

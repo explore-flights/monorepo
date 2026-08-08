@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
@@ -25,7 +25,13 @@ import type { Notification } from '@/api/types';
 import { Button } from '@/components/primitives';
 import { FlightAutocomplete } from '@/components/FlightAutocomplete';
 import { classNames, normalizeFlightNumber } from '@/lib/format';
-import { themeModes, usePreferences, type ConsentLevel, type ThemeMode } from './preferences';
+import {
+  NOTIFICATION_READ_MARKER_KEY,
+  themeModes,
+  usePreferences,
+  type ConsentLevel,
+  type ThemeMode,
+} from './preferences';
 
 const primaryNav = [
   { to: '/', label: 'Overview', icon: Home, end: true },
@@ -43,6 +49,14 @@ const fleetNav = [
   { to: '/lh340', label: 'Lufthansa A340' },
   { to: '/lh747', label: 'Lufthansa 747' },
 ];
+
+const notificationTypePriority: Record<Notification['type'], number> = {
+  error: 0,
+  warning: 1,
+  info: 2,
+  'in-progress': 3,
+  success: 4,
+};
 
 export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -181,46 +195,129 @@ function useNotificationsQuery() {
 
 function NotificationsPanel() {
   const query = useNotificationsQuery();
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const notifications = (query.data?.notifications ?? []).filter(
-    (item) => !dismissed.has(`${item.type}:${item.header}:${item.content}`),
+  const { consent } = usePreferences();
+  const [sessionReadMarker, setSessionReadMarker] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const persistedReadMarker = consent.has(1)
+    ? localStorage.getItem(NOTIFICATION_READ_MARKER_KEY)
+    : null;
+  const readMarker = maxTimestamp([sessionReadMarker, persistedReadMarker]);
+  const notifications = (query.data?.notifications ?? []).filter((item) =>
+    isAfterReadMarker(item.timestamp, readMarker),
   );
   const version = query.data?.dataVersion;
   const showQueryError = Boolean(query.error && !version);
+
+  useEffect(() => {
+    if (consent.has(1) && sessionReadMarker) {
+      localStorage.setItem(NOTIFICATION_READ_MARKER_KEY, sessionReadMarker);
+    }
+  }, [consent, sessionReadMarker]);
+
   if (!query.data && !query.error) {
     return null;
   }
   if (!notifications.length && !showQueryError) {
     return null;
   }
+
+  const nudgeType = notifications.reduce<Notification['type']>(
+    (strongest, item) =>
+      notificationTypePriority[item.type] < notificationTypePriority[strongest]
+        ? item.type
+        : strongest,
+    showQueryError ? 'error' : 'success',
+  );
+  const NudgeIcon = notificationIcon(nudgeType);
+  const statusCount = notifications.length + (showQueryError ? 1 : 0);
+  const notificationLabel = `${expanded ? 'Close' : 'Open'} notifications (${statusCount})`;
+
+  function markAllAsRead() {
+    const latestTimestamp = maxTimestamp(notifications.map((item) => item.timestamp));
+    if (latestTimestamp) {
+      setSessionReadMarker(latestTimestamp);
+      setExpanded(false);
+    }
+  }
+
   return (
     <section className='global-status' aria-label='Schedule data status'>
-      {notifications.map((item) => {
-        const key = `${item.type}:${item.header}:${item.content}`;
-        const Icon = notificationIcon(item.type);
-        return (
-          <article className={`global-notification notification-${item.type}`} key={key}>
-            <Icon className={item.type === 'in-progress' ? 'spin' : ''} size={18} />
-            <div>
-              <strong>{item.header ?? 'Information'}</strong>
-              {item.content && <p>{item.content}</p>}
+      <div className='global-status-controls'>
+        {expanded && notifications.length > 0 && (
+          <Button
+            type='button'
+            variant='secondary'
+            className='global-status-mark-read'
+            onClick={markAllAsRead}
+          >
+            Mark all as read
+          </Button>
+        )}
+        <button
+          type='button'
+          className={`global-status-nudge notification-${nudgeType}`}
+          aria-label={notificationLabel}
+          aria-expanded={expanded}
+          aria-controls='global-status-panel'
+          onClick={() => setExpanded((current) => !current)}
+        >
+          <NudgeIcon className={nudgeType === 'in-progress' ? 'spin' : ''} size={18} />
+          <span className='global-status-count' aria-hidden='true'>
+            {statusCount}
+          </span>
+        </button>
+      </div>
+      {expanded && (
+        <div className='global-status-panel' id='global-status-panel'>
+          {notifications.map((item) => {
+            const Icon = notificationIcon(item.type);
+            return (
+              <article
+                className={`global-notification notification-${item.type}`}
+                key={`${item.timestamp}:${item.type}:${item.header}`}
+              >
+                <Icon className={item.type === 'in-progress' ? 'spin' : ''} size={18} />
+                <div>
+                  <strong>{item.header ?? 'Information'}</strong>
+                  {item.content && <p>{item.content}</p>}
+                </div>
+              </article>
+            );
+          })}
+          {showQueryError && (
+            <div className='notification-query-error'>
+              <AlertCircle size={14} />
+              Data freshness is temporarily unavailable.
             </div>
-            <button
-              aria-label={`Dismiss ${item.header ?? 'notification'}`}
-              onClick={() => setDismissed((previous) => new Set([...previous, key]))}
-            >
-              <X size={15} />
-            </button>
-          </article>
-        );
-      })}
-      {showQueryError && (
-        <div className='notification-query-error'>
-          <AlertCircle size={14} />
-          Data freshness is temporarily unavailable.
+          )}
         </div>
       )}
     </section>
+  );
+}
+
+function maxTimestamp(timestamps: ReadonlyArray<string | null>): string | null {
+  let latest: { value: string; time: number } | null = null;
+  for (const timestamp of timestamps) {
+    if (!timestamp) {
+      continue;
+    }
+    const time = Date.parse(timestamp);
+    if (!Number.isNaN(time) && (!latest || time > latest.time)) {
+      latest = { value: timestamp, time };
+    }
+  }
+  return latest?.value ?? null;
+}
+
+function isAfterReadMarker(timestamp: string, marker: string | null) {
+  if (!marker) {
+    return true;
+  }
+  const notificationTime = Date.parse(timestamp);
+  const markerTime = Date.parse(marker);
+  return (
+    Number.isNaN(notificationTime) || Number.isNaN(markerTime) || notificationTime > markerTime
   );
 }
 
@@ -262,8 +359,8 @@ function ConsentBanner({ onSettings }: { onSettings: () => void }) {
       <div>
         <strong>Your data, your choice</strong>
         <p>
-          Essential storage keeps the site working. Functional storage remembers appearance; map
-          consent loads tiles from VersaTiles.
+          Essential storage keeps the site working. Functional storage remembers appearance and read
+          notifications; map consent loads tiles from VersaTiles.
         </p>
       </div>
       <div className='consent-actions'>
@@ -338,7 +435,7 @@ function SettingsDialog({
             <label className='toggle-row'>
               <span>
                 <strong>Functional storage</strong>
-                <small>Remember your theme preference.</small>
+                <small>Remember your theme preference and read notifications.</small>
               </span>
               <input
                 type='checkbox'

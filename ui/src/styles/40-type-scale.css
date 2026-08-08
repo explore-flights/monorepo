@@ -17,12 +17,14 @@
 .stat > span,
 .flight-lookup label,
 .airport-field > span,
-.search-grid label > span,
+.search-grid label > span:not(.temporal-control),
 .flight-search-panel label,
 .dialog legend,
-.query-grid > label > span,
+.query-grid > label > span:not(.temporal-control),
+.query-grid > .query-field > span,
 .standalone-config > span,
 .rule-group label > span,
+.rule-group .rule-field > span,
 .flight-table-filters label > span,
 .analytics-filters label > span,
 .schedule-details dt,
@@ -155,9 +157,6 @@
 }
 .monthly-chart button small {
   font-size: var(--font-label);
-}
-.global-status {
-  gap: var(--space-2);
 }
 .global-notification {
   gap: var(--space-3);

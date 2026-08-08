@@ -26,7 +26,7 @@ textarea {
   border-radius: 50%;
 }
 .airport-field > span,
-.search-grid label > span {
+.search-grid label > span:not(.temporal-control) {
   display: flex;
   align-items: center;
   gap: var(--space-1-5);
@@ -36,13 +36,6 @@ textarea {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-}
-.airport-field input {
-  width: 100%;
-  padding: var(--space-3-5);
-  font-size: var(--font-xl);
-  font-weight: 800;
-  text-transform: uppercase;
 }
 .route-dot {
   width: 7px;

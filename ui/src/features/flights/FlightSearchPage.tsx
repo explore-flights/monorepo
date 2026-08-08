@@ -3,7 +3,7 @@ import { CalendarRange, Filter, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { api } from '@/api/client';
 import type { QuerySchedulesRequest } from '@/api/types';
-import { MultiSelect, TagInput, type SelectOption } from '@/components/MultiSelect';
+import { MultiCombobox, type SelectOption } from '@/components/MultiCombobox';
 import { Badge, Button, Card, ErrorState, Loading, PageHeader } from '@/components/primitives';
 import {
   aircraftSelectOptions,
@@ -11,6 +11,8 @@ import {
   airportSelectOptions,
 } from '@/components/selectOptions';
 import { SimpleSelect } from '@/components/SimpleSelect';
+import { TagInput } from '@/components/TagInput';
+import { TemporalInput } from '@/components/TemporalInput';
 import { ScheduleResults } from '@/features/schedules/ScheduleResults';
 
 interface AircraftRule {
@@ -99,19 +101,19 @@ export function FlightSearchPage() {
                 <CalendarRange size={20} />
               </div>
               <div className='query-grid'>
-                <label>
+                <div className='query-field'>
                   <span>Airlines</span>
-                  <MultiSelect
+                  <MultiCombobox
                     label='Airlines'
                     values={airlines}
                     options={airlineOptions}
                     onChange={setAirlines}
                     placeholder='All airlines'
                   />
-                </label>
+                </div>
                 <label>
                   <span>Depart after</span>
-                  <input
+                  <TemporalInput
                     type='datetime-local'
                     value={start}
                     onChange={(event) => setStart(event.target.value)}
@@ -119,7 +121,7 @@ export function FlightSearchPage() {
                 </label>
                 <label>
                   <span>Depart before</span>
-                  <input
+                  <TemporalInput
                     type='datetime-local'
                     value={end}
                     onChange={(event) => setEnd(event.target.value)}
@@ -135,26 +137,26 @@ export function FlightSearchPage() {
                 </div>
               </div>
               <div className='query-grid two'>
-                <label>
+                <div className='query-field'>
                   <span>Departure airports</span>
-                  <MultiSelect
+                  <MultiCombobox
                     label='Departure airports'
                     values={departures}
                     options={airportOptions}
                     onChange={setDepartures}
                     placeholder='Any departure'
                   />
-                </label>
-                <label>
+                </div>
+                <div className='query-field'>
                   <span>Arrival airports</span>
-                  <MultiSelect
+                  <MultiCombobox
                     label='Arrival airports'
                     values={arrivals}
                     options={airportOptions}
                     onChange={setArrivals}
                     placeholder='Any arrival'
                   />
-                </label>
+                </div>
               </div>
               <div className='rule-list'>
                 <div className='rule-list-heading'>

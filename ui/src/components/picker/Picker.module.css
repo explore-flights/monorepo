@@ -1,18 +1,31 @@
 .root {
   position: relative;
+  display: block;
   width: 100%;
   min-width: 0;
+  overflow: visible;
 }
 
-.control {
+.control,
+.mobileLauncher {
   position: relative;
   display: flex;
+  width: 100%;
   min-width: 0;
   align-items: center;
+  color: inherit;
+  background: transparent;
+  border: 0;
 }
 
-.field .control {
-  min-height: 42px;
+.mobileLauncher {
+  min-height: var(--control-height-md);
+  text-align: left;
+}
+
+.field .control,
+.field .mobileLauncher {
+  min-height: var(--control-height-md);
   padding: var(--space-1-5) var(--space-2);
   color: var(--text);
   background: var(--surface);
@@ -20,13 +33,27 @@
   border-radius: var(--radius-md);
 }
 
-.inputRow {
+.inputRow,
+.mobileLauncherValue {
   display: flex;
   min-width: 0;
   flex: 1;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
+}
+
+.mobileLauncherValue {
+  overflow: hidden;
+  font-size: var(--font-sm);
+  white-space: nowrap;
+}
+
+.placeholder {
+  overflow: hidden;
+  color: var(--muted);
+  font-weight: 400;
+  text-overflow: ellipsis;
 }
 
 .inputRow input {
@@ -62,7 +89,8 @@
   transform: translateY(-50%);
 }
 
-.withLeadingIcon .control {
+.withLeadingIcon .control,
+.withLeadingIcon .mobileLauncher {
   padding-left: var(--space-10);
 }
 
@@ -104,6 +132,24 @@
   background: var(--primary-soft);
 }
 
+.defaultOption {
+  display: grid;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.defaultOption strong,
+.defaultOption small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.defaultOption small {
+  color: var(--muted);
+  font-size: var(--font-supporting);
+}
+
 .state,
 .loadingState {
   display: grid;
@@ -119,11 +165,8 @@
   color: var(--primary);
 }
 
-.mobileHeader {
-  display: none;
-}
-
-.footer {
+.footer,
+.mobileFooter {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -134,7 +177,8 @@
   border-top: var(--border-width) solid var(--border);
 }
 
-.footer button {
+.footer button,
+.mobileFooter button {
   padding: var(--space-1-25) var(--space-2);
   color: var(--primary);
   font-weight: 750;
@@ -193,108 +237,106 @@
   box-shadow: none;
 }
 
-@media (max-width: 640px) {
-  :global(.sidebar):has(.compact.mobileFullscreen .menu) {
-    right: 0;
-    width: auto;
-    overflow: visible;
-  }
-}
-
 :global(.large-input) .root {
-  --autocomplete-menu-offset: calc(var(--space-3) + var(--border-width));
+  --autocomplete-menu-offset: 0px;
 }
 
-:global(.large-input) .root input {
-  min-height: var(--control-height-lg);
+:global(.large-input) .root input,
+:global(.large-input) .mobileLauncher {
+  min-height: calc(var(--control-height-2xl) + var(--space-2-5));
 }
 
-@media (max-width: 640px) {
-  .mobileFullscreen:has(.menu) {
-    position: fixed;
-    z-index: var(--layer-max);
-    inset: 0;
-    display: flex;
-    width: auto;
-    height: 100dvh;
-    flex-direction: column;
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-      env(safe-area-inset-left);
-    color: var(--text);
-    background: var(--surface);
-  }
+.mobileDialog {
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--surface);
+  border: 0;
+}
 
-  .mobileFullscreen:has(.menu) > .control {
-    order: 2;
-    min-height: 46px;
-    margin: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    border: var(--border-width) solid var(--border-strong);
-    border-radius: var(--radius-md);
-  }
+.mobileDialog::backdrop {
+  background: color-mix(in srgb, var(--app-bg) 76%, transparent);
+}
 
-  .mobileFullscreen.withLeadingIcon:has(.menu) > .control {
-    padding-left: var(--space-10);
-  }
+.mobileDialogFrame {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
 
-  .mobileFullscreen .menu {
-    display: contents;
-  }
+.mobileHeader {
+  display: flex;
+  min-height: var(--control-height-2xl);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2-5) var(--space-4);
+  background: var(--surface);
+  border-bottom: var(--border-width) solid var(--border);
+}
 
-  .mobileFullscreen .mobileHeader {
-    display: flex;
-    min-height: var(--control-height-2xl);
-    order: 1;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-2-5) var(--space-4);
-    background: var(--surface);
-    border-bottom: var(--border-width) solid var(--border);
-  }
+.mobileHeader strong {
+  font-size: var(--font-lg);
+}
 
-  .mobileFullscreen .mobileHeader strong {
-    font-size: var(--font-lg);
-  }
+.mobileHeader button {
+  display: grid;
+  width: 38px;
+  height: var(--control-height-md);
+  padding: 0;
+  place-items: center;
+  color: var(--text);
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: 50%;
+}
 
-  .mobileFullscreen .mobileHeader button {
-    display: grid;
-    width: 38px;
-    height: var(--control-height-md);
-    padding: 0;
-    place-items: center;
-    color: var(--text);
-    background: var(--surface-2);
-    border: var(--border-width) solid var(--border);
-    border-radius: 50%;
-  }
+.mobileSearchControl {
+  position: relative;
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  margin: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-10);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
 
-  .mobileFullscreen .inputRow input {
-    min-height: 30px;
-    font-size: var(--font-lg);
-  }
+.mobileSearchControl .leadingIcon {
+  left: 12px;
+}
 
-  .mobileFullscreen .options {
-    max-height: none;
-    order: 3;
-    flex: 1;
-    padding: 0 var(--space-2) var(--space-2);
-    overscroll-behavior: contain;
-  }
+.mobileSearchControl .inputRow input {
+  min-height: 30px;
+  font-size: var(--font-lg);
+}
 
-  .mobileFullscreen .option {
-    min-height: var(--control-height-xl);
-    padding: var(--space-2) var(--space-3);
-  }
+.mobileDialog .options {
+  max-height: none;
+  flex: 1;
+  padding: 0 var(--space-2) var(--space-2);
+  overscroll-behavior: contain;
+}
 
-  .mobileFullscreen .footer {
-    min-height: var(--control-height-2xl);
-    order: 4;
-    padding: var(--space-2-5) var(--space-4);
-  }
+.mobileDialog .option {
+  min-height: var(--control-height-xl);
+  padding: var(--space-2) var(--space-3);
+}
 
-  .mobileFullscreen .footer button {
-    min-height: var(--control-height-md);
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--font-md);
-  }
+.mobileFooter {
+  min-height: var(--control-height-2xl);
+  padding: var(--space-2-5) var(--space-4);
+}
+
+.mobileFooter button {
+  min-height: var(--control-height-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-md);
 }

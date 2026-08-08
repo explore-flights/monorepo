@@ -52,7 +52,8 @@
   font-size: var(--font-xs);
   line-height: 1.45;
 }
-.rule-group label {
+.rule-group label,
+.rule-group .rule-field {
   display: block;
   margin-top: var(--space-2-5);
 }

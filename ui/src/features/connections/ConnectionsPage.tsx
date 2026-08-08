@@ -17,7 +17,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '@/api/client';
 import type { ConnectionBranch, ConnectionsData, ConnectionsSearchRequest } from '@/api/types';
 import { FlightMap } from '@/components/FlightMap';
-import { MultiSelect, TagInput, type SelectOption } from '@/components/MultiSelect';
+import { MultiCombobox, type SelectOption } from '@/components/MultiCombobox';
 import {
   Badge,
   Button,
@@ -29,6 +29,8 @@ import {
 } from '@/components/primitives';
 import { aircraftSelectOptions, airportSelectOptions } from '@/components/selectOptions';
 import { SimpleSelect } from '@/components/SimpleSelect';
+import { TagInput } from '@/components/TagInput';
+import { TemporalInput } from '@/components/TemporalInput';
 import { dateLabel, duration, flightName, timeLabel } from '@/lib/format';
 import { ConnectionGraph } from './ConnectionGraph';
 
@@ -186,7 +188,7 @@ export function ConnectionsPage() {
                 <CalendarDays size={15} />
                 Depart after
               </span>
-              <input
+              <TemporalInput
                 type='datetime-local'
                 value={start}
                 onChange={(event) => setStart(event.target.value)}
@@ -197,7 +199,7 @@ export function ConnectionsPage() {
                 <CalendarDays size={15} />
                 Depart before
               </span>
-              <input
+              <TemporalInput
                 type='datetime-local'
                 value={end}
                 onChange={(event) => setEnd(event.target.value)}
@@ -419,19 +421,19 @@ function AirportField({
   icon: React.ReactNode;
 }) {
   return (
-    <label className='airport-field'>
+    <div className='airport-field'>
       <span>
         {icon}
         {label}
       </span>
-      <MultiSelect
+      <MultiCombobox
         label={label}
         values={values}
         options={options}
         onChange={onChange}
         placeholder='Select one or more airports'
       />
-    </label>
+    </div>
   );
 }
 function Range({
@@ -495,17 +497,17 @@ function RuleGroup({
         <h3>{title}</h3>
         <p>{description}</p>
       </header>
-      <label>
+      <div className='rule-field'>
         <span>Airports</span>
-        <MultiSelect
+        <MultiCombobox
           label={`${title} airports`}
           values={airports}
           options={airportOptions}
           onChange={setAirports}
           placeholder='No airport rules'
         />
-      </label>
-      <label>
+      </div>
+      <div className='rule-field'>
         <span>Flight numbers</span>
         <TagInput
           label={`${title} flight numbers`}
@@ -513,17 +515,17 @@ function RuleGroup({
           onChange={setFlights}
           placeholder='LH4*, LX??? — press Enter'
         />
-      </label>
-      <label>
+      </div>
+      <div className='rule-field'>
         <span>Aircraft</span>
-        <MultiSelect
+        <MultiCombobox
           label={`${title} aircraft`}
           values={aircraft}
           options={aircraftOptions}
           onChange={setAircraft}
           placeholder='No aircraft rules'
         />
-      </label>
+      </div>
     </section>
   );
 }

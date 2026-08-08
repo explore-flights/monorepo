@@ -65,7 +65,6 @@ export function HomePage() {
                 onChange={setFlight}
                 onSelect={(value) => navigate(`/flight/${encodeURIComponent(value)}`)}
                 placeholder='LH 400'
-                mobileFullscreen
               />
               <button type='submit' aria-label='Open flight' disabled={!flight.trim()}>
                 <ArrowRight size={20} strokeWidth={2.5} />
@@ -74,7 +73,7 @@ export function HomePage() {
           </form>
           <div className='quick-flights'>
             <span>Try</span>
-            {['LH400', 'LX16', 'BA281'].map((item) => (
+            {['LH400', 'LX16'].map((item) => (
               <button key={item} onClick={() => navigate(`/flight/${item}`)}>
                 {item}
               </button>

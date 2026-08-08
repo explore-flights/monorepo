@@ -1,5 +1,5 @@
 import type { Aircraft, Airline, Airport } from '@/api/types';
-import type { SelectOption } from './MultiSelect';
+import type { SelectOption } from './picker/types';
 
 export function airportSelectOptions(airports: readonly Airport[]): SelectOption[] {
   return sortOptions(

@@ -26,6 +26,7 @@ import { ActiveFilterRow, ScheduleInsight } from '@/components/ScheduleControls'
 import { ScheduleScopeTabs } from '@/components/ScheduleScopeTabs';
 import { ShowMore } from '@/components/ShowMore';
 import { SimpleSelect } from '@/components/SimpleSelect';
+import { TemporalInput } from '@/components/TemporalInput';
 import {
   CalendarDateButton,
   calendarColorCount,
@@ -430,7 +431,7 @@ export function FlightScheduleWorkspace({
           </label>
           <label>
             <span>From date</span>
-            <input
+            <TemporalInput
               type='date'
               min={yearStart}
               max={dateTo || yearEnd}
@@ -443,7 +444,7 @@ export function FlightScheduleWorkspace({
           </label>
           <label>
             <span>To date</span>
-            <input
+            <TemporalInput
               type='date'
               min={dateFrom || yearStart}
               max={yearEnd}

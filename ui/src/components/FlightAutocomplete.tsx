@@ -3,7 +3,7 @@ import { Plane } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/api/client';
 import { flightName } from '@/lib/format';
-import { SearchCombobox } from './SearchCombobox';
+import { Search } from './Search';
 import styles from './FlightAutocomplete.module.css';
 
 interface FlightAutocompleteProps {
@@ -16,7 +16,6 @@ interface FlightAutocompleteProps {
   autoFocus?: boolean;
   compact?: boolean;
   showSearchIcon?: boolean;
-  mobileFullscreen?: boolean;
 }
 
 export function FlightAutocomplete({
@@ -29,7 +28,6 @@ export function FlightAutocomplete({
   autoFocus,
   compact,
   showSearchIcon,
-  mobileFullscreen,
 }: FlightAutocompleteProps) {
   const normalizedValue = value.trim();
   const [debounced, setDebounced] = useState(normalizedValue);
@@ -62,7 +60,8 @@ export function FlightAutocomplete({
   }, [query.data, suggestionsPending]);
 
   return (
-    <SearchCombobox
+    <Search
+      title='Search flights'
       embedded
       compact={compact}
       showSearchIcon={showSearchIcon}
@@ -73,7 +72,7 @@ export function FlightAutocomplete({
       transformInput={(input) => input.toUpperCase()}
       items={suggestions}
       getItemKey={(suggestion) => suggestion.code}
-      onItemSelect={(suggestion) => {
+      onSelect={(suggestion) => {
         onChange(suggestion.code);
         onSelect(suggestion.code);
       }}
@@ -93,8 +92,6 @@ export function FlightAutocomplete({
       emptyMessage='No matching flight numbers'
       minimumQueryLength={2}
       minimumQueryMessage='Type at least 2 characters to search flights'
-      mobileTitle='Search flights'
-      mobileFullscreen={mobileFullscreen ?? compact}
       placeholder={placeholder}
       autoFocus={autoFocus}
     />

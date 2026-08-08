@@ -2,16 +2,8 @@
   .query-grid {
     grid-template-columns: 1fr 1fr;
   }
-  .global-status {
-    padding-inline: var(--space-8);
-  }
 }
 @media (max-width: 960px) {
-  .global-status {
-    top: var(--space-3);
-    margin: 0 auto;
-    padding-inline: var(--space-5);
-  }
   .include-exclude-grid {
     grid-template-columns: 1fr;
   }
@@ -60,9 +52,6 @@
   .schedule-details dl,
   .storage-grid {
     grid-template-columns: 1fr;
-  }
-  .global-status {
-    padding-inline: var(--space-3-5);
   }
   .include-exclude-grid {
     grid-template-columns: 1fr;

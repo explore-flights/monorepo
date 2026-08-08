@@ -28,12 +28,15 @@
   grid-template-columns: 1fr 1fr;
 }
 .query-grid > label,
+.query-grid > .query-field,
 .standalone-config {
   min-width: 0;
 }
-.query-grid > label > span,
+.query-grid > label > span:not(.temporal-control),
+.query-grid > .query-field > span,
 .standalone-config > span,
 .rule-group label > span,
+.rule-group .rule-field > span,
 .flight-table-filters label > span {
   display: block;
   margin-bottom: var(--space-1-25);
@@ -45,8 +48,9 @@
 }
 .query-grid > label > input {
   width: 100%;
-  min-height: 42px;
+  min-height: var(--control-height-md);
   padding: var(--space-2) var(--space-2-5);
+  font-size: var(--font-sm);
 }
 .rule-list {
   margin-top: var(--space-4);

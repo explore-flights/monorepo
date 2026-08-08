@@ -1,0 +1,25 @@
+/* Avoid WebKit 301648 by sizing temporal inputs through a non-native outer control. */
+.temporal-control {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: var(--control-height-md);
+  overflow: hidden;
+  background: var(--surface);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-md);
+}
+
+.temporal-control > input {
+  width: 0;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 0;
+  padding: var(--space-2) var(--space-2-5);
+  font-size: var(--font-sm);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}

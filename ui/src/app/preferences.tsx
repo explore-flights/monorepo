@@ -25,6 +25,7 @@ interface PreferencesValue {
 
 const CONSENT_KEY = 'FLIGHTS:CONSENT';
 const PREFERENCES_KEY = 'FLIGHTS:PREFERENCES';
+export const NOTIFICATION_READ_MARKER_KEY = 'FLIGHTS:NOTIFICATION_READ_MARKER';
 const PreferencesContext = createContext<PreferencesValue | null>(null);
 
 function readConsent(): { chosen: boolean; levels: Set<ConsentLevel> } {
@@ -119,6 +120,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistPreferences(theme, true);
     } else {
       localStorage.removeItem(PREFERENCES_KEY);
+      localStorage.removeItem(NOTIFICATION_READ_MARKER_KEY);
     }
   }
 
