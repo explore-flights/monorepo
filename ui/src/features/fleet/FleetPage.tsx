@@ -7,6 +7,7 @@ import { Badge, EmptyState, ErrorState, Loading } from '@/components/primitives'
 import { YearSwitcher } from '@/components/ScheduleControls';
 import { ScheduleResults } from '@/features/schedules/ScheduleResults';
 import { discoverYearlyData, loadYearlyData, type YearSelection } from '@/lib/yearlyData';
+import { useCurrentDate } from '@/lib/useCurrentDate';
 
 const fleetConfig: Record<
   string,
@@ -88,7 +89,7 @@ export function Lufthansa747Page() {
 
 function FleetPageForId({ fleetId }: { fleetId: string }) {
   const config = fleetConfig[fleetId];
-  const currentYear = new Date().getFullYear();
+  const currentYear = useCurrentDate().getFullYear();
   const [selection, setSelection] = useState<YearSelection>({ mode: 'discover' });
   const selectedYear = selection.mode === 'single' ? selection.year : currentYear;
   const query = useQuery({
@@ -152,14 +153,16 @@ function FleetPageForId({ fleetId }: { fleetId: string }) {
                 <a
                   href={`/data/schedule/${config.identifier}/feed.rss`}
                   target='_blank'
-                  rel='noreferrer'
+                  rel='nofollow noreferrer'
+                  type='application/rss+xml'
                 >
                   <Rss size={14} /> RSS
                 </a>
                 <a
                   href={`/data/schedule/${config.identifier}/feed.atom`}
                   target='_blank'
-                  rel='noreferrer'
+                  rel='nofollow noreferrer'
+                  type='application/atom+xml'
                 >
                   <Rss size={14} /> Atom
                 </a>

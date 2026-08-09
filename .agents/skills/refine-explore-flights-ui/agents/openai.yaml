@@ -1,0 +1,4 @@
+interface:
+  display_name: "Refine explore.flights UI"
+  short_description: "Refactor and visually verify the UI"
+  default_prompt: "Use $refine-explore-flights-ui to improve this UI while preserving project conventions."

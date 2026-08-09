@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 interface ProgressiveListOptions {
   activeIndex?: number;
@@ -19,17 +19,14 @@ export function useProgressiveList<Item>(
     source: items,
     visibleCount: initialCount,
   }));
-  const visibleCount =
+  const storedVisibleCount =
     state.source === items ? Math.min(state.visibleCount, items.length) : initialCount;
+  const activeVisibleCount =
+    activeIndex < 0
+      ? initialCount
+      : Math.min(items.length, Math.ceil((activeIndex + 2) / batchSize) * batchSize);
+  const visibleCount = Math.max(storedVisibleCount, activeVisibleCount);
   const hasMore = visibleCount < items.length;
-
-  useEffect(() => {
-    setState((current) =>
-      current.source === items && current.visibleCount === initialCount
-        ? current
-        : { source: items, visibleCount: initialCount },
-    );
-  }, [initialCount, items]);
 
   const revealThrough = useCallback(
     (index: number) => {
@@ -51,12 +48,6 @@ export function useProgressiveList<Item>(
     () => revealThrough(visibleCount + batchSize - 1),
     [batchSize, revealThrough, visibleCount],
   );
-
-  useEffect(() => {
-    if (hasMore && activeIndex >= visibleCount - 1) {
-      revealThrough(activeIndex + 1);
-    }
-  }, [activeIndex, hasMore, revealThrough, visibleCount]);
 
   const visibleItems = useMemo(() => items.slice(0, visibleCount), [items, visibleCount]);
 

@@ -195,7 +195,7 @@ export function SingleChoicePicker<Item>({
       <div
         className={styles.control}
         onPointerDown={(event) => {
-          if (!(event.target as HTMLElement).closest('button')) {
+          if (!(event.target instanceof Element && event.target.closest('button'))) {
             openPicker();
             desktopInputRef.current?.focus();
           }

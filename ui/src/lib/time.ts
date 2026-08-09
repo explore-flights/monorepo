@@ -1,9 +1,16 @@
 import type { FlightScheduleVariant } from '@/api/types';
+import type { DateBasis } from '@/lib/date';
 
 export interface LocalScheduleTime {
   date: string;
   time: string;
   offset: string;
+  dayDelta: number;
+}
+
+export interface LocalArrivalSchedule {
+  date: string;
+  time: string;
   dayDelta: number;
 }
 
@@ -31,8 +38,8 @@ export function arrivalScheduleTime(
   date: string,
   variant: FlightScheduleVariant,
 ): LocalScheduleTime {
-  const localDeparture = parseLocal(date, variant.departureTimeLocal);
-  if (localDeparture === null) {
+  const arrival = localArrivalSchedule(date, variant);
+  if (!arrival) {
     return {
       date,
       time: '—',
@@ -41,15 +48,31 @@ export function arrivalScheduleTime(
     };
   }
 
+  return {
+    date: arrival.date,
+    time: normalizeTime(arrival.time),
+    offset: formatUtcOffset(variant.arrivalUtcOffsetSeconds),
+    dayDelta: arrival.dayDelta,
+  };
+}
+
+export function localArrivalSchedule(
+  date: string,
+  variant: FlightScheduleVariant,
+): LocalArrivalSchedule | undefined {
+  const localDeparture = parseLocal(date, variant.departureTimeLocal);
+  if (localDeparture === null) {
+    return undefined;
+  }
+
   const departureInstant = localDeparture - variant.departureUtcOffsetSeconds * 1000;
-  const localArrival = new Date(
+  const arrival = new Date(
     departureInstant + variant.durationSeconds * 1000 + variant.arrivalUtcOffsetSeconds * 1000,
   );
-  const arrivalDate = `${localArrival.getUTCFullYear()}-${pad(localArrival.getUTCMonth() + 1)}-${pad(localArrival.getUTCDate())}`;
+  const arrivalDate = `${arrival.getUTCFullYear()}-${pad(arrival.getUTCMonth() + 1)}-${pad(arrival.getUTCDate())}`;
   return {
     date: arrivalDate,
-    time: `${pad(localArrival.getUTCHours())}:${pad(localArrival.getUTCMinutes())}`,
-    offset: formatUtcOffset(variant.arrivalUtcOffsetSeconds),
+    time: `${pad(arrival.getUTCHours())}:${pad(arrival.getUTCMinutes())}:${pad(arrival.getUTCSeconds())}`,
     dayDelta: differenceInCalendarDays(date, arrivalDate),
   };
 }
@@ -57,6 +80,46 @@ export function arrivalScheduleTime(
 export function scheduleInstant(date: string, variant: FlightScheduleVariant) {
   const local = parseLocal(date, variant.departureTimeLocal);
   return local === null ? Number.NaN : local - variant.departureUtcOffsetSeconds * 1000;
+}
+
+export function utcScheduleTime(instant: number): LocalScheduleTime {
+  if (!Number.isFinite(instant)) {
+    return { date: '', time: '—', offset: 'UTC+00:00', dayDelta: 0 };
+  }
+
+  const date = new Date(instant);
+  return {
+    date: date.toISOString().slice(0, 10),
+    time: date.toISOString().slice(11, 16),
+    offset: 'UTC+00:00',
+    dayDelta: 0,
+  };
+}
+
+export function departureScheduleTimeForBasis(
+  date: string,
+  variant: FlightScheduleVariant,
+  basis: DateBasis,
+): LocalScheduleTime {
+  if (basis === 'local') {
+    return departureScheduleTime(date, variant);
+  }
+
+  return utcScheduleTime(scheduleInstant(date, variant));
+}
+
+export function arrivalScheduleTimeForBasis(
+  date: string,
+  variant: FlightScheduleVariant,
+  basis: DateBasis,
+): LocalScheduleTime {
+  if (basis === 'local') {
+    return arrivalScheduleTime(date, variant);
+  }
+
+  const departure = departureScheduleTimeForBasis(date, variant, basis);
+  const arrival = utcScheduleTime(scheduleInstant(date, variant) + variant.durationSeconds * 1000);
+  return { ...arrival, dayDelta: differenceInCalendarDays(departure.date, arrival.date) };
 }
 
 export function dayDeltaLabel(delta: number) {

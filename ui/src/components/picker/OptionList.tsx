@@ -70,17 +70,30 @@ export function OptionList<Item>({
       className={styles.options}
       id={id}
       role='listbox'
+      aria-busy={status === 'loading'}
       aria-multiselectable={multiselect || undefined}
       onScroll={handleScroll}
     >
-      {status === 'minimum-query' && <div className={styles.state}>{minimumQueryMessage}</div>}
+      {status === 'minimum-query' && (
+        <div className={styles.state} role='status'>
+          {minimumQueryMessage}
+        </div>
+      )}
       {status === 'loading' && (
         <div className={styles.loadingState} role='status' aria-label='Loading suggestions'>
           <LoaderCircle className='spin' size={18} />
         </div>
       )}
-      {status === 'error' && <div className={styles.state}>{errorMessage}</div>}
-      {status === 'empty' && <div className={styles.state}>{emptyMessage}</div>}
+      {status === 'error' && (
+        <div className={styles.state} role='alert'>
+          {errorMessage}
+        </div>
+      )}
+      {status === 'empty' && (
+        <div className={styles.state} role='status'>
+          {emptyMessage}
+        </div>
+      )}
       {status === 'ready' &&
         visibleItems.map((item, index) => {
           const key = getItemKey(item);

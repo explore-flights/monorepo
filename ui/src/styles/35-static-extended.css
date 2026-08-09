@@ -1,27 +1,4 @@
-/* Flight filters and long-form static pages */
-.flight-table-filters {
-  display: grid;
-  grid-template-columns: auto 1.4fr 1fr 1fr auto;
-  align-items: end;
-  gap: var(--space-2);
-  margin: var(--space-3) 0;
-  padding: var(--space-3);
-  box-shadow: none;
-}
-.flight-table-filters > div {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  align-self: center;
-  color: var(--primary);
-  font-size: var(--font-xs);
-}
-.flight-table-filters input {
-  width: 100%;
-  min-height: var(--control-height-compact);
-  padding: var(--space-1-5) var(--space-2);
-  font-size: var(--font-xs);
-}
+/* Long-form static pages */
 .prose-page {
   max-width: 1000px;
 }

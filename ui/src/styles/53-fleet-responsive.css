@@ -49,7 +49,7 @@
   .schedule-results-nav .subnav {
     width: 100%;
   }
-  .schedule-results-nav .subnav button {
+  .schedule-results-nav .subnav a {
     flex: 1;
   }
   .schedule-results-year {

@@ -16,7 +16,7 @@ import type {
   QuerySchedulesResponse,
 } from '@/api/types';
 import { Badge, Button, Card, EmptyState } from '@/components/primitives';
-import { ActiveFilterRow, type ActiveFilter } from '@/components/ScheduleControls';
+import { ActiveFilterRow, type ActiveFilter, WeekdaySelect } from '@/components/ScheduleControls';
 import { ScheduleScopeTabs } from '@/components/ScheduleScopeTabs';
 import { ShowMore } from '@/components/ShowMore';
 import { SimpleSelect } from '@/components/SimpleSelect';
@@ -28,18 +28,22 @@ import {
   type CalendarFillSegment,
   YearCalendar,
 } from '@/components/YearCalendar';
-import { isDefined, isOneOf } from '@/lib/collections';
+import { countBy, isDefined, isOneOf } from '@/lib/collections';
+import { aircraftConfigurationLabel } from '@/lib/aircraftConfigurations';
 import {
   dateBases,
   daysBetween,
   localDate,
   matchingScheduleScope as matchingScope,
   rangeForYearScope as rangeForScope,
+  weekdayForDate,
+  weekdayLabels,
   type DateBasis,
   type ScheduleScope,
 } from '@/lib/date';
 import { classNames, dateLabel, dateRangeLabel as formatRange, flightName } from '@/lib/format';
-import { departureScheduleTime, scheduleInstant } from '@/lib/time';
+import { departureScheduleTimeForBasis } from '@/lib/time';
+import { useCurrentDate } from '@/lib/useCurrentDate';
 import { isOperatingScheduleItem } from '@/lib/schedules';
 import {
   FleetHighlightControls,
@@ -85,8 +89,6 @@ interface FleetRoutePair {
   end: string;
 }
 
-const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 export function FleetScheduleWorkspace({
   data,
   year,
@@ -99,8 +101,9 @@ export function FleetScheduleWorkspace({
   title?: string;
 }) {
   const records = useMemo(() => operatingRecords(data), [data]);
-  const localToday = localDate(new Date());
-  const utcToday = new Date().toISOString().slice(0, 10);
+  const currentDate = useCurrentDate();
+  const localToday = localDate(currentDate);
+  const utcToday = currentDate.toISOString().slice(0, 10);
   const initialUpcoming = rangeForScope('upcoming', year, localToday);
   const hasUpcoming = countInRange(records, initialUpcoming, 'local') > 0;
   const initialScope: ScheduleScope = hasUpcoming ? 'upcoming' : 'historical';
@@ -135,6 +138,18 @@ export function FleetScheduleWorkspace({
     () => countBy(records, (record) => record.variant.aircraftConfigurationVersion || '—'),
     [records],
   );
+  const configurationLabels = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const record of records) {
+      const code = record.variant.aircraftConfigurationVersion || '—';
+      const current = labels.get(code);
+      if (current && current !== code) {
+        continue;
+      }
+      labels.set(code, aircraftConfigurationLabel(record.variant, data, true));
+    }
+    return labels;
+  }, [records, data]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -208,7 +223,11 @@ export function FleetScheduleWorkspace({
         }
       : undefined,
     configuration
-      ? { key: 'configuration', label: configuration, clear: () => setConfiguration('') }
+      ? {
+          key: 'configuration',
+          label: configurationLabels.get(configuration) ?? configuration,
+          clear: () => setConfiguration(''),
+        }
       : undefined,
     weekday
       ? { key: 'weekday', label: weekdayLabels[Number(weekday)], clear: () => setWeekday('') }
@@ -345,9 +364,9 @@ export function FleetScheduleWorkspace({
             <span>Route pair</span>
             <SimpleSelect value={routePair} onChange={(event) => setRoutePair(event.target.value)}>
               <option value=''>All route pairs</option>
-              {pairOptions.map(([value, count]) => (
-                <option key={value} value={value}>
-                  {routePairLabel(value, data)} ({count})
+              {pairOptions.map(({ key, count }) => (
+                <option key={key} value={key}>
+                  {routePairLabel(key, data)} ({count})
                 </option>
               ))}
             </SimpleSelect>
@@ -356,9 +375,9 @@ export function FleetScheduleWorkspace({
             <span>Aircraft</span>
             <SimpleSelect value={aircraft} onChange={(event) => setAircraft(event.target.value)}>
               <option value=''>All aircraft</option>
-              {aircraftOptions.map(([value, count]) => (
-                <option key={value} value={value}>
-                  {data.aircraft[value]?.name ?? value} ({count})
+              {aircraftOptions.map(({ key, count }) => (
+                <option key={key} value={key}>
+                  {data.aircraft[key]?.name ?? key} ({count})
                 </option>
               ))}
             </SimpleSelect>
@@ -370,23 +389,16 @@ export function FleetScheduleWorkspace({
               onChange={(event) => setConfiguration(event.target.value)}
             >
               <option value=''>All configurations</option>
-              {configurationOptions.map(([value, count]) => (
-                <option key={value} value={value}>
-                  {value} ({count})
+              {configurationOptions.map(({ key, count }) => (
+                <option key={key} value={key}>
+                  {configurationLabels.get(key) ?? key} ({count})
                 </option>
               ))}
             </SimpleSelect>
           </label>
           <label>
             <span>Weekday</span>
-            <SimpleSelect value={weekday} onChange={(event) => setWeekday(event.target.value)}>
-              <option value=''>All weekdays</option>
-              {weekdayLabels.map((label, index) => (
-                <option key={label} value={index}>
-                  {label}
-                </option>
-              ))}
-            </SimpleSelect>
+            <WeekdaySelect value={weekday} onChange={(event) => setWeekday(event.target.value)} />
           </label>
           <label>
             <span>From date</span>
@@ -477,7 +489,7 @@ function RoutePairsView({
           <summary>
             <span className='period-range fleet-route-pair-range'>
               <span>{formatRange(pair.start, pair.end)}</span>
-              <strong>{pair.records.length} departures</strong>
+              <small>{pair.records.length} departures</small>
             </span>
             <span className='fleet-route-pair-title'>
               <strong>{routePairLabel(pair.key, data)}</strong>
@@ -533,7 +545,7 @@ function RoutePairsView({
                               record.variant.aircraftId}
                           </strong>
                           <Badge tone='neutral'>
-                            {record.variant.aircraftConfigurationVersion || '—'}
+                            {aircraftConfigurationLabel(record.variant, data, true)}
                           </Badge>
                         </div>
                         <button onClick={() => onInspect(pair.key, period.start, period.end)}>
@@ -641,9 +653,9 @@ function CalendarView({
                   dateRecords,
                   (record) => fleetHighlightValue(record.variant, grouping, data).key,
                 );
-          const segments: CalendarFillSegment[] = groupedCounts.map(([key, weight]) => ({
+          const segments: CalendarFillSegment[] = groupedCounts.map(({ key, count }) => ({
             key,
-            weight,
+            weight: count,
             colorIndex: groupingIndex.get(key) ?? 0,
           }));
           let density: number | undefined;
@@ -651,7 +663,7 @@ function CalendarView({
             density = max === min ? 1 : (count - min) / (max - min);
           }
           const breakdown = groupedCounts
-            .map(([key, value]) => `${groupingLabels.get(key) ?? key}: ${value}`)
+            .map(({ key, count }) => `${groupingLabels.get(key) ?? key}: ${count}`)
             .join(' · ');
           const departureLabel = `${count} departure${count === 1 ? '' : 's'}`;
           return (
@@ -818,16 +830,7 @@ function routeDirectionLabel(record: FleetRecord, data: QuerySchedulesResponse) 
 }
 
 function departureForBasis(record: FleetRecord, basis: DateBasis) {
-  if (basis === 'local') {
-    return departureScheduleTime(record.item.departureDateLocal, record.variant);
-  }
-  const instant = new Date(scheduleInstant(record.item.departureDateLocal, record.variant));
-  return {
-    date: instant.toISOString().slice(0, 10),
-    time: instant.toISOString().slice(11, 16),
-    offset: 'UTC+00:00',
-    dayDelta: 0,
-  };
+  return departureScheduleTimeForBasis(record.item.departureDateLocal, record.variant, basis);
 }
 
 function dateForBasis(record: FleetRecord, basis: DateBasis) {
@@ -848,17 +851,6 @@ function countInRange(
   }).length;
 }
 
-function countBy<T>(values: T[], key: (value: T) => string) {
-  const counts = new Map<string, number>();
-  for (const value of values) {
-    const result = key(value);
-    if (result) {
-      counts.set(result, (counts.get(result) ?? 0) + 1);
-    }
-  }
-  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-}
-
 function periodWeekdays(period: FleetPeriod, basis: DateBasis) {
   const labels = [
     ...new Set(
@@ -866,10 +858,6 @@ function periodWeekdays(period: FleetPeriod, basis: DateBasis) {
     ),
   ];
   return labels.length === 7 ? 'Daily' : labels.join(' · ');
-}
-
-function weekdayForDate(date: string) {
-  return new Date(`${date}T00:00:00Z`).getUTCDay();
 }
 
 function viewSummary(

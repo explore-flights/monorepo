@@ -12,10 +12,15 @@ import {
   SlidersHorizontal,
   TableProperties,
 } from 'lucide-react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '@/api/client';
-import type { ConnectionBranch, ConnectionsData, ConnectionsSearchRequest } from '@/api/types';
+import type {
+  ConnectionBranch,
+  ConnectionsData,
+  ConnectionsSearchRequest,
+  SharedConnectionsResponse,
+} from '@/api/types';
 import { FlightMap } from '@/components/FlightMap';
 import { MultiCombobox, type SelectOption } from '@/components/MultiCombobox';
 import {
@@ -33,6 +38,7 @@ import { TagInput } from '@/components/TagInput';
 import { TemporalInput } from '@/components/TemporalInput';
 import { dateLabel, duration, flightName, timeLabel } from '@/lib/format';
 import { ConnectionGraph } from './ConnectionGraph';
+import { connectionSearchDefaults } from './defaults';
 
 type View = 'journeys' | 'table' | 'graph' | 'map';
 const today = new Date();
@@ -47,37 +53,91 @@ const initialEnd = isoLocal(
 
 export function ConnectionsPage() {
   const [searchParams] = useSearchParams();
-  const airportsQuery = useQuery({ queryKey: ['airports'], queryFn: api.airports });
-  const aircraftQuery = useQuery({ queryKey: ['aircraft'], queryFn: api.aircraft });
-  const [origins, setOrigins] = useState<string[]>([]);
-  const [destinations, setDestinations] = useState<string[]>([]);
-  const [start, setStart] = useState(initialStart);
-  const [end, setEnd] = useState(initialEnd);
-  const [maxFlights, setMaxFlights] = useState(2);
-  const [minLayover, setMinLayover] = useState(60);
-  const [maxLayover, setMaxLayover] = useState(360);
-  const [maxDuration, setMaxDuration] = useState(26);
-  const [countMultiLeg, setCountMultiLeg] = useState(true);
-  const [advanced, setAdvanced] = useState(false);
-  const [includeAirports, setIncludeAirports] = useState<string[]>([]);
-  const [excludeAirports, setExcludeAirports] = useState<string[]>([]);
-  const [includeFlights, setIncludeFlights] = useState<string[]>([]);
-  const [excludeFlights, setExcludeFlights] = useState<string[]>([]);
-  const [includeAircraft, setIncludeAircraft] = useState<string[]>([]);
-  const [excludeAircraft, setExcludeAircraft] = useState<string[]>([]);
-  const [view, setView] = useState<View>('journeys');
-  const [results, setResults] = useState<ConnectionsData>();
-  const searchMutation = useMutation({
-    mutationFn: api.connections,
-    onSuccess: (response) => setResults(response.data),
-  });
-  const shareMutation = useMutation({ mutationFn: api.shareConnections });
   const shared = searchParams.get('search');
   const sharedQuery = useQuery({
     queryKey: ['shared-connections', shared],
     queryFn: () => api.sharedConnections(shared ?? ''),
     enabled: !!shared,
   });
+
+  if (shared && sharedQuery.isLoading) {
+    return (
+      <div className='page connections-page'>
+        <Loading label='Loading shared connection search…' />
+      </div>
+    );
+  }
+
+  return (
+    <ConnectionsWorkspace
+      key={shared ?? 'new-search'}
+      sharedResponse={sharedQuery.data}
+      sharedError={sharedQuery.error}
+    />
+  );
+}
+
+function ConnectionsWorkspace({
+  sharedResponse,
+  sharedError,
+}: {
+  sharedResponse: SharedConnectionsResponse | undefined;
+  sharedError: Error | null;
+}) {
+  const airportsQuery = useQuery({ queryKey: ['airports'], queryFn: api.airports });
+  const aircraftQuery = useQuery({ queryKey: ['aircraft'], queryFn: api.aircraft });
+  const initialRequest = sharedResponse?.search;
+  const [origins, setOrigins] = useState<string[]>(() => [...(initialRequest?.origins ?? [])]);
+  const [destinations, setDestinations] = useState<string[]>(() => [
+    ...(initialRequest?.destinations ?? []),
+  ]);
+  const [start, setStart] = useState(() =>
+    initialRequest ? toLocalInput(initialRequest.minDeparture) : initialStart,
+  );
+  const [end, setEnd] = useState(() =>
+    initialRequest ? toLocalInput(initialRequest.maxDeparture) : initialEnd,
+  );
+  const [maxFlights, setMaxFlights] = useState(
+    initialRequest?.maxFlights ?? connectionSearchDefaults.maxFlights,
+  );
+  const [minLayover, setMinLayover] = useState(
+    (initialRequest?.minLayoverMS ?? connectionSearchDefaults.minLayoverMS) / 60_000,
+  );
+  const [maxLayover, setMaxLayover] = useState(
+    (initialRequest?.maxLayoverMS ?? connectionSearchDefaults.maxLayoverMS) / 60_000,
+  );
+  const [maxDuration, setMaxDuration] = useState(
+    (initialRequest?.maxDurationMS ?? connectionSearchDefaults.maxDurationMS) / 3_600_000,
+  );
+  const [countMultiLeg, setCountMultiLeg] = useState(
+    initialRequest?.countMultiLeg ?? connectionSearchDefaults.countMultiLeg,
+  );
+  const [advanced, setAdvanced] = useState(() => hasAdvancedFilters(initialRequest));
+  const [includeAirports, setIncludeAirports] = useState<string[]>(() => [
+    ...(initialRequest?.includeAirport ?? []),
+  ]);
+  const [excludeAirports, setExcludeAirports] = useState<string[]>(() => [
+    ...(initialRequest?.excludeAirport ?? []),
+  ]);
+  const [includeFlights, setIncludeFlights] = useState<string[]>(() => [
+    ...(initialRequest?.includeFlightNumber ?? []),
+  ]);
+  const [excludeFlights, setExcludeFlights] = useState<string[]>(() => [
+    ...(initialRequest?.excludeFlightNumber ?? []),
+  ]);
+  const [includeAircraft, setIncludeAircraft] = useState<string[]>(() => [
+    ...(initialRequest?.includeAircraft ?? []),
+  ]);
+  const [excludeAircraft, setExcludeAircraft] = useState<string[]>(() => [
+    ...(initialRequest?.excludeAircraft ?? []),
+  ]);
+  const [view, setView] = useState<View>('journeys');
+  const [results, setResults] = useState<ConnectionsData | undefined>(() => sharedResponse?.data);
+  const searchMutation = useMutation({
+    mutationFn: api.connections,
+    onSuccess: (response) => setResults(response.data),
+  });
+  const shareMutation = useMutation({ mutationFn: api.shareConnections });
   const airportOptions = useMemo<SelectOption[]>(
     () => airportSelectOptions(airportsQuery.data ?? []),
     [airportsQuery.data],
@@ -87,40 +147,7 @@ export function ConnectionsPage() {
     [aircraftQuery.data],
   );
   const shareResult = shareMutation.data;
-  const queryError = searchMutation.error ?? sharedQuery.error;
-
-  useEffect(() => {
-    if (!sharedQuery.data) {
-      return;
-    }
-    const request = sharedQuery.data.search;
-    setOrigins([...request.origins]);
-    setDestinations([...request.destinations]);
-    setStart(toLocalInput(request.minDeparture));
-    setEnd(toLocalInput(request.maxDeparture));
-    setMaxFlights(request.maxFlights);
-    setMinLayover(request.minLayoverMS / 60_000);
-    setMaxLayover(request.maxLayoverMS / 60_000);
-    setMaxDuration(request.maxDurationMS / 3_600_000);
-    setCountMultiLeg(request.countMultiLeg);
-    setIncludeAirports([...(request.includeAirport ?? [])]);
-    setExcludeAirports([...(request.excludeAirport ?? [])]);
-    setIncludeFlights([...(request.includeFlightNumber ?? [])]);
-    setExcludeFlights([...(request.excludeFlightNumber ?? [])]);
-    setIncludeAircraft([...(request.includeAircraft ?? [])]);
-    setExcludeAircraft([...(request.excludeAircraft ?? [])]);
-    setAdvanced(
-      Boolean(
-        request.includeAirport ||
-        request.excludeAirport ||
-        request.includeFlightNumber ||
-        request.excludeFlightNumber ||
-        request.includeAircraft ||
-        request.excludeAircraft,
-      ),
-    );
-    setResults(sharedQuery.data.data);
-  }, [sharedQuery.data]);
+  const queryError = searchMutation.error ?? sharedError;
   function buildRequest(): ConnectionsSearchRequest {
     return {
       origins,
@@ -250,7 +277,7 @@ export function ConnectionsPage() {
                 <Range
                   label='Minimum layover'
                   value={`${minLayover} min`}
-                  min={5}
+                  min={0}
                   max={1440}
                   step={5}
                   number={minLayover}
@@ -306,7 +333,6 @@ export function ConnectionsPage() {
         </form>
       </Card>
       {queryError && <ErrorState error={queryError} />}{' '}
-      {sharedQuery.isLoading && <Loading label='Loading shared search…' />}
       {results && (
         <section className='results-section'>
           <div className='results-toolbar'>
@@ -379,7 +405,12 @@ export function ConnectionsPage() {
             (journeys.length ? (
               <div className='journey-list'>
                 {journeys.map((journey, index) => (
-                  <JourneyCard key={index} journey={journey} data={results} index={index} />
+                  <JourneyCard
+                    key={journey.map((branch) => branch.flightId).join(':')}
+                    journey={journey}
+                    data={results}
+                    index={index}
+                  />
                 ))}
               </div>
             ) : (
@@ -432,6 +463,7 @@ function AirportField({
         options={options}
         onChange={onChange}
         placeholder='Select one or more airports'
+        uppercase
       />
     </div>
   );
@@ -505,6 +537,7 @@ function RuleGroup({
           options={airportOptions}
           onChange={setAirports}
           placeholder='No airport rules'
+          uppercase
         />
       </div>
       <div className='rule-field'>
@@ -524,6 +557,7 @@ function RuleGroup({
           options={aircraftOptions}
           onChange={setAircraft}
           placeholder='No aircraft rules'
+          uppercase
         />
       </div>
     </section>
@@ -532,6 +566,18 @@ function RuleGroup({
 function optional(values: string[]) {
   return values.length ? values : undefined;
 }
+
+function hasAdvancedFilters(request: ConnectionsSearchRequest | undefined): boolean {
+  return Boolean(
+    request?.includeAirport ||
+    request?.excludeAirport ||
+    request?.includeFlightNumber ||
+    request?.excludeFlightNumber ||
+    request?.includeAircraft ||
+    request?.excludeAircraft,
+  );
+}
+
 function toLocalInput(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -589,8 +635,11 @@ function JourneyCard({
         </div>
       </div>
       <div className='journey-legs'>
-        {flights.map((flight, itemIndex) => (
-          <div className='journey-leg' key={`${flight.departureTime}-${itemIndex}`}>
+        {flights.map((flight) => (
+          <div
+            className='journey-leg'
+            key={`${flight.departureTime}:${flight.departureAirportId}:${flight.arrivalAirportId}:${flightName(flight.flightNumber, data.airlines)}`}
+          >
             <div className='leg-times'>
               <strong>{timeLabel(flight.departureTime)}</strong>
               <span>

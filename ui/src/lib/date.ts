@@ -1,5 +1,6 @@
 export type ScheduleScope = 'upcoming' | 'historical';
 export const dateBases = ['local', 'utc'] as const;
+export const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 export type DateBasis = (typeof dateBases)[number];
 
 export interface DateRange {
@@ -17,6 +18,10 @@ export function addDays(value: string, amount: number): string {
   const date = new Date(`${value}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + amount);
   return date.toISOString().slice(0, 10);
+}
+
+export function weekdayForDate(date: string): number {
+  return new Date(`${date}T00:00:00Z`).getUTCDay();
 }
 
 export function daysBetween(left: string, right: string): number {

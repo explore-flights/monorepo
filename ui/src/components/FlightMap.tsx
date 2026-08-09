@@ -4,7 +4,7 @@ import MapCanvas, { Layer, Marker, NavigationControl, Source } from 'react-map-g
 import { MapPin } from 'lucide-react';
 import { colorful } from '@versatiles/style';
 import { greatCircle } from '@turf/great-circle';
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import type { Airport } from '@/api/types';
 import { usePreferences } from '@/app/preferences';
 import { classNames } from '@/lib/format';
@@ -46,14 +46,6 @@ export function FlightMap({
   const activeAirportId = displayedAirports.some((airport) => airport.id === selectedAirportId)
     ? selectedAirportId
     : undefined;
-  useEffect(() => {
-    if (
-      selectedAirportId &&
-      !displayedAirports.some((airport) => airport.id === selectedAirportId)
-    ) {
-      setSelectedAirportId(undefined);
-    }
-  }, [displayedAirports, selectedAirportId]);
   if (!canUseMaps) {
     return (
       <Card className={styles.consent} style={{ minHeight: height }}>

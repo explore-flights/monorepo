@@ -67,29 +67,6 @@ export const router = createBrowserRouter([
           import('@/features/airports/AirportPage').then((module) => ({
             Component: module.AirportLayout,
           })),
-        children: [
-          {
-            index: true,
-            lazy: () =>
-              import('@/features/airports/AirportPage').then((module) => ({
-                Component: module.AirportOverview,
-              })),
-          },
-          {
-            path: 'routes',
-            lazy: () =>
-              import('@/features/airports/AirportPage').then((module) => ({
-                Component: module.AirportRoutes,
-              })),
-          },
-          {
-            path: 'map',
-            lazy: () =>
-              import('@/features/airports/AirportPage').then((module) => ({
-                Component: module.AirportMapPage,
-              })),
-          },
-        ],
       },
       {
         path: 'allegris',

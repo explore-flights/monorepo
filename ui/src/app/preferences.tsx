@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { isOneOf } from '@/lib/collections';
 
 export const themeModes = ['system', 'light', 'dark'] as const;
@@ -21,6 +21,8 @@ interface PreferencesValue {
   acceptAll: () => void;
   saveConsent: (levels: Set<ConsentLevel>) => void;
   canUseMaps: boolean;
+  notificationReadMarker: string | null;
+  markNotificationsRead: (timestamp: string) => void;
 }
 
 const CONSENT_KEY = 'FLIGHTS:CONSENT';
@@ -64,13 +66,16 @@ function isConsentLevel(value: number): value is ConsentLevel {
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const initialConsent = useMemo(readConsent, []);
-  const [theme, setThemeState] = useState<ThemeMode>(readTheme);
+  const [storedTheme, setStoredTheme] = useState<ThemeMode>(readTheme);
   const [systemDark, setSystemDark] = useState(
     () => matchMedia('(prefers-color-scheme: dark)').matches,
   );
   const [hasConsentChoice, setHasConsentChoice] = useState(initialConsent.chosen);
   const [consent, setConsent] = useState(initialConsent.levels);
-  const effectiveTheme = resolveTheme(theme, systemDark);
+  const [notificationReadMarker, setNotificationReadMarker] = useState<string | null>(() =>
+    initialConsent.levels.has(1) ? localStorage.getItem(NOTIFICATION_READ_MARKER_KEY) : null,
+  );
+  const effectiveTheme = resolveTheme(storedTheme, systemDark);
 
   useEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)');
@@ -108,8 +113,14 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   }
 
   function setTheme(next: ThemeMode) {
-    setThemeState(next);
+    setStoredTheme(next);
     persistPreferences(next);
+  }
+  function markNotificationsRead(timestamp: string) {
+    setNotificationReadMarker(timestamp);
+    if (consent.has(1)) {
+      localStorage.setItem(NOTIFICATION_READ_MARKER_KEY, timestamp);
+    }
   }
   function saveConsent(levels: Set<ConsentLevel>) {
     const next = new Set<ConsentLevel>([0, ...levels]);
@@ -117,17 +128,18 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setConsent(next);
     setHasConsentChoice(true);
     if (next.has(1)) {
-      persistPreferences(theme, true);
+      persistPreferences(storedTheme, true);
     } else {
       localStorage.removeItem(PREFERENCES_KEY);
       localStorage.removeItem(NOTIFICATION_READ_MARKER_KEY);
+      setNotificationReadMarker(null);
     }
   }
 
   return (
-    <PreferencesContext.Provider
+    <PreferencesContext
       value={{
-        theme,
+        theme: storedTheme,
         effectiveTheme,
         setTheme,
         hasConsentChoice,
@@ -136,10 +148,12 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         acceptAll: () => saveConsent(new Set([0, 1, 2, 3, 5])),
         saveConsent,
         canUseMaps: consent.has(5),
+        notificationReadMarker,
+        markNotificationsRead,
       }}
     >
       {children}
-    </PreferencesContext.Provider>
+    </PreferencesContext>
   );
 }
 
@@ -152,7 +166,7 @@ function resolveTheme(theme: ThemeMode, systemDark: boolean): Exclude<ThemeMode,
 }
 
 export function usePreferences() {
-  const value = useContext(PreferencesContext);
+  const value = use(PreferencesContext);
   if (!value) {
     throw new Error('usePreferences must be used inside PreferencesProvider');
   }

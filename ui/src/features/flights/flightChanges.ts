@@ -1,9 +1,4 @@
-import type {
-  FlightNumber,
-  FlightReferenceData,
-  FlightScheduleItem,
-  FlightScheduleVariant,
-} from '@/api/types';
+import type { FlightNumber, FlightReferenceData, FlightScheduleVariant } from '@/api/types';
 import { duration, flightName } from '@/lib/format';
 import { arrivalScheduleTime, formatUtcOffset } from '@/lib/time';
 
@@ -147,16 +142,6 @@ export function compareFlightVariants(
     }
   }
   return result;
-}
-
-export function variantFor(data: FlightReferenceData, id?: string) {
-  return id ? data.variants[id] : undefined;
-}
-export function previousVariantFor(data: FlightReferenceData, item: FlightScheduleItem) {
-  return variantFor(data, item.previousFlightVariantId);
-}
-export function displayVariantFor(data: FlightReferenceData, item: FlightScheduleItem) {
-  return variantFor(data, item.flightVariantId ?? item.previousFlightVariantId);
 }
 
 function airportLabel(id: string, data: FlightReferenceData) {

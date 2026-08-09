@@ -126,8 +126,7 @@ textarea {
   display: flex;
   gap: var(--space-2);
 }
-.view-tabs,
-.filter-tabs {
+.view-tabs {
   display: flex;
   gap: var(--space-0-5);
   padding: var(--space-0-75);
@@ -135,8 +134,7 @@ textarea {
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-md);
 }
-.view-tabs button,
-.filter-tabs button {
+.view-tabs button {
   display: flex;
   align-items: center;
   gap: var(--space-1-5);
@@ -149,8 +147,7 @@ textarea {
   border-radius: var(--radius-sm);
   text-transform: capitalize;
 }
-.view-tabs button.active,
-.filter-tabs button.active {
+.view-tabs button.active {
   color: var(--text);
   background: var(--surface);
   box-shadow: var(--shadow-sm);

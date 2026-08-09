@@ -145,11 +145,33 @@
   border: 0;
   border-radius: var(--radius-xs);
 }
+.home-connections-section {
+  scroll-margin-top: var(--space-6);
+  margin-top: var(--space-14);
+}
+.home-connections-heading {
+  align-items: flex-end;
+  margin-bottom: var(--space-5);
+}
+.home-connections-heading h2 {
+  margin: var(--space-1) 0 0;
+  font-size: clamp(var(--font-2xl), 3vw, var(--font-3xl));
+  letter-spacing: -0.035em;
+}
+.home-connections-heading p {
+  max-width: var(--content-form);
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
 .feature-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-3);
   margin: var(--space-14) 0 var(--space-18);
+}
+.home-feature-grid {
+  grid-template-columns: repeat(2, 1fr);
 }
 .feature-card {
   display: grid;

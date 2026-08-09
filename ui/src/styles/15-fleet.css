@@ -510,7 +510,3 @@
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-pill);
 }
-.fleet-dates-table td:first-child,
-.fleet-dates-table th:first-child {
-  min-width: 150px;
-}

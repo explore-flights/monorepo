@@ -83,18 +83,25 @@ function SelectionToken({
   token: TokenInputToken;
   onRemove?: (key: string) => void;
 }) {
-  return (
-    <span className={styles.token}>
+  const content = (
+    <>
       <span className={styles.tokenLabel}>{token.label}</span>
-      {onRemove && (
-        <button
-          type='button'
-          aria-label={`Remove ${token.label}`}
-          onClick={() => onRemove(token.key)}
-        >
-          <X size={11} />
-        </button>
-      )}
-    </span>
+      {onRemove && <X size={11} aria-hidden='true' />}
+    </>
   );
+
+  if (onRemove) {
+    return (
+      <button
+        type='button'
+        className={styles.token}
+        aria-label={`Remove ${token.label}`}
+        onClick={() => onRemove(token.key)}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <span className={styles.token}>{content}</span>;
 }

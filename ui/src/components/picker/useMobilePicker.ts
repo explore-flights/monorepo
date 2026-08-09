@@ -1,19 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 const mobilePickerQuery = '(max-width: 1024px)';
 
 export function useMobilePicker() {
-  const [mobile, setMobile] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia(mobilePickerQuery).matches,
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(mobilePickerQuery).matches,
+    () => false,
   );
+}
 
-  useEffect(() => {
-    const media = window.matchMedia(mobilePickerQuery);
-    const update = () => setMobile(media.matches);
-    update();
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, []);
-
-  return mobile;
+function subscribe(onChange: () => void) {
+  const media = window.matchMedia(mobilePickerQuery);
+  media.addEventListener('change', onChange);
+  return () => media.removeEventListener('change', onChange);
 }

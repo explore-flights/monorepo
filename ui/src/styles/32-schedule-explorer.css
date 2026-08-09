@@ -46,9 +46,7 @@
   background: var(--primary-soft);
 }
 .rich-schedule-table td:first-child,
-.rich-schedule-table th:first-child,
-.schedule-table td:first-child,
-.schedule-table th:first-child {
+.rich-schedule-table th:first-child {
   width: 40px;
   padding-right: var(--space-1);
 }

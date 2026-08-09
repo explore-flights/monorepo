@@ -14,9 +14,24 @@
   .period-main .journey-leg-details dl {
     grid-template-columns: 1fr;
   }
-  .journey-date-row {
-    grid-template-columns: var(--column-date) minmax(0, 1fr);
-    align-items: start;
+  .journey-snapshot.aggregate:not(.single-leg) {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .journey-snapshot.aggregate:not(.single-leg) .journey-leg-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .journey-snapshot.aggregate:not(.single-leg) .journey-connection {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--tap-target);
+    grid-template-columns: 1fr auto 1fr;
+    align-self: stretch;
+    margin-top: 0;
+    padding: 0 var(--space-2);
   }
   .journey-date-row .journey-connection {
     min-width: 0;
@@ -25,22 +40,13 @@
   .journey-date-row .journey-leg-details dl {
     grid-template-columns: 1fr;
   }
-  .journey-date-history {
-    grid-column: 2;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1-5) var(--space-3-5);
-  }
 }
 
 @media (max-width: 1024px) {
-  .schedule-period,
-  .schedule-period.multi-leg,
-  .schedule-variation {
+  .schedule-period {
     grid-template-columns: var(--column-period) minmax(0, 1fr);
   }
-  .schedule-period .period-meta,
-  .schedule-variation .period-meta {
+  .schedule-period .period-meta {
     grid-column: 1/-1;
     min-width: 0;
     flex-flow: row wrap;
@@ -50,33 +56,18 @@
     border-top: var(--border-width) solid var(--border);
     border-left: 0;
   }
-  .period-main > .journey-snapshot:not(.single-leg) {
+  .journey-date-row {
+    grid-template-columns: var(--column-period) minmax(0, 1fr);
+  }
+  .journey-date-history {
+    grid-column: 1/-1;
     display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
-  .period-main > .journey-snapshot:not(.single-leg) .journey-leg-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .period-main > .journey-snapshot:not(.single-leg) .journey-connection {
-    width: 100%;
-    min-width: 0;
-    min-height: var(--tap-target);
-    grid-template-columns: 1fr auto 1fr;
-    align-self: stretch;
-    margin-top: 0;
-    padding: 0 var(--space-2);
-  }
-  .variation-main {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .variation-main > div:first-child,
-  .variation-samples {
-    width: 100%;
-    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-1-5) var(--space-3-5);
+    padding-block: var(--space-2-5);
+    border-top: var(--border-width) solid var(--border);
+    border-left: 0;
   }
 }
 
@@ -103,25 +94,6 @@
   .schedule-period {
     grid-template-columns: var(--column-period-compact) 1fr;
   }
-  .schedule-period.multi-leg {
-    grid-template-columns: var(--column-period-compact) 1fr;
-  }
-  .schedule-variation {
-    grid-template-columns: var(--column-period-compact) 1fr;
-  }
-  .schedule-variation .period-meta {
-    grid-column: 1/-1;
-    min-width: 0;
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-end;
-    border-top: var(--border-width) solid var(--border);
-    border-left: 0;
-  }
-  .variation-main {
-    align-items: flex-start;
-    flex-direction: column;
-  }
   .period-meta {
     grid-column: 1/-1;
     min-width: 0;
@@ -144,13 +116,7 @@
     flex-direction: column;
   }
   .journey-date-row {
-    grid-template-columns: var(--column-date) minmax(0, 1fr);
-  }
-  .journey-date-history {
-    grid-column: 1/-1;
-    display: flex;
-    flex-wrap: wrap;
-    padding-left: calc(var(--column-date) + var(--space-3-5));
+    grid-template-columns: var(--column-period-compact) minmax(0, 1fr);
   }
 }
 
@@ -174,11 +140,6 @@
   .scope-tabs button span {
     display: none;
   }
-  .facet-group {
-    width: 100%;
-    align-items: flex-start;
-    flex-direction: column;
-  }
   .facet-buttons {
     width: 100%;
     overflow-x: auto;
@@ -194,18 +155,14 @@
     width: 100%;
     overflow-x: auto;
   }
-  .workspace-view-tabs button {
+  .workspace-view-tabs :is(button, a) {
     min-width: max-content;
     flex: 1;
   }
-  .workspace-viewbar p {
+  .workspace-viewbar p:not(.workspace-view-summary) {
     display: none;
   }
   .schedule-period {
-    grid-template-columns: 1fr;
-  }
-  .schedule-period.multi-leg,
-  .schedule-variation {
     grid-template-columns: 1fr;
   }
   .period-range {
@@ -216,9 +173,20 @@
     justify-content: space-between;
     flex-wrap: wrap;
   }
+  .period-exception-list,
+  .period-exception-item {
+    grid-template-columns: 1fr;
+  }
+  .period-exception-date {
+    justify-self: start;
+  }
   .snapshot-route {
     width: 100%;
     justify-content: space-between;
+  }
+  .journey-leg-card .snapshot-route {
+    width: fit-content;
+    justify-content: start;
   }
   .journey-snapshot {
     flex-direction: column;
@@ -227,23 +195,16 @@
     flex-direction: column;
     align-items: stretch;
   }
-  .period-main > .journey-snapshot:not(.single-leg) {
-    display: flex;
-    gap: 0;
-  }
-  .period-main > .journey-snapshot:not(.single-leg) .journey-leg-wrap {
-    display: flex;
-  }
-  .period-main > .journey-snapshot:not(.single-leg) .journey-connection {
+  .journey-snapshot.aggregate:not(.single-leg) .journey-connection {
     min-height: var(--control-height-xl);
     margin-top: 0;
     padding: 0 var(--space-2);
   }
-  .journey-date-row > .journey-snapshot:not(.single-leg) {
+  .journey-date-main > .journey-snapshot:not(.single-leg) {
     display: flex;
     gap: 0;
   }
-  .journey-date-row > .journey-snapshot:not(.single-leg) .journey-leg-wrap {
+  .journey-date-main > .journey-snapshot:not(.single-leg) .journey-leg-wrap {
     display: flex;
   }
   .journey-date-row .journey-connection {
@@ -257,16 +218,15 @@
   .journey-connection span {
     max-width: 120px;
   }
-  .journey-date-heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
   .journey-date-row {
     grid-template-columns: 1fr;
   }
+  .journey-date-label {
+    border-right: 0;
+    border-bottom: var(--border-width) solid var(--border);
+  }
   .journey-date-history {
     grid-column: auto;
-    padding-left: 0;
   }
   .journey-change-event > header,
   .journey-change-leg > header {
@@ -288,15 +248,6 @@
   .journey-change-chevron {
     grid-row: 1 / span 2;
     grid-column: 2;
-  }
-  .variation-main > div:first-child,
-  .variation-samples {
-    min-width: 0;
-    width: 100%;
-  }
-  .variation-samples > span {
-    grid-template-columns: 1fr;
-    gap: var(--space-0-5);
   }
   .year-calendar {
     grid-template-columns: 1fr;

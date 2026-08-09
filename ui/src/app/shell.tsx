@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
@@ -25,13 +25,8 @@ import type { Notification } from '@/api/types';
 import { Button } from '@/components/primitives';
 import { FlightAutocomplete } from '@/components/FlightAutocomplete';
 import { classNames, normalizeFlightNumber } from '@/lib/format';
-import {
-  NOTIFICATION_READ_MARKER_KEY,
-  themeModes,
-  usePreferences,
-  type ConsentLevel,
-  type ThemeMode,
-} from './preferences';
+import { themeModes, usePreferences, type ConsentLevel, type ThemeMode } from './preferences';
+import { RouteSeo } from './seo';
 
 const primaryNav = [
   { to: '/', label: 'Overview', icon: Home, end: true },
@@ -62,8 +57,60 @@ export function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [flight, setFlight] = useState('');
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const settingsReturnFocusRef = useRef<HTMLElement>(null);
   const navigate = useNavigate();
   const { effectiveTheme, setTheme } = usePreferences();
+
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      event.preventDefault();
+      setMenuOpen(false);
+      window.requestAnimationFrame(() => menuButtonRef.current?.focus());
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [menuOpen]);
+
+  function closeMenu(restoreFocus = true) {
+    setMenuOpen(false);
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => menuButtonRef.current?.focus());
+    }
+  }
+
+  function openMenu() {
+    setMenuOpen(true);
+    window.requestAnimationFrame(() => menuCloseButtonRef.current?.focus());
+  }
+
+  function openSettings() {
+    let returnFocus: HTMLElement | null = null;
+    if (menuOpen) {
+      returnFocus = menuButtonRef.current;
+    } else if (document.activeElement instanceof HTMLElement) {
+      returnFocus = document.activeElement;
+    }
+
+    settingsReturnFocusRef.current = returnFocus;
+    setMenuOpen(false);
+    setSettingsOpen(true);
+  }
+
+  function closeSettings() {
+    setSettingsOpen(false);
+    window.requestAnimationFrame(() => settingsReturnFocusRef.current?.focus());
+  }
 
   function submitFlight(event: React.FormEvent) {
     event.preventDefault();
@@ -71,36 +118,47 @@ export function AppShell() {
     if (normalized) {
       navigate(`/flight/${encodeURIComponent(normalized)}`);
       setFlight('');
-      setMenuOpen(false);
+      closeMenu(false);
     }
   }
 
   return (
     <div className='app-frame'>
-      <header className='mobile-header'>
-        <Button variant='ghost' aria-label='Open navigation' onClick={() => setMenuOpen(true)}>
+      <RouteSeo />
+      <header className='mobile-header' inert={menuOpen ? true : undefined}>
+        <Button
+          ref={menuButtonRef}
+          variant='ghost'
+          aria-label='Open navigation'
+          aria-controls='primary-sidebar'
+          aria-expanded={menuOpen}
+          onClick={openMenu}
+        >
           <Menu size={20} />
         </Button>
         <Logo compact />
-        <Button variant='ghost' aria-label='Open settings' onClick={() => setSettingsOpen(true)}>
+        <Button variant='ghost' aria-label='Open settings' onClick={openSettings}>
           <Settings size={20} />
         </Button>
       </header>
       {menuOpen && (
-        <button
-          className='scrim'
-          aria-label='Close navigation'
-          onClick={() => setMenuOpen(false)}
-        />
+        <button className='scrim' aria-label='Close navigation' onClick={() => closeMenu()} />
       )}
-      <aside className={classNames('sidebar', menuOpen && 'sidebar-open')}>
+      <aside
+        id='primary-sidebar'
+        className={classNames('sidebar', menuOpen && 'sidebar-open')}
+        role={menuOpen ? 'dialog' : undefined}
+        aria-label={menuOpen ? 'Navigation' : undefined}
+        aria-modal={menuOpen || undefined}
+      >
         <div className='sidebar-top'>
           <Logo />
           <Button
+            ref={menuCloseButtonRef}
             variant='ghost'
             className='mobile-only'
             aria-label='Close navigation'
-            onClick={() => setMenuOpen(false)}
+            onClick={() => closeMenu()}
           >
             <X size={19} />
           </Button>
@@ -115,7 +173,7 @@ export function AppShell() {
             onSelect={(value) => {
               navigate(`/flight/${encodeURIComponent(value)}`);
               setFlight('');
-              setMenuOpen(false);
+              closeMenu(false);
             }}
             placeholder='Open flight, e.g. LH400'
           />
@@ -127,7 +185,7 @@ export function AppShell() {
               key={to}
               to={to}
               end={end}
-              onClick={() => setMenuOpen(false)}
+              onClick={() => closeMenu(false)}
               className={({ isActive }) => classNames('nav-link', isActive && 'active')}
             >
               <Icon size={18} />
@@ -143,7 +201,7 @@ export function AppShell() {
             <NavLink
               key={item.to}
               to={item.to}
-              onClick={() => setMenuOpen(false)}
+              onClick={() => closeMenu(false)}
               className={({ isActive }) => classNames('fleet-link', isActive && 'active')}
             >
               {item.label}
@@ -151,7 +209,7 @@ export function AppShell() {
           ))}
         </div>
         <div className='sidebar-footer'>
-          <button className='settings-row' onClick={() => setSettingsOpen(true)}>
+          <button className='settings-row' onClick={openSettings}>
             <span className='theme-icon'>
               {effectiveTheme === 'dark' ? <Moon size={17} /> : <Sun size={17} />}
             </span>
@@ -171,14 +229,12 @@ export function AppShell() {
           </div>
         </div>
       </aside>
-      <main className='content'>
+      <main className='content' inert={menuOpen ? true : undefined}>
         <NotificationsPanel />
         <Outlet />
       </main>
-      <ConsentBanner onSettings={() => setSettingsOpen(true)} />
-      {settingsOpen && (
-        <SettingsDialog onClose={() => setSettingsOpen(false)} setTheme={setTheme} />
-      )}
+      <ConsentBanner backgroundInert={menuOpen} onSettings={openSettings} />
+      {settingsOpen && <SettingsDialog onClose={closeSettings} setTheme={setTheme} />}
     </div>
   );
 }
@@ -195,24 +251,13 @@ function useNotificationsQuery() {
 
 function NotificationsPanel() {
   const query = useNotificationsQuery();
-  const { consent } = usePreferences();
-  const [sessionReadMarker, setSessionReadMarker] = useState<string | null>(null);
+  const { notificationReadMarker, markNotificationsRead } = usePreferences();
   const [expanded, setExpanded] = useState(false);
-  const persistedReadMarker = consent.has(1)
-    ? localStorage.getItem(NOTIFICATION_READ_MARKER_KEY)
-    : null;
-  const readMarker = maxTimestamp([sessionReadMarker, persistedReadMarker]);
   const notifications = (query.data?.notifications ?? []).filter((item) =>
-    isAfterReadMarker(item.timestamp, readMarker),
+    isAfterReadMarker(item.timestamp, notificationReadMarker),
   );
   const version = query.data?.dataVersion;
   const showQueryError = Boolean(query.error && !version);
-
-  useEffect(() => {
-    if (consent.has(1) && sessionReadMarker) {
-      localStorage.setItem(NOTIFICATION_READ_MARKER_KEY, sessionReadMarker);
-    }
-  }, [consent, sessionReadMarker]);
 
   if (!query.data && !query.error) {
     return null;
@@ -228,20 +273,22 @@ function NotificationsPanel() {
         : strongest,
     showQueryError ? 'error' : 'success',
   );
-  const NudgeIcon = notificationIcon(nudgeType);
   const statusCount = notifications.length + (showQueryError ? 1 : 0);
   const notificationLabel = `${expanded ? 'Close' : 'Open'} notifications (${statusCount})`;
 
   function markAllAsRead() {
     const latestTimestamp = maxTimestamp(notifications.map((item) => item.timestamp));
     if (latestTimestamp) {
-      setSessionReadMarker(latestTimestamp);
+      markNotificationsRead(latestTimestamp);
       setExpanded(false);
     }
   }
 
   return (
-    <section className='global-status' aria-label='Schedule data status'>
+    <section
+      className={classNames('global-status', expanded && 'global-status-expanded')}
+      aria-label='Schedule data status'
+    >
       <div className='global-status-controls'>
         {expanded && notifications.length > 0 && (
           <Button
@@ -261,7 +308,10 @@ function NotificationsPanel() {
           aria-controls='global-status-panel'
           onClick={() => setExpanded((current) => !current)}
         >
-          <NudgeIcon className={nudgeType === 'in-progress' ? 'spin' : ''} size={18} />
+          <NotificationIcon
+            type={nudgeType}
+            className={nudgeType === 'in-progress' ? 'spin' : ''}
+          />
           <span className='global-status-count' aria-hidden='true'>
             {statusCount}
           </span>
@@ -269,21 +319,21 @@ function NotificationsPanel() {
       </div>
       {expanded && (
         <div className='global-status-panel' id='global-status-panel'>
-          {notifications.map((item) => {
-            const Icon = notificationIcon(item.type);
-            return (
-              <article
-                className={`global-notification notification-${item.type}`}
-                key={`${item.timestamp}:${item.type}:${item.header}`}
-              >
-                <Icon className={item.type === 'in-progress' ? 'spin' : ''} size={18} />
-                <div>
-                  <strong>{item.header ?? 'Information'}</strong>
-                  {item.content && <p>{item.content}</p>}
-                </div>
-              </article>
-            );
-          })}
+          {notifications.map((item) => (
+            <article
+              className={`global-notification notification-${item.type}`}
+              key={`${item.timestamp}:${item.type}:${item.header}`}
+            >
+              <NotificationIcon
+                type={item.type}
+                className={item.type === 'in-progress' ? 'spin' : ''}
+              />
+              <div>
+                <strong>{item.header ?? 'Information'}</strong>
+                {item.content && <p>{item.content}</p>}
+              </div>
+            </article>
+          ))}
           {showQueryError && (
             <div className='notification-query-error'>
               <AlertCircle size={14} />
@@ -321,18 +371,18 @@ function isAfterReadMarker(timestamp: string, marker: string | null) {
   );
 }
 
-function notificationIcon(type: Notification['type']) {
+function NotificationIcon({ type, className }: { type: Notification['type']; className: string }) {
   switch (type) {
     case 'error':
-      return AlertCircle;
+      return <AlertCircle className={className} size={18} />;
     case 'warning':
-      return TriangleAlert;
+      return <TriangleAlert className={className} size={18} />;
     case 'success':
-      return CheckCircle2;
+      return <CheckCircle2 className={className} size={18} />;
     case 'in-progress':
-      return LoaderCircle;
+      return <LoaderCircle className={className} size={18} />;
     case 'info':
-      return Info;
+      return <Info className={className} size={18} />;
   }
 }
 
@@ -349,13 +399,24 @@ function Logo({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function ConsentBanner({ onSettings }: { onSettings: () => void }) {
+function ConsentBanner({
+  backgroundInert,
+  onSettings,
+}: {
+  backgroundInert: boolean;
+  onSettings: () => void;
+}) {
   const { hasConsentChoice, acceptAll, acceptEssential } = usePreferences();
   if (hasConsentChoice) {
     return null;
   }
   return (
-    <div className='consent-banner' role='dialog' aria-label='Privacy choices'>
+    <div
+      className='consent-banner'
+      role='dialog'
+      aria-label='Privacy choices'
+      inert={backgroundInert ? true : undefined}
+    >
       <div>
         <strong>Your data, your choice</strong>
         <p>
@@ -383,9 +444,25 @@ function SettingsDialog({
   onClose: () => void;
   setTheme: (mode: ThemeMode) => void;
 }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const prefs = usePreferences();
   const [functional, setFunctional] = useState(prefs.consent.has(1));
   const [maps, setMaps] = useState(prefs.consent.has(5));
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) {
+      return;
+    }
+
+    dialog.showModal();
+    return () => {
+      if (dialog.open) {
+        dialog.close();
+      }
+    };
+  }, []);
+
   function save() {
     const preserved = [...prefs.consent].filter((level) => level !== 1 && level !== 5);
     const levels = new Set<ConsentLevel>(preserved);
@@ -400,18 +477,33 @@ function SettingsDialog({
     onClose();
   }
   return (
-    <div
-      className='modal-layer'
-      role='presentation'
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    <dialog
+      ref={dialogRef}
+      className='modal-dialog'
+      aria-labelledby='settings-title'
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onClose();
+        }
+      }}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
     >
-      <section className='dialog' role='dialog' aria-modal='true' aria-labelledby='settings-title'>
+      <section className='dialog'>
         <header>
           <div>
             <span className='eyebrow'>Preferences</span>
             <h2 id='settings-title'>Make it yours</h2>
           </div>
-          <Button variant='ghost' aria-label='Close' onClick={onClose}>
+          <Button variant='ghost' aria-label='Close' autoFocus onClick={onClose}>
             <X size={20} />
           </Button>
         </header>
@@ -459,6 +551,6 @@ function SettingsDialog({
           <Button onClick={save}>Save preferences</Button>
         </footer>
       </section>
-    </div>
+    </dialog>
   );
 }

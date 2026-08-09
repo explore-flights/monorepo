@@ -400,6 +400,7 @@ From %s until %s for a total of %d flights
 		)
 	})
 
+	noIndex(c)
 	c.Response().Header().Add(echo.HeaderContentType, contentType)
 	addExpirationHeaders(c, time.Now(), time.Hour)
 

@@ -346,6 +346,7 @@ func (dh *DataHandler) flightScheduleVersionsFeed(c echo.Context, contentType st
 
 	feed := dh.buildFlightScheduleVersionsFeed(fs)
 
+	noIndex(c)
 	c.Response().Header().Add(echo.HeaderContentType, contentType)
 	addExpirationHeaders(c, time.Now(), time.Hour)
 
@@ -723,6 +724,7 @@ This endpoint will be removed after %s.
 	}
 
 	c.Response().Header().Add(echo.HeaderContentType, contentType)
+	noIndex(c)
 	addExpirationHeaders(c, time.Now(), time.Hour)
 
 	return writer(feed, c.Response())

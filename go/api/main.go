@@ -130,6 +130,7 @@ func main() {
 
 		sitemapHandler := web.NewSitemapHandler(fr)
 		group.GET("/sitemap.xml", sitemapHandler.SitemapIndex)
+		group.GET("/sitemap/airports/sitemap.xml", sitemapHandler.SitemapAirports)
 		group.GET("/sitemap/:airlineId/sitemap.xml", sitemapHandler.SitemapAirline)
 	}
 

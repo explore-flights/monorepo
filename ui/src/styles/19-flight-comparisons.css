@@ -4,6 +4,11 @@
   font-size: var(--font-xs);
   color: var(--muted);
 }
+.version-route strong sup {
+  margin-left: var(--space-0-5);
+  color: var(--primary);
+  font-size: var(--font-xs);
+}
 .change-groups {
   display: grid;
   gap: var(--space-2-5);

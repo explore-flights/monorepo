@@ -18,8 +18,10 @@
   color: var(--primary);
   font-size: var(--font-sm);
   font-weight: 700;
+  font-family: inherit;
   white-space: nowrap;
   background: var(--primary-soft);
+  border: 0;
   border-radius: var(--radius-xs);
 }
 
@@ -28,14 +30,8 @@
   text-overflow: ellipsis;
 }
 
-.token button {
-  display: grid;
+.token svg {
   flex: 0 0 auto;
-  padding: 0;
-  place-items: center;
-  color: inherit;
-  background: transparent;
-  border: 0;
 }
 
 .input {

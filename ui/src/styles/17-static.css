@@ -30,18 +30,25 @@
   align-items: center;
   gap: var(--space-1-5);
 }
-.modal-layer {
-  position: fixed;
-  z-index: var(--layer-modal);
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: var(--space-4-5);
+.modal-dialog {
+  width: min(500px, calc(100% - var(--space-9)));
+  max-width: none;
+  max-height: calc(100dvh - var(--space-9));
+  margin: auto;
+  padding: 0;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+}
+.modal-dialog::backdrop {
   background: var(--overlay);
   backdrop-filter: blur(4px);
 }
 .dialog {
-  width: min(500px, 100%);
+  display: grid;
+  width: 100%;
+  max-height: calc(100dvh - var(--space-9));
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
   background: var(--surface);
   border: var(--border-width) solid var(--border);
@@ -63,6 +70,7 @@
   display: grid;
   gap: var(--space-6);
   padding: var(--space-5);
+  overflow-y: auto;
 }
 .dialog fieldset {
   margin: 0;

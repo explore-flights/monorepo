@@ -1,5 +1,6 @@
 import { Map as MapIcon, Plane, TableProperties, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type {
   FlightScheduleItem,
   OperatingFlightScheduleItem,
@@ -12,6 +13,7 @@ import { calendarColorCount } from '@/components/YearCalendar';
 import { isDefined } from '@/lib/collections';
 import { flightName } from '@/lib/format';
 import { isOperatingScheduleItem } from '@/lib/schedules';
+import { useHashView } from '@/lib/useHashView';
 import {
   FleetHighlightControls,
   fleetHighlightValue,
@@ -23,6 +25,7 @@ import {
 } from '@/features/fleet/FleetScheduleWorkspace';
 
 type ResultsTab = 'overview' | 'map' | 'schedule';
+const resultsTabs = ['overview', 'map', 'schedule'] as const satisfies readonly ResultsTab[];
 
 export function ScheduleResults({
   data,
@@ -35,11 +38,11 @@ export function ScheduleResults({
 }) {
   const availableYears = useMemo(() => scheduleResultYears(data), [data]);
   const [selectedYear, setSelectedYear] = useState(
-    fixedYear ?? preferredResultYear(availableYears),
+    () => fixedYear ?? preferredResultYear(availableYears),
   );
   const year = fixedYear ?? selectedYear;
   const resultData = useMemo(() => scheduleResultsForYear(data, year), [data, year]);
-  const [tab, setTab] = useState<ResultsTab>('overview');
+  const { view: tab, hrefFor, selectView } = useHashView<ResultsTab>('overview', resultsTabs);
   const [schedulePreset, setSchedulePreset] = useState<FleetSchedulePreset & { key: number }>({
     key: 0,
   });
@@ -63,37 +66,39 @@ export function ScheduleResults({
 
   function openSchedule(preset: FleetSchedulePreset = {}) {
     setSchedulePreset((current) => ({ ...preset, key: current.key + 1 }));
-    setTab('schedule');
+    selectView('schedule');
   }
 
   return (
     <>
       <div className='schedule-results-nav'>
         <nav className='subnav'>
-          <button
+          <Link
+            to={hrefFor('overview')}
             className={tab === 'overview' ? 'active' : ''}
-            aria-pressed={tab === 'overview'}
-            onClick={() => setTab('overview')}
+            aria-current={tab === 'overview' ? 'page' : undefined}
           >
             <TrendingUp size={16} />
             Overview
-          </button>
-          <button
+          </Link>
+          <Link
+            id='map'
+            to={hrefFor('map')}
             className={tab === 'map' ? 'active' : ''}
-            aria-pressed={tab === 'map'}
-            onClick={() => setTab('map')}
+            aria-current={tab === 'map' ? 'page' : undefined}
           >
             <MapIcon size={16} />
             Map
-          </button>
-          <button
+          </Link>
+          <Link
+            id='schedule'
+            to={hrefFor('schedule')}
             className={tab === 'schedule' ? 'active' : ''}
-            aria-pressed={tab === 'schedule'}
-            onClick={() => setTab('schedule')}
+            aria-current={tab === 'schedule' ? 'page' : undefined}
           >
             <TableProperties size={16} />
             Schedule
-          </button>
+          </Link>
         </nav>
         {!fixedYear && availableYears.length > 1 && (
           <label className='schedule-results-year'>
@@ -195,7 +200,7 @@ function ScheduleOverview({
   const highlightIndex = new Map(
     highlightValues.map(([key], index) => [key, index % calendarColorCount]),
   );
-  const monthly = rowsByMonth.map((monthRows) => {
+  const monthly = rowsByMonth.map((monthRows, index) => {
     const groupCounts = new Map<string, number>();
     if (highlight !== 'none') {
       for (const row of monthRows) {
@@ -207,7 +212,7 @@ function ScheduleOverview({
         groupCounts.set(value.key, (groupCounts.get(value.key) ?? 0) + 1);
       }
     }
-    return { total: monthRows.length, groups: [...groupCounts.entries()] };
+    return { month: index + 1, total: monthRows.length, groups: [...groupCounts.entries()] };
   });
   const max = Math.max(...monthly.map((month) => month.total), 1);
 
@@ -256,19 +261,19 @@ function ScheduleOverview({
             </div>
           )}
           <div className='bar-chart'>
-            {monthly.map((month, index) => {
+            {monthly.map((month) => {
               const breakdown = month.groups
                 .map(([key, count]) => `${highlightLabels.get(key) ?? key}: ${count}`)
                 .join(' · ');
               return (
                 <button
-                  key={index}
+                  key={month.month}
                   className='bar-column'
-                  aria-label={`Show ${month.total} departures in ${new Intl.DateTimeFormat(undefined, { month: 'long' }).format(new Date(year, index))}${breakdown ? ` · ${breakdown}` : ''}`}
+                  aria-label={`Show ${month.total} departures in ${new Intl.DateTimeFormat(undefined, { month: 'long' }).format(new Date(year, month.month - 1))}${breakdown ? ` · ${breakdown}` : ''}`}
                   onClick={() =>
                     onOpenSchedule({
-                      from: `${year}-${String(index + 1).padStart(2, '0')}-01`,
-                      to: `${year}-${String(index + 1).padStart(2, '0')}-${String(new Date(year, index + 1, 0).getDate()).padStart(2, '0')}`,
+                      from: `${year}-${String(month.month).padStart(2, '0')}-01`,
+                      to: `${year}-${String(month.month).padStart(2, '0')}-${String(new Date(year, month.month, 0).getDate()).padStart(2, '0')}`,
                     })
                   }
                 >
@@ -291,7 +296,7 @@ function ScheduleOverview({
                   </span>
                   <small>
                     {new Intl.DateTimeFormat(undefined, { month: 'short' }).format(
-                      new Date(2020, index),
+                      new Date(2020, month.month - 1),
                     )}
                   </small>
                 </button>

@@ -4,6 +4,21 @@
         <loc>https://explore.flights/</loc>
     </url>
     <url>
+        <loc>https://explore.flights/connections</loc>
+    </url>
+    <url>
+        <loc>https://explore.flights/flight</loc>
+    </url>
+    <url>
+        <loc>https://explore.flights/tools/flight-search</loc>
+    </url>
+    <url>
+        <loc>https://explore.flights/airport</loc>
+    </url>
+    <url>
+        <loc>https://explore.flights/updates</loc>
+    </url>
+    <url>
         <loc>https://explore.flights/about</loc>
     </url>
     <url>
@@ -26,8 +41,5 @@
     </url>
     <url>
         <loc>https://explore.flights/lh747</loc>
-    </url>
-    <url>
-        <loc>https://explore.flights/tools/links</loc>
     </url>
 </urlset>

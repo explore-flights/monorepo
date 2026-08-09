@@ -15,8 +15,10 @@ import { api } from '@/api/client';
 import type { FlightScheduleVariant, FlightScheduleVersions } from '@/api/types';
 import { Badge, Card, ErrorState, Loading, PageHeader, Stat } from '@/components/primitives';
 import { dateLabel, duration, flightName } from '@/lib/format';
+import { variantFor } from '@/lib/schedules';
 import { arrivalScheduleTime, dayDeltaLabel, departureScheduleTime } from '@/lib/time';
-import { compareFlightVariants, type FieldChange, variantFor } from './flightChanges';
+import { compareFlightVariants, type FieldChange } from './flightChanges';
+import { FlightHistoryFeedLinks } from './FlightHistoryFeedLinks';
 
 export function FlightHistoryPage() {
   const { flightNumber = '', airport = '', date = '' } = useParams();
@@ -65,10 +67,13 @@ export function FlightHistoryPage() {
         }
         description={`${dateLabel(date, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} · ${departureAirport?.timezone ?? 'Local departure time'} · Every published field change`}
         actions={
-          <Badge tone='amber'>
-            <History size={14} />
-            {versions.length || '—'} versions
-          </Badge>
+          <div className='history-page-actions'>
+            <Badge tone='amber'>
+              <History size={14} />
+              {versions.length || '—'} versions
+            </Badge>
+            <FlightHistoryFeedLinks flightNumber={flightNumber} airport={airport} date={date} />
+          </div>
         }
       />
       {query.isLoading && <Loading label='Loading schedule history…' />}
@@ -109,11 +114,14 @@ export function FlightHistoryPage() {
                 const previous = variantFor(data, olderVersion?.flightVariantId);
                 return (
                   <HistoryEntry
-                    key={`${version.version}-${index}`}
+                    key={version.version}
                     version={version.version}
                     variant={variant}
-                    previous={previous}
-                    hasPrevious={olderVersion !== undefined}
+                    comparison={
+                      olderVersion === undefined
+                        ? { kind: 'initial' }
+                        : { kind: 'previous', variant: previous }
+                    }
                     data={data}
                     latest={index === 0}
                   />
@@ -130,20 +138,20 @@ export function FlightHistoryPage() {
 function HistoryEntry({
   version,
   variant,
-  previous,
-  hasPrevious,
+  comparison,
   data,
   latest,
 }: {
   version: string;
-  variant?: FlightScheduleVariant;
-  previous?: FlightScheduleVariant;
-  hasPrevious: boolean;
+  variant: FlightScheduleVariant | undefined;
+  comparison:
+    { kind: 'initial' } | { kind: 'previous'; variant: FlightScheduleVariant | undefined };
   data: FlightScheduleVersions;
   latest: boolean;
 }) {
+  const hasPrevious = comparison.kind === 'previous';
   const changes = hasPrevious
-    ? compareFlightVariants(previous, variant, data, data.departureDateLocal)
+    ? compareFlightVariants(comparison.variant, variant, data, data.departureDateLocal)
     : [];
   const from = data.airports[data.departureAirportId];
   const to = variant ? data.airports[variant.arrivalAirportId] : undefined;

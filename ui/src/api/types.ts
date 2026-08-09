@@ -1,7 +1,7 @@
-export type AirportId = string;
-export type AirlineId = string;
-export type AircraftId = string;
-export type FlightVariantId = string;
+type AirportId = string;
+type AirlineId = string;
+type AircraftId = string;
+type FlightVariantId = string;
 
 export interface Airport {
   id: AirportId;
@@ -51,7 +51,7 @@ export interface OperatingFlightScheduleItem extends FlightScheduleItemBase {
   flightVariantId: FlightVariantId;
 }
 
-export interface CancelledFlightScheduleItem extends FlightScheduleItemBase {
+interface CancelledFlightScheduleItem extends FlightScheduleItemBase {
   flightVariantId?: undefined;
 }
 
@@ -80,7 +80,7 @@ export interface UpdateReportItem {
   updated: number;
 }
 
-export interface ReferenceData {
+interface ReferenceData {
   airlines: Record<AirlineId, Airline>;
   airports: Record<AirportId, Airport>;
   aircraft: Record<AircraftId, Aircraft>;
@@ -101,15 +101,15 @@ interface FlightScheduleVersionBase {
   version: string;
 }
 
-export interface OperatingFlightScheduleVersion extends FlightScheduleVersionBase {
+interface OperatingFlightScheduleVersion extends FlightScheduleVersionBase {
   flightVariantId: FlightVariantId;
 }
 
-export interface CancelledFlightScheduleVersion extends FlightScheduleVersionBase {
+interface CancelledFlightScheduleVersion extends FlightScheduleVersionBase {
   flightVariantId?: undefined;
 }
 
-export type FlightScheduleVersion = OperatingFlightScheduleVersion | CancelledFlightScheduleVersion;
+type FlightScheduleVersion = OperatingFlightScheduleVersion | CancelledFlightScheduleVersion;
 
 export interface FlightScheduleVersions extends FlightReferenceData {
   flightNumber: FlightNumber;
@@ -118,7 +118,7 @@ export interface FlightScheduleVersions extends FlightReferenceData {
   versions: ReadonlyArray<FlightScheduleVersion>;
 }
 
-export interface FlightNumberAndScheduleItems {
+interface FlightNumberAndScheduleItems {
   flightNumber: FlightNumber;
   items: ReadonlyArray<FlightScheduleItem>;
 }
@@ -156,7 +156,7 @@ export interface ConnectionsSearchRequest {
   excludeAircraft?: ReadonlyArray<string>;
 }
 
-export interface ConnectionFlight {
+interface ConnectionFlight {
   flightNumber: FlightNumber;
   departureTime: string;
   departureAirportId: AirportId;
@@ -200,5 +200,5 @@ export interface Notification {
 
 export interface NotificationsResponse {
   notifications: ReadonlyArray<Notification>;
-  dataVersion?: string;
+  dataVersion: string | undefined;
 }

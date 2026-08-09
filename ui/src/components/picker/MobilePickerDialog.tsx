@@ -29,7 +29,12 @@ export function MobilePickerDialog({
     }
     dialog.showModal();
     const frame = window.requestAnimationFrame(() => initialFocusRef.current?.focus());
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (dialog.open) {
+        dialog.close();
+      }
+    };
   }, [initialFocusRef, open]);
 
   if (!open || typeof document === 'undefined') {

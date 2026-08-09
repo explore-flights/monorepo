@@ -19,6 +19,9 @@
     grid-template-columns: 1fr;
     margin-top: var(--space-10);
   }
+  .home-feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .airport-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -27,16 +30,6 @@
   }
   .update-strip {
     grid-template-columns: repeat(3, 1fr);
-  }
-  .analytics-filters {
-    grid-template-columns: 1fr 1fr 1fr 1fr auto;
-  }
-  .weekday-chart {
-    gap: var(--space-1-25);
-  }
-  .weekday-chart button {
-    grid-template-columns: 24px 1fr 20px;
-    padding-inline: var(--space-1-25);
   }
 }
 
@@ -67,12 +60,17 @@
   }
   .sidebar {
     width: min(285px, 87vw);
+    visibility: hidden;
     transform: translateX(-101%);
     box-shadow: var(--shadow-sidebar);
-    transition: transform var(--duration-normal) ease;
+    transition:
+      transform var(--duration-normal) ease,
+      visibility 0s linear var(--duration-normal);
   }
   .sidebar-open {
+    visibility: visible;
     transform: translateX(0);
+    transition-delay: 0s;
   }
   .scrim {
     position: fixed;
@@ -109,6 +107,9 @@
   }
   .feature-grid {
     margin-bottom: var(--space-12);
+  }
+  .home-connections-section {
+    margin-top: var(--space-10);
   }
   .fleet-preview {
     grid-template-columns: 1fr;
@@ -163,18 +164,6 @@
   }
   .connection-graph {
     height: 520px;
-  }
-  .analytics-filters {
-    grid-template-columns: 1fr 1fr;
-  }
-  .analytics-filters .button {
-    align-self: end;
-  }
-  .weekday-chart {
-    grid-template-columns: repeat(4, 1fr);
-  }
-  .breakdown-view {
-    grid-template-columns: 1fr;
   }
   .change-groups section {
     grid-template-columns: 1fr;
@@ -258,6 +247,13 @@
   .feature-card {
     grid-template-columns: auto 1fr;
   }
+  .home-connections-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .home-feature-grid {
+    grid-template-columns: 1fr;
+  }
   .feature-card > svg {
     display: none;
   }
@@ -333,55 +329,8 @@
   .popular-row {
     flex-wrap: wrap;
   }
-  .filter-tabs button {
-    flex: 1;
-    min-width: max-content;
-    padding: var(--space-2);
-  }
-  .filter-tabs button svg {
-    display: none;
-  }
   .update-strip {
     grid-template-columns: 1fr 1fr;
-  }
-  .analytics-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .analytics-tabs {
-    width: 100%;
-  }
-  .analytics-tabs button {
-    flex: 1;
-    justify-content: center;
-  }
-  .analytics-filters {
-    grid-template-columns: 1fr;
-  }
-  .analytics-filters .button {
-    width: 100%;
-  }
-  .mini-chart-heading small {
-    display: none;
-  }
-  .monthly-chart {
-    gap: var(--space-0-5);
-  }
-  .monthly-chart button small {
-    font-size: var(--font-xs);
-  }
-  .weekday-chart {
-    grid-template-columns: 1fr 1fr;
-  }
-  .schedule-heading {
-    flex-direction: column;
-  }
-  .filter-tabs {
-    width: 100%;
-    overflow-x: auto;
-  }
-  .filter-tabs button span {
-    display: none;
   }
   .version-flight {
     align-items: flex-start;

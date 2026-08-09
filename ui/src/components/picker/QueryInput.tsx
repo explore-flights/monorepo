@@ -1,15 +1,19 @@
-import { forwardRef, type InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, Ref } from 'react';
 
 interface QueryInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'role'> {
   listboxId: string;
   expanded: boolean;
   activeOptionId?: string;
+  ref?: Ref<HTMLInputElement>;
 }
 
-export const QueryInput = forwardRef<HTMLInputElement, QueryInputProps>(function QueryInput(
-  { listboxId, expanded, activeOptionId, ...props },
+export function QueryInput({
+  listboxId,
+  expanded,
+  activeOptionId,
   ref,
-) {
+  ...props
+}: QueryInputProps) {
   return (
     <input
       {...props}
@@ -22,4 +26,4 @@ export const QueryInput = forwardRef<HTMLInputElement, QueryInputProps>(function
       autoComplete='off'
     />
   );
-});
+}

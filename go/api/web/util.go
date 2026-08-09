@@ -12,6 +12,16 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+const xRobotsTagHeader = "X-Robots-Tag"
+
+func noIndex(c echo.Context) {
+	c.Response().Header().Set(xRobotsTagHeader, "noindex")
+}
+
+func noIndexFollow(c echo.Context) {
+	c.Response().Header().Set(xRobotsTagHeader, "noindex, follow")
+}
+
 func baseUrl(c echo.Context) string {
 	scheme, host := contextSchemeAndHost(c)
 	return scheme + "://" + host

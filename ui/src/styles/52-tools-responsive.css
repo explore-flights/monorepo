@@ -13,17 +13,10 @@
   .schedule-details dl {
     grid-template-columns: 1fr 1fr;
   }
-  .flight-table-filters {
-    grid-template-columns: 1fr 1fr;
-  }
-  .flight-table-filters > div {
-    grid-column: 1/-1;
-  }
 }
 @media (max-width: 640px) {
   .query-grid,
-  .query-grid.two,
-  .flight-table-filters {
+  .query-grid.two {
     grid-template-columns: 1fr;
   }
   .query-search-card form > footer {

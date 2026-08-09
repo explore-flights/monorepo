@@ -8,14 +8,13 @@ import type {
   QuerySchedulesResponse,
 } from '@/api/types';
 import { Badge, Button, Card } from '@/components/primitives';
+import { CodeshareDetails, DataElementList } from '@/components/ScheduleMetadata';
 import type { DateBasis } from '@/lib/date';
-import { daysBetween } from '@/lib/date';
 import { dateLabel, duration, flightName } from '@/lib/format';
 import {
-  arrivalScheduleTime,
+  arrivalScheduleTimeForBasis,
   dayDeltaLabel,
-  departureScheduleTime,
-  type LocalScheduleTime,
+  departureScheduleTimeForBasis,
   scheduleInstant,
 } from '@/lib/time';
 
@@ -41,7 +40,7 @@ export function ScheduleDatesTable({
   const [sort, setSort] = useState<SortKey>('date');
   const [descending, setDescending] = useState(false);
   const [page, setPage] = useState(1);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const pageSize = 50;
   const sorted = [...records].sort(
     (left, right) => compareRecord(left, right, sort, data) * (descending ? -1 : 1),
@@ -141,8 +140,16 @@ export function ScheduleDatesTable({
           </thead>
           <tbody>
             {visible.map((record) => {
-              const departure = departureForBasis(record, dateBasis);
-              const arrival = arrivalForBasis(record, dateBasis);
+              const departure = departureScheduleTimeForBasis(
+                record.item.departureDateLocal,
+                record.variant,
+                dateBasis,
+              );
+              const arrival = arrivalScheduleTimeForBasis(
+                record.item.departureDateLocal,
+                record.variant,
+                dateBasis,
+              );
               const from = data.airports[record.item.departureAirportId];
               const to = data.airports[record.variant.arrivalAirportId];
               const flight = flightName(record.flightNumber, data.airlines);
@@ -262,31 +269,16 @@ function ScheduleDetails({
           <dd>{record.item.versionCount}</dd>
         </div>
       </dl>
-      <div>
-        <span>Codeshares</span>
-        <div className='detail-links'>
-          {record.variant.codeShares.length
-            ? record.variant.codeShares.map((value) => {
-                const number = flightName(value, data.airlines);
-                return (
-                  <Link key={number} to={`/flight/${number}`}>
-                    {number}
-                  </Link>
-                );
-              })
-            : 'None'}
-        </div>
-      </div>
+      <CodeshareDetails
+        className=''
+        codeShares={record.variant.codeShares}
+        airlines={data.airlines}
+        pathFor={(number) => `/flight/${number}`}
+      />
       {Object.keys(record.variant.dataElements).length > 0 && (
         <div className='schedule-details-data-elements'>
           <span>Data elements</span>
-          <div className='data-elements'>
-            {Object.entries(record.variant.dataElements).map(([key, value]) => (
-              <code key={key}>
-                {key}: {value}
-              </code>
-            ))}
-          </div>
+          <DataElementList dataElements={record.variant.dataElements} />
         </div>
       )}
     </div>
@@ -344,36 +336,4 @@ function compareRecord(
   return typeof leftValue === 'number' && typeof rightValue === 'number'
     ? leftValue - rightValue
     : String(leftValue).localeCompare(String(rightValue));
-}
-
-function departureForBasis(record: ScheduleDateRecord, basis: DateBasis): LocalScheduleTime {
-  if (basis === 'local') {
-    return departureScheduleTime(record.item.departureDateLocal, record.variant);
-  }
-  return utcTime(scheduleInstant(record.item.departureDateLocal, record.variant));
-}
-
-function arrivalForBasis(record: ScheduleDateRecord, basis: DateBasis): LocalScheduleTime {
-  if (basis === 'local') {
-    return arrivalScheduleTime(record.item.departureDateLocal, record.variant);
-  }
-  const departure = departureForBasis(record, basis);
-  const arrival = utcTime(
-    scheduleInstant(record.item.departureDateLocal, record.variant) +
-      record.variant.durationSeconds * 1000,
-  );
-  return { ...arrival, dayDelta: daysBetween(departure.date, arrival.date) };
-}
-
-function utcTime(instant: number): LocalScheduleTime {
-  if (!Number.isFinite(instant)) {
-    return { date: '', time: '—', offset: 'UTC+00:00', dayDelta: 0 };
-  }
-  const date = new Date(instant);
-  return {
-    date: date.toISOString().slice(0, 10),
-    time: date.toISOString().slice(11, 16),
-    offset: 'UTC+00:00',
-    dayDelta: 0,
-  };
 }

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Audit explore.flights data"
+  short_description: "Audit local flight data safely"
+  default_prompt: "Use $audit-explore-flights-data to investigate this local flight-data issue without modifying the source database."

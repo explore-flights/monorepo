@@ -7,8 +7,9 @@ import type { FlightSchedules } from '@/api/types';
 import { Badge, Card, ErrorState, Loading, PageHeader, Stat } from '@/components/primitives';
 import { YearSwitcher } from '@/components/ScheduleControls';
 import { dateLabel, flightName } from '@/lib/format';
+import { displayVariantFor } from '@/lib/schedules';
 import { discoverYearlyData, loadYearlyData, type YearSelection } from '@/lib/yearlyData';
-import { displayVariantFor } from './flightChanges';
+import { useCurrentDate } from '@/lib/useCurrentDate';
 import { FlightScheduleWorkspace } from './FlightScheduleWorkspace';
 
 interface SemanticCounts {
@@ -28,9 +29,8 @@ export function FlightPage() {
 }
 
 function FlightPageForNumber({ flightNumber: normalized }: { flightNumber: string }) {
-  const currentYear = new Date().getFullYear();
+  const currentYear = useCurrentDate().getFullYear();
   const [selection, setSelection] = useState<YearSelection>({ mode: 'discover' });
-  const [changesRequest, setChangesRequest] = useState(0);
   const selectedYear = selection.mode === 'single' ? selection.year : currentYear;
   const query = useQuery({
     queryKey: ['flight', normalized, selection.mode, selectedYear],
@@ -43,7 +43,6 @@ function FlightPageForNumber({ flightNumber: normalized }: { flightNumber: strin
   const data = query.data?.data;
   const year = query.data?.year ?? selectedYear;
   const selectYear = (nextYear: number) => setSelection({ mode: 'single', year: nextYear });
-
   const semanticCounts = useMemo<SemanticCounts>(() => {
     const items = data?.items ?? [];
     const byDate = new Map<string, typeof items>();
@@ -182,7 +181,6 @@ function FlightPageForNumber({ flightNumber: normalized }: { flightNumber: strin
             data={data}
             flightNumber={normalized}
             year={year}
-            changesRequest={changesRequest}
           />
           {data.updateReport.length > 0 && (
             <section className='minor-section'>
@@ -191,13 +189,9 @@ function FlightPageForNumber({ flightNumber: normalized }: { flightNumber: strin
                   <span className='eyebrow'>Imports</span>
                   <h2>Recent data changes</h2>
                 </div>
-                <button
-                  type='button'
-                  className='section-heading-action'
-                  onClick={() => setChangesRequest((request) => request + 1)}
-                >
+                <Link to='#changes' className='section-heading-action'>
                   Flight changes <ArrowRight size={16} />
-                </button>
+                </Link>
               </div>
               <div className='update-strip'>
                 {data.updateReport

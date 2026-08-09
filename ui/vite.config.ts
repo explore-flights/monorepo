@@ -1,9 +1,6 @@
 import { resolve } from 'path';
-// @ts-ignore
-import { defineConfig, ProxyOptions } from 'vite';
-// @ts-ignore
+import { defineConfig, type ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
-// @ts-ignore
 import tailwindcss from '@tailwindcss/vite';
 
 // https://vitejs.dev/config/
@@ -42,17 +39,6 @@ export default defineConfig({
   server: {
     port: 4200,
     proxy: proxyConfig,
-    /*headers: {
-      'content-security-policy': [
-        `default-src 'self'`,
-        `connect-src 'self' http://127.0.0.1:8090/ https://tiles.versatiles.org/`,
-        `style-src 'self' 'unsafe-inline'`,
-        `font-src data:`,
-        `img-src 'self' data: blob:`,
-        `worker-src blob:`,
-        `child-src blob:`,
-      ].join('; '),
-    },*/
   },
   build: {
     outDir: resolve(import.meta.dirname, 'dist'),

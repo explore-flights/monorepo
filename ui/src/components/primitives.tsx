@@ -1,5 +1,5 @@
 import { AlertCircle, LoaderCircle } from 'lucide-react';
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, Ref } from 'react';
 import { classNames } from '@/lib/format';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -7,6 +7,7 @@ type BadgeTone = 'neutral' | 'blue' | 'green' | 'amber' | 'red';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
+  ref?: Ref<HTMLButtonElement>;
 }
 
 interface BadgeProps {
@@ -38,8 +39,14 @@ interface StatProps {
   hint?: ReactNode;
 }
 
-export function Button({ className, variant = 'primary', ...props }: ButtonProps) {
-  return <button className={classNames('button', `button-${variant}`, className)} {...props} />;
+export function Button({ className, type = 'button', variant = 'primary', ...props }: ButtonProps) {
+  return (
+    <button
+      type={type}
+      className={classNames('button', `button-${variant}`, className)}
+      {...props}
+    />
+  );
 }
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {

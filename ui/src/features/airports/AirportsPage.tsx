@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Globe2, Map, MapPin, Search } from 'lucide-react';
+import { ArrowRight, Globe2, Map as MapIcon, MapPin, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/api/client';
+import { filterSelectOptions } from '@/components/picker/selectOptions';
 import { Card, ErrorState, Loading, PageHeader } from '@/components/primitives';
+import { airportSelectOptions } from '@/components/selectOptions';
 import { SimpleSelect } from '@/components/SimpleSelect';
 
 export function AirportsPage() {
@@ -14,18 +16,16 @@ export function AirportsPage() {
     () => [...new Set(query.data?.map((a) => a.countryCode) ?? [])].sort(),
     [query.data],
   );
-  const airports = useMemo(
-    () =>
-      query.data?.filter((a) => {
-        const q = search.toLowerCase();
-        return (
-          (region === 'all' || a.countryCode === region) &&
-          (!q ||
-            `${a.iataCode} ${a.icaoCode ?? ''} ${a.name} ${a.cityCode}`.toLowerCase().includes(q))
-        );
-      }) ?? [],
-    [query.data, search, region],
-  );
+  const airports = useMemo(() => {
+    const regionAirports =
+      query.data?.filter((airport) => region === 'all' || airport.countryCode === region) ?? [];
+    const airportsById = new Map(regionAirports.map((airport) => [airport.id, airport]));
+
+    return filterSelectOptions(airportSelectOptions(regionAirports), search).flatMap((option) => {
+      const airport = airportsById.get(option.value);
+      return airport ? [airport] : [];
+    });
+  }, [query.data, search, region]);
   return (
     <div className='page airports-page'>
       <PageHeader
@@ -78,7 +78,7 @@ export function AirportsPage() {
       </div>
       {query.data && airports.length === 0 && (
         <Card className='empty-state'>
-          <Map />
+          <MapIcon />
           <h3>No airports match</h3>
           <p>Try a code, city, or another country.</p>
         </Card>

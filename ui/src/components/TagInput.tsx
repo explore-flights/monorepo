@@ -30,7 +30,7 @@ export function TagInput({ label, values, onChange, placeholder, disabled }: Tag
         layout='stacked'
         tokens={values.map((value) => ({ key: value, label: value }))}
         inputValue={draft}
-        onInputValueChange={setDraft}
+        onInputValueChange={(value) => setDraft(value.toUpperCase())}
         onRemove={(value) => onChange(values.filter((item) => item !== value))}
         inputProps={{
           'aria-label': label,

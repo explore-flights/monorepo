@@ -183,6 +183,8 @@ func (ch *ConnectionsHandler) ConnectionsShareHTML(c echo.Context) error {
 		),
 	}
 
+	noIndexFollow(c)
+
 	var buf bytes.Buffer
 	if err = tmpl.Execute(&buf, data); err != nil {
 		return err

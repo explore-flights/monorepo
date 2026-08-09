@@ -171,7 +171,7 @@ export function PrivacyPolicyPage() {
       <PageHeader
         eyebrow='Privacy'
         title='Privacy Policy'
-        description='Last updated: 15 March 2025'
+        description='Last updated: 11 Aug 2026'
       />
       <ProseSection title='Human version'>
         <ul>

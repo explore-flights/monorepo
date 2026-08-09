@@ -1,4 +1,48 @@
 /* History */
+.history-page-actions,
+.history-feed-links {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.history-page-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.history-feed-links a {
+  display: inline-flex;
+  min-height: var(--control-height-sm);
+  align-items: center;
+  gap: var(--space-1-25);
+  padding: var(--space-1-25) var(--space-2);
+  color: var(--text-2);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+}
+.history-feed-links a:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.history-feed-links-compact {
+  gap: var(--space-2);
+  padding-left: var(--space-2);
+  border-left: var(--border-width) solid var(--border);
+}
+.history-feed-links-compact a {
+  min-height: 0;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.history-feed-links-compact a:hover {
+  color: var(--primary);
+  border-color: transparent;
+}
 .history-timeline {
   max-width: var(--content-medium);
   margin: var(--space-6) auto 0;

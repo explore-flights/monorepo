@@ -1,8 +1,25 @@
-import { ArrowRight, GitBranch, Globe2, History, Network, PlaneTakeoff, Route } from 'lucide-react';
-import { FormEvent, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  ArrowRight,
+  CalendarDays,
+  GitBranch,
+  Globe2,
+  History,
+  Network,
+  PlaneTakeoff,
+  Search,
+} from 'lucide-react';
+import { FormEvent, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { api } from '@/api/client';
+import type { ConnectionsSearchRequest } from '@/api/types';
 import { FlightAutocomplete } from '@/components/FlightAutocomplete';
-import { Badge, Card } from '@/components/primitives';
+import { MultiCombobox, type SelectOption } from '@/components/MultiCombobox';
+import { Badge, Button, Card, ErrorState } from '@/components/primitives';
+import { airportSelectOptions } from '@/components/selectOptions';
+import { SimpleSelect } from '@/components/SimpleSelect';
+import { TemporalInput } from '@/components/TemporalInput';
+import { connectionSearchDefaults } from '@/features/connections/defaults';
 import { normalizeFlightNumber } from '@/lib/format';
 
 const fleet = [
@@ -30,7 +47,6 @@ export function HomePage() {
     <div className='page home-page'>
       <section className='home-hero'>
         <div className='hero-copy'>
-          <Badge tone='blue'>Schedule intelligence</Badge>
           <h1>
             The world’s flight schedules, made <em>explorable.</em>
           </h1>
@@ -81,20 +97,24 @@ export function HomePage() {
           </div>
         </Card>
       </section>
-      <section className='feature-grid'>
-        <Link to='/connections' className='feature-card'>
-          <span className='feature-icon blue'>
-            <Route />
-          </span>
+      <section id='connection-search' className='home-section home-connections-section'>
+        <div className='section-heading home-connections-heading'>
           <div>
-            <h2>Connection finder</h2>
+            <span className='eyebrow'>Connection finder</span>
+            <h2>Where do you want to go?</h2>
             <p>
-              Build multi-stop journeys and compare them as itineraries, a network graph or on a
-              map.
+              Choose your route and departure window. We’ll open the full connection finder with
+              your search ready.
             </p>
           </div>
-          <ArrowRight />
-        </Link>
+          <Badge tone='blue'>
+            <Network size={13} />
+            Network search
+          </Badge>
+        </div>
+        <HomeConnectionsSearch />
+      </section>
+      <section className='feature-grid home-feature-grid'>
         <Link to='/updates' className='feature-card'>
           <span className='feature-icon green'>
             <History />
@@ -142,4 +162,159 @@ export function HomePage() {
       </section>
     </div>
   );
+}
+
+function HomeConnectionsSearch() {
+  const airportsQuery = useQuery({ queryKey: ['airports'], queryFn: api.airports });
+  const [origins, setOrigins] = useState<string[]>([]);
+  const [destinations, setDestinations] = useState<string[]>([]);
+  const [start, setStart] = useState(() => localDayBoundary(false));
+  const [end, setEnd] = useState(() => localDayBoundary(true));
+  const [maxFlights, setMaxFlights] = useState<number>(connectionSearchDefaults.maxFlights);
+  const airportOptions = useMemo<SelectOption[]>(
+    () => airportSelectOptions(airportsQuery.data ?? []),
+    [airportsQuery.data],
+  );
+  const shareMutation = useMutation({
+    mutationFn: (request: ConnectionsSearchRequest) => api.shareConnections(request),
+    onSuccess: (shared) => window.location.assign(shared.htmlUrl),
+  });
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!origins.length || !destinations.length || !start || !end) {
+      return;
+    }
+    shareMutation.mutate({
+      ...connectionSearchDefaults,
+      origins,
+      destinations,
+      minDeparture: new Date(start).toISOString(),
+      maxDeparture: new Date(end).toISOString(),
+      maxFlights,
+    });
+  }
+
+  return (
+    <>
+      <Card className='search-card home-connections-card'>
+        <form onSubmit={submit}>
+          <div className='route-fields'>
+            <HomeAirportField
+              label='From'
+              values={origins}
+              onChange={setOrigins}
+              options={airportOptions}
+              destination={false}
+            />
+            <div className='route-arrow'>
+              <ArrowRight size={18} />
+            </div>
+            <HomeAirportField
+              label='To'
+              values={destinations}
+              onChange={setDestinations}
+              options={airportOptions}
+              destination
+            />
+          </div>
+          <div className='search-grid'>
+            <label>
+              <span>
+                <CalendarDays size={15} />
+                Depart after
+              </span>
+              <TemporalInput
+                type='datetime-local'
+                value={start}
+                onChange={(event) => setStart(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>
+                <CalendarDays size={15} />
+                Depart before
+              </span>
+              <TemporalInput
+                type='datetime-local'
+                value={end}
+                onChange={(event) => setEnd(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>
+                <GitBranch size={15} />
+                Maximum flights
+              </span>
+              <SimpleSelect
+                value={maxFlights}
+                onChange={(event) => setMaxFlights(Number(event.target.value))}
+              >
+                {[1, 2, 3, 4].map((value) => (
+                  <option key={value} value={value}>
+                    {value} flight{value > 1 ? 's' : ''}
+                  </option>
+                ))}
+              </SimpleSelect>
+            </label>
+            <Button
+              type='submit'
+              disabled={
+                !origins.length || !destinations.length || !start || !end || shareMutation.isPending
+              }
+            >
+              <Search size={17} />
+              {shareMutation.isPending ? 'Opening search…' : 'Search connections'}
+            </Button>
+          </div>
+        </form>
+      </Card>
+      {shareMutation.error && (
+        <ErrorState error={shareMutation.error} title='Could not open the connection search' />
+      )}
+    </>
+  );
+}
+
+function HomeAirportField({
+  label,
+  values,
+  onChange,
+  options,
+  destination,
+}: {
+  label: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  options: SelectOption[];
+  destination: boolean;
+}) {
+  return (
+    <div className='airport-field'>
+      <span>
+        <span className={`route-dot${destination ? ' destination' : ''}`} />
+        {label}
+      </span>
+      <MultiCombobox
+        label={label}
+        values={values}
+        options={options}
+        onChange={onChange}
+        placeholder='Select one or more airports'
+        uppercase
+      />
+    </div>
+  );
+}
+
+function localDayBoundary(end: boolean) {
+  const now = new Date();
+  const date = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    end ? 23 : 0,
+    end ? 59 : 0,
+  );
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }

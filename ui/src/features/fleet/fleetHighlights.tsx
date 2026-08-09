@@ -2,7 +2,7 @@ import type { FlightScheduleVariant, QuerySchedulesResponse } from '@/api/types'
 
 export type FleetHighlight = 'none' | 'aircraft' | 'configuration' | 'both';
 
-export const fleetHighlightOptions: ReadonlyArray<readonly [FleetHighlight, string]> = [
+const fleetHighlightOptions: ReadonlyArray<readonly [FleetHighlight, string]> = [
   ['none', 'No grouping'],
   ['aircraft', 'Aircraft'],
   ['configuration', 'Configuration'],

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 export type PickerStatus = 'minimum-query' | 'loading' | 'error' | 'empty' | 'ready';
 
-export interface PickerRenderState {
+interface PickerRenderState {
   active: boolean;
   selected: boolean;
 }

@@ -16,10 +16,12 @@ import { TemporalInput } from '@/components/TemporalInput';
 import { ScheduleResults } from '@/features/schedules/ScheduleResults';
 
 interface AircraftRule {
+  id: string;
   aircraftId: string;
   configuration: string;
 }
 interface RouteRule {
+  id: string;
   from: string;
   to: string;
 }
@@ -33,11 +35,9 @@ export function FlightSearchPage() {
   const [arrivals, setArrivals] = useState<string[]>([]);
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
-  const [aircraftRules, setAircraftRules] = useState<AircraftRule[]>([
-    { aircraftId: '', configuration: '' },
-  ]);
+  const [aircraftRules, setAircraftRules] = useState<AircraftRule[]>(() => [createAircraftRule()]);
   const [configurationVersions, setConfigurationVersions] = useState<string[]>([]);
-  const [routes, setRoutes] = useState<RouteRule[]>([{ from: '', to: '' }]);
+  const [routes, setRoutes] = useState<RouteRule[]>(() => [createRouteRule()]);
   const search = useMutation({ mutationFn: api.querySchedules });
   const airportOptions = useMemo<SelectOption[]>(
     () => airportSelectOptions(airportsQuery.data ?? []),
@@ -109,6 +109,7 @@ export function FlightSearchPage() {
                     options={airlineOptions}
                     onChange={setAirlines}
                     placeholder='All airlines'
+                    uppercase
                   />
                 </div>
                 <label>
@@ -145,6 +146,7 @@ export function FlightSearchPage() {
                     options={airportOptions}
                     onChange={setDepartures}
                     placeholder='Any departure'
+                    uppercase
                   />
                 </div>
                 <div className='query-field'>
@@ -155,6 +157,7 @@ export function FlightSearchPage() {
                     options={airportOptions}
                     onChange={setArrivals}
                     placeholder='Any arrival'
+                    uppercase
                   />
                 </div>
               </div>
@@ -164,14 +167,14 @@ export function FlightSearchPage() {
                   <Button
                     variant='ghost'
                     type='button'
-                    onClick={() => setRoutes([...routes, { from: '', to: '' }])}
+                    onClick={() => setRoutes([...routes, createRouteRule()])}
                   >
                     <Plus size={14} />
                     Add route
                   </Button>
                 </div>
                 {routes.map((route, index) => (
-                  <div className='rule-row route-rule' key={index}>
+                  <div className='rule-row route-rule' key={route.id}>
                     <SimpleSelect
                       aria-label={`Route ${index + 1} departure`}
                       value={route.from}
@@ -229,16 +232,14 @@ export function FlightSearchPage() {
                   <Button
                     variant='ghost'
                     type='button'
-                    onClick={() =>
-                      setAircraftRules([...aircraftRules, { aircraftId: '', configuration: '' }])
-                    }
+                    onClick={() => setAircraftRules([...aircraftRules, createAircraftRule()])}
                   >
                     <Plus size={14} />
                     Add aircraft
                   </Button>
                 </div>
                 {aircraftRules.map((rule, index) => (
-                  <div className='rule-row' key={index}>
+                  <div className='rule-row' key={rule.id}>
                     <SimpleSelect
                       aria-label={`Aircraft rule ${index + 1}`}
                       value={rule.aircraftId}
@@ -325,6 +326,15 @@ export function FlightSearchPage() {
 function replaceAt<T>(values: T[], index: number, value: T) {
   return values.map((item, itemIndex) => (itemIndex === index ? value : item));
 }
+
+function createAircraftRule(): AircraftRule {
+  return { id: crypto.randomUUID(), aircraftId: '', configuration: '' };
+}
+
+function createRouteRule(): RouteRule {
+  return { id: crypto.randomUUID(), from: '', to: '' };
+}
+
 function buildRequest(value: {
   airlines: string[];
   departures: string[];

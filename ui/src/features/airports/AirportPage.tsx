@@ -10,7 +10,7 @@ import {
   MapPin,
   PlaneTakeoff,
 } from 'lucide-react';
-import { Link, NavLink, Outlet, useOutletContext, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api } from '@/api/client';
 import type { Airport } from '@/api/types';
 import { FlightMap } from '@/components/FlightMap';
@@ -23,7 +23,10 @@ import {
   PageHeader,
   Stat,
 } from '@/components/primitives';
-import { classNames } from '@/lib/format';
+import { useHashView } from '@/lib/useHashView';
+
+const airportViews = ['overview', 'routes', 'map'] as const;
+type AirportView = (typeof airportViews)[number];
 
 type Context = {
   airport: Airport;
@@ -32,6 +35,7 @@ type Context = {
   error: Error | null;
 };
 export function AirportLayout() {
+  const { view, hrefFor } = useHashView<AirportView>('overview', airportViews);
   const { airportId = '' } = useParams();
   const airports = useQuery({ queryKey: ['airports'], queryFn: api.airports });
   const airport = airports.data?.find(
@@ -97,30 +101,58 @@ export function AirportLayout() {
           </Badge>
         }
       />
-      <nav className='subnav'>
-        <NavLink end to='.' className={({ isActive }) => classNames(isActive && 'active')}>
+      <nav className='subnav' aria-label='Airport view'>
+        <Link
+          to={hrefFor('overview')}
+          className={view === 'overview' ? 'active' : ''}
+          aria-current={view === 'overview' ? 'page' : undefined}
+        >
           <Compass size={16} />
           Overview
-        </NavLink>
-        <NavLink to='routes' className={({ isActive }) => classNames(isActive && 'active')}>
+        </Link>
+        <Link
+          id='routes'
+          to={hrefFor('routes')}
+          className={view === 'routes' ? 'active' : ''}
+          aria-current={view === 'routes' ? 'page' : undefined}
+        >
           <List size={16} />
           Routes
-        </NavLink>
-        <NavLink to='map' className={({ isActive }) => classNames(isActive && 'active')}>
+        </Link>
+        <Link
+          id='map'
+          to={hrefFor('map')}
+          className={view === 'map' ? 'active' : ''}
+          aria-current={view === 'map' ? 'page' : undefined}
+        >
           <MapIcon size={16} />
           Map
-        </NavLink>
+        </Link>
       </nav>
-      <Outlet
-        context={
-          {
-            airport,
-            destinations: destinations.data ?? [],
-            loading: destinations.isLoading,
-            error: destinations.error,
-          } satisfies Context
-        }
-      />
+      {view === 'overview' && (
+        <AirportOverview
+          airport={airport}
+          destinations={destinations.data ?? []}
+          loading={destinations.isLoading}
+          error={destinations.error}
+        />
+      )}
+      {view === 'routes' && (
+        <AirportRoutes
+          airport={airport}
+          destinations={destinations.data ?? []}
+          loading={destinations.isLoading}
+          error={destinations.error}
+        />
+      )}
+      {view === 'map' && (
+        <AirportMapPage
+          airport={airport}
+          destinations={destinations.data ?? []}
+          loading={destinations.isLoading}
+          error={destinations.error}
+        />
+      )}
     </div>
   );
 }
@@ -132,11 +164,7 @@ function loadDestinations(airport: Airport | undefined) {
 
   return api.destinations(airport.id);
 }
-function useAirport() {
-  return useOutletContext<Context>();
-}
-export function AirportOverview() {
-  const { airport, destinations, loading, error } = useAirport();
+function AirportOverview({ airport, destinations, loading, error }: Context) {
   const countries = new Set(destinations.map((a) => a.countryCode));
   return (
     <>
@@ -199,7 +227,7 @@ export function AirportOverview() {
               <h2>Destinations</h2>
               <p>First published direct links</p>
             </div>
-            <Link to='routes'>
+            <Link to='#routes'>
               View all <ArrowRight size={15} />
             </Link>
           </div>
@@ -220,8 +248,7 @@ export function AirportOverview() {
     </>
   );
 }
-export function AirportRoutes() {
-  const { airport, destinations, loading, error } = useAirport();
+function AirportRoutes({ airport, destinations, loading, error }: Context) {
   if (loading) {
     return <Loading label='Loading routes…' />;
   }
@@ -284,8 +311,7 @@ export function AirportRoutes() {
     </section>
   );
 }
-export function AirportMapPage() {
-  const { airport, destinations, loading, error } = useAirport();
+function AirportMapPage({ airport, destinations, loading, error }: Context) {
   if (loading) {
     return <Loading label='Building route map…' />;
   }

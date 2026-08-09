@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"iter"
+	"sort"
 	"time"
 
 	"github.com/explore-flights/monorepo/go/api/db"
@@ -18,6 +19,7 @@ type xmlSitemapUrl struct {
 
 type sitemapHandlerRepo interface {
 	Airlines(ctx context.Context) (map[string]db.Airline, error)
+	Airports(ctx context.Context) (map[string]db.Airport, error)
 	IterFlightNumbers(ctx context.Context, airlineIataCode string, err *error) iter.Seq2[db.FlightNumber, time.Time]
 }
 
@@ -64,7 +66,16 @@ func (sh *SitemapHandler) SitemapIndex(c echo.Context) error {
 		return err
 	}
 
+	if err = sh.addSitemapURL(enc, "sitemap", sh.buildAirportSitemapURL(baseURL), time.Time{}); err != nil {
+		return err
+	}
+
+	ids := make([]string, 0, len(airlines))
 	for id := range airlines {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
 		if err = sh.addSitemapURL(enc, "sitemap", sh.buildSitemapURL(baseURL, id), time.Time{}); err != nil {
 			return err
 		}
@@ -76,6 +87,43 @@ func (sh *SitemapHandler) SitemapIndex(c echo.Context) error {
 			Space: "http://www.sitemaps.org/schemas/sitemap/0.9",
 		},
 	})
+}
+
+func (sh *SitemapHandler) SitemapAirports(c echo.Context) error {
+	const ttl = time.Hour * 3
+	ctx := c.Request().Context()
+	airports, err := sh.repo.Airports(ctx)
+	if err != nil {
+		return err
+	}
+
+	baseURL := baseUrl(c)
+	res := c.Response()
+	res.Header().Set(echo.HeaderContentType, echo.MIMEApplicationXMLCharsetUTF8)
+	addExpirationHeaders(c, time.Now(), ttl)
+
+	if _, err = res.Write([]byte(xml.Header)); err != nil {
+		return err
+	}
+
+	enc := xml.NewEncoder(res)
+	defer enc.Close()
+	if err = enc.EncodeToken(sitemapStartElement("urlset")); err != nil {
+		return err
+	}
+
+	ids := make([]string, 0, len(airports))
+	for id := range airports {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if err = sh.addSitemapURL(enc, "url", sh.buildAirportURL(baseURL, id), time.Time{}); err != nil {
+			return err
+		}
+	}
+
+	return enc.EncodeToken(xml.EndElement{Name: sitemapStartElement("urlset").Name})
 }
 
 func (sh *SitemapHandler) SitemapAirline(c echo.Context) error {
@@ -129,6 +177,14 @@ func (sh *SitemapHandler) buildSitemapURL(baseURL string, airlineIataCode string
 	return fmt.Sprintf("%s/data/sitemap/%s/sitemap.xml", baseURL, airlineIataCode)
 }
 
+func (sh *SitemapHandler) buildAirportSitemapURL(baseURL string) string {
+	return fmt.Sprintf("%s/data/sitemap/airports/sitemap.xml", baseURL)
+}
+
+func (sh *SitemapHandler) buildAirportURL(baseURL string, airportIataCode string) string {
+	return fmt.Sprintf("%s/airport/%s", baseURL, airportIataCode)
+}
+
 func (sh *SitemapHandler) buildFlightURL(baseURL string, fn db.FlightNumber) string {
 	return fmt.Sprintf("%s/flight/%s", baseURL, fn.String())
 }
@@ -150,4 +206,13 @@ func (sh *SitemapHandler) addSitemapURL(enc *xml.Encoder, name, loc string, modi
 			},
 		},
 	)
+}
+
+func sitemapStartElement(name string) xml.StartElement {
+	return xml.StartElement{
+		Name: xml.Name{
+			Local: name,
+			Space: "http://www.sitemaps.org/schemas/sitemap/0.9",
+		},
+	}
 }

@@ -1,52 +1,60 @@
-import { useCallback, useEffect, useId, useState, type KeyboardEvent } from 'react';
+import { useCallback, useId, useState, type KeyboardEvent } from 'react';
 import type { PickerStatus } from './types';
 
 interface PickerSessionOptions<Item> {
   items: readonly Item[];
-  query?: string;
-  defaultQuery?: string;
-  onQueryChange?: (query: string) => void;
+  query: string;
+  onQueryChange: (query: string) => void;
   minimumQueryLength?: number;
   pending?: boolean;
   error?: boolean;
 }
 
+interface PickerActiveState<Item> {
+  items: readonly Item[];
+  pending: boolean;
+  index: number;
+}
+
 export function usePickerSession<Item>({
   items,
-  query: controlledQuery,
-  defaultQuery = '',
+  query,
   onQueryChange,
   minimumQueryLength = 0,
   pending = false,
   error = false,
 }: PickerSessionOptions<Item>) {
-  const [internalQuery, setInternalQuery] = useState(defaultQuery);
   const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
+  const [activeState, setActiveState] = useState<PickerActiveState<Item>>(() => ({
+    items,
+    pending,
+    index: -1,
+  }));
+  const activeIndex =
+    activeState.items === items && activeState.pending === pending ? activeState.index : -1;
   const listboxId = useId();
-  const query = controlledQuery ?? internalQuery;
   const queryReady = query.trim().length >= minimumQueryLength;
   const activeItem = items[activeIndex];
   const status = getPickerStatus(queryReady, pending, error, items.length);
 
-  useEffect(() => setActiveIndex(-1), [items, pending]);
+  const setActiveIndex = useCallback(
+    (index: number) => setActiveState({ items, pending, index }),
+    [items, pending],
+  );
 
   const setQuery = useCallback(
     (nextQuery: string) => {
-      if (controlledQuery === undefined) {
-        setInternalQuery(nextQuery);
-      }
-      onQueryChange?.(nextQuery);
+      onQueryChange(nextQuery);
       setActiveIndex(-1);
     },
-    [controlledQuery, onQueryChange],
+    [onQueryChange, setActiveIndex],
   );
 
   const openPicker = useCallback(() => setOpen(true), []);
   const closePicker = useCallback(() => {
     setOpen(false);
     setActiveIndex(-1);
-  }, []);
+  }, [setActiveIndex]);
 
   function onInputKeyDown(
     event: KeyboardEvent<HTMLInputElement>,

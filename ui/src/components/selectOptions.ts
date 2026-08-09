@@ -7,7 +7,9 @@ export function airportSelectOptions(airports: readonly Airport[]): SelectOption
       value: airport.id,
       label: airport.iataCode,
       description: airport.name,
-      keywords: [airport.icaoCode, airport.cityCode, airport.countryCode].filter(Boolean).join(' '),
+      keywords: [airport.icaoCode, airport.cityCode, airport.iataAreaCode, airport.countryCode]
+        .filter(Boolean)
+        .join(' '),
     })),
   );
 }

@@ -1,5 +1,5 @@
 import { Search as SearchIcon } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { classNames } from '@/lib/format';
 import { DesktopDropdown } from './DesktopDropdown';
 import { MobilePickerDialog } from './MobilePickerDialog';
@@ -18,6 +18,7 @@ interface MultiChoicePickerProps<Item> extends PickerItemProps<Item> {
   onCommit: (values: string[]) => void;
   getItemLabel: (key: string) => string;
   filterItems?: (items: readonly Item[], query: string) => readonly Item[];
+  transformInput?: (value: string) => string;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
@@ -33,6 +34,7 @@ export function MultiChoicePicker<Item>({
   getItemLabel,
   renderItem,
   filterItems,
+  transformInput,
   placeholder = 'Select…',
   disabled,
   className,
@@ -51,14 +53,6 @@ export function MultiChoicePicker<Item>({
   const selectedKeys = useMemo(() => new Set(draftValues), [draftValues]);
   const activeOptionId =
     session.activeIndex >= 0 ? `${session.listboxId}-option-${session.activeIndex}` : undefined;
-
-  useEffect(() => {
-    if (!session.open) {
-      const next = [...values];
-      draftRef.current = next;
-      setDraftValues(next);
-    }
-  }, [session.open, values]);
 
   function replaceDraft(nextValues: string[]) {
     draftRef.current = nextValues;
@@ -179,7 +173,7 @@ export function MultiChoicePicker<Item>({
               tokens={tokens(draftValues)}
               maxVisible={3}
               inputValue={query}
-              onInputValueChange={session.setQuery}
+              onInputValueChange={(value) => session.setQuery(transformInput?.(value) ?? value)}
               onRemove={toggleDraft}
               inputRef={mobileInputRef}
               inputProps={{
@@ -217,7 +211,7 @@ export function MultiChoicePicker<Item>({
       <div
         className={styles.control}
         onPointerDown={(event) => {
-          if (!(event.target as HTMLElement).closest('button')) {
+          if (!(event.target instanceof Element && event.target.closest('button'))) {
             beginSession();
             desktopInputRef.current?.focus();
           }
@@ -229,7 +223,7 @@ export function MultiChoicePicker<Item>({
           maxVisible={3}
           inputValue={query}
           onInputValueChange={(value) => {
-            session.setQuery(value);
+            session.setQuery(transformInput?.(value) ?? value);
             session.openPicker();
           }}
           onRemove={(value) => (session.open ? toggleDraft(value) : removeCommitted(value))}

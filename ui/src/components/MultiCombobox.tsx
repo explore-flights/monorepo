@@ -11,6 +11,7 @@ interface MultiComboboxProps {
   options: readonly SelectOption[];
   onChange: (values: string[]) => void;
   placeholder?: string;
+  uppercase?: boolean;
   disabled?: boolean;
   className?: string;
 }
@@ -21,6 +22,7 @@ export function MultiCombobox({
   options,
   onChange,
   placeholder,
+  uppercase,
   disabled,
   className,
 }: MultiComboboxProps) {
@@ -48,11 +50,16 @@ export function MultiCombobox({
           </span>
         </span>
       )}
+      transformInput={uppercase ? toUpperCase : undefined}
       placeholder={placeholder}
       disabled={disabled}
       className={className}
     />
   );
+}
+
+function toUpperCase(value: string) {
+  return value.toUpperCase();
 }
 
 export type { SelectOption } from './picker/types';

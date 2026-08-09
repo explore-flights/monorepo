@@ -1,6 +1,8 @@
 import { ChevronRight, X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ChangeEventHandler, ReactNode } from 'react';
+import { weekdayLabels } from '@/lib/date';
 import { Button } from './primitives';
+import { SimpleSelect } from './SimpleSelect';
 
 export interface ActiveFilter {
   key: string;
@@ -53,6 +55,25 @@ export function ActiveFilterRow({ filters }: { filters: readonly ActiveFilter[] 
         </button>
       ))}
     </div>
+  );
+}
+
+export function WeekdaySelect({
+  value,
+  onChange,
+}: {
+  value: string | number;
+  onChange: ChangeEventHandler<HTMLSelectElement>;
+}) {
+  return (
+    <SimpleSelect value={value} onChange={onChange}>
+      <option value=''>All weekdays</option>
+      {weekdayLabels.map((label, index) => (
+        <option key={label} value={index}>
+          {label}
+        </option>
+      ))}
+    </SimpleSelect>
   );
 }
 
