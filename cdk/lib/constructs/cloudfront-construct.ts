@@ -23,7 +23,7 @@ import {
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
 import { Duration, Stack } from 'aws-cdk-lib';
-import { IFunction, IFunctionUrl } from 'aws-cdk-lib/aws-lambda';
+import { IFunctionUrl } from 'aws-cdk-lib/aws-lambda';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { CloudfrontUtil } from '../util/util';
 import { FunctionUrlOriginWithOAC } from './function-url-origin-with-oac';
@@ -32,7 +32,6 @@ export interface CloudfrontConstructProps {
   domain: string;
   certificateId: string;
   uiResourcesBucket: IBucket;
-  apiLambda: IFunction;
   apiLambdaFunctionURL: IFunctionUrl;
 }
 
@@ -189,7 +188,7 @@ export class CloudfrontConstruct extends Construct {
     });
 
     CloudfrontUtil.addCloudfrontOACToBucketResourcePolicy(props.uiResourcesBucket, this.distribution, '', true);
-    CloudfrontUtil.addCloudfrontOACToLambdaResourcePolicy(id, props.apiLambda, this.distribution);
+    CloudfrontUtil.addCloudfrontOACToLambdaResourcePolicy(props.apiLambdaFunctionURL, this.distribution);
   }
 }
 

@@ -54,7 +54,6 @@ export class WebsiteStack extends cdk.Stack {
       domain: props.domain,
       certificateId: props.certificateId,
       uiResourcesBucket: uiResources.bucket,
-      apiLambda: api.lambda,
       apiLambdaFunctionURL: api.functionURL,
     });
 
