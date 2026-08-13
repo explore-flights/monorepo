@@ -45,7 +45,7 @@ import { compareFlightVariants, type FieldChange } from './flightChanges';
 import { type JourneyDay, type SchedulePeriod } from './schedulePeriods';
 
 export type ScheduleStatus = 'scheduled' | 'cancelled' | 'all';
-export type ScheduleView = 'periods' | 'calendar' | 'dates' | 'changes';
+export type ScheduleView = 'periods' | 'calendar' | 'dates' | 'map' | 'changes';
 const scheduleWeekdayOrder: readonly number[] = [1, 2, 3, 4, 5, 6, 0];
 
 export interface FacetFilters {
@@ -1570,6 +1570,8 @@ export function scheduleViewDescription(
       const legCount = days.reduce((total, day) => total + day.legs.length, 0);
       return `${days.length} dates · ${legCount} leg${legCount === 1 ? '' : 's'}`;
     }
+    case 'map':
+      return 'Route map for the filtered schedule';
     case 'changes':
       return `${changePeriodCount} grouped revision event${changePeriodCount === 1 ? '' : 's'}`;
   }

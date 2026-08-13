@@ -9,6 +9,27 @@ import { ScheduleResults } from '@/features/schedules/ScheduleResults';
 import { discoverYearlyData, loadYearlyData, type YearSelection } from '@/lib/yearlyData';
 import { useCurrentDate } from '@/lib/useCurrentDate';
 
+type AircraftAsset =
+  | 'aircraft-a350-900'
+  | 'aircraft-787-dreamliner'
+  | 'aircraft-a380'
+  | 'aircraft-a340-300'
+  | 'aircraft-a340-600'
+  | 'aircraft-747-400'
+  | 'aircraft-747-8';
+
+type AircraftArtwork = {
+  src: string;
+  symbolId: string;
+};
+
+function aircraftArtwork(asset: AircraftAsset): AircraftArtwork {
+  return {
+    src: `/assets/${asset}.svg`,
+    symbolId: `${asset}-artwork`,
+  };
+}
+
 const fleetConfig: Record<
   string,
   {
@@ -17,7 +38,7 @@ const fleetConfig: Record<
     short: string;
     description: string;
     accent: string;
-    artwork: string[];
+    artwork: AircraftArtwork[];
   }
 > = {
   allegris: {
@@ -26,7 +47,7 @@ const fleetConfig: Record<
     short: 'Allegris',
     description: 'Follow flights scheduled with Lufthansa’s newest long-haul cabin generation.',
     accent: '#4f7cff',
-    artwork: ['/assets/aircraft-a350-900.svg', '/assets/aircraft-787-dreamliner.svg'],
+    artwork: [aircraftArtwork('aircraft-a350-900'), aircraftArtwork('aircraft-787-dreamliner')],
   },
   swiss350: {
     identifier: 'swiss350',
@@ -34,7 +55,7 @@ const fleetConfig: Record<
     short: 'SWISS A350',
     description: 'Track the planned network for the newest aircraft in the SWISS long-haul fleet.',
     accent: '#e84749',
-    artwork: ['/assets/aircraft-a350-900.svg'],
+    artwork: [aircraftArtwork('aircraft-a350-900')],
   },
   lh380: {
     identifier: 'lh380',
@@ -42,7 +63,7 @@ const fleetConfig: Record<
     short: 'LH A380',
     description: 'See where Lufthansa plans to deploy its returning superjumbo fleet.',
     accent: '#7357df',
-    artwork: ['/assets/aircraft-a380.svg'],
+    artwork: [aircraftArtwork('aircraft-a380')],
   },
   lh340: {
     identifier: 'lh340',
@@ -51,7 +72,7 @@ const fleetConfig: Record<
     description:
       'Explore the remaining published operation of Lufthansa’s four-engine Airbus fleet.',
     accent: '#e8892f',
-    artwork: ['/assets/aircraft-a340-300.svg', '/assets/aircraft-a340-600.svg'],
+    artwork: [aircraftArtwork('aircraft-a340-300'), aircraftArtwork('aircraft-a340-600')],
   },
   lh747: {
     identifier: 'lh747',
@@ -59,7 +80,7 @@ const fleetConfig: Record<
     short: 'LH 747',
     description: 'Follow scheduled passenger flights on Lufthansa’s iconic Queen of the Skies.',
     accent: '#16a074',
-    artwork: ['/assets/aircraft-747-400.svg', '/assets/aircraft-747-8.svg'],
+    artwork: [aircraftArtwork('aircraft-747-400'), aircraftArtwork('aircraft-747-8')],
   },
 };
 
@@ -118,6 +139,8 @@ function FleetPageForId({ fleetId }: { fleetId: string }) {
     );
   }
 
+  const artworkLayout = config.artwork.length > 1 ? 'stacked' : 'single';
+
   const data = query.data?.data;
   const year = query.data?.year ?? selectedYear;
   const pageStyle: CSSProperties & { '--fleet-accent': string } = {
@@ -132,9 +155,9 @@ function FleetPageForId({ fleetId }: { fleetId: string }) {
         <span>{config.short}</span>
       </div>
       <div className='fleet-hero'>
-        <div className='fleet-plane'>
-          {config.artwork.map((src) => (
-            <img key={src} src={src} alt='' />
+        <div className='fleet-plane' data-layout={artworkLayout}>
+          {config.artwork.map((artwork) => (
+            <AircraftArtwork key={artwork.src} artwork={artwork} />
           ))}
         </div>
         <div>
@@ -190,6 +213,14 @@ function FleetPageForId({ fleetId }: { fleetId: string }) {
         />
       )}
     </div>
+  );
+}
+
+function AircraftArtwork({ artwork }: { artwork: AircraftArtwork }) {
+  return (
+    <svg className='fleet-plane-artwork' aria-hidden='true' focusable='false'>
+      <use href={`${artwork.src}#${artwork.symbolId}`} width='100%' height='100%' />
+    </svg>
   );
 }
 

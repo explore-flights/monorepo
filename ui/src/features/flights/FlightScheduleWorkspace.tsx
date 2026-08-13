@@ -2,6 +2,7 @@ import {
   CalendarDays,
   GitCompareArrows,
   List,
+  Map as MapIcon,
   Plane,
   RotateCcw,
   Search,
@@ -10,7 +11,8 @@ import {
 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { FlightSchedules } from '@/api/types';
+import type { FlightScheduleItem, FlightSchedules } from '@/api/types';
+import { FlightMap } from '@/components/FlightMap';
 import { Button, Card, EmptyState } from '@/components/primitives';
 import { ActiveFilterRow, ScheduleInsight, WeekdaySelect } from '@/components/ScheduleControls';
 import { ScheduleScopeTabs } from '@/components/ScheduleScopeTabs';
@@ -61,6 +63,7 @@ const scheduleViews = [
   'periods',
   'calendar',
   'dates',
+  'map',
   'changes',
 ] as const satisfies readonly ScheduleView[];
 
@@ -179,6 +182,7 @@ export function FlightScheduleWorkspace({
   );
   const periods = useMemo(() => groupSchedulePeriods(filteredDays, data), [filteredDays, data]);
   const changePeriods = useMemo(() => groupChangePeriods(changedDays, data), [changedDays, data]);
+  const mapRoutes = useMemo(() => routesForMap(filteredItems, data), [filteredItems, data]);
   const multiLeg = allDays.some((day) => day.legs.length > 1);
   const routeOptions = useMemo(
     () => countBy(scopeItems, (item) => routeKey(item, data)),
@@ -494,6 +498,7 @@ export function FlightScheduleWorkspace({
               ['periods', 'Periods', List],
               ['calendar', 'Calendar', CalendarDays],
               ['dates', 'Dates', Table2],
+              ['map', 'Map', MapIcon],
               ['changes', 'Changes', GitCompareArrows],
             ] as const
           ).map(([key, label, Icon]) => (
@@ -511,8 +516,10 @@ export function FlightScheduleWorkspace({
             </Link>
           ))}
         </div>
-        <p className={view === 'dates' ? 'workspace-view-summary' : undefined}>
-          {scheduleViewDescription(view, periods, changePeriods.length, filteredDays)}
+        <p className={view === 'dates' || view === 'map' ? 'workspace-view-summary' : undefined}>
+          {view === 'map'
+            ? `${filteredItems.length} ${filteredItems.length === 1 ? 'flight' : 'flights'} · ${mapRoutes.length} ${mapRoutes.length === 1 ? 'route' : 'routes'}`
+            : scheduleViewDescription(view, periods, changePeriods.length, filteredDays)}
         </p>
       </div>
 
@@ -535,15 +542,25 @@ export function FlightScheduleWorkspace({
           onInspect={(date) => inspectRange(date, date)}
         />
       )}
+      {view === 'map' &&
+        (mapRoutes.length > 0 ? (
+          <FlightMap routes={mapRoutes} height={560} />
+        ) : (
+          <EmptyState
+            title='No matching flights to map'
+            description='No flights matching the current filters include a route that can be mapped.'
+          />
+        ))}
       {filteredItems.length === 0 &&
         view !== 'calendar' &&
+        view !== 'map' &&
         (view !== 'dates' || filteredOutDays.length === 0) && (
           <EmptyState
             title='No matching departures'
             description='No dates match the selected schedule and detail filters.'
           />
         )}
-      {view !== 'dates' && view !== 'calendar' && filteredItems.length > 0 && (
+      {view !== 'dates' && view !== 'calendar' && view !== 'map' && filteredItems.length > 0 && (
         <>
           {view === 'periods' && (
             <PeriodsView
@@ -560,4 +577,34 @@ export function FlightScheduleWorkspace({
       )}
     </section>
   );
+}
+
+function routesForMap(items: readonly FlightScheduleItem[], data: FlightSchedules) {
+  const routes = new Map<
+    string,
+    {
+      from: FlightSchedules['airports'][string];
+      to: FlightSchedules['airports'][string];
+      label: string;
+      frequency: number;
+    }
+  >();
+  for (const item of items) {
+    const variant = displayVariantFor(data, item);
+    const from = data.airports[item.departureAirportId];
+    const to = variant && data.airports[variant.arrivalAirportId];
+    if (!from || !to) {
+      continue;
+    }
+    const key = `${from.id}>${to.id}`;
+    const current = routes.get(key);
+    routes.set(key, {
+      from,
+      to,
+      label: `${from.iataCode} → ${to.iataCode}`,
+      frequency: (current?.frequency ?? 0) + 1,
+    });
+  }
+
+  return [...routes.values()].sort((left, right) => right.frequency - left.frequency);
 }

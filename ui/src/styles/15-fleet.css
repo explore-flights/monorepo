@@ -55,16 +55,24 @@
   gap: var(--space-1);
   color: var(--color-on-accent);
 }
-.fleet-plane img {
+.fleet-plane-artwork {
   display: block;
   width: 100%;
-  max-height: 42px;
-  object-fit: contain;
-  filter: brightness(0) invert(1) var(--shadow-aircraft-artwork-strong);
-  opacity: 0.96;
+  height: 42px;
+  flex: 0 1 42px;
+  color: var(--fleet-hero-text);
+  filter: var(--shadow-aircraft-artwork-strong);
 }
-.fleet-plane img:only-of-type {
-  max-height: 82px;
+.fleet-plane-artwork:only-child {
+  height: 82px;
+  flex-basis: 82px;
+}
+.fleet-plane[data-layout='stacked'] {
+  height: 104px;
+}
+.fleet-plane[data-layout='stacked'] .fleet-plane-artwork {
+  height: 48px;
+  flex-basis: 48px;
 }
 .schedule-results-nav {
   display: flex;
