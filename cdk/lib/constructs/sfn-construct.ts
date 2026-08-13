@@ -15,7 +15,13 @@ import {
   Succeed,
   TaskInput
 } from 'aws-cdk-lib/aws-stepfunctions';
-import { EcsFargateLaunchTarget, EcsRunTask, LambdaInvoke, CallAwsService } from 'aws-cdk-lib/aws-stepfunctions-tasks';
+import {
+  CallAwsService,
+  EcsFargateLaunchTarget,
+  EcsRunTask,
+  LambdaInvoke,
+  StepFunctionsStartExecution
+} from 'aws-cdk-lib/aws-stepfunctions-tasks';
 import { ContainerDefinition, FargatePlatformVersion, ICluster, TaskDefinition } from 'aws-cdk-lib/aws-ecs';
 import { IVpc, SecurityGroup, SubnetSelection } from 'aws-cdk-lib/aws-ec2';
 import { BASE_DATA_LAYER_NAME, BASE_DATA_LAYER_SSM_PARAMETER_NAME } from '../util/consts';
@@ -34,15 +40,12 @@ export interface SfnConstructProps {
 }
 
 export class SfnConstruct extends Construct {
+  readonly fetchSchedules: IStateMachine;
+  readonly updateFlightData: IStateMachine;
   readonly flightSchedules: IStateMachine;
 
   constructor(scope: Construct, id: string, props: SfnConstructProps) {
     super(scope, id);
-
-    const LH_FLIGHT_SCHEDULES_PREFIX = 'raw/LH_Public_Data/flightschedules/';
-    const DATABASE_UPDATE_SUMMARY_KEY = 'tmp/cron_database_update_summary.json';
-
-    const checkRemainingChoice = new Choice(this, 'CheckRemaining', {});
 
     const updateDatabaseSecurityGroup = new SecurityGroup(this, 'UpdateDatabaseSecurityGroup', {
       vpc: props.updateDatabaseVpc,
@@ -50,10 +53,22 @@ export class SfnConstruct extends Construct {
       allowAllIpv6Outbound: false,
     });
 
-    const definition = new Choice(this, 'CheckInitial', {})
+    this.fetchSchedules = this.createFetchSchedulesStateMachine(props);
+    this.updateFlightData = this.createUpdateFlightDataStateMachine(
+      props,
+      updateDatabaseSecurityGroup,
+    );
+    this.flightSchedules = this.createFlightSchedulesStateMachine(props);
+  }
+
+  private createFetchSchedulesStateMachine(props: SfnConstructProps): IStateMachine {
+    const flightSchedulesPrefix = 'raw/LH_Public_Data/flightschedules/';
+    const checkRemaining = new Choice(this, 'FetchSchedulesCheckRemaining');
+
+    const definition = new Choice(this, 'FetchSchedulesCheckInitial')
       .when(
         Condition.isNotPresent('$.loadScheduleRanges'),
-        new LambdaInvoke(this, 'PrepareDailyCron', {
+        new LambdaInvoke(this, 'FetchSchedulesPrepareDailyCron', {
           lambdaFunction: props.cronLambda_1G,
           payload: TaskInput.fromObject({
             'action': 'cron',
@@ -76,17 +91,16 @@ export class SfnConstruct extends Construct {
       )
       .afterwards({ includeOtherwise: true })
       .next(
-        checkRemainingChoice
-          // region loop body -> remaining dates
+        checkRemaining
           .when(
             Condition.isPresent('$.loadScheduleRanges.remaining[0]'),
-            new LambdaInvoke(this, 'LoadSchedulesTask', {
+            new LambdaInvoke(this, 'FetchSchedulesLoadSchedules', {
               lambdaFunction: props.cronLambda_1G,
               payload: TaskInput.fromObject({
                 'action': 'load_flight_schedules',
                 'params': {
                   'outputBucket': props.dataBucket.bucketName,
-                  'outputPrefix': LH_FLIGHT_SCHEDULES_PREFIX,
+                  'outputPrefix': flightSchedulesPrefix,
                   'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.remaining'),
                   'allowPartial': true,
                 },
@@ -95,13 +109,16 @@ export class SfnConstruct extends Construct {
               resultPath: '$.loadSchedulesResponse',
               retryOnServiceExceptions: true,
             })
-              .next(new LambdaInvoke(this, 'MergeScheduleRanges', {
+              .next(new LambdaInvoke(this, 'FetchSchedulesMergeScheduleRanges', {
                 lambdaFunction: props.cronLambda_1G,
                 payload: TaskInput.fromObject({
                   'action': 'cron',
                   'params': {
                     'mergeDateRanges': JsonPath.array(
-                      JsonPath.array(JsonPath.stringAt('$.loadScheduleRanges.completed'), JsonPath.stringAt('$.loadSchedulesResponse.completed')),
+                      JsonPath.array(
+                        JsonPath.stringAt('$.loadScheduleRanges.completed'),
+                        JsonPath.stringAt('$.loadSchedulesResponse.completed'),
+                      ),
                       JsonPath.array(JsonPath.stringAt('$.loadSchedulesResponse.remaining')),
                     ),
                   },
@@ -114,129 +131,188 @@ export class SfnConstruct extends Construct {
                 resultPath: '$.loadScheduleRanges',
                 retryOnServiceExceptions: true,
               }))
-              .next(checkRemainingChoice),
+              .next(checkRemaining),
           )
-          // endregion
-          // region conversion
-          .otherwise(
-            new Choice(this, 'CheckCreateFlightSchedulesHistoryTask', {})
-              .when(
-                Condition.isNotPresent('$.createFlightSchedulesHistoryResponse'),
-                new LambdaInvoke(this, 'CreateFlightSchedulesHistoryTask', {
-                  lambdaFunction: props.cronLambda_4G,
-                  payload: TaskInput.fromObject({
-                    'action': 'create_flight_schedules_history',
-                    'params': {
-                      'time': JsonPath.stringAt('$.time'),
-                      'inputBucket': props.dataBucket.bucketName,
-                      'inputPrefix': LH_FLIGHT_SCHEDULES_PREFIX,
-                      'outputBucket': props.dataBucket.bucketName,
-                      'outputPrefix': 'raw/LH_Public_Data/flightschedules_history/',
-                      'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.completed'),
-                    },
-                  }),
-                  payloadResponseOnly: true,
-                  resultPath: '$.createFlightSchedulesHistoryResponse',
-                  retryOnServiceExceptions: true,
-                }),
-              )
-              .afterwards({ includeOtherwise: true })
-              .next(new Pass(this, 'PrepareUpdateDatabaseCommand', {
-                parameters: {
-                  'args': JsonPath.array(
-                    JsonPath.format('--time={}', JsonPath.stringAt('$.time')),
-                    `--database-bucket=${props.dataBucket.bucketName}`,
-                    '--full-database-key=processed/flights.db',
-                    '--basedata-database-key=processed/basedata.db',
-                    `--parquet-bucket=${props.parquetBucket.bucketName}`,
-                    JsonPath.format('--parquet-prefix={}/', JsonPath.stringAt('$.time')),
-                    JsonPath.format('--input-bucket={}', JsonPath.stringAt('$.createFlightSchedulesHistoryResponse.bucket')),
-                    JsonPath.format('--input-key={}', JsonPath.stringAt('$.createFlightSchedulesHistoryResponse.key')),
-                    `--update-summary-bucket=${props.dataBucket.bucketName}`,
-                    `--update-summary-key=${DATABASE_UPDATE_SUMMARY_KEY}`,
-                    '--skip-update-database=false',
-                  ),
-                },
-                resultPath: '$.updateDatabaseCommand',
-              }))
-              .next(new EcsRunTask(this, 'UpdateDatabaseTask', {
-                integrationPattern: IntegrationPattern.RUN_JOB, // runTask.sync
-                cluster: props.updateDatabaseCluster,
-                taskDefinition: props.updateDatabaseTask,
-                launchTarget: new EcsFargateLaunchTarget({
-                  platformVersion: FargatePlatformVersion.LATEST,
-                }),
-                containerOverrides: [
-                  {
-                    containerDefinition: props.updateDatabaseTaskContainer,
-                    command: JsonPath.listAt('$.updateDatabaseCommand.args'),
-                  }
-                ],
-                assignPublicIp: true, // required to access internet resources without NAT
-                subnets: props.updateDatabaseSubnets,
-                securityGroups: [updateDatabaseSecurityGroup],
-                resultPath: '$.updateDatabaseResponse',
-              }))
-              .next(new LambdaInvoke(this, 'UpdateLambdaLayerTask', {
-                lambdaFunction: props.cronLambda_4G,
-                payload: TaskInput.fromObject({
-                  'action': 'update_lambda_layer',
-                  'params': {
-                    'version': JsonPath.stringAt('$.time'),
-                    'databaseBucket': props.dataBucket.bucketName,
-                    'baseDataDatabaseKey': 'processed/basedata.db',
-                    'parquetBucket': props.parquetBucket.bucketName,
-                    'parquetPrefix': JsonPath.format('{}/', JsonPath.stringAt('$.time')),
-                    'layerName': BASE_DATA_LAYER_NAME,
-                    'ssmParameterName': BASE_DATA_LAYER_SSM_PARAMETER_NAME,
-                  },
-                }),
-                payloadResponseOnly: true,
-                resultPath: '$.updateLambdaLayerResponse',
-                retryOnServiceExceptions: true,
-              }))
-              .next(new LambdaInvoke(this, 'DeleteS3DataTask', {
-                lambdaFunction: props.cronLambda_1G,
-                payload: TaskInput.fromObject({
-                  'action': 'delete_s3_data',
-                  'params': {
-                    'bucket': props.parquetBucket.bucketName,
-                    'excludePrefix': JsonPath.format('{}/', JsonPath.stringAt('$.time')),
-                  },
-                }),
-                payloadResponseOnly: true,
-                resultPath: '$.deleteS3DataResponse',
-                retryOnServiceExceptions: true,
-              }))
-              .next(new CallAwsService(this, 'LoadUpdateSummaryTask', {
-                service: 's3',
-                action: 'getObject',
-                parameters: {
-                  'Bucket': props.dataBucket.bucketName,
-                  'Key': DATABASE_UPDATE_SUMMARY_KEY,
-                },
-                iamAction: 's3:GetObject',
-                iamResources: [
-                  props.dataBucket.arnForObjects(DATABASE_UPDATE_SUMMARY_KEY),
-                ],
-                resultSelector: {
-                  // discard everything but Body
-                  'Body': JsonPath.stringAt('$.Body'),
-                },
-                resultPath: '$.updateSummary',
-              }))
-          )
-          // endregion
-      )
-      .toSingleState('ConvertTry', { outputPath: '$[0]' })
+          .otherwise(new Succeed(this, 'FetchSchedulesSuccess')),
+      );
+
+    return new StateMachine(this, 'FetchSchedules', {
+      definitionBody: DefinitionBody.fromChainable(definition),
+      tracingEnabled: false,
+    });
+  }
+
+  private createUpdateFlightDataStateMachine(
+    props: SfnConstructProps,
+    updateDatabaseSecurityGroup: SecurityGroup,
+  ): IStateMachine {
+    const databaseUpdateSummaryKey = 'tmp/cron_database_update_summary.json';
+
+    const prepareUpdateWithArchive = new Pass(this, 'PrepareUpdateDatabaseWithArchive', {
+      parameters: {
+        'args': JsonPath.array(
+          JsonPath.format('--time={}', JsonPath.stringAt('$.time')),
+          `--database-bucket=${props.dataBucket.bucketName}`,
+          '--full-database-key=processed/flights.db',
+          '--basedata-database-key=processed/basedata.db',
+          `--parquet-bucket=${props.parquetBucket.bucketName}`,
+          JsonPath.format('--parquet-prefix={}/', JsonPath.stringAt('$.time')),
+          JsonPath.format('--input-bucket={}', JsonPath.stringAt('$.inputArchive.bucket')),
+          JsonPath.format('--input-key={}', JsonPath.stringAt('$.inputArchive.key')),
+          `--update-summary-bucket=${props.dataBucket.bucketName}`,
+          `--update-summary-key=${databaseUpdateSummaryKey}`,
+          '--skip-update-database=false',
+        ),
+      },
+      resultPath: '$.updateDatabaseCommand',
+    });
+
+    const prepareUpdateWithoutArchive = new Pass(this, 'PrepareUpdateDatabaseWithoutArchive', {
+      parameters: {
+        'args': JsonPath.array(
+          JsonPath.format('--time={}', JsonPath.stringAt('$.time')),
+          `--database-bucket=${props.dataBucket.bucketName}`,
+          '--full-database-key=processed/flights.db',
+          '--basedata-database-key=processed/basedata.db',
+          `--parquet-bucket=${props.parquetBucket.bucketName}`,
+          JsonPath.format('--parquet-prefix={}/', JsonPath.stringAt('$.time')),
+          '--skip-update-database=true',
+        ),
+      },
+      resultPath: '$.updateDatabaseCommand',
+    });
+
+    const definition = new Choice(this, 'ConfigureUpdateDatabase')
+      .when(Condition.isPresent('$.inputArchive'), prepareUpdateWithArchive)
+      .otherwise(prepareUpdateWithoutArchive)
+      .afterwards()
+      .next(new EcsRunTask(this, 'UpdateDatabaseTask', {
+        integrationPattern: IntegrationPattern.RUN_JOB,
+        cluster: props.updateDatabaseCluster,
+        taskDefinition: props.updateDatabaseTask,
+        launchTarget: new EcsFargateLaunchTarget({
+          platformVersion: FargatePlatformVersion.LATEST,
+        }),
+        containerOverrides: [
+          {
+            containerDefinition: props.updateDatabaseTaskContainer,
+            command: JsonPath.listAt('$.updateDatabaseCommand.args'),
+          }
+        ],
+        assignPublicIp: true,
+        subnets: props.updateDatabaseSubnets,
+        securityGroups: [updateDatabaseSecurityGroup],
+        resultPath: '$.updateDatabaseResponse',
+      }))
+      .next(new LambdaInvoke(this, 'UpdateLambdaLayerTask', {
+        lambdaFunction: props.cronLambda_4G,
+        payload: TaskInput.fromObject({
+          'action': 'update_lambda_layer',
+          'params': {
+            'version': JsonPath.stringAt('$.time'),
+            'databaseBucket': props.dataBucket.bucketName,
+            'baseDataDatabaseKey': 'processed/basedata.db',
+            'parquetBucket': props.parquetBucket.bucketName,
+            'parquetPrefix': JsonPath.format('{}/', JsonPath.stringAt('$.time')),
+            'layerName': BASE_DATA_LAYER_NAME,
+            'ssmParameterName': BASE_DATA_LAYER_SSM_PARAMETER_NAME,
+          },
+        }),
+        payloadResponseOnly: true,
+        resultPath: '$.updateLambdaLayerResponse',
+        retryOnServiceExceptions: true,
+      }))
+      .next(new LambdaInvoke(this, 'DeleteOldS3DataTask', {
+        lambdaFunction: props.cronLambda_1G,
+        payload: TaskInput.fromObject({
+          'action': 'delete_s3_data',
+          'params': {
+            'bucket': props.parquetBucket.bucketName,
+            'excludePrefix': JsonPath.format('{}/', JsonPath.stringAt('$.time')),
+          },
+        }),
+        payloadResponseOnly: true,
+        resultPath: '$.deleteS3DataResponse',
+        retryOnServiceExceptions: true,
+      }));
+
+    return new StateMachine(this, 'UpdateFlightData', {
+      definitionBody: DefinitionBody.fromChainable(definition),
+      tracingEnabled: false,
+    });
+  }
+
+  private createFlightSchedulesStateMachine(props: SfnConstructProps): IStateMachine {
+    const databaseUpdateSummaryKey = 'tmp/cron_database_update_summary.json';
+
+    const definition = new StepFunctionsStartExecution(this, 'RunFetchSchedules', {
+      stateMachine: this.fetchSchedules,
+      integrationPattern: IntegrationPattern.RUN_JOB,
+      associateWithParent: true,
+      input: TaskInput.fromObject({
+        'time': JsonPath.stringAt('$.time'),
+      }),
+      resultSelector: {
+        'loadScheduleRanges': JsonPath.objectAt('$.Output.loadScheduleRanges'),
+      },
+      resultPath: '$.fetchSchedules',
+    })
+      .next(new LambdaInvoke(this, 'CreateFlightSchedulesHistory', {
+        lambdaFunction: props.cronLambda_4G,
+        payload: TaskInput.fromObject({
+          'action': 'create_flight_schedules_history',
+          'params': {
+            'time': JsonPath.stringAt('$.time'),
+            'inputBucket': props.dataBucket.bucketName,
+            'inputPrefix': 'raw/LH_Public_Data/flightschedules/',
+            'outputBucket': props.dataBucket.bucketName,
+            'outputPrefix': 'raw/LH_Public_Data/flightschedules_history/',
+            'dateRanges': JsonPath.objectAt('$.fetchSchedules.loadScheduleRanges.completed'),
+          },
+        }),
+        payloadResponseOnly: true,
+        resultPath: '$.inputArchive',
+        retryOnServiceExceptions: true,
+      }))
+      .next(new StepFunctionsStartExecution(this, 'RunUpdateFlightData', {
+        stateMachine: this.updateFlightData,
+        integrationPattern: IntegrationPattern.RUN_JOB,
+        associateWithParent: true,
+        input: TaskInput.fromObject({
+          'time': JsonPath.stringAt('$.time'),
+          'inputArchive': JsonPath.objectAt('$.inputArchive'),
+        }),
+        resultPath: JsonPath.DISCARD,
+      }))
+      .next(new CallAwsService(this, 'LoadUpdateSummary', {
+        service: 's3',
+        action: 'getObject',
+        parameters: {
+          'Bucket': props.dataBucket.bucketName,
+          'Key': databaseUpdateSummaryKey,
+        },
+        iamAction: 's3:GetObject',
+        iamResources: [
+          props.dataBucket.arnForObjects(databaseUpdateSummaryKey),
+        ],
+        resultSelector: {
+          'Body': JsonPath.stringAt('$.Body'),
+        },
+        resultPath: '$.updateSummary',
+      }))
+      .toSingleState('OrchestrationTry', { outputPath: '$[0]' })
       .addCatch(
         this.sendWebhookTask(
           'InvokeWebhookFailureTask',
           props.cronLambda_1G,
           props.webhookUrl,
-          JsonPath.format('FlightSchedules Cron {} ({}) failed', JsonPath.executionName, JsonPath.executionStartTime),
+          JsonPath.format(
+            'FlightSchedules Cron {} ({}) failed',
+            JsonPath.executionName,
+            JsonPath.executionStartTime,
+          ),
         )
-          .next(new Fail(this, 'Fail')),
+          .next(new Fail(this, 'OrchestrationFailed')),
       )
       .next(this.sendWebhookTask(
         'InvokeWebhookSuccessTask',
@@ -245,75 +321,14 @@ export class SfnConstruct extends Construct {
         JsonPath.format(
           'FlightSchedules Cron {} succeeded:\nQueried:\n```json\n{}\n```\nUpdate Summary:\n```json\n{}\n```',
           JsonPath.stringAt('$.time'),
-          JsonPath.jsonToString(JsonPath.objectAt('$.loadScheduleRanges.completed')),
+          JsonPath.jsonToString(JsonPath.objectAt('$.fetchSchedules.loadScheduleRanges.completed')),
           JsonPath.stringAt('$.updateSummary.Body'),
         ),
       ))
-      .next(new Succeed(this, 'Success'));
+      .next(new Succeed(this, 'OrchestrationSuccess'));
 
-    this.flightSchedules = new StateMachine(this, 'FlightSchedules', {
+    return new StateMachine(this, 'FlightSchedules', {
       definitionBody: DefinitionBody.fromChainable(definition),
-      tracingEnabled: false,
-    });
-
-    new StateMachine(this, 'UpdateDatabaseAndLayer', {
-      definitionBody: DefinitionBody.fromChainable(
-        new Pass(this, 'PrepareUpdateDatabaseCommand2', {
-          parameters: {
-            'args': JsonPath.array(
-              JsonPath.format('--time={}', JsonPath.executionStartTime),
-              `--database-bucket=${props.dataBucket.bucketName}`,
-              '--full-database-key=processed/flights.db',
-              '--basedata-database-key=processed/basedata.db',
-              `--parquet-bucket=${props.parquetBucket.bucketName}`,
-              '--variants-key=variants.parquet',
-              '--report-key=report.parquet',
-              '--connections-key=connections.parquet',
-              '--history-prefix=history/',
-              '--latest-prefix=latest/',
-              '--skip-update-database=true',
-            ),
-          },
-          resultPath: '$.updateDatabaseCommand',
-        })
-          .next(new EcsRunTask(this, 'UpdateDatabaseTask2', {
-            integrationPattern: IntegrationPattern.RUN_JOB, // runTask.sync
-            cluster: props.updateDatabaseCluster,
-            taskDefinition: props.updateDatabaseTask,
-            launchTarget: new EcsFargateLaunchTarget({
-              platformVersion: FargatePlatformVersion.LATEST,
-            }),
-            containerOverrides: [
-              {
-                containerDefinition: props.updateDatabaseTaskContainer,
-                command: JsonPath.listAt('$.updateDatabaseCommand.args'),
-              }
-            ],
-            assignPublicIp: true, // required to access internet resources without NAT
-            subnets: props.updateDatabaseSubnets,
-            securityGroups: [updateDatabaseSecurityGroup],
-            resultPath: '$.updateDatabaseResponse',
-          }))
-          .next(new LambdaInvoke(this, 'UpdateLambdaLayerTask2', {
-            lambdaFunction: props.cronLambda_4G,
-            payload: TaskInput.fromObject({
-              'action': 'update_lambda_layer',
-              'params': {
-                'databaseBucket': props.dataBucket.bucketName,
-                'baseDataDatabaseKey': 'processed/basedata.db',
-                'parquetBucket': props.parquetBucket.bucketName,
-                'variantsKey': 'variants.parquet',
-                'reportKey': 'report.parquet',
-                'connectionsKey': 'connections.parquet',
-                'layerName': BASE_DATA_LAYER_NAME,
-                'ssmParameterName': BASE_DATA_LAYER_SSM_PARAMETER_NAME,
-              },
-            }),
-            payloadResponseOnly: true,
-            resultPath: '$.updateLambdaLayerResponse',
-            retryOnServiceExceptions: true,
-          }))
-      ),
       tracingEnabled: false,
     });
   }
