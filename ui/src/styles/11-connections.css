@@ -154,18 +154,36 @@ textarea {
 }
 .share-result {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-3);
   margin-bottom: var(--space-3);
   padding: var(--space-3) var(--space-3);
   font-size: var(--font-xs);
 }
-.share-result input {
+.share-link-field {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-0-75);
+}
+.share-link-field > label {
+  color: var(--muted);
+  font-size: var(--font-xs);
+}
+.share-link-control {
+  min-height: var(--control-height-md);
+}
+.share-link-control input {
+  min-width: 0;
+  flex: 1;
   width: 100%;
-  padding: var(--space-2);
+  padding: var(--space-2) var(--space-2-5);
   font-size: var(--font-xs);
   color: var(--muted);
+  cursor: copy;
+  background: transparent;
+  border: 0;
+  outline: 0;
 }
 .journey-list {
   display: grid;
@@ -201,115 +219,124 @@ textarea {
   line-height: 1.5;
   color: var(--muted);
 }
-.journey-legs {
-  display: flex;
+.connection-journey-snapshot {
   min-width: 0;
-  overflow-x: auto;
+  padding: var(--space-3);
 }
-.journey-leg {
-  min-width: 260px;
-  flex: 1;
-  padding: var(--space-4) var(--space-4-5);
-  border-right: var(--border-width) solid var(--border);
-}
-.journey-leg:last-child {
-  border: 0;
-}
-.leg-times {
-  display: flex;
-  align-items: center;
+.connection-journey-snapshot .journey-leg-heading {
   justify-content: space-between;
 }
-.leg-times > span {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--font-xs);
-  color: var(--muted);
+.connection-journey-snapshot.single-leg .journey-leg-heading {
+  justify-content: flex-end;
 }
-.leg-route {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-2-5);
+.connection-journey-snapshot .journey-leg-heading a {
+  letter-spacing: 0;
+  text-transform: none;
 }
-.leg-route > span {
-  display: grid;
+.connection-journey-snapshot .journey-leg-card {
+  min-height: 100%;
 }
-.leg-route span:last-child {
-  text-align: right;
-}
-.leg-route b {
-  font-size: var(--font-sm);
-}
-.leg-route small {
-  overflow: hidden;
-  max-width: 80px;
-  margin-top: var(--space-0-75);
-  font-size: var(--font-xs);
-  color: var(--muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.leg-route i {
-  height: 1px;
-  background: var(--border-strong);
-}
-.leg-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-  padding-top: var(--space-2);
-  font-size: var(--font-xs);
-  color: var(--muted);
-  border-top: var(--border-width) solid var(--border);
-}
-.leg-meta a {
-  color: var(--primary);
-  font-weight: 700;
+.connection-journey-snapshot .journey-connection {
+  min-width: var(--space-28);
 }
 .connection-graph {
+  position: relative;
   height: 600px;
-  background: var(--surface);
+  color: var(--text);
+  background-color: var(--surface);
+  background-image: radial-gradient(var(--border) var(--space-px), transparent var(--space-px));
+  background-size: var(--space-7) var(--space-7);
   border: var(--border-width) solid var(--border);
   border-radius: var(--radius-xl);
   overflow: hidden;
+  overscroll-behavior: contain;
 }
-.graph-node {
-  width: 190px;
-  color: var(--text);
+.connection-tanstack-chart {
+  position: absolute;
+  inset: 0 auto auto 0;
+  pointer-events: none;
+  background: transparent;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.connection-graph-interaction {
+  position: absolute;
+  inset: 0;
+  z-index: var(--layer-content);
+  cursor: grab;
+  outline: 0;
+  touch-action: pan-y;
+}
+.connection-graph-interaction.is-active {
+  touch-action: none;
+}
+.connection-graph-interaction:active {
+  cursor: grabbing;
+}
+.connection-graph-interaction:focus-visible {
+  box-shadow: inset 0 0 0 var(--focus-ring-width)
+    color-mix(in srgb, var(--primary) 45%, transparent);
+}
+.connection-graph-node-actions {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: var(--layer-content);
+  pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.connection-graph-node-action {
+  position: absolute;
+  padding: 0;
+  pointer-events: auto;
+  touch-action: manipulation;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+}
+.connection-graph-node-action:hover {
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
+}
+.connection-graph-node-action:focus-visible {
+  outline: var(--focus-ring-width) solid color-mix(in srgb, var(--primary) 75%, transparent);
+  outline-offset: var(--space-0-75);
+}
+.connection-graph-controls {
+  position: absolute;
+  bottom: var(--space-3);
+  left: var(--space-3);
+  z-index: var(--layer-raised);
+  display: grid;
+  overflow: hidden;
   background: var(--surface);
   border: var(--border-width) solid var(--border-strong);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow);
-  overflow: hidden;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
-.graph-node-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-25);
-  padding: var(--space-2) var(--space-2-5);
-  font-size: var(--font-xs);
-  font-weight: 750;
+.connection-graph-controls button {
+  display: grid;
+  width: var(--control-height-compact);
+  height: var(--control-height-compact);
+  padding: 0;
+  place-items: center;
+  color: var(--text-2);
+  background: transparent;
+  border: 0;
+}
+.connection-graph-controls button + button {
+  border-top: var(--border-width) solid var(--border);
+}
+.connection-graph-controls button:hover {
   color: var(--primary);
   background: var(--primary-soft);
 }
-.graph-airports {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-2-5) var(--space-3) var(--space-1);
-  font-size: var(--font-md);
+.connection-graph-controls button:focus-visible {
+  z-index: var(--layer-content);
+  outline: var(--focus-ring-width) solid color-mix(in srgb, var(--primary) 45%, transparent);
+  outline-offset: calc(-1 * var(--focus-ring-width));
 }
-.graph-airports span {
-  color: var(--muted);
-}
-.graph-times {
-  display: flex;
-  justify-content: space-between;
-  padding: 0 var(--space-3) var(--space-2-5);
-  font-size: var(--font-xs);
-  color: var(--muted);
+.connection-graph-controls svg {
+  width: var(--space-4);
+  height: var(--space-4);
 }

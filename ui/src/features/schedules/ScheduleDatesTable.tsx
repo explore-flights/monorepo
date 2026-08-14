@@ -1,5 +1,4 @@
-import { ArrowDown, ArrowRight, ArrowUp, ChevronDown, ChevronRight } from 'lucide-react';
-import { Fragment, useState } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type {
   FlightNumber,
@@ -7,7 +6,7 @@ import type {
   OperatingFlightScheduleItem,
   QuerySchedulesResponse,
 } from '@/api/types';
-import { Badge, Button, Card } from '@/components/primitives';
+import { Badge } from '@/components/primitives';
 import { CodeshareDetails, DataElementList } from '@/components/ScheduleMetadata';
 import type { DateBasis } from '@/lib/date';
 import { dateLabel, duration, flightName } from '@/lib/format';
@@ -17,6 +16,7 @@ import {
   departureScheduleTimeForBasis,
   scheduleInstant,
 } from '@/lib/time';
+import { ScheduleTable, type ScheduleTableColumn } from './ScheduleTable';
 
 export interface ScheduleDateRecord {
   flightNumber: FlightNumber;
@@ -37,200 +37,133 @@ export function ScheduleDatesTable({
   dateBasis: DateBasis;
   title?: string;
 }) {
-  const [sort, setSort] = useState<SortKey>('date');
-  const [descending, setDescending] = useState(false);
-  const [page, setPage] = useState(1);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
-  const pageSize = 50;
-  const sorted = [...records].sort(
-    (left, right) => compareRecord(left, right, sort, data) * (descending ? -1 : 1),
-  );
-  const pages = Math.max(1, Math.ceil(sorted.length / pageSize));
-  const currentPage = Math.min(page, pages);
-  const visible = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const columns: readonly ScheduleTableColumn<ScheduleDateRecord, SortKey>[] = [
+    {
+      label: 'Date & time',
+      sortKey: 'date',
+      render: (record) => {
+        const departure = departureScheduleTimeForBasis(
+          record.item.departureDateLocal,
+          record.variant,
+          dateBasis,
+        );
 
-  function changeSort(key: SortKey) {
-    if (sort === key) {
-      setDescending(!descending);
-    } else {
-      setSort(key);
-      setDescending(false);
-    }
-    setPage(1);
-  }
+        return (
+          <>
+            <strong>
+              {dateLabel(departure.date, {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric',
+              })}
+            </strong>
+            <small>
+              {departure.time} · {departure.offset}
+            </small>
+          </>
+        );
+      },
+    },
+    {
+      label: 'Flight',
+      sortKey: 'flight',
+      render: (record) => {
+        const flight = flightName(record.flightNumber, data.airlines);
 
-  function toggleExpanded(key: string) {
-    setExpanded((previous) => {
-      const next = new Set(previous);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  }
+        return (
+          <>
+            <Link to={`/flight/${flight}`}>
+              <strong>{flight}</strong>
+            </Link>
+            <small>Operated as {flightName(record.variant.operatedAs, data.airlines)}</small>
+          </>
+        );
+      },
+    },
+    {
+      label: 'Route',
+      sortKey: 'route',
+      render: (record) => {
+        const from = data.airports[record.item.departureAirportId];
+        const to = data.airports[record.variant.arrivalAirportId];
+
+        return (
+          <div className='route-cell'>
+            <strong>{from?.iataCode ?? record.item.departureAirportId}</strong>
+            <ArrowRight size={13} />
+            <strong>{to?.iataCode ?? record.variant.arrivalAirportId}</strong>
+            <small>
+              {from?.name} → {to?.name}
+            </small>
+          </div>
+        );
+      },
+    },
+    {
+      label: 'Arrival',
+      render: (record) => {
+        const arrival = arrivalScheduleTimeForBasis(
+          record.item.departureDateLocal,
+          record.variant,
+          dateBasis,
+        );
+
+        return (
+          <>
+            <strong>
+              {dateLabel(arrival.date, {
+                month: 'short',
+                day: '2-digit',
+                year: 'numeric',
+              })}
+            </strong>
+            <small>
+              {arrival.time} {dayDeltaLabel(arrival.dayDelta)} · {arrival.offset}
+            </small>
+          </>
+        );
+      },
+    },
+    {
+      label: 'Aircraft',
+      sortKey: 'aircraft',
+      render: (record) => (
+        <>
+          <strong>
+            {data.aircraft[record.variant.aircraftId]?.name ?? record.variant.aircraftId}
+          </strong>
+          <small>{record.variant.aircraftOwner}</small>
+        </>
+      ),
+    },
+    {
+      label: 'Configuration',
+      render: (record) => (
+        <Badge tone='neutral'>{record.variant.aircraftConfigurationVersion || '—'}</Badge>
+      ),
+    },
+    {
+      label: 'Duration',
+      render: (record) => duration(record.variant.durationSeconds),
+    },
+  ];
 
   return (
-    <Card className='table-card workspace-date-table'>
-      <div className='schedule-table-header'>
-        <div>
-          <span className='eyebrow'>Exact departures</span>
-          <h2>{title}</h2>
-        </div>
-        <div className='pagination'>
-          <Button
-            variant='ghost'
-            aria-label='Previous page'
-            disabled={currentPage <= 1}
-            onClick={() => setPage(currentPage - 1)}
-          >
-            ←
-          </Button>
-          <span>
-            Page {currentPage} of {pages}
-          </span>
-          <Button
-            variant='ghost'
-            aria-label='Next page'
-            disabled={currentPage >= pages}
-            onClick={() => setPage(currentPage + 1)}
-          >
-            →
-          </Button>
-        </div>
-      </div>
-      <div className='table-scroll'>
-        <table className='data-table rich-schedule-table'>
-          <thead>
-            <tr>
-              <th />
-              <Sortable
-                label='Date & time'
-                field='date'
-                active={sort}
-                descending={descending}
-                onClick={changeSort}
-              />
-              <Sortable
-                label='Flight'
-                field='flight'
-                active={sort}
-                descending={descending}
-                onClick={changeSort}
-              />
-              <Sortable
-                label='Route'
-                field='route'
-                active={sort}
-                descending={descending}
-                onClick={changeSort}
-              />
-              <th>Arrival</th>
-              <Sortable
-                label='Aircraft'
-                field='aircraft'
-                active={sort}
-                descending={descending}
-                onClick={changeSort}
-              />
-              <th>Configuration</th>
-              <th>Duration</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visible.map((record) => {
-              const departure = departureScheduleTimeForBasis(
-                record.item.departureDateLocal,
-                record.variant,
-                dateBasis,
-              );
-              const arrival = arrivalScheduleTimeForBasis(
-                record.item.departureDateLocal,
-                record.variant,
-                dateBasis,
-              );
-              const from = data.airports[record.item.departureAirportId];
-              const to = data.airports[record.variant.arrivalAirportId];
-              const flight = flightName(record.flightNumber, data.airlines);
-              const key = `${flight}-${record.item.departureAirportId}-${record.item.departureDateLocal}-${record.item.version}`;
-              const isOpen = expanded.has(key);
-              return (
-                <Fragment key={key}>
-                  <tr>
-                    <td>
-                      <button
-                        className='row-expand'
-                        aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${flight} details`}
-                        onClick={() => toggleExpanded(key)}
-                      >
-                        {isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                      </button>
-                    </td>
-                    <td>
-                      <strong>
-                        {dateLabel(departure.date, {
-                          month: 'short',
-                          day: '2-digit',
-                          year: 'numeric',
-                        })}
-                      </strong>
-                      <small>
-                        {departure.time} · {departure.offset}
-                      </small>
-                    </td>
-                    <td>
-                      <Link to={`/flight/${flight}`}>
-                        <strong>{flight}</strong>
-                      </Link>
-                      <small>
-                        Operated as {flightName(record.variant.operatedAs, data.airlines)}
-                      </small>
-                    </td>
-                    <td>
-                      <div className='route-cell'>
-                        <strong>{from?.iataCode ?? record.item.departureAirportId}</strong>
-                        <ArrowRight size={13} />
-                        <strong>{to?.iataCode ?? record.variant.arrivalAirportId}</strong>
-                        <small>
-                          {from?.name} → {to?.name}
-                        </small>
-                      </div>
-                    </td>
-                    <td>
-                      <strong>{arrival.date}</strong>
-                      <small>
-                        {arrival.time} {dayDeltaLabel(arrival.dayDelta)} · {arrival.offset}
-                      </small>
-                    </td>
-                    <td>
-                      <strong>
-                        {data.aircraft[record.variant.aircraftId]?.name ??
-                          record.variant.aircraftId}
-                      </strong>
-                      <small>{record.variant.aircraftOwner}</small>
-                    </td>
-                    <td>
-                      <Badge tone='neutral'>
-                        {record.variant.aircraftConfigurationVersion || '—'}
-                      </Badge>
-                    </td>
-                    <td>{duration(record.variant.durationSeconds)}</td>
-                  </tr>
-                  {isOpen && (
-                    <tr className='expanded-table-row'>
-                      <td colSpan={8}>
-                        <ScheduleDetails record={record} data={data} />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
+    <ScheduleTable
+      rows={records}
+      columns={columns}
+      defaultSort='date'
+      compareRows={(left, right, sort) => compareRecord(left, right, sort, data)}
+      rowKey={(record) =>
+        `${flightName(record.flightNumber, data.airlines)}-${record.item.departureAirportId}-${record.item.departureDateLocal}-${record.item.version}`
+      }
+      expandedLabel={(record) => flightName(record.flightNumber, data.airlines)}
+      renderDetails={(record) => <ScheduleDetails record={record} data={data} />}
+      eyebrow='Exact departures'
+      title={title}
+      itemLabel='departures'
+      ariaLabel='Matching scheduled departures'
+    />
   );
 }
 
@@ -282,29 +215,6 @@ function ScheduleDetails({
         </div>
       )}
     </div>
-  );
-}
-
-function Sortable({
-  label,
-  field,
-  active,
-  descending,
-  onClick,
-}: {
-  label: string;
-  field: SortKey;
-  active: SortKey;
-  descending: boolean;
-  onClick: (field: SortKey) => void;
-}) {
-  return (
-    <th>
-      <button className='sort-button' onClick={() => onClick(field)}>
-        {label}
-        {active === field && (descending ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
-      </button>
-    </th>
   );
 }
 

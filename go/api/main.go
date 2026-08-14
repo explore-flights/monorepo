@@ -97,6 +97,7 @@ func main() {
 		group := e.Group("/data")
 
 		dh := web.NewDataHandler(fr, seatmap.NewSearch(s3c, bucket, fr, lhc), raw.NewSearch(s3c, bucket))
+		airportHandler := web.NewAirportHandler(fr)
 		group.GET("/airlines.json", dh.Airlines)
 		group.GET("/airports.json", dh.Airports)
 		group.GET("/aircraft.json", dh.Aircraft)
@@ -106,6 +107,9 @@ func main() {
 		group.GET("/flight/:fn/:version/:departureAirport/:departureDateLocal/raw.json", dh.FlightScheduleVersionRaw)
 		group.GET("/flight/:fn/seatmap/:departureAirport/:departureDateLocal", dh.SeatMap)
 		group.GET("/destinations/:departureAirport", dh.Destinations)
+		group.GET("/airport/:airport/:year/summary", airportHandler.Statistics, web.YearMiddleware())
+		group.GET("/airport/:airport/:date/departures", airportHandler.Departures)
+		group.GET("/airport/:airport/:date/arrivals", airportHandler.Arrivals)
 		group.GET("/schedule/allegris/feed.rss", sshHandler.AllegrisRSSFeed)
 		group.GET("/schedule/allegris/feed.atom", sshHandler.AllegrisAtomFeed)
 		group.GET("/schedule/swiss350/feed.rss", sshHandler.SwissA350RSSFeed)

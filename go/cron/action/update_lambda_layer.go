@@ -82,6 +82,7 @@ func (a *ullAction) updateLambdaLayer(ctx context.Context, version, databaseBuck
 		{"data/basedata.db", databaseBucket, baseDataDatabaseKey},
 		{"data/variants.parquet", parquetBucket, parquetPrefix + "variants.parquet"},
 		{"data/connections.parquet", parquetBucket, parquetPrefix + "connections.parquet"},
+		{"data/airport_statistics.parquet", parquetBucket, parquetPrefix + "airport_statistics.parquet"},
 	}
 
 	var layerZipBuffer bytes.Buffer

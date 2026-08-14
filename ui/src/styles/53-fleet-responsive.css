@@ -8,37 +8,6 @@
   .fleet-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .fleet-period-card {
-    grid-template-columns: 140px minmax(0, 1fr);
-  }
-  .fleet-period-equipment {
-    grid-column: 2;
-    padding-top: 0;
-  }
-  .fleet-period-card > button {
-    grid-column: 1/-1;
-    height: auto;
-    min-height: var(--control-height-md);
-    justify-content: flex-end;
-    padding-block: var(--space-2);
-    border-top: var(--border-width) solid var(--border);
-    border-left: 0;
-  }
-  .fleet-route-pair-body .fleet-period-card {
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.75fr) minmax(0, 1fr) auto;
-  }
-  .fleet-route-pair-body .fleet-period-equipment {
-    grid-column: auto;
-    padding-top: var(--space-3-5);
-  }
-  .fleet-route-pair-body .fleet-period-card > button {
-    grid-column: auto;
-    height: 100%;
-    min-height: var(--space-18);
-    padding-block: var(--space-3-5);
-    border-top: 0;
-    border-left: var(--border-width) solid var(--border);
-  }
 }
 
 @media (max-width: 640px) {
@@ -90,50 +59,71 @@
     grid-template-columns: 1fr;
     grid-column: auto;
   }
-  .fleet-route-pair-card > summary {
-    grid-template-columns: minmax(0, 1fr) auto;
+  .fleet-route-pair-summary {
+    grid-template-columns: var(--column-period-compact) minmax(0, 1fr);
   }
   .fleet-route-pair-range {
-    grid-column: 1/-1;
-  }
-  .fleet-route-pair-meta {
-    min-width: 0;
-  }
-  .fleet-route-pair-body {
     padding: var(--space-3);
+  }
+  .fleet-route-pair-range strong {
+    white-space: normal;
+  }
+  .fleet-route-pair-main {
+    padding: var(--space-3);
+    padding-right: calc(var(--space-3) + var(--space-5));
   }
   .fleet-route-direction > header,
   .fleet-route-direction > header > div {
     align-items: flex-start;
     flex-direction: column;
   }
-  .fleet-period-card {
-    grid-template-columns: 1fr;
+  .fleet-route-direction {
+    padding: var(--space-3);
   }
-  .fleet-route-pair-body .fleet-period-card {
-    grid-template-columns: 1fr;
+  .fleet-period-table,
+  .fleet-period-table tbody {
+    display: block;
   }
-  .fleet-period-range {
-    border-right: 0;
-    border-bottom: var(--border-width) solid var(--border);
+  .fleet-period-table thead {
+    display: none;
   }
-  .fleet-period-equipment {
-    grid-column: auto;
-    padding-top: 0;
+  .fleet-period-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 var(--space-2);
   }
-  .fleet-route-pair-body .fleet-period-equipment {
-    grid-column: auto;
-    padding-top: 0;
-  }
-  .fleet-period-card > button {
-    grid-column: auto;
-  }
-  .fleet-route-pair-body .fleet-period-card > button {
-    grid-column: auto;
-    height: auto;
-    min-height: var(--control-height-md);
-    padding-block: var(--space-2);
+  .fleet-period-table tbody tr + tr {
     border-top: var(--border-width) solid var(--border);
-    border-left: 0;
+  }
+  .fleet-period-table td {
+    display: grid;
+    align-content: start;
+    gap: var(--space-1);
+    padding: var(--space-2-5);
+    border: 0;
+  }
+  .fleet-period-table td small {
+    margin-top: 0;
+  }
+  .fleet-period-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: var(--font-xs);
+    font-weight: 750;
+  }
+  .fleet-period-table td:nth-child(3) {
+    grid-column: 1/-1;
+  }
+  .fleet-period-action {
+    align-content: end;
+    text-align: right;
+  }
+  .fleet-period-action::before {
+    display: none;
+  }
+  .fleet-period-action > button {
+    width: 100%;
+    min-height: var(--control-height-md);
+    justify-content: flex-end;
   }
 }

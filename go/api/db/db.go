@@ -21,7 +21,7 @@ type Database struct {
 	err        error
 }
 
-func NewDatabase(baseDbPath, variantsParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath, flightNumberUpdateReportPath string) *Database {
+func NewDatabase(baseDbPath, variantsParquetPath, connectionsParquetPath, airportStatisticsParquetPath, historyParquetPath, latestParquetPath, flightNumberUpdateReportPath string) *Database {
 	initDone := make(chan struct{})
 	db := Database{initDone: initDone}
 	go func() {
@@ -71,7 +71,7 @@ func NewDatabase(baseDbPath, variantsParquetPath, connectionsParquetPath, histor
 			return
 		}
 
-		if err = dbInit(context.Background(), conn, db.dbWorkPath, baseDbPath, variantsParquetPath, connectionsParquetPath, historyParquetPath, latestParquetPath, flightNumberUpdateReportPath); err != nil {
+		if err = dbInit(context.Background(), conn, db.dbWorkPath, baseDbPath, variantsParquetPath, connectionsParquetPath, airportStatisticsParquetPath, historyParquetPath, latestParquetPath, flightNumberUpdateReportPath); err != nil {
 			err = errors.Join(err, conn.Close())
 			return
 		}
@@ -134,6 +134,7 @@ func dbInit(
 	baseDbPath,
 	variantsParquetPath,
 	connectionsParquetPath,
+	airportStatisticsParquetPath,
 	historyParquetPath,
 	latestParquetPath,
 	flightNumberUpdateReportPath string) error {
@@ -249,6 +250,19 @@ SELECT * FROM read_parquet('%s', hive_partitioning = true, hive_types = {'airlin
 			nil,
 		},
 	}...)
+
+	// Website deployments can precede the cron deployment and the first layer update that
+	// contains this derivative. Keep the previous layer usable during that rollout window.
+	if _, err := os.Stat(airportStatisticsParquetPath); err == nil {
+		bootQueries = append(bootQueries, common.Tuple[string, []any]{
+			V1: fmt.Sprintf(
+				`CREATE OR REPLACE VIEW airport_statistics AS SELECT * FROM read_parquet('%s', hive_partitioning = false)`,
+				airportStatisticsParquetPath,
+			),
+		})
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to inspect airport statistics parquet %q: %w", airportStatisticsParquetPath, err)
+	}
 
 	for _, query := range bootQueries {
 		if _, err := conn.ExecContext(ctx, query.V1, query.V2...); err != nil {

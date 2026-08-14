@@ -133,7 +133,6 @@
     border-right: 0;
     border-bottom: var(--border-width) solid var(--border);
   }
-  .airport-overview-grid,
   .fleet-overview-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -302,16 +301,7 @@
     display: none;
   }
   .share-result {
-    grid-template-columns: 1fr auto;
-  }
-  .share-result strong {
-    grid-column: 1/-1;
-  }
-  .journey-legs {
-    flex-direction: column;
-  }
-  .journey-leg {
-    min-width: 0;
+    grid-template-columns: 1fr;
   }
   .connection-graph {
     height: 450px;
@@ -375,12 +365,6 @@
   .airport-card {
     min-height: 82px;
   }
-  .airport-overview-grid {
-    grid-template-columns: 1fr;
-  }
-  .top-destinations > div:last-child {
-    grid-template-columns: 1fr;
-  }
   .airport-title-code {
     display: block;
     margin-bottom: var(--space-1);
@@ -405,16 +389,8 @@
   .fleet-page .subnav a {
     margin-left: 0;
   }
-  .bar-chart {
-    height: 190px;
-    gap: var(--space-0-75);
-    overflow: auto hidden;
-  }
   .route-ranking {
     min-width: 0;
-  }
-  .svg-chart svg {
-    height: 200px;
   }
   .chart-legend {
     width: 100%;

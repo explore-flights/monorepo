@@ -62,6 +62,7 @@ def run(settings: Settings) -> None:
                     _create_and_upload_basedata_db(conn, storage, tmp_dir, settings.database_bucket, settings.basedata_database_key)
                     _export_variants(conn, settings.parquet_bucket, f"{settings.parquet_prefix}variants.parquet")
                     _export_connections(conn, settings.parquet_bucket, f"{settings.parquet_prefix}connections.parquet")
+                    _export_airport_statistics(conn, settings.parquet_bucket, f"{settings.parquet_prefix}airport_statistics.parquet")
                     _export_history(conn, settings.parquet_bucket, f"{settings.parquet_prefix}history/")
                     _export_latest(conn, settings.parquet_bucket, f"{settings.parquet_prefix}latest/")
                     _export_updates_report(conn, settings.parquet_bucket, f"{settings.parquet_prefix}updates_report/")
@@ -241,6 +242,199 @@ def _export_variants(conn: duckdb.DuckDBPyConnection, bucket: str, key: str) -> 
     conn.execute("SET threads TO 1")
     conn.execute(
         f"COPY flight_variants TO '{export_uri}' ( FORMAT parquet, COMPRESSION gzip, OVERWRITE_OR_IGNORE )"
+    )
+    conn.execute(f"SET threads TO {NUM_THREADS}")
+
+
+@timed(LOGGER, "export airport statistics")
+def _export_airport_statistics(conn: duckdb.DuckDBPyConnection, bucket: str, key: str) -> None:
+    export_uri = _build_parquet_file_uri(PARQUET_URI_SCHEMA, bucket, key)
+    conn.execute(f"USE {WORKING_DB_NAME}")
+    conn.execute("SET threads TO 1")
+    conn.execute(
+        f"""
+COPY (
+  WITH latest_operating_legs AS (
+    SELECT
+      fv.operating_airline_iata_code,
+      fvh.departure_airport_iata_code,
+      fvh.departure_date_local,
+      (
+        fvh.departure_date_local
+        + fv.departure_time_local
+        - TO_SECONDS(fv.departure_utc_offset_seconds)
+      ) AS departure_timestamp_utc,
+      fv.duration_seconds,
+      fv.arrival_airport_iata_code,
+      fv.arrival_utc_offset_seconds,
+      fv.aircraft_iata_code
+    FROM flight_variant_history fvh
+    INNER JOIN flight_variants fv
+    ON fvh.flight_variant_id = fv.id
+    AND fvh.airline_iata_code = fv.operating_airline_iata_code
+    AND fvh.number = fv.operating_number
+    AND fvh.suffix = fv.operating_suffix
+    WHERE fvh.replaced_at IS NULL
+    AND fvh.flight_variant_id IS NOT NULL
+  ),
+  airport_movements AS (
+    SELECT
+      departure_airport_iata_code AS airport_iata_code,
+      'departure' AS direction,
+      departure_date_local AS date_local,
+      arrival_airport_iata_code AS other_airport_iata_code,
+      operating_airline_iata_code,
+      aircraft_iata_code,
+      duration_seconds
+    FROM latest_operating_legs
+
+    UNION ALL
+
+    SELECT
+      arrival_airport_iata_code AS airport_iata_code,
+      'arrival' AS direction,
+      CAST(
+        departure_timestamp_utc
+        + TO_SECONDS(CAST(duration_seconds AS BIGINT) + arrival_utc_offset_seconds)
+        AS DATE
+      ) AS date_local,
+      departure_airport_iata_code AS other_airport_iata_code,
+      operating_airline_iata_code,
+      aircraft_iata_code,
+      duration_seconds
+    FROM latest_operating_legs
+  ),
+  movements_with_year AS (
+    SELECT
+      *,
+      CAST(YEAR(date_local) AS USMALLINT) AS year_local
+    FROM airport_movements
+  ),
+  airport_year_summary AS (
+    SELECT
+      airport_iata_code,
+      direction,
+      year_local,
+      CAST(COUNT(*) AS UINTEGER) AS scheduled_legs,
+      CAST(COUNT(DISTINCT other_airport_iata_code) AS USMALLINT) AS route_count,
+      CAST(COUNT(DISTINCT operating_airline_iata_code) AS USMALLINT) AS airline_count,
+      CAST(COUNT(DISTINCT aircraft_iata_code) AS USMALLINT) AS aircraft_type_count,
+      MIN(date_local) AS first_date_local,
+      MAX(date_local) AS last_date_local,
+      CAST(SUM(duration_seconds) AS UBIGINT) AS duration_seconds_total,
+      AVG(duration_seconds) AS duration_seconds_average,
+      MEDIAN(duration_seconds) AS duration_seconds_median,
+      MIN(duration_seconds) AS duration_seconds_minimum,
+      MAX(duration_seconds) AS duration_seconds_maximum
+    FROM movements_with_year
+    GROUP BY airport_iata_code, direction, year_local
+  ),
+  airport_route_statistics AS (
+    SELECT
+      airport_iata_code,
+      direction,
+      year_local,
+      other_airport_iata_code,
+      operating_airline_iata_code,
+      aircraft_iata_code,
+      CAST(COUNT(*) AS UINTEGER) AS scheduled_legs,
+      MIN(date_local) AS first_date_local,
+      MAX(date_local) AS last_date_local,
+      CAST(SUM(duration_seconds) AS UBIGINT) AS duration_seconds_total,
+      AVG(duration_seconds) AS duration_seconds_average,
+      MEDIAN(duration_seconds) AS duration_seconds_median,
+      MIN(duration_seconds) AS duration_seconds_minimum,
+      MAX(duration_seconds) AS duration_seconds_maximum
+    FROM movements_with_year
+    GROUP BY
+      airport_iata_code,
+      direction,
+      year_local,
+      other_airport_iata_code,
+      operating_airline_iata_code,
+      aircraft_iata_code
+  ),
+  airport_route_statistics_nested AS (
+    SELECT
+      airport_iata_code,
+      direction,
+      year_local,
+      LIST(
+        STRUCT_PACK(
+          other_airport_iata_code := other_airport_iata_code,
+          operating_airline_iata_code := operating_airline_iata_code,
+          aircraft_iata_code := aircraft_iata_code,
+          scheduled_legs := scheduled_legs,
+          first_date_local := first_date_local,
+          last_date_local := last_date_local,
+          duration_seconds_total := duration_seconds_total,
+          duration_seconds_average := duration_seconds_average,
+          duration_seconds_median := duration_seconds_median,
+          duration_seconds_minimum := duration_seconds_minimum,
+          duration_seconds_maximum := duration_seconds_maximum
+        )
+        ORDER BY other_airport_iata_code, operating_airline_iata_code, aircraft_iata_code
+      ) AS route_statistics
+    FROM airport_route_statistics
+    GROUP BY airport_iata_code, direction, year_local
+  ),
+  airport_daily_statistics AS (
+    SELECT
+      airport_iata_code,
+      direction,
+      year_local,
+      date_local,
+      CAST(COUNT(*) AS UINTEGER) AS scheduled_legs,
+      CAST(COUNT(DISTINCT other_airport_iata_code) AS USMALLINT) AS route_count,
+      CAST(COUNT(DISTINCT operating_airline_iata_code) AS USMALLINT) AS airline_count,
+      CAST(COUNT(DISTINCT aircraft_iata_code) AS USMALLINT) AS aircraft_type_count,
+      CAST(SUM(duration_seconds) AS UBIGINT) AS duration_seconds_total,
+      AVG(duration_seconds) AS duration_seconds_average,
+      MEDIAN(duration_seconds) AS duration_seconds_median,
+      MIN(duration_seconds) AS duration_seconds_minimum,
+      MAX(duration_seconds) AS duration_seconds_maximum
+    FROM movements_with_year
+    GROUP BY airport_iata_code, direction, year_local, date_local
+  ),
+  airport_daily_statistics_nested AS (
+    SELECT
+      airport_iata_code,
+      direction,
+      year_local,
+      LIST(
+        STRUCT_PACK(
+          date_local := date_local,
+          scheduled_legs := scheduled_legs,
+          route_count := route_count,
+          airline_count := airline_count,
+          aircraft_type_count := aircraft_type_count,
+          duration_seconds_total := duration_seconds_total,
+          duration_seconds_average := duration_seconds_average,
+          duration_seconds_median := duration_seconds_median,
+          duration_seconds_minimum := duration_seconds_minimum,
+          duration_seconds_maximum := duration_seconds_maximum
+        )
+        ORDER BY date_local
+      ) AS daily_statistics
+    FROM airport_daily_statistics
+    GROUP BY airport_iata_code, direction, year_local
+  )
+  SELECT
+    summary.*,
+    routes.route_statistics,
+    days.daily_statistics
+  FROM airport_year_summary summary
+  INNER JOIN airport_route_statistics_nested routes
+  USING (airport_iata_code, direction, year_local)
+  INNER JOIN airport_daily_statistics_nested days
+  USING (airport_iata_code, direction, year_local)
+  ORDER BY airport_iata_code, direction, year_local
+) TO '{export_uri}' (
+  FORMAT parquet,
+  COMPRESSION gzip,
+  OVERWRITE_OR_IGNORE
+)
+"""
     )
     conn.execute(f"SET threads TO {NUM_THREADS}")
 

@@ -1,4 +1,9 @@
 import { Map as MapIcon, Plane, TableProperties, TrendingUp } from 'lucide-react';
+import { barY, defineChart } from '@tanstack/charts';
+import { Chart } from '@tanstack/charts/react';
+import { scaleBand } from '@tanstack/charts/scales/band';
+import { scaleLinear } from '@tanstack/charts/scales/linear';
+import { tooltip } from '@tanstack/charts/tooltip';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type {
@@ -26,6 +31,12 @@ import {
 
 type ResultsTab = 'overview' | 'map' | 'schedule';
 const resultsTabs = ['overview', 'map', 'schedule'] as const satisfies readonly ResultsTab[];
+const monthShortFormatter = new Intl.DateTimeFormat(undefined, { month: 'short' });
+const compactNumberFormatter = new Intl.NumberFormat(undefined, { notation: 'compact' });
+const calendarHighlightColors = Array.from(
+  { length: calendarColorCount },
+  (_, index) => `var(--calendar-highlight-${index})`,
+);
 
 export function ScheduleResults({
   data,
@@ -177,44 +188,123 @@ function ScheduleOverview({
   const [highlight, setHighlight] = useState<FleetHighlight>('aircraft');
   const flights = new Set(rows.map((row) => flightName(row.flightNumber, data.airlines)));
   const airports = new Set(routePairs.flatMap((route) => [route.from.id, route.to.id]));
-  const rowsByMonth = Array.from({ length: 12 }, (): OperatingRow[] => []);
-  for (const row of rows) {
-    rowsByMonth[Number(row.item.departureDateLocal.slice(5, 7)) - 1].push(row);
-  }
-  const highlightValues =
-    highlight === 'none'
-      ? []
-      : [
-          ...new Map(
-            rows.flatMap((row) => {
-              const variant = data.variants[row.item.flightVariantId];
-              if (!variant) {
-                return [];
-              }
-              const value = fleetHighlightValue(variant, highlight, data);
-              return [[value.key, value.label] as const];
-            }),
-          ).entries(),
-        ];
-  const highlightLabels = new Map(highlightValues);
+  const highlightValues = useMemo(() => {
+    if (highlight === 'none') {
+      return [];
+    }
+
+    return [
+      ...new Map(
+        rows.flatMap((row) => {
+          const variant = data.variants[row.item.flightVariantId];
+          if (!variant) {
+            return [];
+          }
+          const value = fleetHighlightValue(variant, highlight, data);
+          return [[value.key, value.label] as const];
+        }),
+      ).entries(),
+    ];
+  }, [data, highlight, rows]);
   const highlightIndex = new Map(
     highlightValues.map(([key], index) => [key, index % calendarColorCount]),
   );
-  const monthly = rowsByMonth.map((monthRows, index) => {
-    const groupCounts = new Map<string, number>();
-    if (highlight !== 'none') {
-      for (const row of monthRows) {
-        const variant = data.variants[row.item.flightVariantId];
-        if (!variant) {
-          continue;
-        }
-        const value = fleetHighlightValue(variant, highlight, data);
-        groupCounts.set(value.key, (groupCounts.get(value.key) ?? 0) + 1);
-      }
+  const monthly = useMemo(() => {
+    const rowsByMonth = Array.from({ length: 12 }, (): OperatingRow[] => []);
+    for (const row of rows) {
+      rowsByMonth[Number(row.item.departureDateLocal.slice(5, 7)) - 1].push(row);
     }
-    return { month: index + 1, total: monthRows.length, groups: [...groupCounts.entries()] };
-  });
-  const max = Math.max(...monthly.map((month) => month.total), 1);
+
+    return rowsByMonth.map((monthRows, index) => {
+      const groupCounts = new Map<string, number>();
+      if (highlight !== 'none') {
+        for (const row of monthRows) {
+          const variant = data.variants[row.item.flightVariantId];
+          if (!variant) {
+            continue;
+          }
+          const value = fleetHighlightValue(variant, highlight, data);
+          groupCounts.set(value.key, (groupCounts.get(value.key) ?? 0) + 1);
+        }
+      }
+      return { month: index + 1, total: monthRows.length, groups: [...groupCounts.entries()] };
+    });
+  }, [data, highlight, rows]);
+  const chartDefinition = useMemo(() => {
+    const monthLabels = monthly.map((month) =>
+      monthShortFormatter.format(new Date(2020, month.month - 1)),
+    );
+    const seriesLabels = new Map(highlightValues);
+    const chartRows = monthly.flatMap((month) => {
+      const label = monthLabels[month.month - 1] ?? String(month.month);
+
+      if (highlight === 'none') {
+        return [
+          {
+            month: month.month,
+            label,
+            seriesKey: 'all',
+            series: 'All departures',
+            flights: month.total,
+          },
+        ];
+      }
+
+      return month.groups.map(([seriesKey, flights]) => ({
+        month: month.month,
+        label,
+        seriesKey,
+        series: seriesLabels.get(seriesKey) ?? seriesKey,
+        flights,
+      }));
+    });
+    const colorDomain =
+      highlight === 'none'
+        ? ['All departures']
+        : highlightValues.map(([, seriesLabel]) => seriesLabel);
+    const colorRange =
+      highlight === 'none'
+        ? ['var(--fleet-accent)']
+        : colorDomain.map((_, index) => calendarHighlightColors[index % calendarColorCount]);
+
+    return defineChart({
+      marks: [
+        barY(chartRows, {
+          x: 'label',
+          y: 'flights',
+          z: 'series',
+          color: 'series',
+          key: (row) => `${row.month}-${row.seriesKey}`,
+          inset: 2,
+          maxThickness: 24,
+          radius: 2,
+        }),
+      ],
+      x: {
+        scale: () => scaleBand<string>().domain(monthLabels).padding(0.2),
+      },
+      y: {
+        scale: scaleLinear,
+        nice: true,
+        grid: true,
+        axis: {
+          ticks: { count: 4, format: (value) => compactNumberFormatter.format(value) },
+        },
+      },
+      color: { domain: colorDomain, range: colorRange },
+      focus: 'group-x',
+      maxFocusDistance: Number.POSITIVE_INFINITY,
+      svgAnimation: true,
+      tooltip,
+    });
+  }, [highlight, highlightValues, monthly]);
+
+  function openMonth(month: number) {
+    onOpenSchedule({
+      from: `${year}-${String(month).padStart(2, '0')}-01`,
+      to: `${year}-${String(month).padStart(2, '0')}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`,
+    });
+  }
 
   return (
     <>
@@ -260,49 +350,18 @@ function ScheduleOverview({
               </div>
             </div>
           )}
-          <div className='bar-chart'>
-            {monthly.map((month) => {
-              const breakdown = month.groups
-                .map(([key, count]) => `${highlightLabels.get(key) ?? key}: ${count}`)
-                .join(' · ');
-              return (
-                <button
-                  key={month.month}
-                  className='bar-column'
-                  aria-label={`Show ${month.total} departures in ${new Intl.DateTimeFormat(undefined, { month: 'long' }).format(new Date(year, month.month - 1))}${breakdown ? ` · ${breakdown}` : ''}`}
-                  onClick={() =>
-                    onOpenSchedule({
-                      from: `${year}-${String(month.month).padStart(2, '0')}-01`,
-                      to: `${year}-${String(month.month).padStart(2, '0')}-${String(new Date(year, month.month, 0).getDate()).padStart(2, '0')}`,
-                    })
-                  }
-                >
-                  <span className='bar-value'>{month.total}</span>
-                  <span
-                    className='bar-fill'
-                    style={{ height: `${Math.max(2, (month.total / max) * 100)}%` }}
-                  >
-                    {highlight === 'none' ? (
-                      <i className='bar-fill-segment ungrouped' />
-                    ) : (
-                      month.groups.map(([key, count]) => (
-                        <i
-                          className={`bar-fill-segment highlight-${highlightIndex.get(key)}`}
-                          key={key}
-                          style={{ flexGrow: count }}
-                        />
-                      ))
-                    )}
-                  </span>
-                  <small>
-                    {new Intl.DateTimeFormat(undefined, { month: 'short' }).format(
-                      new Date(2020, month.month - 1),
-                    )}
-                  </small>
-                </button>
-              );
-            })}
-          </div>
+          <Chart
+            definition={chartDefinition}
+            height={235}
+            className='activity-tanstack-chart'
+            ariaLabel={`Published departures by month in ${year}`}
+            ariaDescription='Select a bar with a pointer or keyboard to open that month in the schedule.'
+            onSelect={(point) => {
+              if (point) {
+                openMonth(point.datum.month);
+              }
+            }}
+          />
         </Card>
         <Card className='route-ranking'>
           <div className='card-heading'>

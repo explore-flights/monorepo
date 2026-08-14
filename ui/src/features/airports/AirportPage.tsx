@@ -1,51 +1,32 @@
 import { useQuery } from '@tanstack/react-query';
-import {
-  ArrowLeft,
-  ArrowRight,
-  Compass,
-  ExternalLink,
-  Globe2,
-  List,
-  Map as MapIcon,
-  MapPin,
-  PlaneTakeoff,
-} from 'lucide-react';
+import { ArrowLeft, BarChart3, Compass, List, Map as MapIcon, Plane } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '@/api/client';
-import type { Airport } from '@/api/types';
-import { FlightMap } from '@/components/FlightMap';
-import {
-  Badge,
-  Card,
-  EmptyState,
-  ErrorState,
-  Loading,
-  PageHeader,
-  Stat,
-} from '@/components/primitives';
+import type { Airport, AirportMovementDirection, AirportSummary } from '@/api/types';
+import { YearSwitcher } from '@/components/ScheduleControls';
+import { Card, EmptyState, ErrorState, Loading, PageHeader } from '@/components/primitives';
+import { discoverYearlyData, loadYearlyData, type YearSelection } from '@/lib/yearlyData';
+import { useCurrentDate } from '@/lib/useCurrentDate';
 import { useHashView } from '@/lib/useHashView';
+import { AirportFlights } from './AirportFlights';
+import { AirportMap } from './AirportMap';
+import { AirportOverview, AirportFacts } from './AirportOverview';
+import { AirportRoutes } from './AirportRoutes';
+import { AirportStatistics } from './AirportStatistics';
+import { airportLocalDate, defaultAirportDate, defaultDirection } from './airportData';
 
-const airportViews = ['overview', 'routes', 'map'] as const;
+const airportViews = ['overview', 'flights', 'routes', 'statistics', 'map'] as const;
 type AirportView = (typeof airportViews)[number];
 
-type Context = {
-  airport: Airport;
-  destinations: readonly Airport[];
-  loading: boolean;
-  error: Error | null;
-};
 export function AirportLayout() {
-  const { view, hrefFor } = useHashView<AirportView>('overview', airportViews);
+  const { view, hrefFor, selectView } = useHashView<AirportView>('overview', airportViews);
   const { airportId = '' } = useParams();
   const airports = useQuery({ queryKey: ['airports'], queryFn: api.airports });
   const airport = airports.data?.find(
-    (a) => a.id === airportId || a.iataCode === airportId.toUpperCase(),
+    (item) => item.id === airportId || item.iataCode === airportId.toUpperCase(),
   );
-  const destinations = useQuery({
-    queryKey: ['destinations', airport?.id],
-    queryFn: () => loadDestinations(airport),
-    enabled: !!airport,
-  });
+
   if (airports.isLoading) {
     return (
       <div className='page'>
@@ -75,6 +56,45 @@ export function AirportLayout() {
       </div>
     );
   }
+
+  return (
+    <AirportPageForAirport
+      key={airport.id}
+      airport={airport}
+      view={view}
+      hrefFor={hrefFor}
+      selectView={selectView}
+    />
+  );
+}
+
+function AirportPageForAirport({
+  airport,
+  view,
+  hrefFor,
+  selectView,
+}: {
+  airport: Airport;
+  view: AirportView;
+  hrefFor: (view: AirportView) => { pathname: string; search: string; hash: string };
+  selectView: (view: AirportView) => void;
+}) {
+  const now = useCurrentDate();
+  const today = airportLocalDate(now, airport.timezone);
+  const currentYear = Number(today.slice(0, 4));
+  const [selection, setSelection] = useState<YearSelection>({ mode: 'discover' });
+  const selectedYear = selection.mode === 'single' ? selection.year : currentYear;
+  const query = useQuery({
+    queryKey: ['airport-statistics', airport.id, selection.mode, selectedYear],
+    queryFn: () =>
+      selection.mode === 'discover'
+        ? discoverAirportSummary(airport.id, currentYear)
+        : loadAirportSummary(airport.id, selection.year),
+    retry: false,
+  });
+  const summary = query.data?.data;
+  const year = query.data?.year ?? selectedYear;
+
   return (
     <div className='page airport-page'>
       <div className='breadcrumbs'>
@@ -95,243 +115,198 @@ export function AirportLayout() {
         }
         description={`${airport.cityCode} · ${airport.timezone}`}
         actions={
-          <Badge tone='blue'>
-            <MapPin size={14} />
-            {airport.location.lat.toFixed(2)}, {airport.location.lng.toFixed(2)}
-          </Badge>
+          <div className='airport-header-actions'>
+            <YearSwitcher
+              year={year}
+              onChange={(nextYear) => setSelection({ mode: 'single', year: nextYear })}
+            />
+          </div>
         }
       />
-      <nav className='subnav' aria-label='Airport view'>
-        <Link
-          to={hrefFor('overview')}
-          className={view === 'overview' ? 'active' : ''}
-          aria-current={view === 'overview' ? 'page' : undefined}
-        >
-          <Compass size={16} />
-          Overview
-        </Link>
-        <Link
-          id='routes'
-          to={hrefFor('routes')}
-          className={view === 'routes' ? 'active' : ''}
-          aria-current={view === 'routes' ? 'page' : undefined}
-        >
-          <List size={16} />
-          Routes
-        </Link>
-        <Link
-          id='map'
-          to={hrefFor('map')}
-          className={view === 'map' ? 'active' : ''}
-          aria-current={view === 'map' ? 'page' : undefined}
-        >
-          <MapIcon size={16} />
-          Map
-        </Link>
+      <nav className='subnav airport-detail-nav' aria-label='Airport view'>
+        <AirportViewLink
+          view='overview'
+          currentView={view}
+          href={hrefFor('overview')}
+          icon={<Compass size={16} />}
+          label='Overview'
+        />
+        <AirportViewLink
+          view='flights'
+          currentView={view}
+          href={hrefFor('flights')}
+          icon={<List size={16} />}
+          label='Flights'
+        />
+        <AirportViewLink
+          view='routes'
+          currentView={view}
+          href={hrefFor('routes')}
+          icon={<Plane size={16} />}
+          label='Routes'
+        />
+        <AirportViewLink
+          view='statistics'
+          currentView={view}
+          href={hrefFor('statistics')}
+          icon={<BarChart3 size={16} />}
+          label='Statistics'
+        />
+        <AirportViewLink
+          view='map'
+          currentView={view}
+          href={hrefFor('map')}
+          icon={<MapIcon size={16} />}
+          label='Map'
+        />
       </nav>
-      {view === 'overview' && (
-        <AirportOverview
-          airport={airport}
-          destinations={destinations.data ?? []}
-          loading={destinations.isLoading}
-          error={destinations.error}
-        />
+
+      {query.isLoading && <Loading label={`Loading ${airport.iataCode} ${selectedYear}…`} />}
+      {query.error && (
+        <div className='airport-summary-error'>
+          <ErrorState error={query.error} title={`Could not load ${year} airport statistics`} />
+          <Card className='airport-facts airport-reference-card'>
+            <AirportFacts airport={airport} />
+          </Card>
+        </div>
       )}
-      {view === 'routes' && (
-        <AirportRoutes
+      {summary && (
+        <AirportYearContent
+          key={`${airport.id}-${year}`}
           airport={airport}
-          destinations={destinations.data ?? []}
-          loading={destinations.isLoading}
-          error={destinations.error}
-        />
-      )}
-      {view === 'map' && (
-        <AirportMapPage
-          airport={airport}
-          destinations={destinations.data ?? []}
-          loading={destinations.isLoading}
-          error={destinations.error}
+          summary={summary}
+          view={view}
+          today={today}
+          selectView={selectView}
         />
       )}
     </div>
   );
 }
 
-function loadDestinations(airport: Airport | undefined) {
-  if (!airport) {
-    return Promise.resolve([]);
+function AirportYearContent({
+  airport,
+  summary,
+  view,
+  today,
+  selectView,
+}: {
+  airport: Airport;
+  summary: AirportSummary;
+  view: AirportView;
+  today: string;
+  selectView: (view: AirportView) => void;
+}) {
+  const [direction, setDirection] = useState<AirportMovementDirection>(() =>
+    defaultDirection(summary),
+  );
+  const [selectedDate, setSelectedDate] = useState<string | undefined>(() =>
+    defaultAirportDate(summary, today),
+  );
+  const hasMovements = summary.directions.some((item) => item.scheduledLegs > 0);
+
+  if (!hasMovements) {
+    return (
+      <div className='airport-empty-year'>
+        <EmptyState
+          title={`No scheduled movements in ${summary.year}`}
+          description='This is the explicitly selected year. Choose another year to look for airport schedules.'
+        />
+        <Card className='airport-facts airport-reference-card'>
+          <AirportFacts airport={airport} />
+        </Card>
+      </div>
+    );
   }
 
-  return api.destinations(airport.id);
-}
-function AirportOverview({ airport, destinations, loading, error }: Context) {
-  const countries = new Set(destinations.map((a) => a.countryCode));
-  return (
-    <>
-      {loading && <Loading label='Loading destination network…' />}
-      {error && <ErrorState error={error} />}
-      <div className='stats-grid'>
-        <Stat
-          label='Published destinations'
-          value={loading ? '—' : destinations.length}
-          hint='Direct destinations'
-        />
-        <Stat label='Countries reached' value={loading ? '—' : countries.size} />
-        <Stat label='Time zone' value={airport.timezone.split('/').at(-1)?.replace('_', ' ')} />
-        <Stat
-          label='Coordinates'
-          value={`${airport.location.lat.toFixed(2)}°`}
-          hint={`${airport.location.lng.toFixed(2)}° longitude`}
-        />
-      </div>
-      <div className='airport-overview-grid'>
-        <Card className='airport-facts'>
-          <div className='card-heading'>
-            <Globe2 />
-            <div>
-              <h2>Airport details</h2>
-              <p>Reference information</p>
-            </div>
-          </div>
-          <dl>
-            <div>
-              <dt>IATA code</dt>
-              <dd>{airport.iataCode}</dd>
-            </div>
-            <div>
-              <dt>ICAO code</dt>
-              <dd>{airport.icaoCode ?? '—'}</dd>
-            </div>
-            <div>
-              <dt>City code</dt>
-              <dd>{airport.cityCode}</dd>
-            </div>
-            <div>
-              <dt>Country</dt>
-              <dd>{airport.countryCode}</dd>
-            </div>
-            <div>
-              <dt>Airport type</dt>
-              <dd>{airport.type}</dd>
-            </div>
-            <div>
-              <dt>Timezone</dt>
-              <dd>{airport.timezone}</dd>
-            </div>
-          </dl>
-        </Card>
-        <Card className='top-destinations'>
-          <div className='card-heading'>
-            <PlaneTakeoff />
-            <div>
-              <h2>Destinations</h2>
-              <p>First published direct links</p>
-            </div>
-            <Link to='#routes'>
-              View all <ArrowRight size={15} />
-            </Link>
-          </div>
-          <div>
-            {destinations.slice(0, 8).map((item) => (
-              <Link key={item.id} to={`/airport/${item.id}`}>
-                <strong>{item.iataCode}</strong>
-                <span>{item.name}</span>
-                <small>{item.countryCode}</small>
-              </Link>
-            ))}
-          </div>
-          {!loading && !destinations.length && (
-            <p className='muted-copy'>No published destinations found.</p>
-          )}
-        </Card>
-      </div>
-    </>
-  );
-}
-function AirportRoutes({ airport, destinations, loading, error }: Context) {
-  if (loading) {
-    return <Loading label='Loading routes…' />;
-  }
-  if (error) {
-    return <ErrorState error={error} />;
-  }
-  return (
-    <section className='airport-subpage'>
-      <div className='section-heading'>
-        <div>
-          <span className='eyebrow'>Direct network</span>
-          <h2>
-            {destinations.length} destinations from {airport.iataCode}
-          </h2>
-        </div>
-      </div>
-      {destinations.length ? (
-        <Card className='table-card'>
-          <div className='table-scroll'>
-            <table className='data-table'>
-              <thead>
-                <tr>
-                  <th>Destination</th>
-                  <th>Airport</th>
-                  <th>Country</th>
-                  <th>Timezone</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {destinations.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <strong className='large-code'>{item.iataCode}</strong>
-                      <small>{item.icaoCode}</small>
-                    </td>
-                    <td>
-                      <strong>{item.name}</strong>
-                      <small>{item.cityCode}</small>
-                    </td>
-                    <td>{item.countryCode}</td>
-                    <td>{item.timezone}</td>
-                    <td>
-                      <Link className='icon-link' to={`/airport/${item.id}`}>
-                        <ExternalLink size={15} />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      ) : (
-        <EmptyState
-          title='No routes published'
-          description='The current dataset has no direct destinations for this airport.'
-        />
-      )}
-    </section>
-  );
-}
-function AirportMapPage({ airport, destinations, loading, error }: Context) {
-  if (loading) {
-    return <Loading label='Building route map…' />;
-  }
-  if (error) {
-    return <ErrorState error={error} />;
-  }
-  return (
-    <section className='airport-subpage'>
-      <div className='section-heading'>
-        <div>
-          <span className='eyebrow'>Geographic view</span>
-          <h2>Network map</h2>
-          <p>Direct published destinations from {airport.name}.</p>
-        </div>
-      </div>
-      <FlightMap
-        airports={[airport, ...destinations]}
-        routes={destinations.map((to) => ({ from: airport, to }))}
-        height={590}
+  if (view === 'flights') {
+    return (
+      <AirportFlights
+        airport={airport}
+        summary={summary}
+        direction={direction}
+        selectedDate={selectedDate}
+        today={today}
+        onDirectionChange={setDirection}
+        onDateChange={setSelectedDate}
       />
-    </section>
+    );
+  }
+  if (view === 'routes') {
+    return (
+      <AirportRoutes summary={summary} direction={direction} onDirectionChange={setDirection} />
+    );
+  }
+  if (view === 'statistics') {
+    return (
+      <AirportStatistics
+        summary={summary}
+        direction={direction}
+        onDirectionChange={setDirection}
+        onDateSelect={(date) => {
+          setSelectedDate(date);
+          selectView('flights');
+        }}
+      />
+    );
+  }
+  if (view === 'map') {
+    return (
+      <AirportMap
+        airport={airport}
+        summary={summary}
+        direction={direction}
+        onDirectionChange={setDirection}
+      />
+    );
+  }
+
+  return (
+    <AirportOverview
+      airport={airport}
+      summary={summary}
+      direction={direction}
+      onDirectionChange={setDirection}
+    />
   );
+}
+
+function AirportViewLink({
+  view,
+  currentView,
+  href,
+  icon,
+  label,
+}: {
+  view: AirportView;
+  currentView: AirportView;
+  href: { pathname: string; search: string; hash: string };
+  icon: ReactNode;
+  label: string;
+}) {
+  return (
+    <Link
+      id={view === 'overview' ? undefined : view}
+      to={href}
+      className={currentView === view ? 'active' : ''}
+      aria-current={currentView === view ? 'page' : undefined}
+    >
+      {icon}
+      {label}
+    </Link>
+  );
+}
+
+async function loadAirportSummary(airport: string, year: number) {
+  return loadYearlyData(year, (selectedYear) => api.airportStatistics(airport, selectedYear));
+}
+
+async function discoverAirportSummary(airport: string, currentYear: number) {
+  return discoverYearlyData({
+    currentYear,
+    load: (year) => api.airportStatistics(airport, year),
+    hasData: (data) => data.directions.some((direction) => direction.scheduledLegs > 0),
+    emptyMessage: (year) => `No airport schedule data found for ${airport} in ${year}`,
+    notFoundMessage: `No airport schedule found for ${airport}`,
+  });
 }

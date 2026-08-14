@@ -1,6 +1,8 @@
 import type {
   Aircraft,
   Airport,
+  AirportSummary,
+  AirportTimetable,
   ConnectionShare,
   ConnectionsResponse,
   ConnectionsSearchRequest,
@@ -85,8 +87,16 @@ export const api = {
     request<FlightScheduleVersions>(
       `/data/flight/${encodeURIComponent(flightNumber)}/versions/${encodeURIComponent(airport)}/${encodeURIComponent(date)}?v=4`,
     ),
-  destinations: (airport: string) =>
-    request<ReadonlyArray<Airport>>(`/data/destinations/${encodeURIComponent(airport)}?v=2`),
+  airportStatistics: (airport: string, year: number) =>
+    request<AirportSummary>(`/data/airport/${encodeURIComponent(airport)}/${year}/summary?v=1`),
+  airportDepartures: (airport: string, date: string) =>
+    request<AirportTimetable>(
+      `/data/airport/${encodeURIComponent(airport)}/${encodeURIComponent(date)}/departures?v=1`,
+    ),
+  airportArrivals: (airport: string, date: string) =>
+    request<AirportTimetable>(
+      `/data/airport/${encodeURIComponent(airport)}/${encodeURIComponent(date)}/arrivals?v=1`,
+    ),
   connections: (body: ConnectionsSearchRequest) =>
     request<ConnectionsResponse>('/api/connections/json', {
       method: 'POST',

@@ -1,0 +1,49 @@
+.chart {
+  display: grid;
+  gap: var(--space-4);
+  min-height: 220px;
+  color: var(--text);
+}
+
+.legend {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  font-size: var(--font-xs);
+  color: var(--muted);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+.legend i {
+  width: var(--space-2-5);
+  height: var(--space-2-5);
+  border-radius: var(--radius-xs);
+}
+
+.plot {
+  min-width: 0;
+  --ts-chart-tooltip-background: var(--surface);
+  --ts-chart-tooltip-color: var(--text);
+  --ts-chart-tooltip-border: var(--border-width) solid var(--border);
+  --ts-chart-tooltip-border-radius: var(--radius-md);
+  --ts-chart-tooltip-shadow: var(--shadow);
+}
+
+.departure {
+  background: var(--primary);
+}
+
+.arrival {
+  background: var(--green);
+}
+
+@media (max-width: 640px) {
+  .chart {
+    gap: var(--space-2);
+  }
+}

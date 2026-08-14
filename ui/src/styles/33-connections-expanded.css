@@ -67,13 +67,10 @@
   color: var(--primary);
 }
 .share-result {
-  grid-template-columns: 1fr 2fr auto;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
 }
-.share-result label {
-  display: grid;
-  gap: var(--space-0-75);
-}
-.share-result label span {
-  color: var(--muted);
-  font-size: var(--font-xs);
+@media (max-width: 640px) {
+  .share-result {
+    grid-template-columns: 1fr;
+  }
 }

@@ -1250,7 +1250,6 @@
 }
 .calendar-day[class*='highlight-'],
 .calendar-day-fill-segment[class*='highlight-'],
-.bar-fill-segment[class*='highlight-'],
 .calendar-legend i[class*='highlight-'] {
   background: var(--calendar-highlight);
   border-color: var(--calendar-highlight);

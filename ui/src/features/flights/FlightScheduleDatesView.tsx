@@ -2,16 +2,13 @@ import { ChevronRight, History, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { FlightScheduleItem, FlightSchedules } from '@/api/types';
+import { CenterSectionToggle } from '@/components/CenterSectionToggle';
 import { Badge, Card } from '@/components/primitives';
 import { ShowMore } from '@/components/ShowMore';
 import { classNames, dateLabel } from '@/lib/format';
 import { isCancelledScheduleItem as isCancelled } from '@/lib/schedules';
 import { FlightHistoryFeedLinks } from './FlightHistoryFeedLinks';
-import {
-  CenterSectionToggle,
-  JourneySnapshot,
-  journeyLabel,
-} from './FlightScheduleWorkspaceDetails';
+import { JourneySnapshot, journeyLabel } from './FlightScheduleWorkspaceDetails';
 import type { JourneyDay } from './schedulePeriods';
 
 export function DatesView({

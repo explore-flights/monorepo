@@ -161,3 +161,56 @@ type UpdateReportItem struct {
 	Added   int
 	Updated int
 }
+
+type AirportMovementDirection string
+
+const (
+	AirportMovementDirectionDeparture AirportMovementDirection = "departure"
+	AirportMovementDirectionArrival   AirportMovementDirection = "arrival"
+)
+
+type AirportStatistics struct {
+	AirportIataCode        string
+	Direction              AirportMovementDirection
+	YearLocal              int
+	ScheduledLegs          int
+	RouteCount             int
+	AirlineCount           int
+	AircraftTypeCount      int
+	FirstDateLocal         xtime.LocalDate
+	LastDateLocal          xtime.LocalDate
+	DurationSecondsTotal   int64
+	DurationSecondsAverage float64
+	DurationSecondsMedian  float64
+	DurationSecondsMinimum int64
+	DurationSecondsMaximum int64
+	RouteStatistics        []AirportRouteStatistics
+	DailyStatistics        []AirportDailyStatistics
+}
+
+type AirportRouteStatistics struct {
+	OtherAirportIataCode     string
+	OperatingAirlineIataCode string
+	AircraftIataCode         string
+	ScheduledLegs            int
+	FirstDateLocal           xtime.LocalDate
+	LastDateLocal            xtime.LocalDate
+	DurationSecondsTotal     int64
+	DurationSecondsAverage   float64
+	DurationSecondsMedian    float64
+	DurationSecondsMinimum   int64
+	DurationSecondsMaximum   int64
+}
+
+type AirportDailyStatistics struct {
+	DateLocal              xtime.LocalDate
+	ScheduledLegs          int
+	RouteCount             int
+	AirlineCount           int
+	AircraftTypeCount      int
+	DurationSecondsTotal   int64
+	DurationSecondsAverage float64
+	DurationSecondsMedian  float64
+	DurationSecondsMinimum int64
+	DurationSecondsMaximum int64
+}

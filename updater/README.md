@@ -41,7 +41,7 @@ sequenceDiagram
 
     Updater->>Updater: Upsert schedules with DuckDB
     Updater->>DataS3: Store updated flights.db and basedata.db
-    Updater->>ParquetS3: Store variants and connections
+    Updater->>ParquetS3: Store variants, connections and airport statistics
     Updater->>ParquetS3: Store partitioned history
     Updater->>ParquetS3: Store partitioned latest schedules
     Updater->>ParquetS3: Store partitioned update reports
@@ -49,7 +49,7 @@ sequenceDiagram
     SFN->>Cron: Publish new data layer
     Cron->>DataS3: Read basedata.db
     DataS3-->>Cron: Return basedata.db
-    Cron->>ParquetS3: Read variants and connections
+    Cron->>ParquetS3: Read variants, connections and airport statistics
     ParquetS3-->>Cron: Return Parquet files
     Cron->>Layer: Publish new layer version
     Cron->>API: Attach new layer version
@@ -57,7 +57,7 @@ sequenceDiagram
     Note over Layer,Consumer: API request serving
 
     Consumer->>API: Request flight data
-    API->>Layer: Read basedata, variants and connections
+    API->>Layer: Read basedata, variants, connections and airport statistics
     Layer-->>API: Return local data
     API->>ParquetS3: Query history, latest or update reports
     ParquetS3-->>API: Return partitioned Parquet data
@@ -99,3 +99,13 @@ Optional:
 - `--parquet-uri-schema` (default `s3`, use `file` for local paths)
 - `--aws-region` (default `eu-central-1`)
 - `--log-level` (default `INFO`)
+
+## Airport statistics derivative
+
+`airport_statistics.parquet` contains one row per airport, direction, and local year. Each row has
+the annual scheduled-leg, route, airline, aircraft-type, date-range, and duration summary together
+with nested `route_statistics` and `daily_statistics` lists. Route records are grouped by other
+airport, operating airline, and aircraft type. Daily records use the movement's local date.
+
+The export counts current operating legs only, so marketing codeshares do not inflate the totals.
+Arrival dates are derived from the departure timestamp, duration, and arrival UTC offset.

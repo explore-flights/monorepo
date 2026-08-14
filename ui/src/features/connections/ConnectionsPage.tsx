@@ -2,17 +2,16 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   ArrowRight,
   CalendarDays,
+  Copy,
   GitBranch,
   List,
   Map as MapIcon,
   Network,
-  Plane,
   Search,
   Share2,
   SlidersHorizontal,
-  TableProperties,
 } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useId, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '@/api/client';
 import type {
@@ -22,6 +21,7 @@ import type {
   SharedConnectionsResponse,
 } from '@/api/types';
 import { FlightMap } from '@/components/FlightMap';
+import { JourneyLegSequence, JourneyRouteSnapshot } from '@/components/JourneySnapshot';
 import { MultiCombobox, type SelectOption } from '@/components/MultiCombobox';
 import {
   Badge,
@@ -36,11 +36,11 @@ import { aircraftSelectOptions, airportSelectOptions } from '@/components/select
 import { SimpleSelect } from '@/components/SimpleSelect';
 import { TagInput } from '@/components/TagInput';
 import { TemporalInput } from '@/components/TemporalInput';
-import { dateLabel, duration, flightName, timeLabel } from '@/lib/format';
+import { classNames, dateLabel, duration, flightName, timeLabel } from '@/lib/format';
 import { ConnectionGraph } from './ConnectionGraph';
 import { connectionSearchDefaults } from './defaults';
 
-type View = 'journeys' | 'table' | 'graph' | 'map';
+type View = 'journeys' | 'graph' | 'map';
 const today = new Date();
 const isoLocal = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -347,7 +347,6 @@ function ConnectionsWorkspace({
                 {(
                   [
                     ['journeys', List],
-                    ['table', TableProperties],
                     ['graph', GitBranch],
                     ['map', MapIcon],
                   ] as const
@@ -355,6 +354,8 @@ function ConnectionsWorkspace({
                   <button
                     key={key}
                     className={view === key ? 'active' : ''}
+                    aria-label={key}
+                    aria-pressed={view === key}
                     onClick={() => setView(key)}
                   >
                     <Icon size={16} />
@@ -371,34 +372,8 @@ function ConnectionsWorkspace({
           {shareResult && (
             <Card className='share-result'>
               <strong>Share links ready</strong>
-              <label>
-                <span>Interactive page</span>
-                <input
-                  readOnly
-                  value={shareResult.htmlUrl}
-                  onFocus={(event) => event.target.select()}
-                />
-              </label>
-              <Button
-                variant='secondary'
-                onClick={() => navigator.clipboard.writeText(shareResult.htmlUrl)}
-              >
-                Copy
-              </Button>
-              <label>
-                <span>Image</span>
-                <input
-                  readOnly
-                  value={shareResult.imageUrl}
-                  onFocus={(event) => event.target.select()}
-                />
-              </label>
-              <Button
-                variant='secondary'
-                onClick={() => navigator.clipboard.writeText(shareResult.imageUrl)}
-              >
-                Copy
-              </Button>
+              <ShareLinkField label='Interactive page' url={shareResult.htmlUrl} />
+              <ShareLinkField label='Image' url={shareResult.imageUrl} />
             </Card>
           )}
           {view === 'journeys' &&
@@ -419,7 +394,6 @@ function ConnectionsWorkspace({
                 description='Try a broader time range, another airport, or allow one more flight.'
               />
             ))}
-          {view === 'table' && <ConnectionTable data={results} />}{' '}
           {view === 'graph' && <ConnectionGraph data={results} />}{' '}
           {view === 'map' && (
             <FlightMap
@@ -567,6 +541,36 @@ function optional(values: string[]) {
   return values.length ? values : undefined;
 }
 
+function ShareLinkField({ label, url }: { label: string; url: string }) {
+  const inputId = useId();
+  const actionLabel = `Copy ${label.toLowerCase()} link`;
+
+  function copyUrl() {
+    void navigator.clipboard.writeText(url);
+  }
+
+  return (
+    <div className='share-link-field'>
+      <label htmlFor={inputId}>{label}</label>
+      <div className='input-action share-link-control'>
+        <input
+          id={inputId}
+          readOnly
+          value={url}
+          onClick={(event) => {
+            event.currentTarget.select();
+            copyUrl();
+          }}
+          onFocus={(event) => event.currentTarget.select()}
+        />
+        <button type='button' aria-label={actionLabel} title={actionLabel} onClick={copyUrl}>
+          <Copy size={17} aria-hidden='true' />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function hasAdvancedFilters(request: ConnectionsSearchRequest | undefined): boolean {
   return Boolean(
     request?.includeAirport ||
@@ -615,6 +619,65 @@ function JourneyCard({
   }
   const total =
     (new Date(last.arrivalTime).getTime() - new Date(first.departureTime).getTime()) / 1000;
+  const legs = flights.map((flight, legIndex) => {
+    const next = flights[legIndex + 1];
+    const number = flightName(flight.flightNumber, data.airlines);
+    const connectionAirport = data.airports[flight.arrivalAirportId]?.iataCode;
+    const layoverSeconds = next
+      ? (new Date(next.departureTime).getTime() - new Date(flight.arrivalTime).getTime()) / 1000
+      : undefined;
+    return {
+      key: `${flight.departureTime}:${flight.departureAirportId}:${flight.arrivalAirportId}:${number}`,
+      content: (
+        <div className='journey-leg-panel'>
+          <div className='journey-leg-card'>
+            <span className='journey-leg-heading'>
+              {flights.length > 1 && <span>Leg {legIndex + 1}</span>}
+              <Link to={`/flight/${number}`}>{number}</Link>
+            </span>
+            <JourneyRouteSnapshot
+              departureAirport={
+                data.airports[flight.departureAirportId]?.iataCode ?? flight.departureAirportId
+              }
+              departureTime={timeLabel(flight.departureTime)}
+              duration={duration(
+                (new Date(flight.arrivalTime).getTime() -
+                  new Date(flight.departureTime).getTime()) /
+                  1000,
+              )}
+              arrivalAirport={
+                data.airports[flight.arrivalAirportId]?.iataCode ?? flight.arrivalAirportId
+              }
+              arrivalTime={timeLabel(flight.arrivalTime)}
+              operation={{
+                primary: data.aircraft[flight.aircraftId]?.name ?? flight.aircraftId,
+                secondary: flight.aircraftConfiguration || 'No configuration',
+              }}
+            />
+            {flight.codeShares.length > 0 && (
+              <div className='leg-codeshares'>
+                Also sold as{' '}
+                {flight.codeShares.map((value) => {
+                  const codeshare = flightName(value, data.airlines);
+                  return (
+                    <Link key={codeshare} to={`/flight/${codeshare}`}>
+                      {codeshare}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      ),
+      connection: next
+        ? {
+            label: `${duration(Math.max(layoverSeconds ?? 0, 0))} stopover in ${connectionAirport ?? flight.arrivalAirportId}`,
+          }
+        : undefined,
+    };
+  });
+
   return (
     <Card className='journey-card'>
       <div className='journey-summary'>
@@ -634,129 +697,14 @@ function JourneyCard({
           </span>
         </div>
       </div>
-      <div className='journey-legs'>
-        {flights.map((flight) => (
-          <div
-            className='journey-leg'
-            key={`${flight.departureTime}:${flight.departureAirportId}:${flight.arrivalAirportId}:${flightName(flight.flightNumber, data.airlines)}`}
-          >
-            <div className='leg-times'>
-              <strong>{timeLabel(flight.departureTime)}</strong>
-              <span>
-                <Plane size={14} />
-                {duration(
-                  (new Date(flight.arrivalTime).getTime() -
-                    new Date(flight.departureTime).getTime()) /
-                    1000,
-                )}
-              </span>
-              <strong>{timeLabel(flight.arrivalTime)}</strong>
-            </div>
-            <div className='leg-route'>
-              <span>
-                <b>{data.airports[flight.departureAirportId]?.iataCode}</b>
-                <small>{data.airports[flight.departureAirportId]?.name}</small>
-              </span>
-              <i />
-              <span>
-                <b>{data.airports[flight.arrivalAirportId]?.iataCode}</b>
-                <small>{data.airports[flight.arrivalAirportId]?.name}</small>
-              </span>
-            </div>
-            <div className='leg-meta'>
-              <Link to={`/flight/${flightName(flight.flightNumber, data.airlines)}`}>
-                {flightName(flight.flightNumber, data.airlines)}
-              </Link>
-              <span>
-                {data.aircraft[flight.aircraftId]?.name ?? flight.aircraftId} ·{' '}
-                {flight.aircraftConfiguration}
-              </span>
-            </div>
-            {flight.codeShares.length > 0 && (
-              <div className='leg-codeshares'>
-                Also sold as{' '}
-                {flight.codeShares.map((value) => (
-                  <Link
-                    key={flightName(value, data.airlines)}
-                    to={`/flight/${flightName(value, data.airlines)}`}
-                  >
-                    {flightName(value, data.airlines)}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-function ConnectionTable({ data }: { data: ConnectionsData }) {
-  const flights = Object.values(data.flights).sort((left, right) =>
-    left.departureTime.localeCompare(right.departureTime),
-  );
-  return (
-    <Card className='table-card'>
-      <div className='table-scroll'>
-        <table className='data-table'>
-          <thead>
-            <tr>
-              <th>Flight</th>
-              <th>Departure</th>
-              <th>Route</th>
-              <th>Arrival</th>
-              <th>Aircraft</th>
-              <th>Configuration</th>
-              <th>Codeshares</th>
-            </tr>
-          </thead>
-          <tbody>
-            {flights.map((flight) => (
-              <tr
-                key={`${flightName(flight.flightNumber, data.airlines)}-${flight.departureTime}-${flight.departureAirportId}`}
-              >
-                <td>
-                  <Link to={`/flight/${flightName(flight.flightNumber, data.airlines)}`}>
-                    <strong>{flightName(flight.flightNumber, data.airlines)}</strong>
-                  </Link>
-                </td>
-                <td>
-                  <strong>{dateLabel(flight.departureTime, { dateStyle: 'medium' })}</strong>
-                  <small>{timeLabel(flight.departureTime)}</small>
-                </td>
-                <td>
-                  <strong>
-                    {data.airports[flight.departureAirportId]?.iataCode}
-                    <ArrowRight size={13} />
-                    {data.airports[flight.arrivalAirportId]?.iataCode}
-                  </strong>
-                </td>
-                <td>
-                  <strong>{dateLabel(flight.arrivalTime, { dateStyle: 'medium' })}</strong>
-                  <small>{timeLabel(flight.arrivalTime)}</small>
-                </td>
-                <td>
-                  <strong>{data.aircraft[flight.aircraftId]?.name ?? flight.aircraftId}</strong>
-                  <small>{flight.aircraftOwner}</small>
-                </td>
-                <td>{flight.aircraftConfiguration || '—'}</td>
-                <td>
-                  {flight.codeShares.length
-                    ? flight.codeShares.map((value) => (
-                        <Link
-                          key={flightName(value, data.airlines)}
-                          to={`/flight/${flightName(value, data.airlines)}`}
-                        >
-                          {flightName(value, data.airlines)}{' '}
-                        </Link>
-                      ))
-                    : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <JourneyLegSequence
+        className={classNames(
+          'connection-journey-snapshot',
+          flights.length === 1 && 'single-leg',
+          flights.length > 2 && 'many-legs',
+        )}
+        legs={legs}
+      />
     </Card>
   );
 }

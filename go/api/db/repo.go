@@ -1049,13 +1049,17 @@ AND day_utc = ?
 	}
 	defer rows.Close()
 
+	return scanFlights(rows)
+}
+
+func scanFlights(rows *sql.Rows) ([]Flight, error) {
 	flights := make([]Flight, 0)
 	for rows.Next() {
 		var f Flight
 		var departureUtcOffsetSeconds, arrivalUtcOffsetSeconds, durationSeconds int
 		var codeShares xsql.SQLArray[FlightNumber, *FlightNumber]
 		var dataElements DuckDBMap[xsql.Int64, *xsql.Int64, xsql.String, *xsql.String]
-		err = rows.Scan(
+		err := rows.Scan(
 			&f.AirlineIataCode,
 			&f.Number,
 			&f.Suffix,
@@ -1095,10 +1099,6 @@ AND day_utc = ?
 		}
 
 		flights = append(flights, f)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
 	}
 
 	return flights, rows.Err()

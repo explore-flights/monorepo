@@ -1,12 +1,4 @@
-import {
-  ArrowRight,
-  CalendarDays,
-  ChevronDown,
-  ChevronRight,
-  History,
-  Sparkles,
-  X,
-} from 'lucide-react';
+import { ArrowRight, CalendarDays, History, Sparkles, X } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import type {
   FlightReferenceData,
@@ -14,6 +6,8 @@ import type {
   FlightScheduleVariant,
   FlightSchedules,
 } from '@/api/types';
+import { CenterSectionToggle } from '@/components/CenterSectionToggle';
+import { JourneyLegSequence, JourneyRouteSnapshot } from '@/components/JourneySnapshot';
 import { Badge, Card } from '@/components/primitives';
 import { CodeshareDetails, DataElementList } from '@/components/ScheduleMetadata';
 import { aircraftConfigurationLabel as configurationLabel } from '@/lib/aircraftConfigurations';
@@ -447,31 +441,6 @@ function weeklyPatternWeekdayLabel(weekdays: readonly number[]) {
     .join(' · ');
 }
 
-export function CenterSectionToggle({
-  expanded,
-  label,
-  onToggle,
-}: {
-  expanded: boolean;
-  label: string;
-  onToggle: () => void;
-}) {
-  return (
-    <>
-      <button
-        type='button'
-        className='center-section-toggle'
-        aria-label={label}
-        aria-expanded={expanded}
-        onClick={onToggle}
-      />
-      <span className='center-section-chevron' aria-hidden='true'>
-        {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-      </span>
-    </>
-  );
-}
-
 export function JourneySnapshot({
   day,
   data,
@@ -491,10 +460,37 @@ export function JourneySnapshot({
   flatSingleLeg?: boolean;
   expanded?: boolean;
 }) {
+  const legs = day.legs.map((item, index) => {
+    const next = day.legs[index + 1];
+    const connection = next ? connectionLabel(item, next, data) : undefined;
+    return {
+      key: `${item.departureAirportId}-${item.flightVariantId ?? item.previousFlightVariantId ?? index}`,
+      content: (
+        <JourneyLegCard
+          item={item}
+          index={index}
+          showLegNumber={day.legs.length > 1}
+          data={data}
+          variableProperties={variation?.byLeg[index]}
+          snapshotVariableProperties={variation?.snapshotByLeg[index]}
+          showEquipment={showEquipment}
+          aggregate={aggregate}
+          compact={compact}
+          expanded={expanded}
+        />
+      ),
+      connection: next
+        ? {
+            label: connection ?? 'Routing not published',
+            routingUnknown: !connection,
+          }
+        : undefined,
+    };
+  });
+
   return (
-    <div
+    <JourneyLegSequence
       className={classNames(
-        'journey-snapshot',
         aggregate && 'aggregate',
         compact && 'compact',
         flatSingleLeg && 'flat-single-leg',
@@ -502,38 +498,8 @@ export function JourneySnapshot({
         day.legs.length > 2 && 'many-legs',
         day.legs.some(isCancelled) && 'has-cancelled',
       )}
-    >
-      {day.legs.map((item, index) => {
-        const next = day.legs[index + 1];
-        const connection = next ? connectionLabel(item, next, data) : undefined;
-        return (
-          <div
-            className='journey-leg-wrap'
-            key={`${item.departureAirportId}-${item.flightVariantId ?? item.previousFlightVariantId ?? index}`}
-          >
-            <JourneyLegCard
-              item={item}
-              index={index}
-              showLegNumber={day.legs.length > 1}
-              data={data}
-              variableProperties={variation?.byLeg[index]}
-              snapshotVariableProperties={variation?.snapshotByLeg[index]}
-              showEquipment={showEquipment}
-              aggregate={aggregate}
-              compact={compact}
-              expanded={expanded}
-            />
-            {next && (
-              <div className={classNames('journey-connection', !connection && 'routing-unknown')}>
-                <i />
-                <span>{connection ?? 'Routing not published'}</span>
-                <i />
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+      legs={legs}
+    />
   );
 }
 
@@ -926,88 +892,57 @@ function VariantSnapshot({
   const arrival = arrivalScheduleTime(item.departureDateLocal, variant);
   const configuration = configurationLabel(variant, data);
   return (
-    <div className={classNames('variant-snapshot', compact && 'compact')}>
-      <div className='snapshot-route'>
-        <strong className={variablePropertyClass(variableProperties, 'departureAirport')}>
-          {variablePropertyValue(
-            variableProperties,
-            'departureAirport',
-            from?.iataCode ?? item.departureAirportId,
-          )}
-        </strong>
-        <span className={variablePropertyClass(variableProperties, 'departureSchedule')}>
-          {variablePropertyValue(variableProperties, 'departureSchedule', departure.time)}
-        </span>
-        <span className='snapshot-route-transition'>
-          <ArrowRight size={16} />
-          <span className={variablePropertyClass(variableProperties, 'duration')}>
-            {variablePropertyValue(
-              variableProperties,
-              'duration',
-              duration(variant.durationSeconds),
-            )}
-          </span>
-        </span>
-        <strong className={variablePropertyClass(variableProperties, 'arrivalAirport')}>
-          {variablePropertyValue(
-            variableProperties,
-            'arrivalAirport',
-            to?.iataCode ?? variant.arrivalAirportId,
-          )}
-        </strong>
-        <span className={variablePropertyClass(variableProperties, 'arrivalSchedule')}>
-          {variableProperties?.has('arrivalSchedule') ? (
-            'Varies'
-          ) : (
-            <>
-              {arrival.time}
-              <sup>{dayDeltaLabel(arrival.dayDelta)}</sup>
-            </>
-          )}
-        </span>
-      </div>
-      <EquipmentSnapshot
-        variant={variant}
-        data={data}
-        configuration={configuration}
-        variableProperties={variableProperties}
-        showEquipment={showEquipment}
-      />
-    </div>
+    <JourneyRouteSnapshot
+      compact={compact}
+      departureAirport={variablePropertyValue(
+        variableProperties,
+        'departureAirport',
+        from?.iataCode ?? item.departureAirportId,
+      )}
+      departureTime={variablePropertyValue(variableProperties, 'departureSchedule', departure.time)}
+      duration={variablePropertyValue(
+        variableProperties,
+        'duration',
+        duration(variant.durationSeconds),
+      )}
+      arrivalAirport={variablePropertyValue(
+        variableProperties,
+        'arrivalAirport',
+        to?.iataCode ?? variant.arrivalAirportId,
+      )}
+      arrivalTime={
+        variableProperties?.has('arrivalSchedule') ? (
+          'Varies'
+        ) : (
+          <>
+            {arrival.time}
+            <sup>{dayDeltaLabel(arrival.dayDelta)}</sup>
+          </>
+        )
+      }
+      operation={
+        showEquipment
+          ? {
+              primary: variablePropertyValue(
+                variableProperties,
+                'aircraft',
+                data.aircraft[variant.aircraftId]?.name ?? variant.aircraftId,
+              ),
+              secondary: variablePropertyValue(variableProperties, 'configuration', configuration),
+            }
+          : undefined
+      }
+      valueClassNames={{
+        departureAirport: variablePropertyClass(variableProperties, 'departureAirport'),
+        departureTime: variablePropertyClass(variableProperties, 'departureSchedule'),
+        duration: variablePropertyClass(variableProperties, 'duration'),
+        arrivalAirport: variablePropertyClass(variableProperties, 'arrivalAirport'),
+        arrivalTime: variablePropertyClass(variableProperties, 'arrivalSchedule'),
+        operationPrimary: variablePropertyClass(variableProperties, 'aircraft'),
+        operationSecondary: variablePropertyClass(variableProperties, 'configuration'),
+      }}
+    />
   );
-}
-
-function EquipmentSnapshot({
-  variant,
-  data,
-  configuration,
-  variableProperties,
-  showEquipment,
-}: {
-  variant: FlightScheduleVariant;
-  data: FlightReferenceData;
-  configuration: string;
-  variableProperties: ReadonlySet<SnapshotPropertyKey> | undefined;
-  showEquipment: boolean;
-}) {
-  if (showEquipment) {
-    return (
-      <div className='snapshot-operation'>
-        <strong className={variablePropertyClass(variableProperties, 'aircraft')}>
-          {variablePropertyValue(
-            variableProperties,
-            'aircraft',
-            data.aircraft[variant.aircraftId]?.name ?? variant.aircraftId,
-          )}
-        </strong>
-        <span className={variablePropertyClass(variableProperties, 'configuration')}>
-          {variablePropertyValue(variableProperties, 'configuration', configuration)}
-        </span>
-      </div>
-    );
-  }
-
-  return null;
 }
 
 function variablePropertyClass(

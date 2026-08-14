@@ -107,3 +107,30 @@
 .schedule-details > .schedule-details-data-elements {
   grid-column: 1/-1;
 }
+.calendar-density-scale {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  color: var(--muted);
+  font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
+}
+.calendar-density-scale b {
+  width: var(--column-label);
+  height: var(--space-2-5);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary) 35%, transparent),
+    var(--primary)
+  );
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-pill);
+}
+
+@media (max-width: 640px) {
+  .schedule-table-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+}

@@ -193,61 +193,14 @@
 .activity-chart-legend {
   padding: var(--space-3) 0 0;
 }
-.bar-chart {
-  display: flex;
-  height: 235px;
-  align-items: end;
-  gap: var(--space-2);
-  margin-top: var(--space-6);
-  padding-top: var(--space-5);
-  border-bottom: var(--border-width) solid var(--border);
-}
-.bar-column {
-  display: flex;
-  height: 100%;
-  flex: 1;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  gap: var(--space-1-25);
-  padding: 0;
-  color: inherit;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-}
-.bar-column:hover .bar-fill {
-  filter: brightness(1.14);
-}
-.bar-fill {
-  display: flex;
-  width: min(22px, 70%);
-  min-height: 2px;
-  flex-direction: column-reverse;
-  overflow: hidden;
-  background: var(--surface-3);
-  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-}
-.bar-fill-segment {
-  width: 100%;
-  min-height: 0;
-  flex-basis: 0;
-}
-.bar-fill-segment.ungrouped {
-  flex: 1;
-  background: linear-gradient(
-    var(--fleet-accent),
-    color-mix(in srgb, var(--fleet-accent) 50%, var(--primary))
-  );
-}
-.bar-value {
-  font-size: var(--font-xs);
-  color: var(--muted);
-}
-.bar-column small {
-  font-size: var(--font-xs);
-  color: var(--muted);
-  transform: translateY(19px);
+.activity-tanstack-chart {
+  margin-top: var(--space-4);
+  color: var(--text);
+  --ts-chart-tooltip-background: var(--surface);
+  --ts-chart-tooltip-color: var(--text);
+  --ts-chart-tooltip-border: var(--border-width) solid var(--border);
+  --ts-chart-tooltip-border-radius: var(--radius-md);
+  --ts-chart-tooltip-shadow: var(--shadow);
 }
 .route-ranking > div:last-child {
   display: grid;
@@ -304,8 +257,7 @@
   color: var(--primary);
   background: var(--primary-soft);
 }
-.fleet-route-pair-list,
-.fleet-period-list {
+.fleet-route-pair-list {
   display: grid;
   gap: var(--space-2);
 }
@@ -315,31 +267,32 @@
   padding: 0;
   box-shadow: none;
 }
-.fleet-route-pair-card > summary {
+.fleet-route-pair-summary {
   display: grid;
-  grid-template-columns: var(--column-period) minmax(0, 1fr) auto;
+  grid-template-columns: calc(var(--column-period) + var(--space-4)) minmax(0, 1fr);
   min-height: var(--space-18);
-  align-items: stretch;
-  gap: 0;
-  padding: 0;
-  cursor: pointer;
-  list-style: none;
 }
-.fleet-route-pair-card > summary::-webkit-details-marker {
-  display: none;
-}
-.fleet-route-pair-card > summary:hover {
-  background: var(--surface-2);
-}
-.fleet-route-pair-card[open] > summary {
+.fleet-route-pair-card.expanded .fleet-route-pair-summary {
   border-bottom: var(--border-width) solid var(--border);
 }
+.fleet-route-pair-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  padding: var(--space-4) var(--space-4-5);
+  padding-right: calc(var(--space-4-5) + var(--space-5));
+}
+.fleet-route-pair-main.expandable-center:hover,
+.fleet-route-pair-main.expandable-center.expanded {
+  background: color-mix(in srgb, var(--primary-soft) 24%, transparent);
+}
 .fleet-route-pair-title {
+  position: relative;
+  z-index: var(--layer-raised);
   display: grid;
-  align-content: center;
   gap: var(--space-1);
   min-width: 0;
-  padding: var(--space-4) var(--space-4-5);
+  pointer-events: none;
 }
 .fleet-route-pair-title strong {
   font-size: var(--font-lg);
@@ -349,39 +302,34 @@
   font-size: var(--font-xs);
 }
 .fleet-route-pair-range {
+  display: grid;
+  align-content: center;
+  gap: var(--space-1);
+  padding: var(--space-4-5);
+  background: var(--surface-2);
+  border-right: var(--border-width) solid var(--border);
+}
+.fleet-route-pair-range strong {
+  font-size: var(--font-sm);
   white-space: nowrap;
 }
-.fleet-route-pair-meta {
-  display: flex;
-  min-width: var(--column-period);
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  padding: var(--space-3-5) var(--space-4);
-  color: var(--primary);
-  font-size: var(--font-xs);
-  font-weight: 750;
-  border-left: var(--border-width) solid var(--border);
-}
-.fleet-route-pair-chevron {
-  width: var(--space-4);
-  height: var(--space-4);
+.fleet-route-pair-range small {
   color: var(--muted);
-}
-.fleet-route-pair-card[open] .fleet-route-pair-chevron {
-  transform: rotate(90deg);
+  font-size: var(--font-xs);
 }
 .fleet-route-pair-body {
   display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4);
+  gap: 0;
+}
+.fleet-route-pair-body[hidden] {
+  display: none;
 }
 .fleet-route-direction {
   display: grid;
   gap: var(--space-2-5);
+  padding: var(--space-4);
 }
 .fleet-route-direction + .fleet-route-direction {
-  padding-top: var(--space-4);
   border-top: var(--border-width) solid var(--border);
 }
 .fleet-route-direction > header {
@@ -415,69 +363,86 @@
   background: var(--primary-soft);
   border-radius: var(--radius-pill);
 }
-.fleet-period-card {
-  display: grid;
-  grid-template-columns: minmax(145px, 0.8fr) minmax(220px, 1.45fr) minmax(190px, 1fr) auto;
-  align-items: center;
-  gap: var(--space-3);
+.fleet-period-table-wrap {
   overflow: hidden;
-  padding: 0;
-  box-shadow: none;
+  border-top: var(--border-width) solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
 }
-.fleet-period-range,
-.fleet-period-service,
-.fleet-period-equipment {
-  display: grid;
-  gap: var(--space-1);
-  min-width: 0;
-  padding: var(--space-3-5);
+.fleet-period-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
-.fleet-period-range {
-  align-self: stretch;
-  align-content: center;
+.fleet-period-table th {
+  padding: var(--space-2) var(--space-2-5);
+  color: var(--muted);
+  font-size: var(--font-xs);
+  font-weight: 750;
+  text-align: left;
   background: var(--surface-2);
-  border-right: var(--border-width) solid var(--border);
+  border-bottom: var(--border-width) solid var(--border);
 }
-.fleet-period-range span,
-.fleet-period-service > span,
-.fleet-period-range small {
+.fleet-period-table th:nth-child(1) {
+  width: 21%;
+}
+.fleet-period-table th:nth-child(2) {
+  width: 14%;
+}
+.fleet-period-table th:nth-child(3) {
+  width: 30%;
+}
+.fleet-period-table th:nth-child(4) {
+  width: 20%;
+}
+.fleet-period-table th:nth-child(5) {
+  width: 14%;
+}
+.fleet-period-table td {
+  padding: var(--space-2-5);
+  color: var(--text-2);
+  font-size: var(--font-xs);
+  vertical-align: middle;
+  border-bottom: var(--border-width) solid var(--border);
+}
+.fleet-period-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.fleet-period-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+.fleet-period-table td strong,
+.fleet-period-table td small {
+  display: block;
+}
+.fleet-period-table td strong {
+  color: var(--text);
+  font-size: var(--font-sm);
+}
+.fleet-period-table td small {
+  margin-top: var(--space-1);
   color: var(--muted);
   font-size: var(--font-xs);
 }
-.fleet-period-range strong,
-.fleet-period-service strong,
-.fleet-period-equipment strong {
-  font-size: var(--font-sm);
+.fleet-period-table .fleet-period-action {
+  padding-inline: var(--space-1);
+  text-align: right;
+  white-space: nowrap;
 }
-.fleet-period-service > a {
-  width: fit-content;
-  color: var(--primary);
-  font-size: var(--font-xs);
-  font-weight: 780;
-}
-.fleet-period-service > strong {
-  display: flex;
+.fleet-period-action > button {
+  display: inline-flex;
+  min-height: var(--control-height-sm);
   align-items: center;
-  gap: var(--space-1-5);
-}
-.fleet-period-equipment .badge {
-  width: fit-content;
-}
-.fleet-period-card > button {
-  display: flex;
-  height: 100%;
-  min-height: 72px;
-  align-items: center;
+  justify-content: center;
   gap: var(--space-1-25);
-  padding: var(--space-3-5);
+  padding: var(--space-1-5) var(--space-1);
   color: var(--primary);
   font-size: var(--font-xs);
   font-weight: 750;
   background: transparent;
   border: 0;
-  border-left: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
 }
-.fleet-period-card > button:hover {
+.fleet-period-action > button:hover {
   background: var(--primary-soft);
 }
 .fleet-calendar-legend {
@@ -500,21 +465,4 @@
 .fleet-calendar-legend i.operating {
   background: var(--primary);
   border-color: var(--primary);
-}
-.calendar-density-scale {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  font-variant-numeric: tabular-nums;
-}
-.calendar-density-scale b {
-  width: 120px;
-  height: 10px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--primary) 35%, transparent),
-    var(--primary)
-  );
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-pill);
 }

@@ -11,15 +11,12 @@
   font-family: inherit;
 }
 
-.marker {
+.markerGroup {
   position: relative;
   z-index: var(--layer-content);
   display: flex;
-  align-items: center;
-  gap: var(--space-0-75);
-  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1-25);
-  font: inherit;
-  color: var(--map-marker);
+  align-items: stretch;
+  overflow: hidden;
   background: var(--map-marker-surface);
   border: var(--border-width) solid var(--map-marker-border);
   border-radius: var(--radius-pill);
@@ -31,25 +28,53 @@
     box-shadow var(--duration-fast) ease;
 }
 
-.marker:hover {
+.markerGroup:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-map-marker-hover);
 }
 
-.marker:focus-visible {
+.markerGroup:focus-within {
   outline: var(--focus-ring-width) solid
     color-mix(in srgb, var(--primary) 70%, var(--color-on-accent));
   outline-offset: var(--space-0-75);
 }
 
-.marker.active {
-  color: var(--map-marker-active);
+.markerGroup.active {
   border-color: var(--map-marker);
   box-shadow: var(--shadow-map-marker-active);
 }
 
-.marker.muted {
+.markerGroup.muted {
   opacity: 0.58;
+}
+
+.marker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-75);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1-25);
+  font: inherit;
+  color: var(--map-marker);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.marker + .marker {
+  border-left: var(--border-width) solid var(--map-marker-border);
+}
+
+.marker:hover,
+.marker.active {
+  color: var(--map-marker-active);
+  background: var(--map-marker-halo-hover);
+}
+
+.marker:focus-visible {
+  z-index: var(--layer-content);
+  outline: 0;
+  box-shadow: inset 0 0 0 var(--focus-ring-width)
+    color-mix(in srgb, var(--primary) 70%, var(--color-on-accent));
 }
 
 .marker svg {

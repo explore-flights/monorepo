@@ -33,6 +33,86 @@ export interface Aircraft {
   configurations: Record<AirlineId, ReadonlyArray<string>>;
 }
 
+export type AirportMovementDirection = 'departure' | 'arrival';
+
+export interface AirportRouteStatistics {
+  otherAirportId: AirportId;
+  operatingAirlineId: AirlineId;
+  aircraftId: AircraftId;
+  scheduledLegs: number;
+  firstDateLocal: string;
+  lastDateLocal: string;
+  durationSecondsTotal: number;
+  durationSecondsAverage: number;
+  durationSecondsMedian: number;
+  durationSecondsMinimum: number;
+  durationSecondsMaximum: number;
+}
+
+export interface AirportDailyStatistics {
+  dateLocal: string;
+  scheduledLegs: number;
+  routeCount: number;
+  airlineCount: number;
+  aircraftTypeCount: number;
+  durationSecondsTotal: number;
+  durationSecondsAverage: number;
+  durationSecondsMedian: number;
+  durationSecondsMinimum: number;
+  durationSecondsMaximum: number;
+}
+
+export interface AirportDirectionStatistics {
+  direction: AirportMovementDirection;
+  scheduledLegs: number;
+  routeCount: number;
+  airlineCount: number;
+  aircraftTypeCount: number;
+  firstDateLocal: string;
+  lastDateLocal: string;
+  durationSecondsTotal: number;
+  durationSecondsAverage: number;
+  durationSecondsMedian: number;
+  durationSecondsMinimum: number;
+  durationSecondsMaximum: number;
+  routes: ReadonlyArray<AirportRouteStatistics>;
+  days: ReadonlyArray<AirportDailyStatistics>;
+}
+
+export interface AirportSummary {
+  airportId: AirportId;
+  year: number;
+  directions: ReadonlyArray<AirportDirectionStatistics>;
+  airlines: Record<AirlineId, Airline>;
+  airports: Record<AirportId, Airport>;
+  aircraft: Record<AircraftId, Aircraft>;
+}
+
+export interface AirportMovement {
+  flightNumber: FlightNumber;
+  departureTime: string;
+  departureAirportId: AirportId;
+  arrivalTime: string;
+  arrivalAirportId: AirportId;
+  durationSeconds: number;
+  serviceType: string;
+  aircraftOwner: string;
+  aircraftId: AircraftId;
+  aircraftConfigurationVersion: string;
+  codeShares: ReadonlyArray<FlightNumber>;
+  dataElements: Record<number, string>;
+}
+
+export interface AirportTimetable {
+  airportId: AirportId;
+  dateLocal: string;
+  direction: AirportMovementDirection;
+  movements: ReadonlyArray<AirportMovement>;
+  airlines: Record<AirlineId, Airline>;
+  airports: Record<AirportId, Airport>;
+  aircraft: Record<AircraftId, Aircraft>;
+}
+
 export interface FlightNumber {
   airlineId: AirlineId;
   number: number;

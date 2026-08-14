@@ -1,5 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import { defineChart, lineY } from '@tanstack/charts';
+import { Chart } from '@tanstack/charts/react';
+import { scaleLinear } from '@tanstack/charts/scales/linear';
+import { scalePoint } from '@tanstack/charts/scales/point';
+import { tooltip } from '@tanstack/charts/tooltip';
 import { ArrowDown, ArrowUp, Database, RefreshCw, TrendingUp } from 'lucide-react';
+import { useMemo } from 'react';
 import { api } from '@/api/client';
 import type { UpdateReportItem } from '@/api/types';
 import { Badge, Card, ErrorState, Loading, PageHeader, Stat } from '@/components/primitives';
@@ -143,17 +149,60 @@ export function UpdatesPage() {
   );
 }
 function UpdateChart({ data }: { data: UpdateReportItem[] }) {
-  const width = 900,
-    height = 280,
-    pad = 28;
-  const max = Math.max(...data.flatMap((d) => [d.added, d.updated, d.removed]), 1);
-  const points = (key: 'added' | 'updated' | 'removed') =>
-    data
-      .map(
-        (d, i) =>
-          `${pad + (i / Math.max(data.length - 1, 1)) * (width - pad * 2)},${height - pad - (d[key] / max) * (height - pad * 2)}`,
-      )
-      .join(' ');
+  const definition = useMemo(() => {
+    const rows = data.flatMap((report) => [
+      { version: report.version, change: 'Added', records: report.added },
+      { version: report.version, change: 'Updated', records: report.updated },
+      { version: report.version, change: 'Removed', records: report.removed },
+    ]);
+
+    return defineChart({
+      marks: [
+        lineY(rows, {
+          x: 'version',
+          y: 'records',
+          z: 'change',
+          color: 'change',
+          key: (row) => `${row.version}-${row.change}`,
+          points: true,
+          strokeWidth: 2.4,
+        }),
+      ],
+      x: {
+        scale: () =>
+          scalePoint<string>()
+            .domain(data.map((report) => report.version))
+            .padding(0.1),
+        axis: {
+          ticks: {
+            count: 5,
+            format: (value) => dateLabel(value, { month: 'short', day: 'numeric' }),
+          },
+        },
+      },
+      y: {
+        scale: scaleLinear,
+        nice: true,
+        grid: true,
+        axis: {
+          ticks: {
+            count: 5,
+            format: (value) =>
+              new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value),
+          },
+        },
+      },
+      color: {
+        domain: ['Added', 'Updated', 'Removed'],
+        range: ['var(--green)', 'var(--amber)', 'var(--red)'],
+      },
+      focus: 'group-x',
+      maxFocusDistance: Number.POSITIVE_INFINITY,
+      svgAnimation: true,
+      tooltip,
+    });
+  }, [data]);
+
   if (!data.length) {
     return (
       <div className='empty-chart'>
@@ -163,27 +212,12 @@ function UpdateChart({ data }: { data: UpdateReportItem[] }) {
     );
   }
   return (
-    <div className='svg-chart'>
-      <svg viewBox={`0 0 ${width} ${height}`} role='img' aria-label='Update counts over time'>
-        <g className='grid-lines'>
-          {[0, 0.25, 0.5, 0.75, 1].map((v) => (
-            <line
-              key={v}
-              x1={pad}
-              x2={width - pad}
-              y1={pad + v * (height - pad * 2)}
-              y2={pad + v * (height - pad * 2)}
-            />
-          ))}
-        </g>
-        <polyline className='line-added' points={points('added')} />
-        <polyline className='line-updated' points={points('updated')} />
-        <polyline className='line-removed' points={points('removed')} />
-      </svg>
-      <div className='chart-axis'>
-        <span>{dateLabel(data[0]?.version ?? '', { month: 'short', day: 'numeric' })}</span>
-        <span>{dateLabel(data.at(-1)?.version ?? '', { month: 'short', day: 'numeric' })}</span>
-      </div>
-    </div>
+    <Chart
+      definition={definition}
+      height={280}
+      className='updates-chart'
+      ariaLabel='Schedule records changed per import'
+      ariaDescription='Three lines compare added, updated, and removed schedule records across the latest imports.'
+    />
   );
 }

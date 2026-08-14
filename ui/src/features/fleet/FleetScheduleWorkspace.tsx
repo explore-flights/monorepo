@@ -1,13 +1,5 @@
-import {
-  ArrowRight,
-  CalendarDays,
-  ChevronRight,
-  List,
-  Plane,
-  RotateCcw,
-  Search,
-} from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ArrowRight, CalendarDays, List, Plane, RotateCcw, Search } from 'lucide-react';
+import { useId, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type {
   FlightNumber,
@@ -15,7 +7,8 @@ import type {
   OperatingFlightScheduleItem,
   QuerySchedulesResponse,
 } from '@/api/types';
-import { Badge, Button, Card, EmptyState } from '@/components/primitives';
+import { CenterSectionToggle } from '@/components/CenterSectionToggle';
+import { Button, Card, EmptyState } from '@/components/primitives';
 import { ActiveFilterRow, type ActiveFilter, WeekdaySelect } from '@/components/ScheduleControls';
 import { ScheduleScopeTabs } from '@/components/ScheduleScopeTabs';
 import { ShowMore } from '@/components/ShowMore';
@@ -458,7 +451,7 @@ export function FleetScheduleWorkspace({
             aria-pressed={view === 'dates'}
             onClick={() => setView('dates')}
           >
-            <List size={16} /> Dates
+            <List size={16} /> Flights
           </button>
         </div>
         <p>{viewSummary(view, filtered, routePairs, dateBasis)}</p>
@@ -485,80 +478,13 @@ function RoutePairsView({
   return (
     <div className='fleet-route-pair-list'>
       {routePairs.slice(0, visible).map((pair) => (
-        <details className='card fleet-route-pair-card' key={pair.key}>
-          <summary>
-            <span className='period-range fleet-route-pair-range'>
-              <span>{formatRange(pair.start, pair.end)}</span>
-              <small>{pair.records.length} departures</small>
-            </span>
-            <span className='fleet-route-pair-title'>
-              <strong>{routePairLabel(pair.key, data)}</strong>
-              <small>
-                {pair.directions.length} {pair.directions.length === 1 ? 'direction' : 'directions'}{' '}
-                · {routePairFlightNumberCount(pair)}{' '}
-                {routePairFlightNumberCount(pair) === 1 ? 'flight number' : 'flight numbers'}
-              </small>
-            </span>
-            <span className='fleet-route-pair-meta'>
-              <span>Schedule details</span>
-              <ChevronRight className='fleet-route-pair-chevron' />
-            </span>
-          </summary>
-          <div className='fleet-route-pair-body'>
-            {pair.directions.map((direction) => (
-              <section className='fleet-route-direction' key={direction.key}>
-                <header>
-                  <div>
-                    <strong>{routeDirectionLabel(direction.sample, data)}</strong>
-                    <span className='fleet-route-flight-numbers'>
-                      {direction.flightNumbers.map((number) => (
-                        <Link key={number} to={`/flight/${number}`}>
-                          {number}
-                        </Link>
-                      ))}
-                    </span>
-                  </div>
-                  <span>{direction.records.length} departures</span>
-                </header>
-                <div className='fleet-period-list'>
-                  {direction.periods.map((period) => {
-                    const record = period.sample;
-                    const departure = departureForBasis(record, dateBasis);
-                    return (
-                      <Card
-                        className='fleet-period-card'
-                        key={`${serviceSignature(record, data)}-${period.start}`}
-                      >
-                        <div className='fleet-period-range'>
-                          <span>{formatRange(period.start, period.end)}</span>
-                          <strong>{period.records.length} departures</strong>
-                          <small>{periodWeekdays(period, dateBasis)}</small>
-                        </div>
-                        <div className='fleet-period-service'>
-                          <span>Departure</span>
-                          <strong>{departure.time}</strong>
-                          <span>{departure.offset}</span>
-                        </div>
-                        <div className='fleet-period-equipment'>
-                          <strong>
-                            {data.aircraft[record.variant.aircraftId]?.name ??
-                              record.variant.aircraftId}
-                          </strong>
-                          <Badge tone='neutral'>
-                            {aircraftConfigurationLabel(record.variant, data, true)}
-                          </Badge>
-                        </div>
-                        <button onClick={() => onInspect(pair.key, period.start, period.end)}>
-                          View dates <ArrowRight size={14} />
-                        </button>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
-          </div>
-        </details>
+        <FleetRoutePairCard
+          key={pair.key}
+          pair={pair}
+          data={data}
+          dateBasis={dateBasis}
+          onInspect={onInspect}
+        />
       ))}
       <ShowMore
         visible={visible}
@@ -568,6 +494,123 @@ function RoutePairsView({
         onShowMore={() => setVisible(visible + pageSize)}
       />
     </div>
+  );
+}
+
+function FleetRoutePairCard({
+  pair,
+  data,
+  dateBasis,
+  onInspect,
+}: {
+  pair: FleetRoutePair;
+  data: QuerySchedulesResponse;
+  dateBasis: DateBasis;
+  onInspect: (pair: string, from: string, to: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
+  const pairLabel = routePairLabel(pair.key, data);
+
+  return (
+    <Card className={classNames('fleet-route-pair-card', expanded && 'expanded')}>
+      <div className='fleet-route-pair-summary'>
+        <div className='fleet-route-pair-range'>
+          <strong>{formatRange(pair.start, pair.end)}</strong>
+          <small>{pair.records.length} departures</small>
+        </div>
+        <div
+          className={classNames(
+            'fleet-route-pair-main',
+            'expandable-center',
+            expanded && 'expanded',
+          )}
+        >
+          <CenterSectionToggle
+            expanded={expanded}
+            label={`${expanded ? 'Collapse' : 'Expand'} schedule details for ${pairLabel}`}
+            controls={detailsId}
+            onToggle={() => setExpanded((current) => !current)}
+          />
+          <span className='fleet-route-pair-title'>
+            <strong>{pairLabel}</strong>
+            <small>
+              {pair.directions.length} {pair.directions.length === 1 ? 'direction' : 'directions'} ·{' '}
+              {routePairFlightNumberCount(pair)}{' '}
+              {routePairFlightNumberCount(pair) === 1 ? 'flight number' : 'flight numbers'}
+            </small>
+          </span>
+        </div>
+      </div>
+      <div className='fleet-route-pair-body' id={detailsId} hidden={!expanded}>
+        {pair.directions.map((direction) => (
+          <section className='fleet-route-direction' key={direction.key}>
+            <header>
+              <div>
+                <strong>{routeDirectionLabel(direction.sample, data)}</strong>
+                <span className='fleet-route-flight-numbers'>
+                  {direction.flightNumbers.map((number) => (
+                    <Link key={number} to={`/flight/${number}`}>
+                      {number}
+                    </Link>
+                  ))}
+                </span>
+              </div>
+              <span>{direction.records.length} departures</span>
+            </header>
+            <div className='fleet-period-table-wrap'>
+              <table
+                className='fleet-period-table'
+                aria-label={`${routeDirectionLabel(direction.sample, data)} schedule periods`}
+              >
+                <thead>
+                  <tr>
+                    <th>Date range</th>
+                    <th>Departure</th>
+                    <th>Aircraft and configuration</th>
+                    <th>Frequency</th>
+                    <th aria-label='View dates' />
+                  </tr>
+                </thead>
+                <tbody>
+                  {direction.periods.map((period) => {
+                    const record = period.sample;
+                    const departure = departureForBasis(record, dateBasis);
+                    return (
+                      <tr key={`${serviceSignature(record, data)}-${period.start}`}>
+                        <td data-label='Date range'>
+                          <strong>{formatRange(period.start, period.end)}</strong>
+                        </td>
+                        <td data-label='Departure'>
+                          <strong>{departure.time}</strong>
+                          <small>{departure.offset}</small>
+                        </td>
+                        <td data-label='Aircraft and configuration'>
+                          <strong>
+                            {data.aircraft[record.variant.aircraftId]?.name ??
+                              record.variant.aircraftId}
+                          </strong>
+                          <small>{aircraftConfigurationLabel(record.variant, data, true)}</small>
+                        </td>
+                        <td data-label='Frequency'>
+                          <strong>{period.records.length} departures</strong>
+                          <small>{periodWeekdays(period, dateBasis)}</small>
+                        </td>
+                        <td className='fleet-period-action'>
+                          <button onClick={() => onInspect(pair.key, period.start, period.end)}>
+                            View dates <ArrowRight size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ))}
+      </div>
+    </Card>
   );
 }
 
