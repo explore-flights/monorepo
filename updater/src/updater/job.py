@@ -32,6 +32,10 @@ def run(settings: Settings) -> None:
     update_summaries = []
     done = False
 
+    if settings.skip_update_database:
+        LOGGER.info("skip update database is set; resetting inputs to empty list, was %s", inputs)
+        inputs = []
+
     while not done:
         with tempfile.TemporaryDirectory(prefix="duckdb_update_database_") as tmp_dir_str:
             updated_database = False
