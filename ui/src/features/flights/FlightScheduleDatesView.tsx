@@ -5,7 +5,7 @@ import type { FlightScheduleItem, FlightSchedules } from '@/api/types';
 import { CenterSectionToggle } from '@/components/CenterSectionToggle';
 import { Badge, Card } from '@/components/primitives';
 import { ShowMore } from '@/components/ShowMore';
-import { classNames, dateLabel } from '@/lib/format';
+import { classNames, dateLabel, fullDateLabel } from '@/lib/format';
 import { isCancelledScheduleItem as isCancelled } from '@/lib/schedules';
 import { FlightHistoryFeedLinks } from './FlightHistoryFeedLinks';
 import { JourneySnapshot, journeyLabel } from './FlightScheduleWorkspaceDetails';
@@ -100,7 +100,7 @@ function JourneyDateRow({
     >
       <div className='journey-date-label'>
         <strong>{dateLabel(day.date, { weekday: 'short', month: 'short', day: '2-digit' })}</strong>
-        <span>{new Date(day.date).getFullYear()}</span>
+        <span>{dateLabel(day.date, { year: 'numeric' })}</span>
         {cancelled > 0 && (
           <Badge tone='red'>
             <X size={12} />
@@ -111,7 +111,7 @@ function JourneyDateRow({
       <div className={classNames('journey-date-main', 'expandable-center', expanded && 'expanded')}>
         <CenterSectionToggle
           expanded={expanded}
-          label={`${expanded ? 'Collapse' : 'Expand'} schedule details for ${journeyLabel(day, data)} on ${day.date}`}
+          label={`${expanded ? 'Collapse' : 'Expand'} schedule details for ${journeyLabel(day, data)} on ${fullDateLabel(day.date)}`}
           onToggle={() => setExpanded(!expanded)}
         />
         <JourneySnapshot day={day} data={data} compact flatSingleLeg expanded={expanded} />

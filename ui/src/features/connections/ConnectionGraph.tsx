@@ -9,7 +9,7 @@ import { zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom
 import { Maximize2, Minus, Plus } from 'lucide-react';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ConnectionBranch, ConnectionsData } from '@/api/types';
-import { duration, flightName, timeLabel } from '@/lib/format';
+import { airportCode, duration, flightName, timeLabel } from '@/lib/format';
 
 const nodeWidth = 190;
 const nodeHeight = 104;
@@ -738,8 +738,8 @@ function buildGraph(data: ConnectionsData): FlightGraphLayout {
     }
 
     if (!nodeData.has(branch.flightId)) {
-      const from = data.airports[flight.departureAirportId]?.iataCode ?? flight.departureAirportId;
-      const to = data.airports[flight.arrivalAirportId]?.iataCode ?? flight.arrivalAirportId;
+      const from = airportCode(flight.departureAirportId, data.airports);
+      const to = airportCode(flight.arrivalAirportId, data.airports);
       nodeData.set(branch.flightId, {
         id: branch.flightId,
         flight: flightName(flight.flightNumber, data.airlines),

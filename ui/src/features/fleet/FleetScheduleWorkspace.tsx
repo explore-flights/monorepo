@@ -9,7 +9,12 @@ import type {
 } from '@/api/types';
 import { CenterSectionToggle } from '@/components/CenterSectionToggle';
 import { Button, Card, EmptyState } from '@/components/primitives';
-import { ActiveFilterRow, type ActiveFilter, WeekdaySelect } from '@/components/ScheduleControls';
+import {
+  ActiveFilterRow,
+  DateBasisSelect,
+  type ActiveFilter,
+  WeekdaySelect,
+} from '@/components/ScheduleControls';
 import { ScheduleScopeTabs } from '@/components/ScheduleScopeTabs';
 import { ShowMore } from '@/components/ShowMore';
 import { SimpleSelect } from '@/components/SimpleSelect';
@@ -21,12 +26,11 @@ import {
   type CalendarFillSegment,
   YearCalendar,
 } from '@/components/YearCalendar';
-import { countBy, isDefined, isOneOf } from '@/lib/collections';
+import { countBy, isDefined } from '@/lib/collections';
 import { aircraftConfigurationLabel } from '@/lib/aircraftConfigurations';
 import {
-  dateBases,
+  calendarDateForBasis,
   daysBetween,
-  localDate,
   matchingScheduleScope as matchingScope,
   rangeForYearScope as rangeForScope,
   weekdayForDate,
@@ -34,7 +38,16 @@ import {
   type DateBasis,
   type ScheduleScope,
 } from '@/lib/date';
-import { classNames, dateLabel, dateRangeLabel as formatRange, flightName } from '@/lib/format';
+import {
+  aircraftName,
+  airportCode,
+  classNames,
+  dateLabel,
+  dateRangeLabel as formatRange,
+  flightName,
+  fullDateLabel,
+  numberLabel,
+} from '@/lib/format';
 import { departureScheduleTimeForBasis } from '@/lib/time';
 import { useCurrentDate } from '@/lib/useCurrentDate';
 import { isOperatingScheduleItem } from '@/lib/schedules';
@@ -95,8 +108,7 @@ export function FleetScheduleWorkspace({
 }) {
   const records = useMemo(() => operatingRecords(data), [data]);
   const currentDate = useCurrentDate();
-  const localToday = localDate(currentDate);
-  const utcToday = currentDate.toISOString().slice(0, 10);
+  const localToday = calendarDateForBasis(currentDate, 'local');
   const initialUpcoming = rangeForScope('upcoming', year, localToday);
   const hasUpcoming = countInRange(records, initialUpcoming, 'local') > 0;
   const initialScope: ScheduleScope = hasUpcoming ? 'upcoming' : 'historical';
@@ -115,7 +127,7 @@ export function FleetScheduleWorkspace({
   const [configuration, setConfiguration] = useState('');
   const [weekday, setWeekday] = useState('');
 
-  const basisToday = dateBasis === 'local' ? localToday : utcToday;
+  const basisToday = calendarDateForBasis(currentDate, dateBasis);
   const upcomingRange = rangeForScope('upcoming', year, basisToday);
   const historicalRange = rangeForScope('historical', year, basisToday);
   const upcomingCount = countInRange(records, upcomingRange, dateBasis);
@@ -177,7 +189,7 @@ export function FleetScheduleWorkspace({
         from?.name,
         to?.iataCode,
         to?.name,
-        data.aircraft[record.variant.aircraftId]?.name,
+        aircraftName(record.variant.aircraftId, data.aircraft),
         record.variant.aircraftConfigurationVersion,
         record.variant.aircraftOwner,
       ]
@@ -211,7 +223,7 @@ export function FleetScheduleWorkspace({
     aircraft
       ? {
           key: 'aircraft',
-          label: data.aircraft[aircraft]?.name ?? aircraft,
+          label: aircraftName(aircraft, data.aircraft),
           clear: () => setAircraft(''),
         }
       : undefined,
@@ -245,7 +257,7 @@ export function FleetScheduleWorkspace({
   ].filter(isDefined);
 
   function applyScope(scope: ScheduleScope, basis = dateBasis) {
-    const range = rangeForScope(scope, year, basis === 'local' ? localToday : utcToday);
+    const range = rangeForScope(scope, year, calendarDateForBasis(currentDate, basis));
     if (!range) {
       return;
     }
@@ -327,7 +339,8 @@ export function FleetScheduleWorkspace({
           <span className='eyebrow'>Schedule workspace</span>
           <h2>{title}</h2>
           <p>
-            <strong>{filtered.length}</strong> of {records.length} matching departures shown
+            <strong>{numberLabel(filtered.length)}</strong> of {numberLabel(records.length)}{' '}
+            matching departures shown
           </p>
         </div>
         <ScheduleScopeTabs
@@ -359,7 +372,7 @@ export function FleetScheduleWorkspace({
               <option value=''>All route pairs</option>
               {pairOptions.map(({ key, count }) => (
                 <option key={key} value={key}>
-                  {routePairLabel(key, data)} ({count})
+                  {routePairLabel(key, data)} ({numberLabel(count)})
                 </option>
               ))}
             </SimpleSelect>
@@ -370,7 +383,7 @@ export function FleetScheduleWorkspace({
               <option value=''>All aircraft</option>
               {aircraftOptions.map(({ key, count }) => (
                 <option key={key} value={key}>
-                  {data.aircraft[key]?.name ?? key} ({count})
+                  {aircraftName(key, data.aircraft)} ({numberLabel(count)})
                 </option>
               ))}
             </SimpleSelect>
@@ -384,7 +397,7 @@ export function FleetScheduleWorkspace({
               <option value=''>All configurations</option>
               {configurationOptions.map(({ key, count }) => (
                 <option key={key} value={key}>
-                  {configurationLabels.get(key) ?? key} ({count})
+                  {configurationLabels.get(key) ?? key} ({numberLabel(count)})
                 </option>
               ))}
             </SimpleSelect>
@@ -411,17 +424,7 @@ export function FleetScheduleWorkspace({
           </label>
           <label>
             <span>Date basis</span>
-            <SimpleSelect
-              value={dateBasis}
-              onChange={(event) => {
-                if (isOneOf(event.target.value, dateBases)) {
-                  changeDateBasis(event.target.value);
-                }
-              }}
-            >
-              <option value='local'>Departure local time</option>
-              <option value='utc'>UTC</option>
-            </SimpleSelect>
+            <DateBasisSelect value={dateBasis} onChange={changeDateBasis} />
           </label>
           <Button variant='ghost' onClick={resetFilters}>
             <RotateCcw size={14} /> Clear all
@@ -451,7 +454,7 @@ export function FleetScheduleWorkspace({
             aria-pressed={view === 'dates'}
             onClick={() => setView('dates')}
           >
-            <List size={16} /> Flights
+            <List size={16} /> Departures
           </button>
         </div>
         <p>{viewSummary(view, filtered, routePairs, dateBasis)}</p>
@@ -517,7 +520,7 @@ function FleetRoutePairCard({
       <div className='fleet-route-pair-summary'>
         <div className='fleet-route-pair-range'>
           <strong>{formatRange(pair.start, pair.end)}</strong>
-          <small>{pair.records.length} departures</small>
+          <small>{numberLabel(pair.records.length)} departures</small>
         </div>
         <div
           className={classNames(
@@ -535,8 +538,9 @@ function FleetRoutePairCard({
           <span className='fleet-route-pair-title'>
             <strong>{pairLabel}</strong>
             <small>
-              {pair.directions.length} {pair.directions.length === 1 ? 'direction' : 'directions'} ·{' '}
-              {routePairFlightNumberCount(pair)}{' '}
+              {numberLabel(pair.directions.length)}{' '}
+              {pair.directions.length === 1 ? 'direction' : 'directions'} ·{' '}
+              {numberLabel(routePairFlightNumberCount(pair))}{' '}
               {routePairFlightNumberCount(pair) === 1 ? 'flight number' : 'flight numbers'}
             </small>
           </span>
@@ -556,7 +560,7 @@ function FleetRoutePairCard({
                   ))}
                 </span>
               </div>
-              <span>{direction.records.length} departures</span>
+              <span>{numberLabel(direction.records.length)} departures</span>
             </header>
             <div className='fleet-period-table-wrap'>
               <table
@@ -586,14 +590,11 @@ function FleetRoutePairCard({
                           <small>{departure.offset}</small>
                         </td>
                         <td data-label='Aircraft and configuration'>
-                          <strong>
-                            {data.aircraft[record.variant.aircraftId]?.name ??
-                              record.variant.aircraftId}
-                          </strong>
+                          <strong>{aircraftName(record.variant.aircraftId, data.aircraft)}</strong>
                           <small>{aircraftConfigurationLabel(record.variant, data, true)}</small>
                         </td>
                         <td data-label='Frequency'>
-                          <strong>{period.records.length} departures</strong>
+                          <strong>{numberLabel(period.records.length)} departures</strong>
                           <small>{periodWeekdays(period, dateBasis)}</small>
                         </td>
                         <td className='fleet-period-action'>
@@ -688,6 +689,7 @@ function CalendarView({
         year={year}
         renderDay={({ date, day }) => {
           const count = counts.get(date) ?? 0;
+          const dateName = fullDateLabel(date);
           const dateRecords = recordsByDate.get(date) ?? [];
           const groupedCounts =
             grouping === 'none'
@@ -706,9 +708,9 @@ function CalendarView({
             density = max === min ? 1 : (count - min) / (max - min);
           }
           const breakdown = groupedCounts
-            .map(({ key, count }) => `${groupingLabels.get(key) ?? key}: ${count}`)
+            .map(({ key, count }) => `${groupingLabels.get(key) ?? key}: ${numberLabel(count)}`)
             .join(' · ');
-          const departureLabel = `${count} departure${count === 1 ? '' : 's'}`;
+          const departureLabel = `${numberLabel(count)} departure${count === 1 ? '' : 's'}`;
           return (
             <CalendarDateButton
               key={date}
@@ -719,13 +721,13 @@ function CalendarView({
               segments={grouping === 'none' ? undefined : segments}
               title={
                 count
-                  ? `${date} · ${departureLabel}${breakdown ? ` · ${breakdown}` : ''}`
-                  : `${date} · No matching departures`
+                  ? `${dateName} · ${departureLabel}${breakdown ? ` · ${breakdown}` : ''}`
+                  : `${dateName} · No matching departures`
               }
               aria-label={
                 count
-                  ? `${date}, ${departureLabel}${breakdown ? `, ${breakdown}` : ''}`
-                  : `${date}, no matching departures`
+                  ? `${dateName}, ${departureLabel}${breakdown ? `, ${breakdown}` : ''}`
+                  : `${dateName}, no matching departures`
               }
               onClick={() => onInspect(date)}
             />
@@ -863,13 +865,11 @@ function routePairKey(record: FleetRecord) {
 
 function routePairLabel(value: string, data: QuerySchedulesResponse) {
   const [left, right] = value.split('<>');
-  return `${data.airports[left]?.iataCode ?? left} ↔ ${data.airports[right]?.iataCode ?? right}`;
+  return `${airportCode(left, data.airports)} ↔ ${airportCode(right, data.airports)}`;
 }
 
 function routeDirectionLabel(record: FleetRecord, data: QuerySchedulesResponse) {
-  const from = data.airports[record.item.departureAirportId];
-  const to = data.airports[record.variant.arrivalAirportId];
-  return `${from?.iataCode ?? record.item.departureAirportId} → ${to?.iataCode ?? record.variant.arrivalAirportId}`;
+  return `${airportCode(record.item.departureAirportId, data.airports)} → ${airportCode(record.variant.arrivalAirportId, data.airports)}`;
 }
 
 function departureForBasis(record: FleetRecord, basis: DateBasis) {
@@ -910,10 +910,11 @@ function viewSummary(
   dateBasis: DateBasis,
 ) {
   if (view === 'routes') {
-    return `${routePairs.length} route pairs`;
+    return `${numberLabel(routePairs.length)} route pairs`;
   }
   if (view === 'calendar') {
-    return `${new Set(records.map((record) => dateForBasis(record, dateBasis))).size} active dates`;
+    const activeDates = new Set(records.map((record) => dateForBasis(record, dateBasis))).size;
+    return `${numberLabel(activeDates)} active dates`;
   }
-  return `${records.length} exact departures`;
+  return `${numberLabel(records.length)} exact departures`;
 }

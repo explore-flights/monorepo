@@ -53,6 +53,20 @@ func (nh *NotificationHandler) Notifications(c echo.Context) error {
 		})
 	}
 
+	{
+		newUIBannerStart := time.Date(2026, time.August, 21, 22, 0, 0, 0, time.UTC)
+		newUIBannerEnd := newUIBannerStart.Add(time.Hour * 24 * 7)
+
+		if now.After(newUIBannerStart) && now.Before(newUIBannerEnd) {
+			notifications = append(notifications, notification{
+				Timestamp: newUIBannerStart,
+				Type:      notificationTypeInfo,
+				Header:    "New UI",
+				Content:   "We just rolled out a complete overhaul of the UI. Please give us feedback!",
+			})
+		}
+	}
+
 	return c.JSON(http.StatusOK, notifications)
 }
 

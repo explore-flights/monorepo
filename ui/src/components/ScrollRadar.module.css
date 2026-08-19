@@ -1,0 +1,58 @@
+.radar {
+  --scroll-radar-angle: 0deg;
+
+  position: fixed;
+  top: calc(var(--space-28) * -1);
+  right: calc(var(--space-28) * -1);
+  z-index: 0;
+  width: min(92vw, 760px);
+  aspect-ratio: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 49.85%,
+      color-mix(in srgb, var(--primary) 16%, transparent) 50%,
+      transparent 50.15%
+    ),
+    linear-gradient(
+      transparent 49.85%,
+      color-mix(in srgb, var(--primary) 16%, transparent) 50%,
+      transparent 50.15%
+    ),
+    repeating-radial-gradient(
+      circle,
+      transparent 0 16%,
+      color-mix(in srgb, var(--primary) 14%, transparent) 16.2% 16.45%,
+      transparent 16.65% 32%
+    );
+  border: var(--border-width) solid color-mix(in srgb, var(--primary) 18%, transparent);
+  border-radius: var(--radius-pill);
+  opacity: 0.42;
+  mask-image: radial-gradient(circle, black 0 68%, transparent 100%);
+}
+
+.sweep {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 310deg,
+    color-mix(in srgb, var(--primary) 2%, transparent) 318deg,
+    color-mix(in srgb, var(--primary) 22%, transparent) 348deg,
+    color-mix(in srgb, var(--primary) 62%, transparent) 359.5deg,
+    transparent 360deg
+  );
+  border-radius: inherit;
+  transform: rotate(var(--scroll-radar-angle));
+  transform-origin: center;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sweep {
+    transform: none;
+    will-change: auto;
+  }
+}

@@ -1,5 +1,6 @@
-import { RefreshCcw } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { Button } from '@/components/primitives';
+import { numberLabel } from '@/lib/format';
 
 export function ShowMore({
   visible,
@@ -24,11 +25,11 @@ export function ShowMore({
   return (
     <div className='load-more'>
       <Button variant='secondary' onClick={onShowMore}>
-        <RefreshCcw size={16} />
-        Show {nextCount} more
+        <ChevronDown size={16} />
+        Show {numberLabel(nextCount)} more
       </Button>
       <span>
-        {visibleCount} of {total} {itemLabel}
+        {numberLabel(visibleCount)} of {numberLabel(total)} {itemLabel}
       </span>
     </div>
   );

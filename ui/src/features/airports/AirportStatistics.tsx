@@ -4,7 +4,14 @@ import { Link } from 'react-router-dom';
 import type { AirportMovementDirection, AirportSummary } from '@/api/types';
 import { CalendarDateButton, YearCalendar } from '@/components/YearCalendar';
 import { Card, EmptyState, Stat } from '@/components/primitives';
-import { duration } from '@/lib/format';
+import {
+  aircraftName,
+  airportCode,
+  airportName,
+  duration,
+  fullDateLabel,
+  numberLabel,
+} from '@/lib/format';
 import { AirportDirectionControl } from './AirportDirectionControl';
 import { aggregateAirportRoutes, directionStatistics, equipmentUtilization } from './airportData';
 
@@ -58,13 +65,13 @@ export function AirportStatistics({
       {active ? (
         <>
           <div className='stats-grid airport-statistics-metrics'>
-            <Stat label='Scheduled legs' value={active.scheduledLegs.toLocaleString()} />
+            <Stat label='Scheduled legs' value={active.scheduledLegs} />
             <Stat
               label={direction === 'departure' ? 'Destinations' : 'Origins'}
-              value={active.routeCount.toLocaleString()}
+              value={active.routeCount}
             />
-            <Stat label='Operating airlines' value={active.airlineCount.toLocaleString()} />
-            <Stat label='Equipment types' value={active.aircraftTypeCount.toLocaleString()} />
+            <Stat label='Operating airlines' value={active.airlineCount} />
+            <Stat label='Equipment types' value={active.aircraftTypeCount} />
             <Stat
               label='Average duration'
               value={duration(active.durationSecondsAverage)}
@@ -99,14 +106,15 @@ export function AirportStatistics({
               year={summary.year}
               renderDay={({ date, day }) => {
                 const statistic = daysByDate.get(date);
+                const label = fullDateLabel(date);
                 if (!statistic?.scheduledLegs) {
                   return (
                     <CalendarDateButton
                       key={date}
                       day={day}
                       disabled
-                      title={`${date} · No scheduled ${direction === 'departure' ? 'departures' : 'arrivals'}`}
-                      aria-label={`${date}, no scheduled ${direction === 'departure' ? 'departures' : 'arrivals'}`}
+                      title={`${label} · No scheduled ${direction === 'departure' ? 'departures' : 'arrivals'}`}
+                      aria-label={`${label}, no scheduled ${direction === 'departure' ? 'departures' : 'arrivals'}`}
                     />
                   );
                 }
@@ -116,8 +124,8 @@ export function AirportStatistics({
                     key={date}
                     day={day}
                     density={statistic.scheduledLegs / maximumDayCount}
-                    title={`${date} · ${statistic.scheduledLegs} scheduled ${direction === 'departure' ? 'departures' : 'arrivals'}`}
-                    aria-label={`${date}, ${statistic.scheduledLegs} scheduled ${direction === 'departure' ? 'departures' : 'arrivals'}; open timetable`}
+                    title={`${label} · ${statistic.scheduledLegs} scheduled ${direction === 'departure' ? 'departures' : 'arrivals'}`}
+                    aria-label={`${label}, ${statistic.scheduledLegs} scheduled ${direction === 'departure' ? 'departures' : 'arrivals'}; open timetable`}
                     onClick={() => onDateSelect(date)}
                   />
                 );
@@ -136,12 +144,11 @@ export function AirportStatistics({
               </div>
               <div className='airport-ranking-list'>
                 {equipment.slice(0, 12).map((item, index) => {
-                  const aircraft = summary.aircraft[item.aircraftId];
                   return (
                     <div key={item.aircraftId}>
                       <span>{index + 1}</span>
                       <div>
-                        <strong>{aircraft?.name ?? item.aircraftId}</strong>
+                        <strong>{aircraftName(item.aircraftId, summary.aircraft)}</strong>
                         <small>
                           {item.routeCount} {item.routeCount === 1 ? 'route' : 'routes'} ·{' '}
                           {item.airlineIds.length} operating{' '}
@@ -149,7 +156,7 @@ export function AirportStatistics({
                         </small>
                       </div>
                       <div>
-                        <strong>{item.scheduledLegs.toLocaleString()}</strong>
+                        <strong>{numberLabel(item.scheduledLegs)}</strong>
                         <small>{(item.share * 100).toFixed(1)}%</small>
                       </div>
                     </div>
@@ -168,16 +175,15 @@ export function AirportStatistics({
               </div>
               <div className='airport-ranking-list'>
                 {longestRoutes.map((route, index) => {
-                  const airport = summary.airports[route.otherAirportId];
                   return (
                     <div key={route.otherAirportId}>
                       <span>{index + 1}</span>
                       <div>
                         <Link to={`/airport/${route.otherAirportId}`}>
-                          <strong>{airport?.iataCode ?? route.otherAirportId}</strong>{' '}
-                          {airport?.name ?? route.otherAirportId}
+                          <strong>{airportCode(route.otherAirportId, summary.airports)}</strong>{' '}
+                          {airportName(route.otherAirportId, summary.airports)}
                         </Link>
-                        <small>{route.scheduledLegs.toLocaleString()} scheduled legs</small>
+                        <small>{numberLabel(route.scheduledLegs)} scheduled legs</small>
                       </div>
                       <strong>{duration(route.durationSecondsAverage)}</strong>
                     </div>

@@ -1,4 +1,6 @@
 import type { FlightScheduleVariant, QuerySchedulesResponse } from '@/api/types';
+import { ScheduleHighlightControl } from '@/components/ScheduleControls';
+import { aircraftName } from '@/lib/format';
 
 export type FleetHighlight = 'none' | 'aircraft' | 'configuration' | 'both';
 
@@ -19,21 +21,12 @@ export function FleetHighlightControls({
   ariaLabel: string;
 }) {
   return (
-    <div className='calendar-highlight-controls' role='group' aria-label={ariaLabel}>
-      <strong>Highlight</strong>
-      <div className='facet-buttons'>
-        {fleetHighlightOptions.map(([key, label]) => (
-          <button
-            key={key}
-            className={value === key ? 'active' : ''}
-            aria-pressed={value === key}
-            onClick={() => onChange(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-    </div>
+    <ScheduleHighlightControl
+      value={value}
+      options={fleetHighlightOptions}
+      onChange={onChange}
+      ariaLabel={ariaLabel}
+    />
   );
 }
 
@@ -42,7 +35,7 @@ export function fleetHighlightValue(
   highlight: Exclude<FleetHighlight, 'none'>,
   data: Pick<QuerySchedulesResponse, 'aircraft'>,
 ) {
-  const aircraft = data.aircraft[variant.aircraftId]?.name ?? variant.aircraftId;
+  const aircraft = aircraftName(variant.aircraftId, data.aircraft);
   const configuration = variant.aircraftConfigurationVersion || 'No configuration';
   if (highlight === 'aircraft') {
     return { key: variant.aircraftId, label: aircraft };

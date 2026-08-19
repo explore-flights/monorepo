@@ -63,6 +63,11 @@
   --fleet-preview-red: #461c26;
   --fleet-preview-purple: #35256e;
   --fleet-accent: var(--primary);
+  --fleet-accent-allegris: #4f7cff;
+  --fleet-accent-swiss-a350: #e84749;
+  --fleet-accent-lufthansa-a380: #7357df;
+  --fleet-accent-lufthansa-a340: #e8892f;
+  --fleet-accent-lufthansa-747: #16a074;
   --fleet-hero-start: #101b34;
   --fleet-hero-end: #101827;
   --fleet-hero-text: #f8faff;

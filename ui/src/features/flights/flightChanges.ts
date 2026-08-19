@@ -1,5 +1,11 @@
 import type { FlightNumber, FlightReferenceData, FlightScheduleVariant } from '@/api/types';
-import { duration, flightName } from '@/lib/format';
+import {
+  aircraftName,
+  airportLabel as formatAirportLabel,
+  duration,
+  flightName,
+  scheduleDateTimeLabel,
+} from '@/lib/format';
 import { arrivalScheduleTime, formatUtcOffset } from '@/lib/time';
 
 export interface FieldChange {
@@ -79,8 +85,8 @@ export function compareFlightVariants(
     [
       'arrival-time',
       'Arrival local time',
-      `${beforeArrival.date} ${beforeArrival.time}`,
-      `${afterArrival.date} ${afterArrival.time}`,
+      scheduleDateTimeLabel(beforeArrival.date, beforeArrival.time),
+      scheduleDateTimeLabel(afterArrival.date, afterArrival.time),
       'schedule',
     ],
     [
@@ -145,13 +151,11 @@ export function compareFlightVariants(
 }
 
 function airportLabel(id: string, data: FlightReferenceData) {
-  const airport = data.airports[id];
-  return airport ? `${airport.iataCode} · ${airport.name}` : id;
+  return formatAirportLabel(id, data.airports);
 }
 
 function aircraftLabel(id: string, data: FlightReferenceData) {
-  const aircraft = data.aircraft[id];
-  return aircraft?.name ?? aircraft?.icaoCode ?? aircraft?.iataCode ?? id;
+  return aircraftName(id, data.aircraft);
 }
 
 function formatFlightNumber(value: FlightNumber, data: FlightReferenceData) {

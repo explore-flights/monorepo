@@ -1,4 +1,3 @@
-import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type {
   FlightNumber,
@@ -7,9 +6,9 @@ import type {
   QuerySchedulesResponse,
 } from '@/api/types';
 import { Badge } from '@/components/primitives';
-import { CodeshareDetails, DataElementList } from '@/components/ScheduleMetadata';
+import { PublishedScheduleDetails, ScheduleRouteCell } from '@/components/ScheduleMetadata';
 import type { DateBasis } from '@/lib/date';
-import { dateLabel, duration, flightName } from '@/lib/format';
+import { aircraftName, dateLabel, dateTimeLabel, duration, flightName } from '@/lib/format';
 import {
   arrivalScheduleTimeForBasis,
   dayDeltaLabel,
@@ -83,21 +82,13 @@ export function ScheduleDatesTable({
     {
       label: 'Route',
       sortKey: 'route',
-      render: (record) => {
-        const from = data.airports[record.item.departureAirportId];
-        const to = data.airports[record.variant.arrivalAirportId];
-
-        return (
-          <div className='route-cell'>
-            <strong>{from?.iataCode ?? record.item.departureAirportId}</strong>
-            <ArrowRight size={13} />
-            <strong>{to?.iataCode ?? record.variant.arrivalAirportId}</strong>
-            <small>
-              {from?.name} → {to?.name}
-            </small>
-          </div>
-        );
-      },
+      render: (record) => (
+        <ScheduleRouteCell
+          departureAirportId={record.item.departureAirportId}
+          arrivalAirportId={record.variant.arrivalAirportId}
+          airports={data.airports}
+        />
+      ),
     },
     {
       label: 'Arrival',
@@ -129,9 +120,7 @@ export function ScheduleDatesTable({
       sortKey: 'aircraft',
       render: (record) => (
         <>
-          <strong>
-            {data.aircraft[record.variant.aircraftId]?.name ?? record.variant.aircraftId}
-          </strong>
+          <strong>{aircraftName(record.variant.aircraftId, data.aircraft)}</strong>
           <small>{record.variant.aircraftOwner}</small>
         </>
       ),
@@ -158,63 +147,23 @@ export function ScheduleDatesTable({
         `${flightName(record.flightNumber, data.airlines)}-${record.item.departureAirportId}-${record.item.departureDateLocal}-${record.item.version}`
       }
       expandedLabel={(record) => flightName(record.flightNumber, data.airlines)}
-      renderDetails={(record) => <ScheduleDetails record={record} data={data} />}
+      renderDetails={(record) => (
+        <PublishedScheduleDetails schedule={record.variant} airlines={data.airlines}>
+          <div>
+            <dt>Record version</dt>
+            <dd>{dateTimeLabel(record.item.version) || '—'}</dd>
+          </div>
+          <div>
+            <dt>Observed versions</dt>
+            <dd>{record.item.versionCount}</dd>
+          </div>
+        </PublishedScheduleDetails>
+      )}
       eyebrow='Exact departures'
       title={title}
       itemLabel='departures'
       ariaLabel='Matching scheduled departures'
     />
-  );
-}
-
-function ScheduleDetails({
-  record,
-  data,
-}: {
-  record: ScheduleDateRecord;
-  data: QuerySchedulesResponse;
-}) {
-  return (
-    <div className='schedule-details'>
-      <dl>
-        <div>
-          <dt>Service type</dt>
-          <dd>{record.variant.serviceType || '—'}</dd>
-        </div>
-        <div>
-          <dt>Aircraft owner</dt>
-          <dd>{record.variant.aircraftOwner || '—'}</dd>
-        </div>
-        <div>
-          <dt>Aircraft ID</dt>
-          <dd>{record.variant.aircraftId}</dd>
-        </div>
-        <div>
-          <dt>Configuration version</dt>
-          <dd>{record.variant.aircraftConfigurationVersion || '—'}</dd>
-        </div>
-        <div>
-          <dt>Record version</dt>
-          <dd>{record.item.version || '—'}</dd>
-        </div>
-        <div>
-          <dt>Observed versions</dt>
-          <dd>{record.item.versionCount}</dd>
-        </div>
-      </dl>
-      <CodeshareDetails
-        className=''
-        codeShares={record.variant.codeShares}
-        airlines={data.airlines}
-        pathFor={(number) => `/flight/${number}`}
-      />
-      {Object.keys(record.variant.dataElements).length > 0 && (
-        <div className='schedule-details-data-elements'>
-          <span>Data elements</span>
-          <DataElementList dataElements={record.variant.dataElements} />
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -238,8 +187,8 @@ function compareRecord(
       `${right.item.departureAirportId}>${right.variant.arrivalAirportId}`,
     ],
     aircraft: [
-      data.aircraft[left.variant.aircraftId]?.name ?? left.variant.aircraftId,
-      data.aircraft[right.variant.aircraftId]?.name ?? right.variant.aircraftId,
+      aircraftName(left.variant.aircraftId, data.aircraft),
+      aircraftName(right.variant.aircraftId, data.aircraft),
     ],
   };
   const [leftValue, rightValue] = values[key];

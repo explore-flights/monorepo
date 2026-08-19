@@ -31,7 +31,7 @@
   .route-rule {
     grid-template-columns: 1fr auto;
   }
-  .route-rule > span {
+  .route-rule > svg {
     display: none;
   }
   .rule-row select,

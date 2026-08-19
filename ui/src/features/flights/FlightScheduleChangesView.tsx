@@ -9,7 +9,16 @@ import type {
 import { Badge, EmptyState } from '@/components/primitives';
 import { CodeshareDetails } from '@/components/ScheduleMetadata';
 import { aircraftConfigurationLabel as configurationLabel } from '@/lib/aircraftConfigurations';
-import { classNames, dateLabel, duration, flightName } from '@/lib/format';
+import {
+  aircraftName,
+  airportCode,
+  airportLabel,
+  classNames,
+  dateLabel,
+  duration,
+  flightName,
+  scheduleDateTimeLabel,
+} from '@/lib/format';
 import { previousVariantFor, variantFor } from '@/lib/schedules';
 import { arrivalScheduleTime, departureScheduleTime } from '@/lib/time';
 import { compareFlightVariants } from './flightChanges';
@@ -133,7 +142,7 @@ function LegChangePreview({
       ...Object.keys(current?.dataElements ?? {}),
     ]),
   ].sort((left, right) => Number(left) - Number(right));
-  const departure = data.airports[item.departureAirportId]?.iataCode ?? item.departureAirportId;
+  const departure = airportCode(item.departureAirportId, data.airports);
   const route = changeRouteLabel(departure, current, previous, data);
   const toggleLabel = `${expanded ? 'Collapse' : 'Expand'} full before-and-after details for leg ${index + 1} ${route}`;
   return (
@@ -228,7 +237,7 @@ function ChangeVariantDetails({
             Cancelled
           </ChangeDetailItem>
           <ChangeDetailItem label='Departure airport'>
-            {from ? `${from.iataCode} · ${from.name}` : item.departureAirportId}
+            {airportLabel(item.departureAirportId, data.airports)}
           </ChangeDetailItem>
           <ChangeDetailItem label='Departure local date'>
             {dateLabel(item.departureDateLocal, { dateStyle: 'long' })}
@@ -248,22 +257,24 @@ function ChangeVariantDetails({
           Scheduled
         </ChangeDetailItem>
         <ChangeDetailItem label='Departure airport'>
-          {from ? `${from.iataCode} · ${from.name}` : item.departureAirportId}
+          {airportLabel(item.departureAirportId, data.airports)}
         </ChangeDetailItem>
         <ChangeDetailItem
           label='Departure schedule'
           changed={changedKeys.has('departure-time') || changedKeys.has('departure-offset')}
         >
-          {departure.date} {departure.time} · {departure.offset} · {from?.timezone ?? '—'}
+          {scheduleDateTimeLabel(departure.date, departure.time)} · {departure.offset} ·{' '}
+          {from?.timezone ?? '—'}
         </ChangeDetailItem>
         <ChangeDetailItem label='Arrival airport' changed={changedKeys.has('arrival-airport')}>
-          {to ? `${to.iataCode} · ${to.name}` : variant.arrivalAirportId}
+          {airportLabel(variant.arrivalAirportId, data.airports)}
         </ChangeDetailItem>
         <ChangeDetailItem
           label='Arrival schedule'
           changed={changedKeys.has('arrival-time') || changedKeys.has('arrival-offset')}
         >
-          {arrival.date} {arrival.time} · {arrival.offset} · {to?.timezone ?? '—'}
+          {scheduleDateTimeLabel(arrival.date, arrival.time)} · {arrival.offset} ·{' '}
+          {to?.timezone ?? '—'}
         </ChangeDetailItem>
         <ChangeDetailItem label='Operated as' changed={changedKeys.has('operated-as')}>
           {flightName(variant.operatedAs, data.airlines)}
@@ -278,7 +289,7 @@ function ChangeVariantDetails({
           {variant.aircraftOwner || '—'}
         </ChangeDetailItem>
         <ChangeDetailItem label='Aircraft' changed={changedKeys.has('aircraft')}>
-          {data.aircraft[variant.aircraftId]?.name ?? variant.aircraftId}
+          {aircraftName(variant.aircraftId, data.aircraft)}
         </ChangeDetailItem>
         <ChangeDetailItem label='Aircraft ID' changed={changedKeys.has('aircraft')}>
           {variant.aircraftId}
@@ -294,7 +305,6 @@ function ChangeVariantDetails({
         )}
         codeShares={variant.codeShares}
         airlines={data.airlines}
-        pathFor={(number) => `/flight/${number}`}
       />
       {dataElementKeys.length > 0 && (
         <div className='journey-leg-detail-group'>

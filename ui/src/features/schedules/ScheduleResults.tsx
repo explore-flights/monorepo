@@ -16,7 +16,7 @@ import { Card, Stat } from '@/components/primitives';
 import { SimpleSelect } from '@/components/SimpleSelect';
 import { calendarColorCount } from '@/components/YearCalendar';
 import { isDefined } from '@/lib/collections';
-import { flightName } from '@/lib/format';
+import { compactNumberLabel, flightName, numberLabel } from '@/lib/format';
 import { isOperatingScheduleItem } from '@/lib/schedules';
 import { useHashView } from '@/lib/useHashView';
 import {
@@ -32,7 +32,6 @@ import {
 type ResultsTab = 'overview' | 'map' | 'schedule';
 const resultsTabs = ['overview', 'map', 'schedule'] as const satisfies readonly ResultsTab[];
 const monthShortFormatter = new Intl.DateTimeFormat(undefined, { month: 'short' });
-const compactNumberFormatter = new Intl.NumberFormat(undefined, { notation: 'compact' });
 const calendarHighlightColors = Array.from(
   { length: calendarColorCount },
   (_, index) => `var(--calendar-highlight-${index})`,
@@ -145,7 +144,7 @@ export function ScheduleResults({
           <div className='section-heading'>
             <div>
               <span className='eyebrow'>Published network</span>
-              <h2>{mapRoutes.length} route pairs</h2>
+              <h2>{numberLabel(mapRoutes.length)} route pairs</h2>
               <p>
                 Labels show total published departures in either direction in {year}; stronger color
                 indicates higher frequency.
@@ -186,7 +185,7 @@ function ScheduleOverview({
   onOpenSchedule: (preset?: FleetSchedulePreset) => void;
 }) {
   const [highlight, setHighlight] = useState<FleetHighlight>('aircraft');
-  const flights = new Set(rows.map((row) => flightName(row.flightNumber, data.airlines)));
+  const flightNumbers = new Set(rows.map((row) => flightName(row.flightNumber, data.airlines)));
   const airports = new Set(routePairs.flatMap((route) => [route.from.id, route.to.id]));
   const highlightValues = useMemo(() => {
     if (highlight === 'none') {
@@ -245,17 +244,17 @@ function ScheduleOverview({
             label,
             seriesKey: 'all',
             series: 'All departures',
-            flights: month.total,
+            departures: month.total,
           },
         ];
       }
 
-      return month.groups.map(([seriesKey, flights]) => ({
+      return month.groups.map(([seriesKey, departures]) => ({
         month: month.month,
         label,
         seriesKey,
         series: seriesLabels.get(seriesKey) ?? seriesKey,
-        flights,
+        departures,
       }));
     });
     const colorDomain =
@@ -271,7 +270,7 @@ function ScheduleOverview({
       marks: [
         barY(chartRows, {
           x: 'label',
-          y: 'flights',
+          y: 'departures',
           z: 'series',
           color: 'series',
           key: (row) => `${row.month}-${row.seriesKey}`,
@@ -288,7 +287,7 @@ function ScheduleOverview({
         nice: true,
         grid: true,
         axis: {
-          ticks: { count: 4, format: (value) => compactNumberFormatter.format(value) },
+          ticks: { count: 4, format: compactNumberLabel },
         },
       },
       color: { domain: colorDomain, range: colorRange },
@@ -310,7 +309,7 @@ function ScheduleOverview({
     <>
       <div className='stats-grid'>
         <Stat label='Scheduled departures' value={rows.length} hint={`Across ${year}`} />
-        <Stat label='Flight numbers' value={flights.size} />
+        <Stat label='Flight numbers' value={flightNumbers.size} />
         <Stat
           label='Route pairs'
           value={routePairs.length}
@@ -328,7 +327,7 @@ function ScheduleOverview({
             <div className='card-heading'>
               <TrendingUp />
               <div>
-                <h2>Flights over time</h2>
+                <h2>Published departures over time</h2>
                 <p>Published departures by month</p>
               </div>
             </div>
@@ -380,7 +379,7 @@ function ScheduleOverview({
                   <span aria-hidden='true'>↔</span>
                   {route.to.iataCode}
                 </strong>
-                <em>{route.count} flights</em>
+                <em>{numberLabel(route.count)} departures</em>
               </button>
             ))}
           </div>

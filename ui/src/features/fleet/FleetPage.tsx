@@ -1,34 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import { Radio, Rss } from 'lucide-react';
+import { Rss } from 'lucide-react';
 import { useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/api/client';
-import { Badge, EmptyState, ErrorState, Loading } from '@/components/primitives';
+import { AircraftArtwork, type AircraftAsset } from '@/components/AircraftArtwork';
+import { EmptyState, ErrorState, Loading } from '@/components/primitives';
 import { YearSwitcher } from '@/components/ScheduleControls';
 import { ScheduleResults } from '@/features/schedules/ScheduleResults';
 import { discoverYearlyData, loadYearlyData, type YearSelection } from '@/lib/yearlyData';
 import { useCurrentDate } from '@/lib/useCurrentDate';
-
-type AircraftAsset =
-  | 'aircraft-a350-900'
-  | 'aircraft-787-dreamliner'
-  | 'aircraft-a380'
-  | 'aircraft-a340-300'
-  | 'aircraft-a340-600'
-  | 'aircraft-747-400'
-  | 'aircraft-747-8';
-
-type AircraftArtwork = {
-  src: string;
-  symbolId: string;
-};
-
-function aircraftArtwork(asset: AircraftAsset): AircraftArtwork {
-  return {
-    src: `/assets/${asset}.svg`,
-    symbolId: `${asset}-artwork`,
-  };
-}
 
 const fleetConfig: Record<
   string,
@@ -38,7 +18,7 @@ const fleetConfig: Record<
     short: string;
     description: string;
     accent: string;
-    artwork: AircraftArtwork[];
+    artwork: AircraftAsset[];
   }
 > = {
   allegris: {
@@ -46,24 +26,24 @@ const fleetConfig: Record<
     title: 'Lufthansa Allegris',
     short: 'Allegris',
     description: 'Follow flights scheduled with Lufthansa’s newest long-haul cabin generation.',
-    accent: '#4f7cff',
-    artwork: [aircraftArtwork('aircraft-a350-900'), aircraftArtwork('aircraft-787-dreamliner')],
+    accent: 'var(--fleet-accent-allegris)',
+    artwork: ['aircraft-a350-900', 'aircraft-787-dreamliner'],
   },
   swiss350: {
     identifier: 'swiss350',
     title: 'SWISS Airbus A350',
     short: 'SWISS A350',
     description: 'Track the planned network for the newest aircraft in the SWISS long-haul fleet.',
-    accent: '#e84749',
-    artwork: [aircraftArtwork('aircraft-a350-900')],
+    accent: 'var(--fleet-accent-swiss-a350)',
+    artwork: ['aircraft-a350-900'],
   },
   lh380: {
     identifier: 'lh380',
     title: 'Lufthansa Airbus A380',
     short: 'LH A380',
     description: 'See where Lufthansa plans to deploy its returning superjumbo fleet.',
-    accent: '#7357df',
-    artwork: [aircraftArtwork('aircraft-a380')],
+    accent: 'var(--fleet-accent-lufthansa-a380)',
+    artwork: ['aircraft-a380'],
   },
   lh340: {
     identifier: 'lh340',
@@ -71,16 +51,16 @@ const fleetConfig: Record<
     short: 'LH A340',
     description:
       'Explore the remaining published operation of Lufthansa’s four-engine Airbus fleet.',
-    accent: '#e8892f',
-    artwork: [aircraftArtwork('aircraft-a340-300'), aircraftArtwork('aircraft-a340-600')],
+    accent: 'var(--fleet-accent-lufthansa-a340)',
+    artwork: ['aircraft-a340-300', 'aircraft-a340-600'],
   },
   lh747: {
     identifier: 'lh747',
     title: 'Lufthansa Boeing 747',
     short: 'LH 747',
     description: 'Follow scheduled passenger flights on Lufthansa’s iconic Queen of the Skies.',
-    accent: '#16a074',
-    artwork: [aircraftArtwork('aircraft-747-400'), aircraftArtwork('aircraft-747-8')],
+    accent: 'var(--fleet-accent-lufthansa-747)',
+    artwork: ['aircraft-747-400', 'aircraft-747-8'],
   },
 };
 
@@ -156,15 +136,11 @@ function FleetPageForId({ fleetId }: { fleetId: string }) {
       </div>
       <div className='fleet-hero'>
         <div className='fleet-plane' data-layout={artworkLayout}>
-          {config.artwork.map((artwork) => (
-            <AircraftArtwork key={artwork.src} artwork={artwork} />
+          {config.artwork.map((asset) => (
+            <AircraftArtwork key={asset} asset={asset} className='fleet-plane-artwork' />
           ))}
         </div>
         <div>
-          <Badge tone='blue'>
-            <Radio size={13} />
-            Fleet watch
-          </Badge>
           <h1>{config.title}</h1>
           <p>{config.description}</p>
         </div>
@@ -213,14 +189,6 @@ function FleetPageForId({ fleetId }: { fleetId: string }) {
         />
       )}
     </div>
-  );
-}
-
-function AircraftArtwork({ artwork }: { artwork: AircraftArtwork }) {
-  return (
-    <svg className='fleet-plane-artwork' aria-hidden='true' focusable='false'>
-      <use href={`${artwork.src}#${artwork.symbolId}`} width='100%' height='100%' />
-    </svg>
   );
 }
 

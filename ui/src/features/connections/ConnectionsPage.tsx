@@ -2,11 +2,11 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   ArrowRight,
   CalendarDays,
+  ChevronDown,
   Copy,
   GitBranch,
   List,
   Map as MapIcon,
-  Network,
   Search,
   Share2,
   SlidersHorizontal,
@@ -20,36 +20,31 @@ import type {
   ConnectionsSearchRequest,
   SharedConnectionsResponse,
 } from '@/api/types';
+import { AirportRouteField, MaximumFlightsField } from '@/components/ConnectionSearchFields';
 import { FlightMap } from '@/components/FlightMap';
 import { JourneyLegSequence, JourneyRouteSnapshot } from '@/components/JourneySnapshot';
 import { MultiCombobox, type SelectOption } from '@/components/MultiCombobox';
-import {
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  ErrorState,
-  Loading,
-  PageHeader,
-} from '@/components/primitives';
+import { Button, Card, EmptyState, ErrorState, Loading, PageHeader } from '@/components/primitives';
 import { aircraftSelectOptions, airportSelectOptions } from '@/components/selectOptions';
-import { SimpleSelect } from '@/components/SimpleSelect';
 import { TagInput } from '@/components/TagInput';
 import { TemporalInput } from '@/components/TemporalInput';
-import { classNames, dateLabel, duration, flightName, timeLabel } from '@/lib/format';
+import { localDateTime, localDayBoundary } from '@/lib/date';
+import {
+  aircraftName,
+  airportCode,
+  classNames,
+  dateLabel,
+  duration,
+  flightName,
+  timeLabel,
+} from '@/lib/format';
 import { ConnectionGraph } from './ConnectionGraph';
 import { connectionSearchDefaults } from './defaults';
 
 type View = 'journeys' | 'graph' | 'map';
 const today = new Date();
-const isoLocal = (date: Date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-const initialStart = isoLocal(
-  new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0),
-);
-const initialEnd = isoLocal(
-  new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59),
-);
+const initialStart = localDayBoundary(today, false);
+const initialEnd = localDayBoundary(today, true);
 
 export function ConnectionsPage() {
   const [searchParams] = useSearchParams();
@@ -181,32 +176,26 @@ function ConnectionsWorkspace({
         eyebrow='Connection finder'
         title='Build a journey'
         description='Search one or many origins and destinations, then shape the result with connection and equipment rules.'
-        actions={
-          <Badge tone='blue'>
-            <Network size={13} />
-            Network search
-          </Badge>
-        }
       />
       <Card className='search-card'>
         <form onSubmit={submit}>
           <div className='route-fields'>
-            <AirportField
+            <AirportRouteField
               label='From'
+              endpoint='origin'
               values={origins}
               onChange={setOrigins}
               options={airportOptions}
-              icon={<span className='route-dot origin' />}
             />
             <div className='route-arrow'>
               <ArrowRight size={18} />
             </div>
-            <AirportField
+            <AirportRouteField
               label='To'
+              endpoint='destination'
               values={destinations}
               onChange={setDestinations}
               options={airportOptions}
-              icon={<span className='route-dot destination' />}
             />
           </div>
           <div className='search-grid'>
@@ -232,22 +221,7 @@ function ConnectionsWorkspace({
                 onChange={(event) => setEnd(event.target.value)}
               />
             </label>
-            <label>
-              <span>
-                <GitBranch size={15} />
-                Maximum flights
-              </span>
-              <SimpleSelect
-                value={maxFlights}
-                onChange={(event) => setMaxFlights(Number(event.target.value))}
-              >
-                {[1, 2, 3, 4].map((value) => (
-                  <option key={value} value={value}>
-                    {value} flight{value > 1 ? 's' : ''}
-                  </option>
-                ))}
-              </SimpleSelect>
-            </label>
+            <MaximumFlightsField value={maxFlights} onChange={setMaxFlights} />
             <Button
               type='submit'
               disabled={!origins.length || !destinations.length || searchMutation.isPending}
@@ -267,12 +241,19 @@ function ConnectionsWorkspace({
               <small>Each leg of a multi-leg service counts toward the maximum.</small>
             </span>
           </label>
-          <button type='button' className='advanced-toggle' onClick={() => setAdvanced(!advanced)}>
+          <button
+            type='button'
+            className='advanced-toggle'
+            aria-expanded={advanced}
+            aria-controls='advanced-connection-rules'
+            onClick={() => setAdvanced(!advanced)}
+          >
             <SlidersHorizontal size={16} />
-            Advanced rules <span>{advanced ? '−' : '+'}</span>
+            Advanced rules
+            <ChevronDown className={advanced ? 'expanded' : undefined} size={16} />
           </button>
           {advanced && (
-            <div className='connection-advanced'>
+            <div className='connection-advanced' id='advanced-connection-rules'>
               <div className='advanced-grid'>
                 <Range
                   label='Minimum layover'
@@ -332,7 +313,7 @@ function ConnectionsWorkspace({
           )}
         </form>
       </Card>
-      {queryError && <ErrorState error={queryError} />}{' '}
+      {queryError && <ErrorState error={queryError} />}
       {results && (
         <section className='results-section'>
           <div className='results-toolbar'>
@@ -394,7 +375,7 @@ function ConnectionsWorkspace({
                 description='Try a broader time range, another airport, or allow one more flight.'
               />
             ))}
-          {view === 'graph' && <ConnectionGraph data={results} />}{' '}
+          {view === 'graph' && <ConnectionGraph data={results} />}
           {view === 'map' && (
             <FlightMap
               routes={Object.values(results.flights)
@@ -408,37 +389,6 @@ function ConnectionsWorkspace({
           )}
         </section>
       )}
-    </div>
-  );
-}
-
-function AirportField({
-  label,
-  values,
-  onChange,
-  options,
-  icon,
-}: {
-  label: string;
-  values: string[];
-  onChange: (values: string[]) => void;
-  options: SelectOption[];
-  icon: React.ReactNode;
-}) {
-  return (
-    <div className='airport-field'>
-      <span>
-        {icon}
-        {label}
-      </span>
-      <MultiCombobox
-        label={label}
-        values={values}
-        options={options}
-        onChange={onChange}
-        placeholder='Select one or more airports'
-        uppercase
-      />
     </div>
   );
 }
@@ -587,7 +537,7 @@ function toLocalInput(value: string) {
   if (Number.isNaN(date.getTime())) {
     return value.slice(0, 16);
   }
-  return isoLocal(date);
+  return localDateTime(date);
 }
 function flattenJourneys(roots: readonly ConnectionBranch[]) {
   const result: ConnectionBranch[][] = [];
@@ -622,7 +572,7 @@ function JourneyCard({
   const legs = flights.map((flight, legIndex) => {
     const next = flights[legIndex + 1];
     const number = flightName(flight.flightNumber, data.airlines);
-    const connectionAirport = data.airports[flight.arrivalAirportId]?.iataCode;
+    const connectionAirport = airportCode(flight.arrivalAirportId, data.airports);
     const layoverSeconds = next
       ? (new Date(next.departureTime).getTime() - new Date(flight.arrivalTime).getTime()) / 1000
       : undefined;
@@ -636,21 +586,17 @@ function JourneyCard({
               <Link to={`/flight/${number}`}>{number}</Link>
             </span>
             <JourneyRouteSnapshot
-              departureAirport={
-                data.airports[flight.departureAirportId]?.iataCode ?? flight.departureAirportId
-              }
+              departureAirport={airportCode(flight.departureAirportId, data.airports)}
               departureTime={timeLabel(flight.departureTime)}
               duration={duration(
                 (new Date(flight.arrivalTime).getTime() -
                   new Date(flight.departureTime).getTime()) /
                   1000,
               )}
-              arrivalAirport={
-                data.airports[flight.arrivalAirportId]?.iataCode ?? flight.arrivalAirportId
-              }
+              arrivalAirport={airportCode(flight.arrivalAirportId, data.airports)}
               arrivalTime={timeLabel(flight.arrivalTime)}
               operation={{
-                primary: data.aircraft[flight.aircraftId]?.name ?? flight.aircraftId,
+                primary: aircraftName(flight.aircraftId, data.aircraft),
                 secondary: flight.aircraftConfiguration || 'No configuration',
               }}
             />
@@ -684,9 +630,9 @@ function JourneyCard({
         <span className='journey-number'>{String(index + 1).padStart(2, '0')}</span>
         <div>
           <strong>
-            {data.airports[first.departureAirportId]?.iataCode}
+            {airportCode(first.departureAirportId, data.airports)}
             <ArrowRight size={15} />
-            {data.airports[last.arrivalAirportId]?.iataCode}
+            {airportCode(last.arrivalAirportId, data.airports)}
           </strong>
           <span>
             {dateLabel(first.departureTime, { weekday: 'short', month: 'short', day: 'numeric' })} ·{' '}

@@ -104,20 +104,22 @@ export function ScheduleTable<Row, SortKey extends string>({
           <thead>
             <tr>
               <th aria-label='Expand details' />
-              {columns.map((column) =>
-                column.sortKey === undefined ? (
-                  <th key={column.label}>{column.label}</th>
-                ) : (
-                  <Sortable
+              {columns.map((column) => {
+                const sortKey = column.sortKey;
+                if (sortKey === undefined) {
+                  return <th key={column.label}>{column.label}</th>;
+                }
+
+                return (
+                  <SortableTableHeading
                     key={column.label}
                     label={column.label}
-                    field={column.sortKey}
-                    active={sort}
+                    active={sort === sortKey}
                     descending={descending}
-                    onClick={changeSort}
+                    onClick={() => changeSort(sortKey)}
                   />
-                ),
-              )}
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -158,29 +160,27 @@ export function ScheduleTable<Row, SortKey extends string>({
   );
 }
 
-function Sortable<SortKey extends string>({
+export function SortableTableHeading({
   label,
-  field,
   active,
   descending,
   onClick,
 }: {
   label: string;
-  field: SortKey;
-  active: SortKey;
+  active: boolean;
   descending: boolean;
-  onClick: (field: SortKey) => void;
+  onClick: () => void;
 }) {
   let ariaSort: 'ascending' | 'descending' | 'none' = 'none';
-  if (active === field) {
+  if (active) {
     ariaSort = descending ? 'descending' : 'ascending';
   }
 
   return (
     <th aria-sort={ariaSort}>
-      <button type='button' className='sort-button' onClick={() => onClick(field)}>
+      <button type='button' className='sort-button' onClick={onClick}>
         {label}
-        {active === field && (descending ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
+        {active && (descending ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
       </button>
     </th>
   );

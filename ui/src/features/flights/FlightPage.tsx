@@ -6,7 +6,7 @@ import { api } from '@/api/client';
 import type { FlightSchedules } from '@/api/types';
 import { Badge, Card, ErrorState, Loading, PageHeader, Stat } from '@/components/primitives';
 import { YearSwitcher } from '@/components/ScheduleControls';
-import { dateLabel, flightName } from '@/lib/format';
+import { aircraftName, airlineName, airportCode, dateLabel, flightName } from '@/lib/format';
 import { displayVariantFor } from '@/lib/schedules';
 import { discoverYearlyData, loadYearlyData, type YearSelection } from '@/lib/yearlyData';
 import { useCurrentDate } from '@/lib/useCurrentDate';
@@ -71,7 +71,7 @@ function FlightPageForNumber({ flightNumber: normalized }: { flightNumber: strin
           const variant = displayVariantFor(data, item);
           return variant
             ? [
-                `${data.airports[item.departureAirportId]?.iataCode ?? item.departureAirportId} → ${data.airports[variant.arrivalAirportId]?.iataCode ?? variant.arrivalAirportId}`,
+                `${airportCode(item.departureAirportId, data.airports)} → ${airportCode(variant.arrivalAirportId, data.airports)}`,
               ]
             : [];
         }),
@@ -89,7 +89,7 @@ function FlightPageForNumber({ flightNumber: normalized }: { flightNumber: strin
       }),
     );
     return [...ids].map((id) => {
-      const name = data.aircraft[id]?.name ?? id;
+      const name = aircraftName(id, data.aircraft);
       return { name, shortName: name.replace(/^(Airbus|Boeing)\s+/, '') };
     });
   }, [data]);
@@ -108,8 +108,8 @@ function FlightPageForNumber({ flightNumber: normalized }: { flightNumber: strin
           data ? (
             <span className='flight-header-details'>
               <span>
-                {data.airlines[data.flightNumber.airlineId]?.name ?? 'Published flight'} · Airport
-                local time with UTC offsets
+                {airlineName(data.flightNumber.airlineId, data.airlines)} · Airport local time with
+                UTC offsets
               </span>
               {data.relatedFlightNumbers.length > 0 && (
                 <span className='header-related-flights'>

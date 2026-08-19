@@ -2,6 +2,15 @@
 .prose-page {
   max-width: 1000px;
 }
+.about-page {
+  position: relative;
+  isolation: isolate;
+}
+.about-page > .page-header,
+.about-page > .prose-card {
+  position: relative;
+  z-index: var(--layer-content);
+}
 .prose-page > .prose-card {
   margin-top: var(--space-3);
 }

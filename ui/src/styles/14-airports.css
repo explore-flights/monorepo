@@ -274,16 +274,6 @@
   font-size: var(--font-xs);
   color: var(--muted);
 }
-.large-code,
-.data-table td > strong.large-code {
-  font-size: var(--font-sm);
-  color: var(--primary);
-}
-.icon-link,
-.data-table td > a.icon-link {
-  justify-content: center;
-  color: var(--primary);
-}
 .airport-view-heading {
   margin-top: 0;
 }

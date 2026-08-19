@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { api } from '@/api/client';
 import { FlightMap } from '@/components/FlightMap';
 import { filterSelectOptions } from '@/components/picker/selectOptions';
-import { Card, ErrorState, Loading, PageHeader } from '@/components/primitives';
+import { Card, EmptyState, ErrorState, Loading, PageHeader } from '@/components/primitives';
 import { airportSelectOptions } from '@/components/selectOptions';
 import { SimpleSelect } from '@/components/SimpleSelect';
 import { useHashView } from '@/lib/useHashView';
@@ -17,21 +17,21 @@ export function AirportsPage() {
   const { view, hrefFor } = useHashView<AirportView>('directory', airportViews);
   const query = useQuery({ queryKey: ['airports'], queryFn: api.airports });
   const [search, setSearch] = useState('');
-  const [region, setRegion] = useState('all');
+  const [country, setCountry] = useState('all');
   const countries = useMemo(
     () => [...new Set(query.data?.map((a) => a.countryCode) ?? [])].sort(),
     [query.data],
   );
   const airports = useMemo(() => {
-    const regionAirports =
-      query.data?.filter((airport) => region === 'all' || airport.countryCode === region) ?? [];
-    const airportsById = new Map(regionAirports.map((airport) => [airport.id, airport]));
+    const countryAirports =
+      query.data?.filter((airport) => country === 'all' || airport.countryCode === country) ?? [];
+    const airportsById = new Map(countryAirports.map((airport) => [airport.id, airport]));
 
-    return filterSelectOptions(airportSelectOptions(regionAirports), search).flatMap((option) => {
+    return filterSelectOptions(airportSelectOptions(countryAirports), search).flatMap((option) => {
       const airport = airportsById.get(option.value);
       return airport ? [airport] : [];
     });
-  }, [query.data, search, region]);
+  }, [country, query.data, search]);
   return (
     <div className='page airports-page'>
       <PageHeader
@@ -51,12 +51,13 @@ export function AirportsPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            aria-label='Search airports'
             placeholder='Search by code, airport or city'
           />
         </label>
         <label>
           <span>Country</span>
-          <SimpleSelect value={region} onChange={(e) => setRegion(e.target.value)}>
+          <SimpleSelect value={country} onChange={(e) => setCountry(e.target.value)}>
             <option value='all'>All countries</option>
             {countries.map((country) => (
               <option key={country}>{country}</option>
@@ -107,11 +108,7 @@ export function AirportsPage() {
         <FlightMap routes={[]} airports={airports} height={620} airportLinks />
       )}
       {query.data && airports.length === 0 && (
-        <Card className='empty-state'>
-          <MapIcon />
-          <h3>No airports match</h3>
-          <p>Try a code, city, or another country.</p>
-        </Card>
+        <EmptyState title='No airports match' description='Try a code, city, or another country.' />
       )}
     </div>
   );

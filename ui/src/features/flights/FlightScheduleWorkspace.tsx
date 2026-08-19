@@ -14,19 +14,23 @@ import { Link } from 'react-router-dom';
 import type { FlightScheduleItem, FlightSchedules } from '@/api/types';
 import { FlightMap } from '@/components/FlightMap';
 import { Button, Card, EmptyState } from '@/components/primitives';
-import { ActiveFilterRow, ScheduleInsight, WeekdaySelect } from '@/components/ScheduleControls';
+import {
+  ActiveFilterRow,
+  DateBasisSelect,
+  ScheduleInsight,
+  WeekdaySelect,
+} from '@/components/ScheduleControls';
 import { ScheduleScopeTabs } from '@/components/ScheduleScopeTabs';
 import { SimpleSelect } from '@/components/SimpleSelect';
 import { TemporalInput } from '@/components/TemporalInput';
 import { countBy, isOneOf } from '@/lib/collections';
 import {
-  dateBases,
-  localDate,
+  calendarDateForBasis,
   matchingScheduleScope,
   rangeForYearScope as rangeForPreset,
   type DateBasis,
 } from '@/lib/date';
-import { dateRangeLabel as formatRange } from '@/lib/format';
+import { aircraftName, dateRangeLabel as formatRange, numberLabel } from '@/lib/format';
 import { displayVariantFor, isCancelledScheduleItem as isCancelled } from '@/lib/schedules';
 import { useCurrentDate } from '@/lib/useCurrentDate';
 import { useHashView } from '@/lib/useHashView';
@@ -82,8 +86,7 @@ export function FlightScheduleWorkspace({
     selectView: selectHashView,
   } = useHashView<ScheduleView>('periods', scheduleViews);
   const currentDate = useCurrentDate();
-  const today = localDate(currentDate);
-  const utcToday = currentDate.toISOString().slice(0, 10);
+  const today = calendarDateForBasis(currentDate, 'local');
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year}-12-31`;
   const defaultRange = rangeForPreset('upcoming', year, today) ?? { from: yearStart, to: yearEnd };
@@ -95,7 +98,7 @@ export function FlightScheduleWorkspace({
   const [visible, setVisible] = useState(100);
   const [highlightedBlock, setHighlightedBlock] = useState<string>();
   const highlightTimerRef = useRef<number | undefined>(undefined);
-  const presetToday = dateBasis === 'utc' ? utcToday : today;
+  const presetToday = calendarDateForBasis(currentDate, dateBasis);
   const upcomingRange = rangeForPreset('upcoming', year, presetToday);
   const historicalRange = rangeForPreset('historical', year, presetToday);
   const allDays = useMemo(() => groupJourneyDays(data.items, data), [data]);
@@ -293,10 +296,11 @@ export function FlightScheduleWorkspace({
           <span className='eyebrow'>Schedule workspace</span>
           <h2>Published schedule</h2>
           <p>
-            <strong>{filteredDays.length}</strong> of {allDays.length} departure dates shown
-            {multiLeg ? ` · ${filteredItems.length} legs` : ''}
-            {cancelledRecordCount ? ` · ${cancelledRecordCount} cancelled` : ''} ·{' '}
-            {changedDays.length} with revision history
+            <strong>{numberLabel(filteredDays.length)}</strong> of {numberLabel(allDays.length)}{' '}
+            departure dates shown
+            {multiLeg ? ` · ${numberLabel(filteredItems.length)} legs` : ''}
+            {cancelledRecordCount ? ` · ${numberLabel(cancelledRecordCount)} cancelled` : ''} ·{' '}
+            {numberLabel(changedDays.length)} with revision history
           </p>
         </div>
         <ScheduleScopeTabs
@@ -333,7 +337,7 @@ export function FlightScheduleWorkspace({
               <option value=''>All routes</option>
               {routeOptions.map(({ key, count }) => (
                 <option key={key} value={key}>
-                  {routeLabel(key, data)} ({count})
+                  {routeLabel(key, data)} ({numberLabel(count)})
                 </option>
               ))}
             </SimpleSelect>
@@ -349,7 +353,7 @@ export function FlightScheduleWorkspace({
               <option value=''>All aircraft</option>
               {aircraftOptions.map(({ key, count }) => (
                 <option key={key} value={key}>
-                  {data.aircraft[key]?.name ?? key} ({count})
+                  {aircraftName(key, data.aircraft)} ({numberLabel(count)})
                 </option>
               ))}
             </SimpleSelect>
@@ -377,9 +381,11 @@ export function FlightScheduleWorkspace({
                 resetPagination();
               }}
             >
-              <option value='scheduled'>Scheduled ({operatingCount})</option>
-              <option value='cancelled'>Cancelled ({cancelledDateCount})</option>
-              <option value='all'>All statuses ({uniqueDateCount(scheduleCountItems)})</option>
+              <option value='scheduled'>Scheduled ({numberLabel(operatingCount)})</option>
+              <option value='cancelled'>Cancelled ({numberLabel(cancelledDateCount)})</option>
+              <option value='all'>
+                All statuses ({numberLabel(uniqueDateCount(scheduleCountItems))})
+              </option>
             </SimpleSelect>
           </label>
           <label>
@@ -410,18 +416,13 @@ export function FlightScheduleWorkspace({
           </label>
           <label>
             <span>Date basis</span>
-            <SimpleSelect
+            <DateBasisSelect
               value={dateBasis}
-              onChange={(event) => {
-                if (isOneOf(event.target.value, dateBases)) {
-                  setDateBasis(event.target.value);
-                }
+              onChange={(value) => {
+                setDateBasis(value);
                 resetPagination();
               }}
-            >
-              <option value='local'>Departure local time</option>
-              <option value='utc'>UTC</option>
-            </SimpleSelect>
+            />
           </label>
           <Button variant='ghost' onClick={clearAll}>
             <RotateCcw size={14} />
@@ -452,7 +453,7 @@ export function FlightScheduleWorkspace({
             icon={<Plane />}
             label={multiLeg ? 'Primary itinerary' : 'Primary route'}
             value={insights.primaryJourneyLabel}
-            hint={`${insights.primaryJourneyCount} dates · ${insights.journeyExceptions} ${insights.journeyExceptions === 1 ? 'alternative' : 'alternatives'}`}
+            hint={`${numberLabel(insights.primaryJourneyCount)} dates · ${numberLabel(insights.journeyExceptions)} ${insights.journeyExceptions === 1 ? 'alternative' : 'alternatives'}`}
             onClick={() =>
               multiLeg
                 ? revealPeriod(
@@ -468,14 +469,14 @@ export function FlightScheduleWorkspace({
           <ScheduleInsight
             icon={<List />}
             label='Equipment'
-            value={`${insights.aircraftCount} type${insights.aircraftCount === 1 ? '' : 's'}`}
+            value={`${numberLabel(insights.aircraftCount)} type${insights.aircraftCount === 1 ? '' : 's'}`}
             hint='See schedule periods'
             onClick={() => selectHashView('periods')}
           />
           <ScheduleInsight
             icon={<GitCompareArrows />}
             label='Revision history'
-            value={`${changedDays.length} dates`}
+            value={`${numberLabel(changedDays.length)} dates`}
             hint='See what changed'
             onClick={() => selectView('changes')}
           />
@@ -512,13 +513,13 @@ export function FlightScheduleWorkspace({
             >
               <Icon size={15} />
               <span>{label}</span>
-              {key === 'changes' && <b>{changedCount}</b>}
+              {key === 'changes' && <b>{numberLabel(changedCount)}</b>}
             </Link>
           ))}
         </div>
         <p className={view === 'dates' || view === 'map' ? 'workspace-view-summary' : undefined}>
           {view === 'map'
-            ? `${filteredItems.length} ${filteredItems.length === 1 ? 'flight' : 'flights'} · ${mapRoutes.length} ${mapRoutes.length === 1 ? 'route' : 'routes'}`
+            ? `${numberLabel(filteredItems.length)} ${filteredItems.length === 1 ? 'flight' : 'flights'} · ${numberLabel(mapRoutes.length)} ${mapRoutes.length === 1 ? 'route' : 'routes'}`
             : scheduleViewDescription(view, periods, changePeriods.length, filteredDays)}
         </p>
       </div>

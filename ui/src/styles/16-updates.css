@@ -20,7 +20,7 @@
 .legend-add {
   background: var(--green);
 }
-.legend-update {
+.legend-changed {
   background: var(--amber);
 }
 .legend-remove {
@@ -54,7 +54,7 @@
 .change-number.added {
   color: var(--green);
 }
-.change-number.updated {
+.change-number.changed {
   color: var(--amber);
 }
 .change-number.removed {

@@ -8,8 +8,8 @@ import { ArrowDown, ArrowUp, Database, RefreshCw, TrendingUp } from 'lucide-reac
 import { useMemo } from 'react';
 import { api } from '@/api/client';
 import type { UpdateReportItem } from '@/api/types';
-import { Badge, Card, ErrorState, Loading, PageHeader, Stat } from '@/components/primitives';
-import { dateLabel } from '@/lib/format';
+import { Card, ErrorState, Loading, PageHeader, Stat } from '@/components/primitives';
+import { compactNumberLabel, dateLabel, dateTimeLabel, numberLabel } from '@/lib/format';
 
 export function UpdatesPage() {
   const query = useQuery({ queryKey: ['updates'], queryFn: api.updates });
@@ -29,41 +29,23 @@ export function UpdatesPage() {
         eyebrow='Data activity'
         title='Schedule updates'
         description='A transparent view of how the underlying schedule dataset changes between imports.'
-        actions={
-          <Badge tone='green'>
-            <RefreshCw size={13} />
-            Import history
-          </Badge>
-        }
       />
       {query.isLoading && <Loading label='Loading update history…' />}
-      {query.error && <ErrorState error={query.error} />}{' '}
+      {query.error && <ErrorState error={query.error} />}
       {query.data && (
         <>
           <div className='stats-grid'>
             <Stat label='Imports shown' value={recent.length} hint='Latest reports' />
-            <Stat
-              label='Flights added'
-              value={totals.added.toLocaleString()}
-              hint='Last 30 imports'
-            />
-            <Stat
-              label='Flights changed'
-              value={totals.updated.toLocaleString()}
-              hint='Last 30 imports'
-            />
-            <Stat
-              label='Flights removed'
-              value={totals.removed.toLocaleString()}
-              hint='Last 30 imports'
-            />
+            <Stat label='Records added' value={totals.added} hint='Last 30 imports' />
+            <Stat label='Records changed' value={totals.updated} hint='Last 30 imports' />
+            <Stat label='Records removed' value={totals.removed} hint='Last 30 imports' />
           </div>
           <Card className='updates-chart-card'>
             <div className='card-heading'>
               <TrendingUp />
               <div>
                 <h2>Changes per import</h2>
-                <p>Added, updated and removed schedule records</p>
+                <p>Added, changed and removed schedule records</p>
               </div>
               <div className='chart-legend'>
                 <span>
@@ -71,8 +53,8 @@ export function UpdatesPage() {
                   Added
                 </span>
                 <span>
-                  <i className='legend-update' />
-                  Updated
+                  <i className='legend-changed' />
+                  Changed
                 </span>
                 <span>
                   <i className='legend-remove' />
@@ -96,7 +78,7 @@ export function UpdatesPage() {
                     <tr>
                       <th>Imported</th>
                       <th>Added</th>
-                      <th>Updated</th>
+                      <th>Changed</th>
                       <th>Removed</th>
                       <th>Total changes</th>
                     </tr>
@@ -108,33 +90,28 @@ export function UpdatesPage() {
                       .map((item) => (
                         <tr key={item.version}>
                           <td>
-                            <strong>
-                              {dateLabel(item.version, { dateStyle: 'medium', timeStyle: 'short' })}
-                            </strong>
-                            <small>{item.version}</small>
+                            <strong>{dateTimeLabel(item.version)}</strong>
                           </td>
                           <td>
                             <span className='change-number added'>
                               <ArrowUp size={14} />
-                              {item.added.toLocaleString()}
+                              {numberLabel(item.added)}
                             </span>
                           </td>
                           <td>
-                            <span className='change-number updated'>
+                            <span className='change-number changed'>
                               <RefreshCw size={14} />
-                              {item.updated.toLocaleString()}
+                              {numberLabel(item.updated)}
                             </span>
                           </td>
                           <td>
                             <span className='change-number removed'>
                               <ArrowDown size={14} />
-                              {item.removed.toLocaleString()}
+                              {numberLabel(item.removed)}
                             </span>
                           </td>
                           <td>
-                            <strong>
-                              {(item.added + item.updated + item.removed).toLocaleString()}
-                            </strong>
+                            <strong>{numberLabel(item.added + item.updated + item.removed)}</strong>
                           </td>
                         </tr>
                       ))}
@@ -152,7 +129,7 @@ function UpdateChart({ data }: { data: UpdateReportItem[] }) {
   const definition = useMemo(() => {
     const rows = data.flatMap((report) => [
       { version: report.version, change: 'Added', records: report.added },
-      { version: report.version, change: 'Updated', records: report.updated },
+      { version: report.version, change: 'Changed', records: report.updated },
       { version: report.version, change: 'Removed', records: report.removed },
     ]);
 
@@ -187,13 +164,12 @@ function UpdateChart({ data }: { data: UpdateReportItem[] }) {
         axis: {
           ticks: {
             count: 5,
-            format: (value) =>
-              new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value),
+            format: compactNumberLabel,
           },
         },
       },
       color: {
-        domain: ['Added', 'Updated', 'Removed'],
+        domain: ['Added', 'Changed', 'Removed'],
         range: ['var(--green)', 'var(--amber)', 'var(--red)'],
       },
       focus: 'group-x',
@@ -217,7 +193,7 @@ function UpdateChart({ data }: { data: UpdateReportItem[] }) {
       height={280}
       className='updates-chart'
       ariaLabel='Schedule records changed per import'
-      ariaDescription='Three lines compare added, updated, and removed schedule records across the latest imports.'
+      ariaDescription='Three lines compare added, changed, and removed schedule records across the latest imports.'
     />
   );
 }

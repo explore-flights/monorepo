@@ -1,4 +1,5 @@
 import { CalendarDays, Clock3 } from 'lucide-react';
+import { numberLabel } from '@/lib/format';
 
 export type ScheduleScope = 'upcoming' | 'historical';
 
@@ -27,7 +28,7 @@ export function ScheduleScopeTabs({
       >
         <Clock3 size={16} />
         <span>Upcoming</span>
-        <b>{upcomingCount}</b>
+        <b>{numberLabel(upcomingCount)}</b>
       </button>
       <button
         className={active === 'historical' ? 'active' : ''}
@@ -37,7 +38,7 @@ export function ScheduleScopeTabs({
       >
         <CalendarDays size={16} />
         <span>Historical</span>
-        <b>{historicalCount}</b>
+        <b>{numberLabel(historicalCount)}</b>
       </button>
     </div>
   );

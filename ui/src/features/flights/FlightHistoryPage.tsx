@@ -14,7 +14,14 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '@/api/client';
 import type { FlightScheduleVariant, FlightScheduleVersions } from '@/api/types';
 import { Badge, Card, ErrorState, Loading, PageHeader, Stat } from '@/components/primitives';
-import { dateLabel, duration, flightName } from '@/lib/format';
+import {
+  aircraftName,
+  airportCode,
+  dateLabel,
+  dateTimeLabel,
+  duration,
+  flightName,
+} from '@/lib/format';
 import { variantFor } from '@/lib/schedules';
 import { arrivalScheduleTime, dayDeltaLabel, departureScheduleTime } from '@/lib/time';
 import { compareFlightVariants, type FieldChange } from './flightChanges';
@@ -93,7 +100,7 @@ export function FlightHistoryPage() {
             <Stat
               label='Fields changed'
               value={changedFields}
-              hint={`${departureAirport?.iataCode ?? airport} · ${departureAirport?.timezone ?? 'timezone unavailable'}`}
+              hint={`${airportCode(airport, data.airports)} · ${departureAirport?.timezone ?? 'timezone unavailable'}`}
             />
           </div>
           <Card className='history-timeline'>
@@ -167,7 +174,7 @@ function HistoryEntry({
       <div className='timeline-content'>
         <header>
           <div>
-            <strong>{dateLabel(version, { dateStyle: 'medium', timeStyle: 'short' })}</strong>
+            <strong>{dateTimeLabel(version)}</strong>
             {latest && <Badge tone='blue'>Latest</Badge>}
           </div>
           <span>{summary}</span>
@@ -198,7 +205,7 @@ function HistoryEntry({
                 <Plane size={15} />
                 {flightName(variant.operatedAs, data.airlines)}
               </span>
-              <span>{data.aircraft[variant.aircraftId]?.name ?? variant.aircraftId}</span>
+              <span>{aircraftName(variant.aircraftId, data.aircraft)}</span>
               <span>
                 <Clock size={15} />
                 {duration(variant.durationSeconds)}

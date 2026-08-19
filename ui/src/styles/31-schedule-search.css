@@ -74,6 +74,9 @@
 .route-rule {
   grid-template-columns: 1fr auto 1fr auto;
 }
+.route-rule > svg {
+  color: var(--muted);
+}
 .rule-row select,
 .rule-row input {
   width: 100%;

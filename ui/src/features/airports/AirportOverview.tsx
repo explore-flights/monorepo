@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import type { Airport, AirportMovementDirection, AirportSummary } from '@/api/types';
 import { Card, EmptyState, Stat } from '@/components/primitives';
-import { duration } from '@/lib/format';
+import { airportCode, airportName, duration, numberLabel } from '@/lib/format';
 import { AirportDirectionControl } from './AirportDirectionControl';
 import { AirportMonthlyChart } from './AirportMonthlyChart';
 import { aggregateAirportRoutes, directionStatistics } from './airportData';
@@ -33,12 +33,12 @@ export function AirportOverview({
   return (
     <>
       <div className='stats-grid airport-summary-metrics'>
-        <Stat label='Scheduled departures' value={formatCount(departures?.scheduledLegs)} />
-        <Stat label='Scheduled arrivals' value={formatCount(arrivals?.scheduledLegs)} />
+        <Stat label='Scheduled departures' value={departures?.scheduledLegs ?? 0} />
+        <Stat label='Scheduled arrivals' value={arrivals?.scheduledLegs ?? 0} />
         <Stat
           label='Direct destinations'
-          value={formatCount(departures?.routeCount)}
-          hint={`${formatCount(arrivals?.routeCount)} arrival origins`}
+          value={departures?.routeCount ?? 0}
+          hint={`${numberLabel(arrivals?.routeCount ?? 0)} arrival origins`}
         />
         <Stat
           label='Median scheduled duration'
@@ -78,13 +78,12 @@ export function AirportOverview({
           {routes.length > 0 ? (
             <div className='airport-ranked-routes'>
               {routes.slice(0, 8).map((route) => {
-                const other = summary.airports[route.otherAirportId];
                 return (
                   <Link key={route.otherAirportId} to={`/airport/${route.otherAirportId}`}>
-                    <strong>{other?.iataCode ?? route.otherAirportId}</strong>
-                    <span>{other?.name ?? route.otherAirportId}</span>
+                    <strong>{airportCode(route.otherAirportId, summary.airports)}</strong>
+                    <span>{airportName(route.otherAirportId, summary.airports)}</span>
                     <small>
-                      {route.scheduledLegs.toLocaleString()} legs ·{' '}
+                      {numberLabel(route.scheduledLegs)} legs ·{' '}
                       {duration(route.durationSecondsAverage)} avg
                     </small>
                   </Link>
@@ -141,13 +140,9 @@ export function AirportFacts({ airport }: { airport: Airport }) {
         <dd>{airport.type}</dd>
       </div>
       <div>
-        <dt>Timezone</dt>
+        <dt>Time zone</dt>
         <dd>{airport.timezone}</dd>
       </div>
     </dl>
   );
-}
-
-function formatCount(value: number | undefined): string {
-  return value?.toLocaleString() ?? '0';
 }

@@ -1,10 +1,10 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { CalendarRange, Filter, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowRight, CalendarRange, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { api } from '@/api/client';
 import type { QuerySchedulesRequest } from '@/api/types';
 import { MultiCombobox, type SelectOption } from '@/components/MultiCombobox';
-import { Badge, Button, Card, ErrorState, Loading, PageHeader } from '@/components/primitives';
+import { Button, Card, ErrorState, Loading, PageHeader } from '@/components/primitives';
 import {
   aircraftSelectOptions,
   airlineSelectOptions,
@@ -80,15 +80,9 @@ export function FlightSearchPage() {
         eyebrow='Tools'
         title='Flight search'
         description='Search the complete published schedule using airlines, time, equipment and route rules.'
-        actions={
-          <Badge tone='blue'>
-            <Filter size={13} />
-            Advanced schedule query
-          </Badge>
-        }
       />
       {loading && <Loading label='Loading search filters…' />}
-      {queryError && <ErrorState error={queryError} />}{' '}
+      {queryError && <ErrorState error={queryError} />}
       {!loading && (
         <Card className='query-search-card'>
           <form onSubmit={submit}>
@@ -96,7 +90,7 @@ export function FlightSearchPage() {
               <div className='query-section-heading'>
                 <div>
                   <span className='eyebrow'>Who and when</span>
-                  <h2>Airlines & departure window</h2>
+                  <h2>Airlines and departure window</h2>
                 </div>
                 <CalendarRange size={20} />
               </div>
@@ -134,7 +128,7 @@ export function FlightSearchPage() {
               <div className='query-section-heading'>
                 <div>
                   <span className='eyebrow'>Network</span>
-                  <h2>Airport & route filters</h2>
+                  <h2>Airport and route filters</h2>
                 </div>
               </div>
               <div className='query-grid two'>
@@ -189,7 +183,7 @@ export function FlightSearchPage() {
                         </option>
                       ))}
                     </SimpleSelect>
-                    <span>→</span>
+                    <ArrowRight aria-hidden='true' size={16} />
                     <SimpleSelect
                       aria-label={`Route ${index + 1} arrival`}
                       value={route.to}
@@ -223,7 +217,7 @@ export function FlightSearchPage() {
               <div className='query-section-heading'>
                 <div>
                   <span className='eyebrow'>Equipment</span>
-                  <h2>Aircraft & configurations</h2>
+                  <h2>Aircraft and configurations</h2>
                 </div>
               </div>
               <div className='rule-list'>
@@ -300,7 +294,9 @@ export function FlightSearchPage() {
             </section>
             <footer>
               <div>
-                <strong>{filterCount} active filter groups</strong>
+                <strong>
+                  {filterCount} active filter {filterCount === 1 ? 'group' : 'groups'}
+                </strong>
                 <small>The backend requires at least two groups.</small>
               </div>
               <Button type='submit' disabled={filterCount < 2 || search.isPending}>

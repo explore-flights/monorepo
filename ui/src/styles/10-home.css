@@ -1,6 +1,11 @@
 /* Home */
 .home-page {
+  position: relative;
+  isolation: isolate;
   padding-top: var(--space-16);
+}
+.home-page > section {
+  position: relative;
 }
 .home-hero {
   display: grid;
@@ -20,12 +25,28 @@
   color: var(--primary);
   font-style: normal;
 }
+.hero-copy h1 sup {
+  margin-left: var(--space-0-75);
+  color: var(--primary);
+  font-size: var(--font-2xl);
+  letter-spacing: normal;
+  vertical-align: super;
+}
 .hero-copy > p {
   max-width: 650px;
   margin: 0;
   font-size: var(--font-lg);
   line-height: 1.65;
   color: var(--muted);
+}
+.hero-copy > .hero-fine-print {
+  margin-top: var(--space-3);
+  font-size: var(--font-supporting);
+  line-height: 1.5;
+}
+.hero-fine-print a {
+  color: var(--primary);
+  font-weight: 650;
 }
 .hero-actions {
   display: flex;
@@ -258,10 +279,6 @@
   right: -8%;
   width: 82%;
   height: 64px;
-  object-fit: contain;
-  object-position: right center;
-  filter: brightness(0) invert(1) var(--shadow-aircraft-artwork);
-  opacity: 0.42;
 }
 .fleet-preview-card > span {
   align-self: flex-start;

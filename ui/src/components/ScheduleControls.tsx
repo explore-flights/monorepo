@@ -1,6 +1,7 @@
-import { ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { ChangeEventHandler, ReactNode } from 'react';
-import { weekdayLabels } from '@/lib/date';
+import { dateBases, weekdayLabels, type DateBasis } from '@/lib/date';
+import { isOneOf } from '@/lib/collections';
 import { Button } from './primitives';
 import { SimpleSelect } from './SimpleSelect';
 
@@ -25,7 +26,7 @@ export function YearSwitcher({
         onClick={() => onChange(year - 1)}
         aria-label='Previous year'
       >
-        ←
+        <ChevronLeft size={16} />
       </Button>
       <strong>{year}</strong>
       <Button
@@ -34,7 +35,7 @@ export function YearSwitcher({
         onClick={() => onChange(year + 1)}
         aria-label='Next year'
       >
-        →
+        <ChevronRight size={16} />
       </Button>
     </div>
   );
@@ -74,6 +75,58 @@ export function WeekdaySelect({
         </option>
       ))}
     </SimpleSelect>
+  );
+}
+
+export function DateBasisSelect({
+  value,
+  onChange,
+}: {
+  value: DateBasis;
+  onChange: (value: DateBasis) => void;
+}) {
+  return (
+    <SimpleSelect
+      value={value}
+      onChange={(event) => {
+        if (isOneOf(event.target.value, dateBases)) {
+          onChange(event.target.value);
+        }
+      }}
+    >
+      <option value='local'>Departure local time</option>
+      <option value='utc'>UTC</option>
+    </SimpleSelect>
+  );
+}
+
+export function ScheduleHighlightControl<Value extends string>({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  value: Value;
+  options: ReadonlyArray<readonly [Value, string]>;
+  onChange: (value: Value) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div className='calendar-highlight-controls' role='group' aria-label={ariaLabel}>
+      <strong>Highlight</strong>
+      <div className='facet-buttons'>
+        {options.map(([key, label]) => (
+          <button
+            key={key}
+            className={value === key ? 'active' : ''}
+            aria-pressed={value === key}
+            onClick={() => onChange(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

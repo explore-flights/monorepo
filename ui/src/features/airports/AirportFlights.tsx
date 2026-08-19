@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { api } from '@/api/client';
@@ -9,11 +9,11 @@ import type {
   AirportSummary,
   AirportTimetable,
 } from '@/api/types';
-import { CodeshareDetails, DataElementList } from '@/components/ScheduleMetadata';
+import { PublishedScheduleDetails, ScheduleRouteCell } from '@/components/ScheduleMetadata';
 import { TemporalInput } from '@/components/TemporalInput';
 import { Badge, Button, EmptyState, ErrorState, Loading } from '@/components/primitives';
 import { ScheduleTable, type ScheduleTableColumn } from '@/features/schedules/ScheduleTable';
-import { duration, flightName } from '@/lib/format';
+import { aircraftName, duration, flightName, fullDateLabel, numberLabel } from '@/lib/format';
 import { AirportDirectionControl } from './AirportDirectionControl';
 import {
   adjacentActiveDate,
@@ -189,21 +189,13 @@ function AirportTimetableTable({
     {
       label: 'Route',
       sortKey: 'route',
-      render: (movement) => {
-        const from = data.airports[movement.departureAirportId];
-        const to = data.airports[movement.arrivalAirportId];
-
-        return (
-          <div className='route-cell'>
-            <strong>{from?.iataCode ?? movement.departureAirportId}</strong>
-            <ArrowRight size={13} />
-            <strong>{to?.iataCode ?? movement.arrivalAirportId}</strong>
-            <small>
-              {from?.name ?? movement.departureAirportId} → {to?.name ?? movement.arrivalAirportId}
-            </small>
-          </div>
-        );
-      },
+      render: (movement) => (
+        <ScheduleRouteCell
+          departureAirportId={movement.departureAirportId}
+          arrivalAirportId={movement.arrivalAirportId}
+          airports={data.airports}
+        />
+      ),
     },
     {
       label: direction === 'departure' ? 'Arrival' : 'Departure',
@@ -232,7 +224,7 @@ function AirportTimetableTable({
 
         return (
           <>
-            <strong>{aircraft?.name ?? movement.aircraftId}</strong>
+            <strong>{aircraftName(movement.aircraftId, data.aircraft)}</strong>
             <small>{aircraft?.iataCode ?? movement.aircraftId}</small>
           </>
         );
@@ -258,55 +250,14 @@ function AirportTimetableTable({
       compareRows={(left, right, sort) => compareMovement(left, right, sort, direction, data)}
       rowKey={(movement) => movementKey(movement, data)}
       expandedLabel={(movement) => flightName(movement.flightNumber, data.airlines)}
-      renderDetails={(movement) => <MovementDetails movement={movement} data={data} />}
+      renderDetails={(movement) => (
+        <PublishedScheduleDetails schedule={movement} airlines={data.airlines} />
+      )}
       eyebrow={`Exact ${direction === 'departure' ? 'departures' : 'arrivals'}`}
-      title={`${data.movements.length.toLocaleString()} scheduled ${direction === 'departure' ? 'departures' : 'arrivals'}`}
+      title={`${numberLabel(data.movements.length)} scheduled ${direction === 'departure' ? 'departures' : 'arrivals'}`}
       itemLabel={direction === 'departure' ? 'departures' : 'arrivals'}
       ariaLabel={`${fullDateLabel(selectedDate ?? data.dateLocal)} ${direction === 'departure' ? 'departures' : 'arrivals'}`}
     />
-  );
-}
-
-function MovementDetails({
-  movement,
-  data,
-}: {
-  movement: AirportMovement;
-  data: AirportTimetable;
-}) {
-  return (
-    <div className='schedule-details'>
-      <dl>
-        <div>
-          <dt>Service type</dt>
-          <dd>{movement.serviceType || '—'}</dd>
-        </div>
-        <div>
-          <dt>Aircraft owner</dt>
-          <dd>{movement.aircraftOwner || '—'}</dd>
-        </div>
-        <div>
-          <dt>Aircraft ID</dt>
-          <dd>{movement.aircraftId}</dd>
-        </div>
-        <div>
-          <dt>Configuration version</dt>
-          <dd>{movement.aircraftConfigurationVersion || '—'}</dd>
-        </div>
-      </dl>
-      <CodeshareDetails
-        className=''
-        codeShares={movement.codeShares}
-        airlines={data.airlines}
-        pathFor={(flightNumber) => `/flight/${flightNumber}`}
-      />
-      {Object.keys(movement.dataElements).length > 0 && (
-        <div className='schedule-details-data-elements'>
-          <span>Data elements</span>
-          <DataElementList dataElements={movement.dataElements} />
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -328,8 +279,8 @@ function compareMovement(
       `${right.departureAirportId}>${right.arrivalAirportId}`,
     ],
     aircraft: [
-      data.aircraft[left.aircraftId]?.name ?? left.aircraftId,
-      data.aircraft[right.aircraftId]?.name ?? right.aircraftId,
+      aircraftName(left.aircraftId, data.aircraft),
+      aircraftName(right.aircraftId, data.aircraft),
     ],
   };
   const [leftValue, rightValue] = values[sort];
@@ -368,12 +319,6 @@ function eventTime(movement: AirportMovement, direction: AirportMovementDirectio
 
 function otherTime(movement: AirportMovement, direction: AirportMovementDirection): string {
   return direction === 'departure' ? movement.arrivalTime : movement.departureTime;
-}
-
-function fullDateLabel(value: string): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeZone: 'UTC' }).format(
-    new Date(`${value}T12:00:00Z`),
-  );
 }
 
 function utcOffsetLabel(offset: string): string {

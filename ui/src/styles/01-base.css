@@ -190,6 +190,11 @@ button:disabled {
   background: var(--sidebar-fleet-dot);
   border-radius: 50%;
 }
+.aircraft-artwork {
+  display: block;
+  color: var(--fleet-hero-text);
+  filter: var(--shadow-aircraft-artwork-strong);
+}
 .sidebar-footer {
   margin-top: auto;
   padding: var(--space-4) var(--space-3-5) var(--space-4-5);
@@ -349,11 +354,6 @@ button:disabled {
   color: var(--text);
   background: var(--surface-2);
 }
-.button-danger {
-  color: var(--red);
-  background: var(--red-soft);
-  border-color: color-mix(in srgb, var(--red) 25%, transparent);
-}
 .card {
   background: var(--surface);
   border: var(--border-width) solid var(--border);
@@ -379,10 +379,6 @@ button:disabled {
   color: var(--primary);
   background: var(--primary-soft);
   border-color: color-mix(in srgb, var(--primary) 18%, var(--border));
-}
-.badge-green {
-  color: var(--green);
-  background: var(--green-soft);
 }
 .badge-amber {
   color: var(--amber);

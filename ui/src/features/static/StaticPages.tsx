@@ -1,18 +1,24 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Code2 as Github, Mail, Plane } from 'lucide-react';
+import { ArrowLeft, Code2, Mail, Plane } from 'lucide-react';
 import { api } from '@/api/client';
 import { Button, Card, PageHeader } from '@/components/primitives';
+import { ScrollRadar } from '@/components/ScrollRadar';
 
 export function AboutPage() {
   const airlines = useQuery({ queryKey: ['airlines'], queryFn: api.airlines }).data ?? [];
   const integrated = ['LH', 'LX', 'WK', 'OS', 'SN', '4Y', 'EN'];
+  const representedPartners = airlines
+    .filter((airline) => !integrated.includes(airline.iataCode))
+    .sort((a, b) => a.iataCode.localeCompare(b.iataCode));
+
   return (
-    <div className='page prose-page'>
+    <div className='page prose-page about-page'>
+      <ScrollRadar />
       <PageHeader
         eyebrow='About'
         title='About explore.flights'
-        description='Why this project exists, how it operates, and what its data can—and cannot—show.'
+        description='Why this project exists, how it operates, and what its data can — and cannot — show.'
       />
       <ProseSection title='Motivation'>
         <p>
@@ -21,7 +27,7 @@ export function AboutPage() {
         </p>
         <p>
           With many traditional airlines, it is possible to book almost any combination of their
-          scheduled flights by calling the airline hotline—provided the itinerary still meets the
+          scheduled flights by calling the airline hotline — provided the itinerary still meets the
           airline’s fare rules, such as the required minimum connection time at each airport.
         </p>
         <p>
@@ -57,7 +63,7 @@ export function AboutPage() {
           for the domain.
         </p>
       </ProseSection>
-      <ProseSection title='Data and Limitations'>
+      <ProseSection title='Data and limitations'>
         <p>
           The biggest limitation is the scope of flight data available to the project. The core is
           powered by Lufthansa’s{' '}
@@ -76,27 +82,28 @@ export function AboutPage() {
           <li>Air Dolomiti (EN)</li>
         </ul>
         <p>
-          Codeshares allow the project to extrapolate partial coverage for {airlines.length || 48}{' '}
-          airlines.{' '}
-          {airlines.length > 0 && (
-            <>
-              Currently represented partners include{' '}
-              {[...airlines]
-                .filter((airline) => !integrated.includes(airline.iataCode))
-                .sort((a, b) => a.iataCode.localeCompare(b.iataCode))
-                .slice(0, 24)
-                .map((airline) => `${airline.name} (${airline.iataCode})`)
-                .join(', ')}
-              .
-            </>
-          )}
+          Codeshares extend partial coverage to {representedPartners.length || 42} additional
+          partner airlines, bringing the total to{' '}
+          {representedPartners.length > 0 ? representedPartners.length + integrated.length : 49}.
         </p>
+        {representedPartners.length > 0 && (
+          <>
+            <p>Currently represented partners include:</p>
+            <ul>
+              {representedPartners.map((airline) => (
+                <li key={airline.iataCode}>
+                  {airline.name} ({airline.iataCode})
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
         <p>
           Flight data is refreshed once per day, covering two days in the past through approximately
           360 days into the future.
         </p>
       </ProseSection>
-      <ProseSection title='Report Issues or Feature Requests'>
+      <ProseSection title='Report issues or request a feature'>
         <p>
           If you find incorrect data, have an idea, or want to share feedback, send an email to{' '}
           <a href='mailto:contact@explore.flights'>contact@explore.flights</a> or{' '}
@@ -116,7 +123,7 @@ export function AboutPage() {
             target='_blank'
             rel='noreferrer'
           >
-            <Github size={17} />
+            <Code2 size={17} />
             Source code
           </a>
           <a className='button button-secondary' href='mailto:contact@explore.flights'>
@@ -188,7 +195,7 @@ export function PrivacyPolicyPage() {
           </li>
         </ul>
       </ProseSection>
-      <ProseSection title='Personal Identifiable Information'>
+      <ProseSection title='Personal information'>
         <p>
           We may collect personal identification information in connection with activities,
           services, features, or resources available on the site. Users may visit anonymously. We
@@ -197,14 +204,14 @@ export function PrivacyPolicyPage() {
           activities.
         </p>
       </ProseSection>
-      <ProseSection title='Non-personal Identifiable Information'>
+      <ProseSection title='Non-personal information'>
         <p>
           We may collect non-personal information when users interact with the site, including
           browser name, computer type, operating system, internet provider, and similar technical
           information.
         </p>
       </ProseSection>
-      <ProseSection title='Cookies & Local storage'>
+      <ProseSection title='Cookies and local storage'>
         <p>
           The site uses cookies and local storage for security, record keeping, and preferences.
           Browsers can refuse or warn about storage, but some functionality may then be unavailable.
@@ -264,7 +271,7 @@ export function PrivacyPolicyPage() {
           believe a child supplied such information so it can be removed promptly.
         </p>
       </ProseSection>
-      <ProseSection title='Third party websites'>
+      <ProseSection title='Third-party websites'>
         <p>
           Links may lead to third-party sites whose content and practices we do not control.
           Browsing and interaction on another site are subject to that site’s own terms and
@@ -292,7 +299,7 @@ export function PrivacyPolicyPage() {
           for managed email/password authentication.
         </p>
       </ProseSection>
-      <ProseSection title='Third-Party APIs'>
+      <ProseSection title='Third-party APIs'>
         <p>
           Interactive map tiles are provided by{' '}
           <a href='https://versatiles.org/' target='_blank' rel='noreferrer'>

@@ -5,11 +5,11 @@ import { scaleBand } from '@tanstack/charts/scales/band';
 import { scaleLinear } from '@tanstack/charts/scales/linear';
 import { tooltip } from '@tanstack/charts/tooltip';
 import { useMemo } from 'react';
+import { compactNumberLabel } from '@/lib/format';
 import { monthlyActivity } from './airportData';
 import styles from './AirportMonthlyChart.module.css';
 
 const monthFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', timeZone: 'UTC' });
-const countFormatter = new Intl.NumberFormat(undefined, { notation: 'compact' });
 
 export function AirportMonthlyChart({ summary }: { summary: AirportSummary }) {
   const activity = useMemo(() => monthlyActivity(summary), [summary]);
@@ -46,7 +46,7 @@ export function AirportMonthlyChart({ summary }: { summary: AirportSummary }) {
         scale: scaleLinear,
         nice: true,
         grid: true,
-        axis: { ticks: { count: 4, format: (value) => countFormatter.format(value) } },
+        axis: { ticks: { count: 4, format: compactNumberLabel } },
       },
       color: {
         domain: ['Departures', 'Arrivals'],

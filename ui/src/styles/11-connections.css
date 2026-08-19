@@ -79,8 +79,12 @@ textarea {
   border: 0;
   border-top: var(--border-width) solid var(--border);
 }
-.advanced-toggle span {
+.advanced-toggle > svg:last-child {
   margin-left: auto;
+  transition: transform var(--duration-fast) ease;
+}
+.advanced-toggle > svg:last-child.expanded {
+  transform: rotate(180deg);
 }
 .advanced-grid {
   display: grid;

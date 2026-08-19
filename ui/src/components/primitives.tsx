@@ -1,9 +1,9 @@
 import { AlertCircle, LoaderCircle } from 'lucide-react';
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, Ref } from 'react';
-import { classNames } from '@/lib/format';
+import { classNames, numberLabel } from '@/lib/format';
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-type BadgeTone = 'neutral' | 'blue' | 'green' | 'amber' | 'red';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost';
+type BadgeTone = 'neutral' | 'blue' | 'amber' | 'red';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -61,7 +61,7 @@ export function PageHeader({ eyebrow, title, description, actions }: PageHeaderP
   return (
     <header className='page-header'>
       <div>
-        <div className='eyebrow'>{eyebrow}</div>
+        {eyebrow && <div className='eyebrow'>{eyebrow}</div>}
         <h1>{title}</h1>
         {description && <p>{description}</p>}
       </div>
@@ -103,10 +103,12 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
 }
 
 export function Stat({ label, value, hint }: StatProps) {
+  const displayValue = typeof value === 'number' ? numberLabel(value) : value;
+
   return (
     <Card className='stat'>
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong>{displayValue}</strong>
       {hint && <small>{hint}</small>}
     </Card>
   );

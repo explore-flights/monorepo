@@ -14,6 +14,20 @@ export function localDate(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+export function localDateTime(date: Date): string {
+  return `${localDate(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function localDayBoundary(date: Date, end: boolean): string {
+  return localDateTime(
+    new Date(date.getFullYear(), date.getMonth(), date.getDate(), end ? 23 : 0, end ? 59 : 0),
+  );
+}
+
+export function calendarDateForBasis(date: Date, basis: DateBasis): string {
+  return basis === 'local' ? localDate(date) : date.toISOString().slice(0, 10);
+}
+
 export function addDays(value: string, amount: number): string {
   const date = new Date(`${value}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + amount);

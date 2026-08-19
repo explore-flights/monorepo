@@ -13,7 +13,8 @@ import {
   YearCalendar,
 } from '@/components/YearCalendar';
 import { aircraftConfigurationLabel as configurationLabel } from '@/lib/aircraftConfigurations';
-import { classNames } from '@/lib/format';
+import { ScheduleHighlightControl } from '@/components/ScheduleControls';
+import { aircraftName, classNames, fullDateLabel } from '@/lib/format';
 import {
   displayVariantFor,
   groupScheduleItemsByDepartureDate,
@@ -21,6 +22,11 @@ import {
 } from '@/lib/schedules';
 
 type CalendarHighlight = 'aircraft' | 'configuration' | 'both';
+const calendarHighlightOptions: ReadonlyArray<readonly [CalendarHighlight, string]> = [
+  ['aircraft', 'Aircraft'],
+  ['configuration', 'Configuration'],
+  ['both', 'Aircraft + Configuration'],
+];
 
 export function CalendarView({
   data,
@@ -58,27 +64,12 @@ export function CalendarView({
   return (
     <Card className='schedule-calendar-card'>
       <div className='calendar-legend'>
-        <div className='calendar-highlight-controls' role='group' aria-label='Calendar highlight'>
-          <strong>Highlight</strong>
-          <div className='facet-buttons'>
-            {(
-              [
-                ['aircraft', 'Aircraft'],
-                ['configuration', 'Configuration'],
-                ['both', 'Aircraft + Configuration'],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                className={highlight === key ? 'active' : ''}
-                aria-pressed={highlight === key}
-                onClick={() => setHighlight(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <ScheduleHighlightControl
+          value={highlight}
+          options={calendarHighlightOptions}
+          onChange={setHighlight}
+          ariaLabel='Calendar highlight'
+        />
         <div className='calendar-legend-values'>
           <span>
             <i className='cancelled' />
@@ -104,14 +95,15 @@ export function CalendarView({
         year={year}
         renderDay={({ date, day }) => {
           const items = itemsByDate.get(date) ?? [];
+          const dateName = fullDateLabel(date);
           if (!items.length) {
             return (
               <CalendarDateButton
                 key={date}
                 day={day}
                 disabled
-                title={`${date} · No published departures`}
-                aria-label={`${date}, no published departures`}
+                title={`${dateName} · No published departures`}
+                aria-label={`${dateName}, no published departures`}
               />
             );
           }
@@ -162,8 +154,8 @@ export function CalendarView({
               day={day}
               segments={segments}
               className={classNames(...states)}
-              title={`${date} · ${statusLabel}${breakdown ? ` · ${breakdown}` : ''}${changed ? ' · Revised' : ''}${filterLabel}`}
-              aria-label={`${date}, ${statusLabel.replace(' · ', ', ')}${breakdown ? `, ${breakdown}` : ''}${changed ? ', revised' : ''}${filteredOut ? ', filtered out' : ''}`}
+              title={`${dateName} · ${statusLabel}${breakdown ? ` · ${breakdown}` : ''}${changed ? ' · Revised' : ''}${filterLabel}`}
+              aria-label={`${dateName}, ${statusLabel.replace(' · ', ', ')}${breakdown ? `, ${breakdown}` : ''}${changed ? ', revised' : ''}${filteredOut ? ', filtered out' : ''}`}
               onClick={() => onInspect(date)}
             />
           );
@@ -189,7 +181,7 @@ function calendarHighlightLabel(
   highlight: CalendarHighlight,
   data: FlightReferenceData,
 ) {
-  const aircraft = data.aircraft[variant.aircraftId]?.name ?? variant.aircraftId;
+  const aircraft = aircraftName(variant.aircraftId, data.aircraft);
   const configuration = configurationLabel(variant, data);
   if (highlight === 'aircraft') {
     return aircraft;

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { Airport, AirportMovementDirection, AirportSummary } from '@/api/types';
 import { FlightMap } from '@/components/FlightMap';
 import { EmptyState } from '@/components/primitives';
+import { numberLabel } from '@/lib/format';
 import { AirportDirectionControl } from './AirportDirectionControl';
 import { aggregateAirportRoutes, directionStatistics } from './airportData';
 
@@ -33,7 +34,7 @@ export function AirportMap({
             from,
             to,
             frequency: route.scheduledLegs,
-            label: `${from.iataCode} → ${to.iataCode}: ${route.scheduledLegs.toLocaleString()} scheduled legs in ${summary.year}`,
+            label: `${from.iataCode} → ${to.iataCode}: ${numberLabel(route.scheduledLegs)} scheduled legs in ${summary.year}`,
           },
         ];
       }),

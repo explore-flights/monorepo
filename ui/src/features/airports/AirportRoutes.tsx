@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Search } from 'lucide-react';
+import { ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { AirportMovementDirection, AirportSummary } from '@/api/types';
@@ -6,7 +6,16 @@ import { ShowMore } from '@/components/ShowMore';
 import { filterSelectOptions } from '@/components/picker/selectOptions';
 import { Card, EmptyState } from '@/components/primitives';
 import { airportSelectOptions } from '@/components/selectOptions';
-import { dateRangeLabel, duration } from '@/lib/format';
+import { SortableTableHeading } from '@/features/schedules/ScheduleTable';
+import {
+  aircraftName,
+  airlineName,
+  airportCode,
+  airportName,
+  dateRangeLabel,
+  duration,
+  numberLabel,
+} from '@/lib/format';
 import { AirportDirectionControl } from './AirportDirectionControl';
 import { aggregateAirportRoutes, directionStatistics } from './airportData';
 
@@ -66,7 +75,7 @@ export function AirportRoutes({
         <div>
           <span className='eyebrow'>Annual direct network</span>
           <h2>
-            {routes.length.toLocaleString()} scheduled{' '}
+            {numberLabel(routes.length)} scheduled{' '}
             {direction === 'departure' ? 'destinations' : 'origins'}
           </h2>
           <p>Aggregated across operating airline and equipment combinations.</p>
@@ -89,6 +98,7 @@ export function AirportRoutes({
                   setSearch(event.target.value);
                   setVisible(50);
                 }}
+                aria-label='Search routes'
                 placeholder='Search by airport code or name'
               />
             </label>
@@ -99,24 +109,24 @@ export function AirportRoutes({
                 <thead>
                   <tr>
                     <th aria-label='Expand details' />
-                    <SortableHeading
+                    <SortableTableHeading
                       label='Airport'
                       active={sort === 'airport'}
-                      order={sortOrder}
+                      descending={sortOrder === 'descending'}
                       onClick={() => updateSort('airport')}
                     />
-                    <SortableHeading
+                    <SortableTableHeading
                       label='Scheduled legs'
                       active={sort === 'volume'}
-                      order={sortOrder}
+                      descending={sortOrder === 'descending'}
                       onClick={() => updateSort('volume')}
                     />
                     <th>Airlines</th>
                     <th>Equipment</th>
-                    <SortableHeading
+                    <SortableTableHeading
                       label='Average duration'
                       active={sort === 'duration'}
-                      order={sortOrder}
+                      descending={sortOrder === 'descending'}
                       onClick={() => updateSort('duration')}
                     />
                   </tr>
@@ -129,8 +139,8 @@ export function AirportRoutes({
                       <RouteRows
                         key={route.otherAirportId}
                         route={route}
-                        airportName={airport?.name ?? route.otherAirportId}
-                        airportCode={airport?.iataCode ?? route.otherAirportId}
+                        airportName={airportName(route.otherAirportId, summary.airports)}
+                        airportCode={airportCode(route.otherAirportId, summary.airports)}
                         countryCode={airport?.countryCode}
                         expanded={expanded}
                         summary={summary}
@@ -210,7 +220,7 @@ function RouteRows({
           </div>
         </td>
         <td data-label='Scheduled legs'>
-          <strong>{route.scheduledLegs.toLocaleString()}</strong>
+          <strong>{numberLabel(route.scheduledLegs)}</strong>
           <small>{dateRangeLabel(route.firstDateLocal, route.lastDateLocal)}</small>
         </td>
         <td data-label='Airlines'>{route.airlineIds.length}</td>
@@ -225,21 +235,19 @@ function RouteRows({
                 .slice()
                 .sort((left, right) => right.scheduledLegs - left.scheduledLegs)
                 .map((row) => {
-                  const airline = summary.airlines[row.operatingAirlineId];
-                  const aircraft = summary.aircraft[row.aircraftId];
                   return (
                     <div key={`${row.operatingAirlineId}-${row.aircraftId}`}>
                       <strong>
-                        {airline?.name ?? row.operatingAirlineId} ·{' '}
-                        {aircraft?.name ?? row.aircraftId}
+                        {airlineName(row.operatingAirlineId, summary.airlines)} ·{' '}
+                        {aircraftName(row.aircraftId, summary.aircraft)}
                       </strong>
-                      <span>{row.scheduledLegs.toLocaleString()} scheduled legs</span>
+                      <span>{numberLabel(row.scheduledLegs)} scheduled legs</span>
                       <span>
-                        Avg {duration(row.durationSecondsAverage)} · Median{' '}
+                        Average {duration(row.durationSecondsAverage)} · Median{' '}
                         {duration(row.durationSecondsMedian)}
                       </span>
                       <span>
-                        Min {duration(row.durationSecondsMinimum)} · Max{' '}
+                        Minimum {duration(row.durationSecondsMinimum)} · Maximum{' '}
                         {duration(row.durationSecondsMaximum)}
                       </span>
                     </div>
@@ -253,27 +261,6 @@ function RouteRows({
   );
 }
 
-function SortableHeading({
-  label,
-  active,
-  order,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  order: SortOrder;
-  onClick: () => void;
-}) {
-  return (
-    <th aria-sort={active ? order : 'none'}>
-      <button type='button' className='sort-button' onClick={onClick}>
-        {label}
-        {active && (order === 'ascending' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
-      </button>
-    </th>
-  );
-}
-
 function compareRoutes(
   left: ReturnType<typeof aggregateAirportRoutes>[number],
   right: ReturnType<typeof aggregateAirportRoutes>[number],
@@ -283,10 +270,8 @@ function compareRoutes(
 ) {
   let comparison = 0;
   if (sort === 'airport') {
-    const leftAirport = summary.airports[left.otherAirportId];
-    const rightAirport = summary.airports[right.otherAirportId];
-    comparison = (leftAirport?.iataCode ?? left.otherAirportId).localeCompare(
-      rightAirport?.iataCode ?? right.otherAirportId,
+    comparison = airportCode(left.otherAirportId, summary.airports).localeCompare(
+      airportCode(right.otherAirportId, summary.airports),
     );
   } else if (sort === 'duration') {
     comparison = left.durationSecondsAverage - right.durationSecondsAverage;

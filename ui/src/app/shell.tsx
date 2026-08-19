@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
-  Building2,
   CheckCircle2,
   Filter,
   GitBranch,
@@ -12,6 +11,7 @@ import {
   Info,
   LoaderCircle,
   Menu,
+  MapPin,
   Moon,
   Network,
   Plane,
@@ -33,7 +33,7 @@ const primaryNav = [
   { to: '/connections', label: 'Connections', icon: GitBranch },
   { to: '/flight', label: 'Flights', icon: Plane },
   { to: '/tools/flight-search', label: 'Flight search', icon: Filter },
-  { to: '/airport', label: 'Airports', icon: Building2 },
+  { to: '/airport', label: 'Airports', icon: MapPin },
   { to: '/updates', label: 'Updates', icon: History },
 ];
 
@@ -220,9 +220,15 @@ export function AppShell() {
             <Settings size={17} />
           </button>
           <div className='footer-links'>
-            <Link to='/about'>About</Link>
-            <Link to='/legal'>Legal</Link>
-            <Link to='/privacy-policy'>Privacy</Link>
+            <Link to='/about' onClick={() => closeMenu(false)}>
+              About
+            </Link>
+            <Link to='/legal' onClick={() => closeMenu(false)}>
+              Legal
+            </Link>
+            <Link to='/privacy-policy' onClick={() => closeMenu(false)}>
+              Privacy
+            </Link>
             <a href='https://github.com/explore-flights' target='_blank' rel='noreferrer'>
               GitHub
             </a>

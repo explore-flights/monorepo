@@ -13,20 +13,23 @@ import { FormEvent, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/api/client';
 import type { ConnectionsSearchRequest } from '@/api/types';
+import { AircraftArtwork, type AircraftAsset } from '@/components/AircraftArtwork';
+import { AirportRouteField, MaximumFlightsField } from '@/components/ConnectionSearchFields';
 import { FlightAutocomplete } from '@/components/FlightAutocomplete';
-import { MultiCombobox, type SelectOption } from '@/components/MultiCombobox';
-import { Badge, Button, Card, ErrorState } from '@/components/primitives';
+import type { SelectOption } from '@/components/MultiCombobox';
+import { Button, Card, ErrorState } from '@/components/primitives';
+import { ScrollRadar } from '@/components/ScrollRadar';
 import { airportSelectOptions } from '@/components/selectOptions';
-import { SimpleSelect } from '@/components/SimpleSelect';
 import { TemporalInput } from '@/components/TemporalInput';
 import { connectionSearchDefaults } from '@/features/connections/defaults';
+import { localDayBoundary } from '@/lib/date';
 import { normalizeFlightNumber } from '@/lib/format';
 
-const fleet = [
-  ['Allegris', 'Lufthansa’s new cabin generation', '/allegris', '/assets/aircraft-a350-900.svg'],
-  ['SWISS A350', 'Follow the newest long-haul fleet', '/swiss350', '/assets/aircraft-a350-900.svg'],
-  ['Lufthansa A380', 'See where the superjumbo flies', '/lh380', '/assets/aircraft-a380.svg'],
-] as const;
+const fleet: ReadonlyArray<readonly [string, string, string, AircraftAsset]> = [
+  ['Allegris', 'Lufthansa’s new cabin generation', '/allegris', 'aircraft-a350-900'],
+  ['SWISS A350', 'Follow the newest long-haul fleet', '/swiss350', 'aircraft-a350-900'],
+  ['Lufthansa A380', 'See where the superjumbo flies', '/lh380', 'aircraft-a380'],
+];
 
 export function HomePage() {
   const [searchParams] = useSearchParams();
@@ -45,14 +48,20 @@ export function HomePage() {
   }
   return (
     <div className='page home-page'>
+      <ScrollRadar />
       <section className='home-hero'>
         <div className='hero-copy'>
           <h1>
-            The world’s flight schedules, made <em>explorable.</em>
+            The world’s flight schedules, made <em>explorable</em>
+            <sup>*</sup>
           </h1>
           <p>
             Search routes, inspect a flight’s history, discover airport networks and follow the
             aircraft that matter to you.
+          </p>
+          <p className='hero-fine-print'>
+            * Not every airline is on our radar yet. explore.flights supports a subset of carriers —{' '}
+            see the <Link to='/about'>About page</Link> for coverage details.
           </p>
           <div className='hero-actions'>
             <Link className='button button-primary' to='/connections'>
@@ -107,10 +116,6 @@ export function HomePage() {
               your search ready.
             </p>
           </div>
-          <Badge tone='blue'>
-            <Network size={13} />
-            Network search
-          </Badge>
         </div>
         <HomeConnectionsSearch />
       </section>
@@ -121,7 +126,9 @@ export function HomePage() {
           </span>
           <div>
             <h2>Schedule updates</h2>
-            <p>Track how many flights were added, changed or removed in each data import.</p>
+            <p>
+              Track how many schedule records were added, changed or removed in each data import.
+            </p>
           </div>
           <ArrowRight />
         </Link>
@@ -147,9 +154,9 @@ export function HomePage() {
           </Link>
         </div>
         <div className='fleet-preview'>
-          {fleet.map(([name, copy, href, artwork], index) => (
+          {fleet.map(([name, copy, href, asset], index) => (
             <Link key={name} to={href} className={`fleet-preview-card fleet-${index}`}>
-              <img className='fleet-preview-aircraft' src={artwork} alt='' loading='lazy' />
+              <AircraftArtwork asset={asset} className='fleet-preview-aircraft' />
               <span>0{index + 1}</span>
               <div>
                 <h3>{name}</h3>
@@ -168,8 +175,8 @@ function HomeConnectionsSearch() {
   const airportsQuery = useQuery({ queryKey: ['airports'], queryFn: api.airports });
   const [origins, setOrigins] = useState<string[]>([]);
   const [destinations, setDestinations] = useState<string[]>([]);
-  const [start, setStart] = useState(() => localDayBoundary(false));
-  const [end, setEnd] = useState(() => localDayBoundary(true));
+  const [start, setStart] = useState(() => localDayBoundary(new Date(), false));
+  const [end, setEnd] = useState(() => localDayBoundary(new Date(), true));
   const [maxFlights, setMaxFlights] = useState<number>(connectionSearchDefaults.maxFlights);
   const airportOptions = useMemo<SelectOption[]>(
     () => airportSelectOptions(airportsQuery.data ?? []),
@@ -200,22 +207,22 @@ function HomeConnectionsSearch() {
       <Card className='search-card home-connections-card'>
         <form onSubmit={submit}>
           <div className='route-fields'>
-            <HomeAirportField
+            <AirportRouteField
               label='From'
+              endpoint='origin'
               values={origins}
               onChange={setOrigins}
               options={airportOptions}
-              destination={false}
             />
             <div className='route-arrow'>
               <ArrowRight size={18} />
             </div>
-            <HomeAirportField
+            <AirportRouteField
               label='To'
+              endpoint='destination'
               values={destinations}
               onChange={setDestinations}
               options={airportOptions}
-              destination
             />
           </div>
           <div className='search-grid'>
@@ -241,22 +248,7 @@ function HomeConnectionsSearch() {
                 onChange={(event) => setEnd(event.target.value)}
               />
             </label>
-            <label>
-              <span>
-                <GitBranch size={15} />
-                Maximum flights
-              </span>
-              <SimpleSelect
-                value={maxFlights}
-                onChange={(event) => setMaxFlights(Number(event.target.value))}
-              >
-                {[1, 2, 3, 4].map((value) => (
-                  <option key={value} value={value}>
-                    {value} flight{value > 1 ? 's' : ''}
-                  </option>
-                ))}
-              </SimpleSelect>
-            </label>
+            <MaximumFlightsField value={maxFlights} onChange={setMaxFlights} />
             <Button
               type='submit'
               disabled={
@@ -274,47 +266,4 @@ function HomeConnectionsSearch() {
       )}
     </>
   );
-}
-
-function HomeAirportField({
-  label,
-  values,
-  onChange,
-  options,
-  destination,
-}: {
-  label: string;
-  values: string[];
-  onChange: (values: string[]) => void;
-  options: SelectOption[];
-  destination: boolean;
-}) {
-  return (
-    <div className='airport-field'>
-      <span>
-        <span className={`route-dot${destination ? ' destination' : ''}`} />
-        {label}
-      </span>
-      <MultiCombobox
-        label={label}
-        values={values}
-        options={options}
-        onChange={onChange}
-        placeholder='Select one or more airports'
-        uppercase
-      />
-    </div>
-  );
-}
-
-function localDayBoundary(end: boolean) {
-  const now = new Date();
-  const date = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    end ? 23 : 0,
-    end ? 59 : 0,
-  );
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }

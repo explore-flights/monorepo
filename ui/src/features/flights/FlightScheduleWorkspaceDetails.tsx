@@ -14,9 +14,13 @@ import { aircraftConfigurationLabel as configurationLabel } from '@/lib/aircraft
 import { countBy } from '@/lib/collections';
 import { daysBetween, weekdayForDate, weekdayLabels, type DateBasis } from '@/lib/date';
 import {
+  aircraftName,
+  airportCode,
+  airportLabel,
   classNames,
   dateLabel,
   dateRangeLabel as formatRange,
+  dateTimeLabel,
   duration,
   flightName,
 } from '@/lib/format';
@@ -431,7 +435,7 @@ function differentPublishedSchedule(): PeriodExceptionDifference {
 }
 
 function airportExceptionLabel(id: string, data: FlightReferenceData) {
-  return data.airports[id]?.iataCode ?? id;
+  return airportCode(id, data.airports);
 }
 
 function weeklyPatternWeekdayLabel(weekdays: readonly number[]) {
@@ -605,7 +609,6 @@ function CancelledSnapshot({
   snapshotVariableProperties?: ReadonlySet<SnapshotPropertyKey>;
   compact: boolean;
 }) {
-  const airport = data.airports[item.departureAirportId];
   return (
     <div className='cancelled-snapshot'>
       {previousVariant ? (
@@ -619,7 +622,7 @@ function CancelledSnapshot({
         />
       ) : (
         <div className='cancelled-snapshot-unknown'>
-          <strong>{airport?.iataCode ?? item.departureAirportId}</strong>
+          <strong>{airportCode(item.departureAirportId, data.airports)}</strong>
           <span>
             {dateLabel(item.departureDateLocal, {
               weekday: 'short',
@@ -664,14 +667,16 @@ function JourneyLegDetails({
               label='Departure airport'
               varies={variableProperties?.has('departureAirport')}
             >
-              {from ? `${from.iataCode} · ${from.name}` : item.departureAirportId}
+              {airportLabel(item.departureAirportId, data.airports)}
             </JourneyDetailItem>
             {!aggregate && (
               <>
                 <JourneyDetailItem label='Departure local date'>
                   {dateLabel(item.departureDateLocal, { dateStyle: 'long' })}
                 </JourneyDetailItem>
-                <JourneyDetailItem label='Record version'>{item.version || '—'}</JourneyDetailItem>
+                <JourneyDetailItem label='Record version'>
+                  {dateTimeLabel(item.version) || '—'}
+                </JourneyDetailItem>
                 <JourneyDetailItem label='Observed versions'>{item.versionCount}</JourneyDetailItem>
               </>
             )}
@@ -694,26 +699,26 @@ function JourneyLegDetails({
             label='Departure airport'
             varies={variableProperties?.has('departureAirport')}
           >
-            {from ? `${from.iataCode} · ${from.name}` : item.departureAirportId}
+            {airportLabel(item.departureAirportId, data.airports)}
           </JourneyDetailItem>
           <JourneyDetailItem
             label='Scheduled departure'
             varies={variableProperties?.has('departureSchedule')}
           >
-            {aggregate ? '' : `${departure.date} `}
+            {aggregate ? '' : `${dateLabel(departure.date)} `}
             {departure.time} · {departure.offset} · {from?.timezone ?? '—'}
           </JourneyDetailItem>
           <JourneyDetailItem
             label='Arrival airport'
             varies={variableProperties?.has('arrivalAirport')}
           >
-            {to ? `${to.iataCode} · ${to.name}` : previousVariant.arrivalAirportId}
+            {airportLabel(previousVariant.arrivalAirportId, data.airports)}
           </JourneyDetailItem>
           <JourneyDetailItem
             label='Scheduled arrival'
             varies={variableProperties?.has('arrivalSchedule')}
           >
-            {aggregate ? '' : `${arrival.date} `}
+            {aggregate ? '' : `${dateLabel(arrival.date)} `}
             {arrival.time}
             {aggregate && <sup>{dayDeltaLabel(arrival.dayDelta)}</sup>} · {arrival.offset} ·{' '}
             {to?.timezone ?? '—'}
@@ -734,7 +739,7 @@ function JourneyLegDetails({
             {previousVariant.aircraftOwner || '—'}
           </JourneyDetailItem>
           <JourneyDetailItem label='Aircraft' varies={variableProperties?.has('aircraft')}>
-            {data.aircraft[previousVariant.aircraftId]?.name ?? previousVariant.aircraftId}
+            {aircraftName(previousVariant.aircraftId, data.aircraft)}
           </JourneyDetailItem>
           <JourneyDetailItem label='Aircraft ID' varies={variableProperties?.has('aircraft')}>
             {previousVariant.aircraftId}
@@ -747,7 +752,9 @@ function JourneyLegDetails({
           </JourneyDetailItem>
           {!aggregate && (
             <>
-              <JourneyDetailItem label='Record version'>{item.version || '—'}</JourneyDetailItem>
+              <JourneyDetailItem label='Record version'>
+                {dateTimeLabel(item.version) || '—'}
+              </JourneyDetailItem>
               <JourneyDetailItem label='Observed versions'>{item.versionCount}</JourneyDetailItem>
             </>
           )}
@@ -766,26 +773,26 @@ function JourneyLegDetails({
           label='Departure airport'
           varies={variableProperties?.has('departureAirport')}
         >
-          {from ? `${from.iataCode} · ${from.name}` : item.departureAirportId}
+          {airportLabel(item.departureAirportId, data.airports)}
         </JourneyDetailItem>
         <JourneyDetailItem
           label='Departure schedule'
           varies={variableProperties?.has('departureSchedule')}
         >
-          {aggregate ? '' : `${departure.date} `}
+          {aggregate ? '' : `${dateLabel(departure.date)} `}
           {departure.time} · {departure.offset} · {from?.timezone ?? '—'}
         </JourneyDetailItem>
         <JourneyDetailItem
           label='Arrival airport'
           varies={variableProperties?.has('arrivalAirport')}
         >
-          {to ? `${to.iataCode} · ${to.name}` : variant.arrivalAirportId}
+          {airportLabel(variant.arrivalAirportId, data.airports)}
         </JourneyDetailItem>
         <JourneyDetailItem
           label='Arrival schedule'
           varies={variableProperties?.has('arrivalSchedule')}
         >
-          {aggregate ? '' : `${arrival.date} `}
+          {aggregate ? '' : `${dateLabel(arrival.date)} `}
           {arrival.time}
           {aggregate && <sup>{dayDeltaLabel(arrival.dayDelta)}</sup>} · {arrival.offset} ·{' '}
           {to?.timezone ?? '—'}
@@ -803,7 +810,7 @@ function JourneyLegDetails({
           {variant.aircraftOwner || '—'}
         </JourneyDetailItem>
         <JourneyDetailItem label='Aircraft' varies={variableProperties?.has('aircraft')}>
-          {data.aircraft[variant.aircraftId]?.name ?? variant.aircraftId}
+          {aircraftName(variant.aircraftId, data.aircraft)}
         </JourneyDetailItem>
         <JourneyDetailItem label='Aircraft ID' varies={variableProperties?.has('aircraft')}>
           {variant.aircraftId}
@@ -813,7 +820,9 @@ function JourneyLegDetails({
         </JourneyDetailItem>
         {!aggregate && (
           <>
-            <JourneyDetailItem label='Record version'>{item.version || '—'}</JourneyDetailItem>
+            <JourneyDetailItem label='Record version'>
+              {dateTimeLabel(item.version) || '—'}
+            </JourneyDetailItem>
             <JourneyDetailItem label='Observed versions'>{item.versionCount}</JourneyDetailItem>
           </>
         )}
@@ -825,7 +834,6 @@ function JourneyLegDetails({
           className='journey-leg-detail-group'
           codeShares={variant.codeShares}
           airlines={data.airlines}
-          pathFor={(number) => `/flight/${number}`}
         />
       )}
       {(variableProperties?.has('dataElements') ||
@@ -886,8 +894,6 @@ function VariantSnapshot({
   variableProperties?: ReadonlySet<SnapshotPropertyKey>;
   compact?: boolean;
 }) {
-  const from = data.airports[item.departureAirportId];
-  const to = data.airports[variant.arrivalAirportId];
   const departure = departureScheduleTime(item.departureDateLocal, variant);
   const arrival = arrivalScheduleTime(item.departureDateLocal, variant);
   const configuration = configurationLabel(variant, data);
@@ -897,7 +903,7 @@ function VariantSnapshot({
       departureAirport={variablePropertyValue(
         variableProperties,
         'departureAirport',
-        from?.iataCode ?? item.departureAirportId,
+        airportCode(item.departureAirportId, data.airports),
       )}
       departureTime={variablePropertyValue(variableProperties, 'departureSchedule', departure.time)}
       duration={variablePropertyValue(
@@ -908,7 +914,7 @@ function VariantSnapshot({
       arrivalAirport={variablePropertyValue(
         variableProperties,
         'arrivalAirport',
-        to?.iataCode ?? variant.arrivalAirportId,
+        airportCode(variant.arrivalAirportId, data.airports),
       )}
       arrivalTime={
         variableProperties?.has('arrivalSchedule') ? (
@@ -926,7 +932,7 @@ function VariantSnapshot({
               primary: variablePropertyValue(
                 variableProperties,
                 'aircraft',
-                data.aircraft[variant.aircraftId]?.name ?? variant.aircraftId,
+                aircraftName(variant.aircraftId, data.aircraft),
               ),
               secondary: variablePropertyValue(variableProperties, 'configuration', configuration),
             }
@@ -987,7 +993,7 @@ export function matchesFacets(
     from?.name,
     to?.iataCode,
     to?.name,
-    variant && data.aircraft[variant.aircraftId]?.name,
+    variant && aircraftName(variant.aircraftId, data.aircraft),
     variant?.aircraftConfigurationVersion,
     variant && configurationLabel(variant, data),
     variant?.aircraftOwner,
@@ -1102,7 +1108,7 @@ export function activeFilterChips(
   if (filters.aircraftId) {
     chips.push({
       key: 'aircraft',
-      label: data.aircraft[filters.aircraftId]?.name ?? filters.aircraftId,
+      label: aircraftName(filters.aircraftId, data.aircraft),
     });
   }
   if (filters.weekday !== undefined) {
@@ -1131,7 +1137,7 @@ export function periodSummary(period: SchedulePeriod, data: FlightSchedules) {
         ? period.patterns.flatMap((pattern) =>
             pattern.representativeDay.legs.flatMap((item) => {
               const variant = displayVariantFor(data, item);
-              return variant ? [data.aircraft[variant.aircraftId]?.name ?? variant.aircraftId] : [];
+              return variant ? [aircraftName(variant.aircraftId, data.aircraft)] : [];
             }),
           )
         : [],
@@ -1233,15 +1239,13 @@ function snapshotPropertyValues(
   data: FlightReferenceData,
 ): Record<SnapshotPropertyKey, string> {
   const variant = displayVariantFor(data, item);
-  const departureAirport = data.airports[item.departureAirportId];
-  const arrivalAirport = variant ? data.airports[variant.arrivalAirportId] : undefined;
   const arrival = variant ? arrivalScheduleTime(item.departureDateLocal, variant) : undefined;
   return {
-    departureAirport: departureAirport?.iataCode ?? item.departureAirportId,
+    departureAirport: airportCode(item.departureAirportId, data.airports),
     departureSchedule: variant?.departureTimeLocal ?? '',
-    arrivalAirport: variant ? (arrivalAirport?.iataCode ?? variant.arrivalAirportId) : '',
+    arrivalAirport: variant ? airportCode(variant.arrivalAirportId, data.airports) : '',
     arrivalSchedule: arrival ? `${arrival.time}|${arrival.dayDelta}` : '',
-    aircraft: variant ? (data.aircraft[variant.aircraftId]?.name ?? variant.aircraftId) : '',
+    aircraft: variant ? aircraftName(variant.aircraftId, data.aircraft) : '',
     configuration: variant ? configurationLabel(variant, data) : '',
     duration: variant ? duration(variant.durationSeconds) : '',
   };
@@ -1328,23 +1332,21 @@ export function journeyLabel(day: JourneyDay, data: FlightReferenceData) {
   if (day.legs.some(isCancelled)) {
     return day.legs
       .map((item) => {
-        const from = data.airports[item.departureAirportId]?.iataCode ?? item.departureAirportId;
+        const from = airportCode(item.departureAirportId, data.airports);
         const variant = displayVariantFor(data, item);
         if (!variant) {
           return `${from} cancelled`;
         }
-        const to = data.airports[variant.arrivalAirportId]?.iataCode ?? variant.arrivalAirportId;
+        const to = airportCode(variant.arrivalAirportId, data.airports);
         return `${from} → ${to}${isCancelled(item) ? ' cancelled' : ''}`;
       })
       .join(' · ');
   }
   const airports: string[] = [];
   for (const item of day.legs) {
-    const from = data.airports[item.departureAirportId]?.iataCode ?? item.departureAirportId;
+    const from = airportCode(item.departureAirportId, data.airports);
     const variant = displayVariantFor(data, item);
-    const to = variant
-      ? (data.airports[variant.arrivalAirportId]?.iataCode ?? variant.arrivalAirportId)
-      : undefined;
+    const to = variant ? airportCode(variant.arrivalAirportId, data.airports) : undefined;
     if (!airports.length || airports.at(-1) !== from) {
       airports.push(from);
     }
@@ -1380,8 +1382,7 @@ function connectionLabel(
   if (currentVariant.arrivalAirportId !== next.departureAirportId) {
     return 'Separate published leg';
   }
-  const connectionAirport =
-    data.airports[currentVariant.arrivalAirportId]?.iataCode ?? currentVariant.arrivalAirportId;
+  const connectionAirport = airportCode(currentVariant.arrivalAirportId, data.airports);
   const gapSeconds = Math.round(
     (legDepartureInstant(next, data) -
       (legDepartureInstant(current, data) + currentVariant.durationSeconds * 1000)) /
@@ -1446,7 +1447,7 @@ function variantSignature(variant: FlightScheduleVariant | undefined) {
 }
 export function routeLabel(key: string, data: Pick<FlightSchedules, 'airports'>) {
   const [from, to] = key.split('>');
-  return `${data.airports[from]?.iataCode ?? from} → ${data.airports[to]?.iataCode ?? to}`;
+  return `${airportCode(from, data.airports)} → ${airportCode(to, data.airports)}`;
 }
 function weekdayOf(item: FlightScheduleItem) {
   return weekdayForDate(item.departureDateLocal);
@@ -1572,12 +1573,12 @@ export function changeRouteLabel(
   data: FlightReferenceData,
 ) {
   if (current) {
-    const arrival = data.airports[current.arrivalAirportId]?.iataCode ?? current.arrivalAirportId;
+    const arrival = airportCode(current.arrivalAirportId, data.airports);
     return `${departure} → ${arrival}`;
   }
 
   if (previous) {
-    const arrival = data.airports[previous.arrivalAirportId]?.iataCode ?? previous.arrivalAirportId;
+    const arrival = airportCode(previous.arrivalAirportId, data.airports);
     return `${departure} → ${arrival} · Cancelled`;
   }
 

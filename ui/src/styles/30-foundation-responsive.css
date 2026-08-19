@@ -230,6 +230,15 @@
   }
   .hero-copy h1 {
     font-size: var(--font-4xl);
+    line-height: 1.05;
+  }
+  .hero-copy h1 sup {
+    position: relative;
+    top: calc(-1 * var(--space-1-5));
+    margin-left: var(--space-0-5);
+    font-size: var(--font-lg);
+    line-height: 1;
+    vertical-align: baseline;
   }
   .hero-copy > p {
     font-size: var(--font-md);
@@ -261,6 +270,9 @@
   }
   .fleet-preview-card {
     min-height: 115px;
+  }
+  .fleet-preview-card > .fleet-preview-aircraft {
+    display: none;
   }
   .stats-grid {
     grid-template-columns: 1fr 1fr;
