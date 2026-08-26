@@ -5,6 +5,7 @@ import { Route53Stack } from '../lib/stacks/route53-stack';
 import { WebsiteStack } from '../lib/stacks/website-stack';
 import { DataStack } from '../lib/stacks/data-stack';
 import { CronStack } from '../lib/stacks/cron-stack';
+import { TelegramStack } from '../lib/stacks/telegram-stack';
 
 const app = new cdk.App();
 
@@ -32,6 +33,10 @@ new CronStack(app, 'Cron-Prod', {
   cronLambdaZipPath: 'cron_lambda_bundle.zip',
   dataBucket: dataStack.dataBucket,
   parquetBucket: dataStack.parquetBucket,
+});
+
+new TelegramStack(app, 'Telegram-Prod', {
+  telegramLambdaZipPath: 'telegram_lambda_bundle.zip',
 });
 
 new Route53Stack(app, 'Route53-Prod', {
