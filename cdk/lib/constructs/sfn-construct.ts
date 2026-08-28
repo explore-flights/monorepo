@@ -59,82 +59,59 @@ export class SfnConstruct extends Construct {
       updateDatabaseSecurityGroup,
     );
     this.flightSchedules = this.createFlightSchedulesStateMachine(props);
+
+    for (const stateMachine of [this.flightSchedules, this.fetchSchedules]) {
+      stateMachine.grantExecution(props.cronLambda_1G, 'states:GetExecutionHistory');
+    }
   }
 
   private createFetchSchedulesStateMachine(props: SfnConstructProps): IStateMachine {
     const flightSchedulesPrefix = 'raw/LH_Public_Data/flightschedules/';
     const checkRemaining = new Choice(this, 'FetchSchedulesCheckRemaining');
 
-    const definition = new Choice(this, 'FetchSchedulesCheckInitial')
+    const definition = checkRemaining
       .when(
-        Condition.isNotPresent('$.loadScheduleRanges'),
-        new LambdaInvoke(this, 'FetchSchedulesPrepareDailyCron', {
+        Condition.isPresent('$.loadScheduleRanges.remaining[0]'),
+        new LambdaInvoke(this, 'FetchSchedulesLoadSchedules', {
           lambdaFunction: props.cronLambda_1G,
           payload: TaskInput.fromObject({
-            'action': 'cron',
+            'action': 'load_flight_schedules',
             'params': {
-              'prepareDailyCron': {
-                'time': JsonPath.stringAt('$.time'),
-                'offset': -2,
-                'total': (30 * 12) + 2,
-              },
+              'outputBucket': props.dataBucket.bucketName,
+              'outputPrefix': flightSchedulesPrefix,
+              'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.remaining'),
+              'allowPartial': true,
             },
           }),
           payloadResponseOnly: true,
-          resultSelector: {
-            'completed': [],
-            'remaining': JsonPath.objectAt('$.prepareDailyCron.dateRanges'),
-          },
-          resultPath: '$.loadScheduleRanges',
+          resultPath: '$.loadSchedulesResponse',
           retryOnServiceExceptions: true,
-        }),
+        })
+          .next(new LambdaInvoke(this, 'FetchSchedulesMergeScheduleRanges', {
+            lambdaFunction: props.cronLambda_1G,
+            payload: TaskInput.fromObject({
+              'action': 'cron',
+              'params': {
+                'mergeDateRanges': JsonPath.array(
+                  JsonPath.array(
+                    JsonPath.stringAt('$.loadScheduleRanges.completed'),
+                    JsonPath.stringAt('$.loadSchedulesResponse.completed'),
+                  ),
+                  JsonPath.array(JsonPath.stringAt('$.loadSchedulesResponse.remaining')),
+                ),
+              },
+            }),
+            payloadResponseOnly: true,
+            resultSelector: {
+              'completed': JsonPath.arrayGetItem(JsonPath.objectAt('$.mergeDateRanges'), 0),
+              'remaining': JsonPath.arrayGetItem(JsonPath.objectAt('$.mergeDateRanges'), 1),
+            },
+            resultPath: '$.loadScheduleRanges',
+            retryOnServiceExceptions: true,
+          }))
+          .next(checkRemaining),
       )
-      .afterwards({ includeOtherwise: true })
-      .next(
-        checkRemaining
-          .when(
-            Condition.isPresent('$.loadScheduleRanges.remaining[0]'),
-            new LambdaInvoke(this, 'FetchSchedulesLoadSchedules', {
-              lambdaFunction: props.cronLambda_1G,
-              payload: TaskInput.fromObject({
-                'action': 'load_flight_schedules',
-                'params': {
-                  'outputBucket': props.dataBucket.bucketName,
-                  'outputPrefix': flightSchedulesPrefix,
-                  'dateRanges': JsonPath.objectAt('$.loadScheduleRanges.remaining'),
-                  'allowPartial': true,
-                },
-              }),
-              payloadResponseOnly: true,
-              resultPath: '$.loadSchedulesResponse',
-              retryOnServiceExceptions: true,
-            })
-              .next(new LambdaInvoke(this, 'FetchSchedulesMergeScheduleRanges', {
-                lambdaFunction: props.cronLambda_1G,
-                payload: TaskInput.fromObject({
-                  'action': 'cron',
-                  'params': {
-                    'mergeDateRanges': JsonPath.array(
-                      JsonPath.array(
-                        JsonPath.stringAt('$.loadScheduleRanges.completed'),
-                        JsonPath.stringAt('$.loadSchedulesResponse.completed'),
-                      ),
-                      JsonPath.array(JsonPath.stringAt('$.loadSchedulesResponse.remaining')),
-                    ),
-                  },
-                }),
-                payloadResponseOnly: true,
-                resultSelector: {
-                  'completed': JsonPath.arrayGetItem(JsonPath.objectAt('$.mergeDateRanges'), 0),
-                  'remaining': JsonPath.arrayGetItem(JsonPath.objectAt('$.mergeDateRanges'), 1),
-                },
-                resultPath: '$.loadScheduleRanges',
-                retryOnServiceExceptions: true,
-              }))
-              .next(checkRemaining),
-          )
-          .otherwise(new Succeed(this, 'FetchSchedulesSuccess')),
-      );
+      .otherwise(new Succeed(this, 'FetchSchedulesSuccess'));
 
     return new StateMachine(this, 'FetchSchedules', {
       definitionBody: DefinitionBody.fromChainable(definition),
@@ -245,12 +222,12 @@ export class SfnConstruct extends Construct {
   private createFlightSchedulesStateMachine(props: SfnConstructProps): IStateMachine {
     const databaseUpdateSummaryKey = 'tmp/cron_database_update_summary.json';
 
-    const definition = new StepFunctionsStartExecution(this, 'RunFetchSchedules', {
+    const runFetchSchedules = new StepFunctionsStartExecution(this, 'RunFetchSchedules', {
       stateMachine: this.fetchSchedules,
       integrationPattern: IntegrationPattern.RUN_JOB,
       associateWithParent: true,
       input: TaskInput.fromObject({
-        'time': JsonPath.stringAt('$.time'),
+        'loadScheduleRanges': JsonPath.objectAt('$.loadScheduleRanges'),
       }),
       resultSelector: {
         'loadScheduleRanges': JsonPath.objectAt('$.Output.loadScheduleRanges'),
@@ -299,7 +276,51 @@ export class SfnConstruct extends Construct {
           'Body': JsonPath.stringAt('$.Body'),
         },
         resultPath: '$.updateSummary',
-      }))
+      }));
+
+    const checkInitial = new Choice(this, 'FetchSchedulesCheckInitial')
+      .when(
+        Condition.isNotPresent('$.loadScheduleRanges'),
+        new LambdaInvoke(this, 'FetchSchedulesPrepareDailyCron', {
+          lambdaFunction: props.cronLambda_1G,
+          payload: TaskInput.fromObject({
+            'action': 'cron',
+            'params': {
+              'prepareDailyCron': {
+                'time': JsonPath.stringAt('$.time'),
+                'offset': -2,
+                'total': (30 * 12) + 2,
+              },
+            },
+          }),
+          payloadResponseOnly: true,
+          resultSelector: {
+            'completed': [],
+            'remaining': JsonPath.objectAt('$.prepareDailyCron.dateRanges'),
+          },
+          resultPath: '$.loadScheduleRanges',
+          retryOnServiceExceptions: true,
+        }),
+      )
+      .afterwards({ includeOtherwise: true })
+      .next(runFetchSchedules);
+
+    const definition = new Choice(this, 'CheckRetryExecution')
+      .when(
+        Condition.isPresent('$.retryExecutionArn'),
+        new LambdaInvoke(this, 'PrepareRetryPayload', {
+          lambdaFunction: props.cronLambda_1G,
+          payload: TaskInput.fromObject({
+            'action': 'prepare_retry_payload',
+            'params': JsonPath.objectAt('$'),
+          }),
+          payloadResponseOnly: true,
+          resultPath: '$',
+          retryOnServiceExceptions: true,
+        }),
+      )
+      .afterwards({ includeOtherwise: true })
+      .next(checkInitial)
       .toSingleState('OrchestrationTry', { outputPath: '$[0]' })
       .addCatch(
         this.sendWebhookTask(

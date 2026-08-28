@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	lambdasdk "github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/sfn"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/explore-flights/monorepo/go/common/lufthansa"
 	"github.com/explore-flights/monorepo/go/cron/action"
@@ -37,6 +38,7 @@ func main() {
 
 	s3c := s3.NewFromConfig(cfg)
 	lambdaC := lambdasdk.NewFromConfig(cfg)
+	sfnc := sfn.NewFromConfig(cfg)
 	ssmc := ssm.NewFromConfig(cfg)
 
 	lhc, err := lufthansaClient(ctx, cfg)
@@ -44,7 +46,7 @@ func main() {
 		panic(err)
 	}
 
-	lambda.StartWithOptions(newHandler(s3c, lambdaC, ssmc, lhc), lambda.WithContext(ctx))
+	lambda.StartWithOptions(newHandler(s3c, lambdaC, sfnc, ssmc, lhc), lambda.WithContext(ctx))
 }
 
 func lufthansaClient(ctx context.Context, cfg aws.Config) (*lufthansa.Client, error) {
@@ -86,7 +88,7 @@ func lufthansaClient(ctx context.Context, cfg aws.Config) (*lufthansa.Client, er
 	), nil
 }
 
-func newHandler(s3c *s3.Client, lambdaC *lambdasdk.Client, ssmc *ssm.Client, lhc *lufthansa.Client) func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
+func newHandler(s3c *s3.Client, lambdaC *lambdasdk.Client, sfnc *sfn.Client, ssmc *ssm.Client, lhc *lufthansa.Client) func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
 	lCountriesAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).CountriesRaw, "countries")
 	lCitiesAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).CitiesRaw, "cities")
 	lAirportsAction := action.NewLoadMetadataAction(s3c, lhc, (*lufthansa.Client).AirportsRaw, "airports")
@@ -103,6 +105,7 @@ func newHandler(s3c *s3.Client, lambdaC *lambdasdk.Client, ssmc *ssm.Client, lhc
 	umdAction := action.NewUpdateMetadataAction(s3c)
 	invWHAction := action.NewInvokeWebhookAction(http.DefaultClient)
 	ds3DataAction := action.NewDeleteS3DataAction(s3c)
+	prpAction := action.NewPrepareRetryPayloadAction(sfnc)
 
 	return func(ctx context.Context, event InputEvent) (json.RawMessage, error) {
 		switch event.Action {
@@ -153,6 +156,9 @@ func newHandler(s3c *s3.Client, lambdaC *lambdasdk.Client, ssmc *ssm.Client, lhc
 
 		case "delete_s3_data":
 			return handle(ctx, ds3DataAction, event.Params)
+
+		case "prepare_retry_payload":
+			return handle(ctx, prpAction, event.Params)
 		}
 
 		return nil, fmt.Errorf("unsupported action: %v", event.Action)
