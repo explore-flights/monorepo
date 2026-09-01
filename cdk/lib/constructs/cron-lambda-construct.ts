@@ -61,6 +61,19 @@ export class CronLambdaConstruct extends Construct {
       memorySize: 1024 * 4,
     });
 
+    this.lambda_1G.addToRolePolicy(new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['states:GetExecutionHistory'],
+      resources: [
+        Stack.of(this).formatArn({
+          service: 'states',
+          resource: 'execution',
+          resourceName: '*:*',
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+        }),
+      ],
+    }));
+
     for (const fn of [this.lambda_1G, this.lambda_4G]) {
       props.dataBucket.grantRead(fn, 'raw/LH_Public_Data/flightschedules/*');
       props.dataBucket.grantWrite(fn, 'raw/LH_Public_Data/*');

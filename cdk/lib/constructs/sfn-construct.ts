@@ -63,10 +63,6 @@ export class SfnConstruct extends Construct {
       updateDatabaseSecurityGroup,
     );
     this.flightSchedules = this.createFlightSchedulesStateMachine(props);
-
-    for (const stateMachine of [this.flightSchedules, this.fetchSchedules]) {
-      stateMachine.grantExecution(props.cronLambda_1G, 'states:GetExecutionHistory');
-    }
   }
 
   private createFetchSchedulesStateMachine(props: SfnConstructProps): IStateMachine {
