@@ -39,6 +39,7 @@ func (a *prepareRetryPayloadAction) Handle(ctx context.Context, params PrepareRe
 
 	output := make(PrepareRetryPayloadOutput, len(params)+1)
 	maps.Copy(output, params)
+	delete(output, "loadScheduleRanges")
 
 	output["time"] = previousExecution.time
 
