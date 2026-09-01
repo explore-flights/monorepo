@@ -62,6 +62,14 @@ export class CronStack extends cdk.Stack {
         type: 'String',
         noEcho: true,
       })),
+      githubWorkflowToken: cdk.SecretValue.cfnParameter(new cdk.CfnParameter(this, 'githubWorkflowToken', {
+        type: 'String',
+        noEcho: true,
+      })),
+      apiDataLookupParameterNames: [
+        '/prod/explore-flights/api/data-lookup',
+        '/beta/explore-flights/api/data-lookup',
+      ],
     });
 
     new Rule(this, 'FlightSchedulesDaily', {

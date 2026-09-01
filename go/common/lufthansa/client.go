@@ -223,33 +223,6 @@ func (c *Client) FlightSchedulesRaw(ctx context.Context, airlines []common.Airli
 	return err
 }
 
-func (c *Client) SeatMap(ctx context.Context, fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass RequestCabinClass) (SeatAvailability, error) {
-	path := c.buildSeatMapPath(fn, departureAirport, arrivalAirport, departureDate, cabinClass)
-	data, err := doRequest[seatAvailabilityResource](ctx, c, http.MethodGet, path, nil, nil, readJsonFunc[seatAvailabilityResource]())
-	if err != nil {
-		var def SeatAvailability
-		return def, err
-	}
-
-	return data.Inner.SeatAvailability, nil
-}
-
-func (c *Client) SeatMapRaw(ctx context.Context, fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass RequestCabinClass) (json.RawMessage, error) {
-	path := c.buildSeatMapPath(fn, departureAirport, arrivalAirport, departureDate, cabinClass)
-	return doRequest[json.RawMessage](ctx, c, http.MethodGet, path, nil, nil, readJsonFunc[json.RawMessage]())
-}
-
-func (c *Client) buildSeatMapPath(fn, departureAirport, arrivalAirport string, departureDate xtime.LocalDate, cabinClass RequestCabinClass) string {
-	return fmt.Sprintf(
-		"/v1/offers/seatmaps/%s/%s/%s/%s/%s",
-		url.PathEscape(fn),
-		url.PathEscape(departureAirport),
-		url.PathEscape(arrivalAirport),
-		url.PathEscape(departureDate.String()),
-		url.PathEscape(string(cabinClass)),
-	)
-}
-
 func doRequestFlightSchedules[T any](ctx context.Context, c *Client, airlines []common.AirlineIdentifier, startDate, endDate xtime.LocalDate, daysOfOperation []time.Weekday, f func(r io.Reader) (T, error), options ...FlightSchedulesOption) (T, error) {
 	options = append(options, WithAirlines(airlines))
 	options = append(options, WithStartDate(startDate))

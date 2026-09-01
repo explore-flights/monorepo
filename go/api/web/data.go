@@ -3,7 +3,6 @@ package web
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -15,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/explore-flights/monorepo/go/api/business/raw"
-	"github.com/explore-flights/monorepo/go/api/business/seatmap"
 	"github.com/explore-flights/monorepo/go/api/data"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web/model"
@@ -44,16 +41,12 @@ type dataHandlerRepo interface {
 }
 
 type DataHandler struct {
-	repo      dataHandlerRepo
-	smSearch  *seatmap.Search
-	rawSearch *raw.Search
+	repo dataHandlerRepo
 }
 
-func NewDataHandler(repo dataHandlerRepo, smSearch *seatmap.Search, rawSearch *raw.Search) *DataHandler {
+func NewDataHandler(repo dataHandlerRepo) *DataHandler {
 	return &DataHandler{
-		repo:      repo,
-		smSearch:  smSearch,
-		rawSearch: rawSearch,
+		repo: repo,
 	}
 }
 
@@ -249,80 +242,6 @@ func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
 
 	addExpirationHeaders(c, time.Now(), time.Hour)
 	return c.JSON(http.StatusOK, fs)
-}
-
-func (dh *DataHandler) FlightScheduleVersionRaw(c echo.Context) error {
-	ctx := c.Request().Context()
-	fnRaw := c.Param("fn")
-	versionRaw := c.Param("version")
-	departureAirportRaw := c.Param("departureAirport")
-	departureDateLocalRaw := c.Param("departureDateLocal")
-
-	fn, _, err := dh.parseAndResolveFlightNumber(ctx, fnRaw)
-	if err != nil {
-		return NewHTTPError(http.StatusBadRequest, WithCause(err))
-	}
-
-	version, err := time.Parse(time.RFC3339, versionRaw)
-	if err != nil {
-		return NewHTTPError(http.StatusBadRequest, WithCause(err))
-	}
-
-	airport, err := dh.parseAndResolveAirport(ctx, departureAirportRaw)
-	if err != nil {
-		return NewHTTPError(http.StatusBadRequest, WithCause(err))
-	}
-
-	departureDateLocal, err := xtime.ParseLocalDate(departureDateLocalRaw)
-	if departureDateLocal, err = xtime.ParseLocalDate(departureDateLocalRaw); err != nil {
-		return NewHTTPError(http.StatusBadRequest, WithCause(err))
-	}
-
-	schedules, err := dh.rawSearch.Search(ctx, version, fn.String(), departureDateLocal, airport.IataCode)
-	if err != nil {
-		return NewHTTPError(http.StatusInternalServerError, WithCause(err))
-	}
-
-	if len(schedules) < 1 {
-		return NewHTTPError(http.StatusNotFound)
-	}
-
-	addExpirationHeaders(c, time.Now(), time.Hour*24)
-	return c.JSON(http.StatusOK, schedules)
-}
-
-func (dh *DataHandler) SeatMap(c echo.Context) error {
-	ctx := c.Request().Context()
-
-	fnRaw := c.Param("fn")
-	departureAirportRaw := strings.ToUpper(c.Param("departureAirport"))
-	departureDateLocalRaw := c.Param("departureDateLocal")
-
-	fn, err := dh.parseFlightNumber(ctx, fnRaw)
-	if err != nil {
-		return NewHTTPError(http.StatusBadRequest, WithCause(err))
-	}
-
-	departureAirportIataCode, err := dh.parseAirport(ctx, departureAirportRaw)
-	if err != nil {
-		return NewHTTPError(http.StatusBadRequest, WithCause(err))
-	}
-
-	var departureDateLocal xtime.LocalDate
-	if departureDateLocal, err = xtime.ParseLocalDate(departureDateLocalRaw); err != nil {
-		return NewHTTPError(http.StatusBadRequest, WithCause(err))
-	}
-
-	sm, err := dh.smSearch.SeatMap(ctx, fn, departureAirportIataCode, departureDateLocal)
-	if err != nil {
-		if errors.Is(err, seatmap.ErrNotFound) {
-			return NewHTTPError(http.StatusNotFound, WithCause(err))
-		}
-
-		return err
-	}
-
-	return c.JSON(http.StatusOK, sm)
 }
 
 func (dh *DataHandler) FlightScheduleVersionsRSSFeed(c echo.Context) error {

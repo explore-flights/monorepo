@@ -11,16 +11,14 @@ import {
   Tracing
 } from 'aws-cdk-lib/aws-lambda';
 import { ArnFormat, Duration, Stack } from 'aws-cdk-lib';
-import { Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
+import { ManagedPolicy, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
-import { IStringParameter, StringParameter } from 'aws-cdk-lib/aws-ssm';
+import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 import { BASE_DATA_LAYER_SSM_PARAMETER_NAME } from '../util/consts';
 
 export interface ApiLambdaConstructProps {
   apiLambdaZipPath: string;
-  dataBucket: IBucket;
   parquetBucket: IBucket;
-  authBucket: IBucket;
 }
 
 export class ApiLambdaConstruct extends Construct {
@@ -29,22 +27,6 @@ export class ApiLambdaConstruct extends Construct {
 
   constructor(scope: Construct, id: string, props: ApiLambdaConstructProps) {
     super(scope, id);
-
-    const [
-      ssmGoogleClientId,
-      ssmGoogleClientSecret,
-      ssmSessionRsaPriv,
-      ssmSessionRsaPub,
-      ssmLufthansaClientId,
-      ssmLufthansaClientSecret,
-    ] = [
-      this.ssmSecureString('/google/client-id'),
-      this.ssmSecureString('/google/client-secret'),
-      this.ssmSecureString('/api/session/id_rsa'),
-      this.ssmSecureString('/api/session/id_rsa.pub'),
-      this.ssmSecureString('/lufthansa/client-id'),
-      this.ssmSecureString('/lufthansa/client-secret'),
-    ];
 
     this.lambda = new Function(this, 'ApiLambda', {
       runtime: Runtime.PROVIDED_AL2023,
@@ -57,15 +39,7 @@ export class ApiLambdaConstruct extends Construct {
         AWS_LWA_PORT: '8080',
         AWS_LWA_ASYNC_INIT: 'true',
         AWS_LWA_INVOKE_MODE: 'response_stream',
-        FLIGHTS_DATA_BUCKET: props.dataBucket.bucketName,
         FLIGHTS_PARQUET_BUCKET: props.parquetBucket.bucketName,
-        FLIGHTS_AUTH_BUCKET: props.authBucket.bucketName,
-        FLIGHTS_SSM_GOOGLE_CLIENT_ID: ssmGoogleClientId.parameterName,
-        FLIGHTS_SSM_GOOGLE_CLIENT_SECRET: ssmGoogleClientSecret.parameterName,
-        FLIGHTS_SSM_SESSION_RSA_PRIV: ssmSessionRsaPriv.parameterName,
-        FLIGHTS_SSM_SESSION_RSA_PUB: ssmSessionRsaPub.parameterName,
-        FLIGHTS_SSM_LUFTHANSA_CLIENT_ID: ssmLufthansaClientId.parameterName,
-        FLIGHTS_SSM_LUFTHANSA_CLIENT_SECRET: ssmLufthansaClientSecret.parameterName,
       },
       layers: [
         LayerVersion.fromLayerVersionArn(
@@ -92,45 +66,12 @@ export class ApiLambdaConstruct extends Construct {
       }),
     });
 
-    this.lambda.addToRolePolicy(new PolicyStatement({
-      effect: Effect.ALLOW,
-      actions: ['ssm:GetParameters'],
-      resources: [
-        ssmGoogleClientId,
-        ssmGoogleClientSecret,
-        ssmSessionRsaPriv,
-        ssmSessionRsaPub,
-        ssmLufthansaClientId,
-        ssmLufthansaClientSecret,
-      ].map((v) => v.parameterArn),
-    }));
-
-    props.dataBucket.grantRead(this.lambda, 'processed/flights/*');
-    props.dataBucket.grantRead(this.lambda, 'processed/schedules/*');
-    props.dataBucket.grantRead(this.lambda, 'processed/metadata/*');
-    props.dataBucket.grantRead(this.lambda, 'processed/feed/*');
-    props.dataBucket.grantRead(this.lambda, 'raw/ourairports_data/airports.csv');
-    props.dataBucket.grantRead(this.lambda, 'raw/ourairports_data/countries.csv');
-    props.dataBucket.grantRead(this.lambda, 'raw/ourairports_data/regions.csv');
-    props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/airports.json');
-    props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/aircraft.json');
-    props.dataBucket.grantRead(this.lambda, 'raw/LH_Public_Data/flightschedules_history/*.tar.gz');
-    props.dataBucket.grantReadWrite(this.lambda, 'tmp/seatmap/*');
-
     props.parquetBucket.grantRead(this.lambda);
-
-    props.authBucket.grantReadWrite(this.lambda, 'authreq/*');
-    props.authBucket.grantReadWrite(this.lambda, 'federation/*');
-    props.authBucket.grantReadWrite(this.lambda, 'account/*');
 
     this.functionURL = new FunctionUrl(this, 'ApiLambdaFunctionUrl', {
       function: this.lambda,
       authType: FunctionUrlAuthType.AWS_IAM,
       invokeMode: InvokeMode.RESPONSE_STREAM,
     });
-  }
-
-  private ssmSecureString(name: string): IStringParameter {
-    return StringParameter.fromSecureStringParameterAttributes(this, name, { parameterName: name });
   }
 }

@@ -16,8 +16,8 @@ new WebsiteStack(app, 'Website-Beta', {
   certificateId: '9c27522c-5296-4d83-b03e-1fdfcf4e09c4',
   apiLambdaZipPath: 'api_lambda_bundle.zip',
   uiResourcesZipPath: 'explore_flights_ui_artifact.zip',
-  dataBucket: dataStack.dataBucket,
   parquetBucket: dataStack.parquetBucket,
+  useDokployApiOrigin: true,
 });
 
 new WebsiteStack(app, 'Website-Prod', {
@@ -25,8 +25,8 @@ new WebsiteStack(app, 'Website-Prod', {
   certificateId: 'a96a703e-5454-4fc5-98eb-43b2f881be37',
   apiLambdaZipPath: 'api_lambda_bundle.zip',
   uiResourcesZipPath: 'explore_flights_ui_artifact.zip',
-  dataBucket: dataStack.dataBucket,
   parquetBucket: dataStack.parquetBucket,
+  useDokployApiOrigin: false,
 });
 
 new CronStack(app, 'Cron-Prod', {

@@ -12,6 +12,7 @@ import {
   HttpVersion,
   IDistribution,
   OriginAccessControlOriginType,
+  OriginProtocolPolicy,
   OriginRequestPolicy,
   PriceClass,
   ResponseHeadersPolicy,
@@ -20,7 +21,7 @@ import {
   Signing,
   ViewerProtocolPolicy
 } from 'aws-cdk-lib/aws-cloudfront';
-import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
+import { HttpOrigin, S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import { Certificate } from 'aws-cdk-lib/aws-certificatemanager';
 import { Duration, Stack } from 'aws-cdk-lib';
 import { IFunctionUrl } from 'aws-cdk-lib/aws-lambda';
@@ -33,6 +34,8 @@ export interface CloudfrontConstructProps {
   certificateId: string;
   uiResourcesBucket: IBucket;
   apiLambdaFunctionURL: IFunctionUrl;
+  dokployApiOriginDomain: string;
+  useDokployApiOrigin: boolean;
 }
 
 export class CloudfrontConstruct extends Construct {
@@ -98,13 +101,23 @@ export class CloudfrontConstruct extends Construct {
       },
     });
 
-    const apiLambdaOrigin = new FunctionUrlOriginWithOAC(props.apiLambdaFunctionURL, {
+    const sharedApiOriginProps = {
       customHeaders: { Forwarded: `host=${props.domain};proto=https` },
       originShieldEnabled: true,
       originShieldRegion: Stack.of(this).region,
+    };
+    const apiLambdaOrigin = new FunctionUrlOriginWithOAC(props.apiLambdaFunctionURL, {
+      ...sharedApiOriginProps,
+      originId: 'ApiLambdaOrigin',
       originAccessControlId: apiLambdaOAC.attrId, // not supported (yet)
       oacId: apiLambdaOAC.getAtt('Id'),
     });
+    const dokployApiOrigin = new HttpOrigin(props.dokployApiOriginDomain, {
+      ...sharedApiOriginProps,
+      originId: 'DokployApiOrigin',
+      protocolPolicy: OriginProtocolPolicy.HTTPS_ONLY,
+    });
+    const apiOrigin = props.useDokployApiOrigin ? dokployApiOrigin : apiLambdaOrigin;
     // endregion
 
     this.distribution = new Distribution(this, 'Distribution', {
@@ -156,7 +169,7 @@ export class CloudfrontConstruct extends Construct {
       },
       additionalBehaviors: {
         '/api/*': {
-          origin: apiLambdaOrigin,
+          origin: apiOrigin,
           compress: true,
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: AllowedMethods.ALLOW_ALL,
@@ -165,7 +178,7 @@ export class CloudfrontConstruct extends Construct {
           responseHeadersPolicy: noCacheResponseHeadersPolicy,
         },
         '/auth/*': {
-          origin: apiLambdaOrigin,
+          origin: apiOrigin,
           compress: true,
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: AllowedMethods.ALLOW_ALL,
@@ -174,7 +187,7 @@ export class CloudfrontConstruct extends Construct {
           responseHeadersPolicy: noCacheResponseHeadersPolicy,
         },
         '/data/*': {
-          origin: apiLambdaOrigin,
+          origin: apiOrigin,
           compress: true,
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,

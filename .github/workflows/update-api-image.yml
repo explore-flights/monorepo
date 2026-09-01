@@ -1,0 +1,132 @@
+name: 'Update API image'
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment whose SSM data lookup and Dokploy application should be used'
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment whose SSM data lookup and Dokploy application should be used'
+        required: true
+        type: choice
+        options:
+          - beta
+          - prod
+        default: beta
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+concurrency:
+  group: 'update-api-image-${{ inputs.environment }}'
+  cancel-in-progress: false
+
+jobs:
+  update-api-image:
+    name: 'Update ${{ inputs.environment }} API image'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ format('{0}-api', inputs.environment) }}
+    steps:
+      - name: 'Validate environment'
+        env:
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          case "${DEPLOY_ENVIRONMENT}" in
+            beta|prod) ;;
+            *) echo "Unsupported environment: ${DEPLOY_ENVIRONMENT}" >&2; exit 1 ;;
+          esac
+
+      - name: 'Checkout'
+        uses: actions/checkout@v7
+
+      - name: 'AWS credentials'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_BUILD_IMAGE_ROLE }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: 'Read API data lookup'
+        id: data
+        env:
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          parameter_name="/${DEPLOY_ENVIRONMENT}/explore-flights/api/data-lookup"
+          data_lookup="$(aws ssm get-parameter --name "${parameter_name}" --query 'Parameter.Value' --output text)"
+
+          jq -e '
+            (.version | type == "string" and length > 0) and
+            (.parquetBucket | type == "string" and length > 0) and
+            (.parquetPrefix | type == "string" and length > 0) and
+            (.dataBucket | type == "string" and length > 0) and
+            (.baseDataKey | type == "string" and length > 0)
+          ' <<<"${data_lookup}" >/dev/null
+
+          echo "version=$(jq -r '.version' <<<"${data_lookup}")" >> "${GITHUB_OUTPUT}"
+          echo "parquet_bucket=$(jq -r '.parquetBucket' <<<"${data_lookup}")" >> "${GITHUB_OUTPUT}"
+          echo "parquet_prefix=$(jq -r '.parquetPrefix' <<<"${data_lookup}")" >> "${GITHUB_OUTPUT}"
+          echo "data_bucket=$(jq -r '.dataBucket' <<<"${data_lookup}")" >> "${GITHUB_OUTPUT}"
+          echo "base_data_key=$(jq -r '.baseDataKey' <<<"${data_lookup}")" >> "${GITHUB_OUTPUT}"
+
+      - name: 'Prepare image tags'
+        id: image
+        env:
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          VERSION: ${{ steps.data.outputs.version }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/explore-flights-api"
+          safe_version="${VERSION//:/-}"
+          {
+            echo "name=${image}"
+            echo "tags=${image}:${DEPLOY_ENVIRONMENT}"
+            echo "version_tag=${image}:${DEPLOY_ENVIRONMENT}-${safe_version}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: 'Login to GHCR'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 'Set up QEMU'
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - name: 'Set up Docker Buildx'
+        uses: docker/setup-buildx-action@v4
+
+      - name: 'Build and push API image'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: go/api/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.image.outputs.tags }}
+            ${{ steps.image.outputs.version_tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.data.outputs.version }}
+          build-args: |
+            AWS_REGION=${{ vars.AWS_REGION }}
+            VERSION=${{ steps.data.outputs.version }}
+            PARQUET_BUCKET=${{ steps.data.outputs.parquet_bucket }}
+            PARQUET_PREFIX=${{ steps.data.outputs.parquet_prefix }}
+            DATA_BUCKET=${{ steps.data.outputs.data_bucket }}
+            BASE_DATA_PATH=${{ steps.data.outputs.base_data_key }}
+          secret-envs: |
+            AWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID
+            AWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY
+            AWS_SESSION_TOKEN=AWS_SESSION_TOKEN
+          cache-from: type=gha,scope=api-${{ inputs.environment }}
+          cache-to: type=gha,mode=max,scope=api-${{ inputs.environment }}

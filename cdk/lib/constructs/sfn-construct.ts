@@ -3,6 +3,7 @@ import { Construct } from 'constructs';
 import { IBucket } from 'aws-cdk-lib/aws-s3';
 import { IFunction } from 'aws-cdk-lib/aws-lambda';
 import {
+  Chain,
   Choice,
   Condition,
   DefinitionBody,
@@ -25,6 +26,7 @@ import {
 import { ContainerDefinition, FargatePlatformVersion, ICluster, TaskDefinition } from 'aws-cdk-lib/aws-ecs';
 import { IVpc, SecurityGroup, SubnetSelection } from 'aws-cdk-lib/aws-ec2';
 import { BASE_DATA_LAYER_NAME, BASE_DATA_LAYER_SSM_PARAMETER_NAME } from '../util/consts';
+import { ArnFormat, Stack } from 'aws-cdk-lib';
 
 export interface SfnConstructProps {
   dataBucket: IBucket;
@@ -37,6 +39,8 @@ export interface SfnConstructProps {
   updateDatabaseTask: TaskDefinition;
   updateDatabaseTaskContainer: ContainerDefinition;
   webhookUrl: cdk.SecretValue;
+  githubWorkflowToken: cdk.SecretValue;
+  apiDataLookupParameterNames: string[];
 }
 
 export class SfnConstruct extends Construct {
@@ -159,6 +163,51 @@ export class SfnConstruct extends Construct {
       resultPath: '$.updateDatabaseCommand',
     });
 
+    const deleteOldS3Data = new LambdaInvoke(this, 'DeleteOldS3DataTask', {
+      lambdaFunction: props.cronLambda_1G,
+      payload: TaskInput.fromObject({
+        'action': 'delete_s3_data',
+        'params': {
+          'bucket': props.parquetBucket.bucketName,
+          'excludePrefix': JsonPath.format('{}/', JsonPath.stringAt('$.time')),
+        },
+      }),
+      payloadResponseOnly: true,
+      resultPath: '$.deleteS3DataResponse',
+      retryOnServiceExceptions: true,
+    });
+
+    const dispatchBetaApiImageWorkflow = this.dispatchApiImageWorkflowTask(
+      'Beta',
+      props.cronLambda_1G,
+      props.githubWorkflowToken,
+      'beta',
+    );
+    const dispatchProdApiImageWorkflow = this.dispatchApiImageWorkflowTask(
+      'Prod',
+      props.cronLambda_1G,
+      props.githubWorkflowToken,
+      'prod',
+    );
+    const checkProdApiImageWorkflowDispatch = new Choice(this, 'CheckProdApiImageWorkflowDispatch')
+      .when(
+        Condition.numberEquals('$.dispatchProdApiImageWorkflowResponse.statusCode', 204),
+        deleteOldS3Data,
+      )
+      .otherwise(new Fail(this, 'ProdApiImageWorkflowDispatchFailed', {
+        error: 'GitHubWorkflowDispatchFailed',
+        cause: 'GitHub did not accept the prod update-api-image workflow dispatch.',
+      }));
+    const checkBetaApiImageWorkflowDispatch = new Choice(this, 'CheckBetaApiImageWorkflowDispatch')
+      .when(
+        Condition.numberEquals('$.dispatchBetaApiImageWorkflowResponse.statusCode', 204),
+        dispatchProdApiImageWorkflow.next(checkProdApiImageWorkflowDispatch),
+      )
+      .otherwise(new Fail(this, 'BetaApiImageWorkflowDispatchFailed', {
+        error: 'GitHubWorkflowDispatchFailed',
+        cause: 'GitHub did not accept the beta update-api-image workflow dispatch.',
+      }));
+
     const definition = new Choice(this, 'ConfigureUpdateDatabase')
       .when(Condition.isPresent('$.inputArchive'), prepareUpdateWithArchive)
       .otherwise(prepareUpdateWithoutArchive)
@@ -199,19 +248,9 @@ export class SfnConstruct extends Construct {
         resultPath: '$.updateLambdaLayerResponse',
         retryOnServiceExceptions: true,
       }))
-      .next(new LambdaInvoke(this, 'DeleteOldS3DataTask', {
-        lambdaFunction: props.cronLambda_1G,
-        payload: TaskInput.fromObject({
-          'action': 'delete_s3_data',
-          'params': {
-            'bucket': props.parquetBucket.bucketName,
-            'excludePrefix': JsonPath.format('{}/', JsonPath.stringAt('$.time')),
-          },
-        }),
-        payloadResponseOnly: true,
-        resultPath: '$.deleteS3DataResponse',
-        retryOnServiceExceptions: true,
-      }));
+      .next(this.createUpdateApiDataLookupChain(props))
+      .next(dispatchBetaApiImageWorkflow)
+      .next(checkBetaApiImageWorkflowDispatch);
 
     return new StateMachine(this, 'UpdateFlightData', {
       definitionBody: DefinitionBody.fromChainable(definition),
@@ -380,6 +419,80 @@ export class SfnConstruct extends Construct {
       }),
       payloadResponseOnly: true,
       resultPath: '$.invokeWebhookResponse',
+      retryOnServiceExceptions: true,
+    });
+  }
+
+  private createUpdateApiDataLookupChain(props: SfnConstructProps): Chain {
+    const prepare = new Pass(this, 'PrepareApiDataLookup', {
+      parameters: {
+        'version': JsonPath.stringAt('$.time'),
+        'parquetBucket': props.parquetBucket.bucketName,
+        'parquetPrefix': JsonPath.format('{}/', JsonPath.stringAt('$.time')),
+        'dataBucket': props.dataBucket.bucketName,
+        'baseDataKey': 'processed/basedata.db',
+      },
+      resultPath: '$.apiDataLookup',
+    });
+
+    let chain = Chain.start(prepare);
+    props.apiDataLookupParameterNames.forEach((parameterName, index) => {
+      const parameterArn = Stack.of(this).formatArn({
+        service: 'ssm',
+        resource: 'parameter',
+        resourceName: parameterName.replace(/^\//, ''),
+        arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+      });
+      chain = chain.next(new CallAwsService(this, `UpdateApiDataLookup${index + 1}`, {
+        service: 'ssm',
+        action: 'putParameter',
+        parameters: {
+          Name: parameterName,
+          Type: 'String',
+          Overwrite: true,
+          Value: JsonPath.jsonToString(JsonPath.objectAt('$.apiDataLookup')),
+        },
+        iamAction: 'ssm:PutParameter',
+        iamResources: [parameterArn],
+        resultPath: JsonPath.DISCARD,
+      }));
+    });
+
+    return chain;
+  }
+
+  private dispatchApiImageWorkflowTask(
+    id: string,
+    fn: IFunction,
+    token: cdk.SecretValue,
+    environment: string,
+  ): LambdaInvoke {
+    const resultName = `dispatch${id}ApiImageWorkflowResponse`;
+
+    return new LambdaInvoke(this, `Dispatch${id}ApiImageWorkflow`, {
+      lambdaFunction: fn,
+      payload: TaskInput.fromObject({
+        'action': 'invoke_webhook',
+        'params': {
+          'method': 'POST',
+          'url': 'https://api.github.com/repos/explore-flights/monorepo/actions/workflows/update-api-image.yml/dispatches',
+          'header': {
+            'Accept': ['application/vnd.github+json'],
+            'Authorization': [cdk.Fn.join('', ['Bearer ', token.unsafeUnwrap()])],
+            'Content-Type': ['application/json'],
+            'X-GitHub-Api-Version': ['2022-11-28'],
+          },
+          'body': {
+            'content': JSON.stringify({
+              ref: 'main',
+              inputs: { environment },
+            }),
+            'isBase64': false,
+          },
+        },
+      }),
+      payloadResponseOnly: true,
+      resultPath: `$.${resultName}`,
       retryOnServiceExceptions: true,
     });
   }

@@ -12,34 +12,16 @@ import (
 	"syscall"
 
 	"github.com/explore-flights/monorepo/go/api/business/connections"
-	"github.com/explore-flights/monorepo/go/api/business/raw"
 	"github.com/explore-flights/monorepo/go/api/business/schedulesearch"
-	"github.com/explore-flights/monorepo/go/api/business/seatmap"
 	"github.com/explore-flights/monorepo/go/api/config"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web"
-	lwamw "github.com/its-felix/aws-lwa-go-middleware"
 	"github.com/labstack/echo/v4"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
-
-	s3c, err := config.Config.S3Client(ctx)
-	if err != nil {
-		panic(err)
-	}
-
-	bucket, err := config.Config.DataBucket()
-	if err != nil {
-		panic(err)
-	}
-
-	lhc, err := config.Config.LufthansaClient()
-	if err != nil {
-		panic(err)
-	}
 
 	database, err := config.Config.Database()
 	if err != nil {
@@ -59,16 +41,15 @@ func main() {
 	e := echo.New()
 	defer e.Close()
 	e.Use(
-		lwamw.EchoMiddleware(
-			lwamw.WithMaskError(),
-			lwamw.WithRemoveHeaders(),
-		),
+		config.Config.Middleware(),
 		web.ErrorLogAndMaskMiddleware(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile)),
 		web.RecoverMiddleware(),
 		web.VersionHeaderMiddleware(version),
 		web.NoCacheOnErrorMiddleware(),
-		// authHandler.Middleware,
 	)
+	e.GET("/healthz", func(c echo.Context) error {
+		return c.NoContent(http.StatusNoContent)
+	})
 
 	{
 		group := e.Group("/api")
@@ -96,7 +77,7 @@ func main() {
 	{
 		group := e.Group("/data")
 
-		dh := web.NewDataHandler(fr, seatmap.NewSearch(s3c, bucket, fr, lhc), raw.NewSearch(s3c, bucket))
+		dh := web.NewDataHandler(fr)
 		airportHandler := web.NewAirportHandler(fr)
 		group.GET("/airlines.json", dh.Airlines)
 		group.GET("/airports.json", dh.Airports)
@@ -104,8 +85,6 @@ func main() {
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal", dh.FlightScheduleVersions)
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal/feed.rss", dh.FlightScheduleVersionsRSSFeed)
 		group.GET("/flight/:fn/versions/:departureAirport/:departureDateLocal/feed.atom", dh.FlightScheduleVersionsAtomFeed)
-		group.GET("/flight/:fn/:version/:departureAirport/:departureDateLocal/raw.json", dh.FlightScheduleVersionRaw)
-		group.GET("/flight/:fn/seatmap/:departureAirport/:departureDateLocal", dh.SeatMap)
 		group.GET("/destinations/:departureAirport", dh.Destinations)
 		group.GET("/airport/:airport/:year/summary", airportHandler.Statistics, web.YearMiddleware())
 		group.GET("/airport/:airport/:date/departures", airportHandler.Departures)

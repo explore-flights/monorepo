@@ -281,7 +281,22 @@ jobs:
           aws-region: ${{ secrets.AWS_CDK_REGION }}
       - name: 'Deploy'
         run: |
-          cdk --app ./cdk.out deploy --require-approval never "Data-Prod" "Website-Beta"
+          cdk --app ./cdk.out deploy --require-approval never "Data-Prod" "Website-Beta" \
+            --parameters "Website-Beta:dokployApiOriginDomain=${{ secrets.DOKPLOY_API_ORIGIN_DOMAIN }}"
+
+  update-api-image-beta:
+    name: 'Update Beta API image'
+    if: github.ref == 'refs/heads/main'
+    needs:
+      - deploy-beta
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/update-api-image.yml
+    with:
+      environment: beta
+    secrets: inherit
 
   deploy-prod:
     name: 'Deploy Prod'
@@ -316,4 +331,21 @@ jobs:
           aws-region: ${{ secrets.AWS_CDK_REGION }}
       - name: 'Deploy'
         run: |
-          cdk --app ./cdk.out deploy --require-approval never "Data-Prod" "Website-Prod" "Cron-Prod" "Telegram-Prod" "Route53-Prod" --parameters "Cron-Prod:webhookUrl=${{ secrets.WEBHOOK_URL }}"
+          cdk --app ./cdk.out deploy --require-approval never "Data-Prod" "Website-Prod" "Cron-Prod" "Telegram-Prod" "Route53-Prod" \
+            --parameters "Website-Prod:dokployApiOriginDomain=${{ secrets.DOKPLOY_API_ORIGIN_DOMAIN }}" \
+            --parameters "Cron-Prod:webhookUrl=${{ secrets.WEBHOOK_URL }}" \
+            --parameters "Cron-Prod:githubWorkflowToken=${{ secrets.GITHUB_WORKFLOW_TOKEN }}"
+
+  update-api-image-prod:
+    name: 'Update Prod API image'
+    if: github.ref == 'refs/heads/main'
+    needs:
+      - deploy-prod
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/update-api-image.yml
+    with:
+      environment: prod
+    secrets: inherit

@@ -104,10 +104,3 @@ func (r aircraftResource[D]) Data() []D {
 func (r aircraftResource[D]) Meta() pagedResourceMeta {
 	return r.Inner.Meta
 }
-
-type seatAvailabilityResource struct {
-	Inner struct {
-		SeatAvailability
-		Meta resourceMeta `json:"Meta"`
-	} `json:"SeatAvailabilityResource"`
-}

@@ -5,8 +5,6 @@ go 1.26
 require (
 	github.com/aws/aws-sdk-go-v2 v1.43.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.2
-	github.com/go-jose/go-jose/v4 v4.1.4
-	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sync v0.22.0
 	golang.org/x/time v0.15.0
