@@ -334,7 +334,7 @@ jobs:
           cdk --app ./cdk.out deploy --require-approval never "Data-Prod" "Website-Prod" "Cron-Prod" "Telegram-Prod" "Route53-Prod" \
             --parameters "Website-Prod:dokployApiOriginDomain=${{ secrets.DOKPLOY_API_ORIGIN_DOMAIN }}" \
             --parameters "Cron-Prod:webhookUrl=${{ secrets.WEBHOOK_URL }}" \
-            --parameters "Cron-Prod:githubWorkflowToken=${{ secrets.GITHUB_WORKFLOW_TOKEN }}"
+            --parameters "Cron-Prod:githubWorkflowToken=${{ secrets.API_IMAGE_WORKFLOW_TOKEN }}"
 
   update-api-image-prod:
     name: 'Update Prod API image'
