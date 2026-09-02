@@ -26,7 +26,7 @@ new WebsiteStack(app, 'Website-Prod', {
   apiLambdaZipPath: 'api_lambda_bundle.zip',
   uiResourcesZipPath: 'explore_flights_ui_artifact.zip',
   parquetBucket: dataStack.parquetBucket,
-  useDokployApiOrigin: false,
+  useDokployApiOrigin: true,
 });
 
 new CronStack(app, 'Cron-Prod', {
