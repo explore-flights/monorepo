@@ -130,3 +130,37 @@ jobs:
             AWS_SESSION_TOKEN=AWS_SESSION_TOKEN
           cache-from: type=gha,scope=api-${{ inputs.environment }}
           cache-to: type=gha,mode=max,scope=api-${{ inputs.environment }}
+
+      - name: 'Deploy API image to Dokploy'
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_APPLICATION_ID }}
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOCKER_IMAGE: ${{ steps.image.outputs.version_tag }}
+        run: |
+          : "${DOKPLOY_API_KEY:?DOKPLOY_API_KEY is required}"
+          : "${DOKPLOY_APPLICATION_ID:?DOKPLOY_APPLICATION_ID is required}"
+          : "${DOKPLOY_URL:?DOKPLOY_URL is required}"
+          : "${DOCKER_IMAGE:?DOCKER_IMAGE is required}"
+
+          update_payload="$(jq -cn \
+            --arg applicationId "${DOKPLOY_APPLICATION_ID}" \
+            --arg dockerImage "${DOCKER_IMAGE}" \
+            '{applicationId: $applicationId, dockerImage: $dockerImage}')"
+          curl --fail-with-body --show-error --silent \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header "x-api-key: ${DOKPLOY_API_KEY}" \
+            --data "${update_payload}" \
+            "${DOKPLOY_URL%/}/api/application.update"
+
+          deploy_payload="$(jq -cn \
+            --arg applicationId "${DOKPLOY_APPLICATION_ID}" \
+            --arg title "Deploy ${DOCKER_IMAGE}" \
+            '{applicationId: $applicationId, title: $title}')"
+          curl --fail-with-body --show-error --silent \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header "x-api-key: ${DOKPLOY_API_KEY}" \
+            --data "${deploy_payload}" \
+            "${DOKPLOY_URL%/}/api/application.deploy"
