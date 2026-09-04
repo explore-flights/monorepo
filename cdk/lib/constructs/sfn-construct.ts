@@ -173,35 +173,19 @@ export class SfnConstruct extends Construct {
       retryOnServiceExceptions: true,
     });
 
-    const dispatchBetaApiImageWorkflow = this.dispatchApiImageWorkflowTask(
-      'Beta',
+    const dispatchApiImageWorkflow = this.dispatchApiImageWorkflowTask(
       props.cronLambda_1G,
       props.githubWorkflowToken,
-      'beta',
+      ['beta', 'prod'],
     );
-    const dispatchProdApiImageWorkflow = this.dispatchApiImageWorkflowTask(
-      'Prod',
-      props.cronLambda_1G,
-      props.githubWorkflowToken,
-      'prod',
-    );
-    const checkProdApiImageWorkflowDispatch = new Choice(this, 'CheckProdApiImageWorkflowDispatch')
+    const checkApiImageWorkflowDispatch = new Choice(this, 'CheckApiImageWorkflowDispatch')
       .when(
-        Condition.numberEquals('$.dispatchProdApiImageWorkflowResponse.statusCode', 204),
+        Condition.numberEquals('$.dispatchApiImageWorkflowResponse.statusCode', 204),
         deleteOldS3Data,
       )
-      .otherwise(new Fail(this, 'ProdApiImageWorkflowDispatchFailed', {
+      .otherwise(new Fail(this, 'ApiImageWorkflowDispatchFailed', {
         error: 'GitHubWorkflowDispatchFailed',
-        cause: 'GitHub did not accept the prod update-api-image workflow dispatch.',
-      }));
-    const checkBetaApiImageWorkflowDispatch = new Choice(this, 'CheckBetaApiImageWorkflowDispatch')
-      .when(
-        Condition.numberEquals('$.dispatchBetaApiImageWorkflowResponse.statusCode', 204),
-        dispatchProdApiImageWorkflow.next(checkProdApiImageWorkflowDispatch),
-      )
-      .otherwise(new Fail(this, 'BetaApiImageWorkflowDispatchFailed', {
-        error: 'GitHubWorkflowDispatchFailed',
-        cause: 'GitHub did not accept the beta update-api-image workflow dispatch.',
+        cause: 'GitHub did not accept the update-api-image workflow dispatch.',
       }));
 
     const definition = new Choice(this, 'ConfigureUpdateDatabase')
@@ -245,8 +229,8 @@ export class SfnConstruct extends Construct {
         retryOnServiceExceptions: true,
       }))
       .next(this.createUpdateApiDataLookupChain(props))
-      .next(dispatchBetaApiImageWorkflow)
-      .next(checkBetaApiImageWorkflowDispatch);
+      .next(dispatchApiImageWorkflow)
+      .next(checkApiImageWorkflowDispatch);
 
     return new StateMachine(this, 'UpdateFlightData', {
       definitionBody: DefinitionBody.fromChainable(definition),
@@ -458,14 +442,11 @@ export class SfnConstruct extends Construct {
   }
 
   private dispatchApiImageWorkflowTask(
-    id: string,
     fn: IFunction,
     token: cdk.SecretValue,
-    environment: string,
+    environments: string[],
   ): LambdaInvoke {
-    const resultName = `dispatch${id}ApiImageWorkflowResponse`;
-
-    return new LambdaInvoke(this, `Dispatch${id}ApiImageWorkflow`, {
+    return new LambdaInvoke(this, 'DispatchApiImageWorkflow', {
       lambdaFunction: fn,
       payload: TaskInput.fromObject({
         'action': 'invoke_webhook',
@@ -481,14 +462,14 @@ export class SfnConstruct extends Construct {
           'body': {
             'content': JSON.stringify({
               ref: 'main',
-              inputs: { environment },
+              inputs: { environments: JSON.stringify(environments) },
             }),
             'isBase64': false,
           },
         },
       }),
       payloadResponseOnly: true,
-      resultPath: `$.${resultName}`,
+      resultPath: '$.dispatchApiImageWorkflowResponse',
       retryOnServiceExceptions: true,
     });
   }

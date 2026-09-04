@@ -1,0 +1,158 @@
+name: 'Build API data image'
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment whose SSM data lookup and AWS credentials should be used'
+        required: true
+        type: string
+    outputs:
+      image:
+        description: 'Data image repository'
+        value: ${{ jobs.build.outputs.image }}
+      digest:
+        description: 'Data image manifest digest'
+        value: ${{ jobs.build.outputs.digest }}
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+concurrency:
+  group: 'build-api-data-image-${{ inputs.environment }}'
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 'Build data image'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ format('{0}-api', inputs.environment) }}
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+      digest: ${{ steps.selected.outputs.digest }}
+    steps:
+      - name: 'Validate environment'
+        env:
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          case "${DEPLOY_ENVIRONMENT}" in
+            beta|prod) ;;
+            *) echo "Unsupported environment: ${DEPLOY_ENVIRONMENT}" >&2; exit 1 ;;
+          esac
+
+      - name: 'Checkout'
+        uses: actions/checkout@v7
+
+      - name: 'AWS credentials'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_BUILD_IMAGE_ROLE }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: 'Read API data lookup'
+        id: data
+        env:
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          parameter_name="/${DEPLOY_ENVIRONMENT}/explore-flights/api/data-lookup"
+          data_lookup="$(aws ssm get-parameter --name "${parameter_name}" --query 'Parameter.Value' --output text)"
+
+          jq -e '
+            (.version | type == "string" and length > 0) and
+            (.parquetBucket | type == "string" and length > 0) and
+            (.parquetPrefix | type == "string" and length > 0) and
+            (.dataBucket | type == "string" and length > 0) and
+            (.baseDataKey | type == "string" and length > 0)
+          ' <<<"${data_lookup}" >/dev/null
+
+          {
+            echo "version=$(jq -r '.version' <<<"${data_lookup}")"
+            echo "parquet_bucket=$(jq -r '.parquetBucket' <<<"${data_lookup}")"
+            echo "parquet_prefix=$(jq -r '.parquetPrefix' <<<"${data_lookup}")"
+            echo "data_bucket=$(jq -r '.dataBucket' <<<"${data_lookup}")"
+            echo "base_data_key=$(jq -r '.baseDataKey' <<<"${data_lookup}")"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: 'Prepare image tag'
+        id: image
+        env:
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          VERSION: ${{ steps.data.outputs.version }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/explore-flights-api-data"
+          safe_version="${VERSION//[^A-Za-z0-9_.-]/-}"
+          {
+            echo "name=${image}"
+            echo "tag=${image}:${DEPLOY_ENVIRONMENT}-${safe_version}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: 'Login to GHCR'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 'Set up Docker Buildx'
+        uses: docker/setup-buildx-action@v4
+
+      - name: 'Resolve existing data image'
+        id: existing
+        env:
+          DATA_IMAGE_TAG: ${{ steps.image.outputs.tag }}
+        run: |
+          if digest="$(docker buildx imagetools inspect "${DATA_IMAGE_TAG}" --format '{{json .Manifest}}' 2>/dev/null | jq -er '.digest')"; then
+            echo 'build=false' >> "${GITHUB_OUTPUT}"
+            echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+          else
+            echo 'build=true' >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: 'Build and push data image'
+        if: steps.existing.outputs.build == 'true'
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: go/api/Dockerfile.data
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.data.outputs.version }}
+            io.explore-flights.environment=${{ inputs.environment }}
+          build-args: |
+            AWS_REGION=${{ vars.AWS_REGION }}
+            VERSION=${{ steps.data.outputs.version }}
+            PARQUET_BUCKET=${{ steps.data.outputs.parquet_bucket }}
+            PARQUET_PREFIX=${{ steps.data.outputs.parquet_prefix }}
+            DATA_BUCKET=${{ steps.data.outputs.data_bucket }}
+            BASE_DATA_PATH=${{ steps.data.outputs.base_data_key }}
+          secret-envs: |
+            AWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID
+            AWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY
+            AWS_SESSION_TOKEN=AWS_SESSION_TOKEN
+
+      - name: 'Select data image digest'
+        id: selected
+        env:
+          BUILD_DATA: ${{ steps.existing.outputs.build }}
+          BUILT_DATA_DIGEST: ${{ steps.build.outputs.digest }}
+          EXISTING_DATA_DIGEST: ${{ steps.existing.outputs.digest }}
+        run: |
+          if [[ "${BUILD_DATA}" == 'true' ]]; then
+            digest="${BUILT_DATA_DIGEST}"
+          else
+            digest="${EXISTING_DATA_DIGEST}"
+          fi
+
+          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo 'The data image does not have a valid manifest digest.' >&2
+            exit 1
+          fi
+
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"

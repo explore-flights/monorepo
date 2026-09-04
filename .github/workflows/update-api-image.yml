@@ -1,166 +1,58 @@
-name: 'Update API image'
+name: 'Update API images'
 
 on:
-  workflow_call:
-    inputs:
-      environment:
-        description: 'Environment whose SSM data lookup and Dokploy application should be used'
-        required: true
-        type: string
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Environment whose SSM data lookup and Dokploy application should be used'
+      environments:
+        description: 'JSON list of environments to update'
         required: true
-        type: choice
-        options:
-          - beta
-          - prod
-        default: beta
+        type: string
+        default: '["beta", "prod"]'
 
 permissions:
   contents: read
   id-token: write
   packages: write
 
-concurrency:
-  group: 'update-api-image-${{ inputs.environment }}'
-  cancel-in-progress: false
-
 jobs:
-  update-api-image:
-    name: 'Update ${{ inputs.environment }} API image'
+  validate:
+    name: 'Validate environments'
     runs-on: ubuntu-latest
-    environment:
-      name: ${{ format('{0}-api', inputs.environment) }}
+    outputs:
+      environments: ${{ steps.environments.outputs.value }}
     steps:
-      - name: 'Validate environment'
+      - name: 'Validate environment list'
+        id: environments
         env:
-          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          ENVIRONMENTS: ${{ inputs.environments }}
         run: |
-          case "${DEPLOY_ENVIRONMENT}" in
-            beta|prod) ;;
-            *) echo "Unsupported environment: ${DEPLOY_ENVIRONMENT}" >&2; exit 1 ;;
-          esac
+          environments="$(jq -ce '
+            if type != "array" or length == 0 then
+              error("environments must be a non-empty JSON array")
+            elif any(.[]; type != "string" or (. != "beta" and . != "prod")) then
+              error("environments may contain only beta and prod")
+            elif (unique | length) != length then
+              error("environments must not contain duplicates")
+            else
+              .
+            end
+          ' <<<"${ENVIRONMENTS}")"
 
-      - name: 'Checkout'
-        uses: actions/checkout@v7
+          echo "value=${environments}" >> "${GITHUB_OUTPUT}"
 
-      - name: 'AWS credentials'
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: ${{ secrets.AWS_BUILD_IMAGE_ROLE }}
-          aws-region: ${{ vars.AWS_REGION }}
-
-      - name: 'Read API data lookup'
-        id: data
-        env:
-          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
-        run: |
-          parameter_name="/${DEPLOY_ENVIRONMENT}/explore-flights/api/data-lookup"
-          data_lookup="$(aws ssm get-parameter --name "${parameter_name}" --query 'Parameter.Value' --output text)"
-
-          jq -e '
-            (.version | type == "string" and length > 0) and
-            (.parquetBucket | type == "string" and length > 0) and
-            (.parquetPrefix | type == "string" and length > 0) and
-            (.dataBucket | type == "string" and length > 0) and
-            (.baseDataKey | type == "string" and length > 0)
-          ' <<<"${data_lookup}" >/dev/null
-
-          echo "version=$(jq -r '.version' <<<"${data_lookup}")" >> "${GITHUB_OUTPUT}"
-          echo "parquet_bucket=$(jq -r '.parquetBucket' <<<"${data_lookup}")" >> "${GITHUB_OUTPUT}"
-          echo "parquet_prefix=$(jq -r '.parquetPrefix' <<<"${data_lookup}")" >> "${GITHUB_OUTPUT}"
-          echo "data_bucket=$(jq -r '.dataBucket' <<<"${data_lookup}")" >> "${GITHUB_OUTPUT}"
-          echo "base_data_key=$(jq -r '.baseDataKey' <<<"${data_lookup}")" >> "${GITHUB_OUTPUT}"
-
-      - name: 'Prepare image tags'
-        id: image
-        env:
-          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
-          VERSION: ${{ steps.data.outputs.version }}
-        run: |
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/explore-flights-api"
-          safe_version="${VERSION//:/-}"
-          {
-            echo "name=${image}"
-            echo "tags=${image}:${DEPLOY_ENVIRONMENT}"
-            echo "version_tag=${image}:${DEPLOY_ENVIRONMENT}-${safe_version}"
-          } >> "${GITHUB_OUTPUT}"
-
-      - name: 'Login to GHCR'
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 'Set up QEMU'
-        uses: docker/setup-qemu-action@v4
-        with:
-          platforms: arm64
-
-      - name: 'Set up Docker Buildx'
-        uses: docker/setup-buildx-action@v4
-
-      - name: 'Build and push API image'
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: go/api/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ steps.image.outputs.tags }}
-            ${{ steps.image.outputs.version_tag }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ steps.data.outputs.version }}
-          build-args: |
-            AWS_REGION=${{ vars.AWS_REGION }}
-            VERSION=${{ steps.data.outputs.version }}
-            PARQUET_BUCKET=${{ steps.data.outputs.parquet_bucket }}
-            PARQUET_PREFIX=${{ steps.data.outputs.parquet_prefix }}
-            DATA_BUCKET=${{ steps.data.outputs.data_bucket }}
-            BASE_DATA_PATH=${{ steps.data.outputs.base_data_key }}
-          secret-envs: |
-            AWS_ACCESS_KEY_ID=AWS_ACCESS_KEY_ID
-            AWS_SECRET_ACCESS_KEY=AWS_SECRET_ACCESS_KEY
-            AWS_SESSION_TOKEN=AWS_SESSION_TOKEN
-          cache-from: type=gha,scope=api-${{ inputs.environment }}
-          cache-to: type=gha,mode=max,scope=api-${{ inputs.environment }}
-
-      - name: 'Deploy API image to Dokploy'
-        env:
-          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
-          DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_APPLICATION_ID }}
-          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
-          DOCKER_IMAGE: ${{ steps.image.outputs.version_tag }}
-        run: |
-          : "${DOKPLOY_API_KEY:?DOKPLOY_API_KEY is required}"
-          : "${DOKPLOY_APPLICATION_ID:?DOKPLOY_APPLICATION_ID is required}"
-          : "${DOKPLOY_URL:?DOKPLOY_URL is required}"
-          : "${DOCKER_IMAGE:?DOCKER_IMAGE is required}"
-
-          update_payload="$(jq -cn \
-            --arg applicationId "${DOKPLOY_APPLICATION_ID}" \
-            --arg dockerImage "${DOCKER_IMAGE}" \
-            '{applicationId: $applicationId, dockerImage: $dockerImage}')"
-          curl --fail-with-body --show-error --silent \
-            --request POST \
-            --header 'Content-Type: application/json' \
-            --header "x-api-key: ${DOKPLOY_API_KEY}" \
-            --data "${update_payload}" \
-            "${DOKPLOY_URL%/}/api/application.update"
-
-          deploy_payload="$(jq -cn \
-            --arg applicationId "${DOKPLOY_APPLICATION_ID}" \
-            --arg title "Deploy ${DOCKER_IMAGE}" \
-            '{applicationId: $applicationId, title: $title}')"
-          curl --fail-with-body --show-error --silent \
-            --request POST \
-            --header 'Content-Type: application/json' \
-            --header "x-api-key: ${DOKPLOY_API_KEY}" \
-            --data "${deploy_payload}" \
-            "${DOKPLOY_URL%/}/api/application.deploy"
+  deploy:
+    name: 'Deploy ${{ matrix.environment }} API image'
+    needs:
+      - validate
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.validate.outputs.environments) }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/deploy-api-image.yml
+    with:
+      environment: ${{ matrix.environment }}
+    secrets: inherit

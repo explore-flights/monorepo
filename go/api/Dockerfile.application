@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:1.26-bookworm AS build
+
+WORKDIR /src/api
+
+COPY go/common/ /src/common/
+COPY go/api/go.mod go/api/go.sum ./
+RUN go mod download
+
+COPY go/api/ ./
+RUN CGO_ENABLED=1 go test -tags vps ./...
+RUN CGO_ENABLED=1 go build \
+    -tags vps \
+    -trimpath \
+    -ldflags="-s -w" \
+    -o /out/explore-flights-api \
+    .
+
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build --chown=65532:65532 /out/explore-flights-api /usr/local/bin/explore-flights-api
+
+ENV PORT=8080
+
+USER 65532:65532
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/explore-flights-api"]

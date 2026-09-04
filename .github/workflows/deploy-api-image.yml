@@ -1,0 +1,202 @@
+name: 'Deploy API image'
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment whose Dokploy application should be updated'
+        required: true
+        type: string
+      application_image:
+        description: 'Optional immutable application image; defaults to the deployed environment image'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+concurrency:
+  group: 'deploy-api-image-${{ inputs.environment }}'
+  cancel-in-progress: false
+
+jobs:
+  build-data-image:
+    name: 'Build ${{ inputs.environment }} API data image'
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/build-api-data-image.yml
+    with:
+      environment: ${{ inputs.environment }}
+    secrets: inherit
+
+  deploy:
+    name: 'Deploy ${{ inputs.environment }} API image'
+    needs:
+      - build-data-image
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ format('{0}-api', inputs.environment) }}
+    steps:
+      - name: 'Validate environment'
+        env:
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          case "${DEPLOY_ENVIRONMENT}" in
+            beta|prod) ;;
+            *) echo "Unsupported environment: ${DEPLOY_ENVIRONMENT}" >&2; exit 1 ;;
+          esac
+
+      - name: 'Checkout'
+        uses: actions/checkout@v7
+
+      - name: 'Prepare image names'
+        id: images
+        run: |
+          namespace="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          {
+            echo "application=${namespace}/explore-flights-api-application"
+            echo "data=${namespace}/explore-flights-api-data"
+            echo "combined=${namespace}/explore-flights-api"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: 'Login to GHCR'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 'Set up QEMU'
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - name: 'Set up Docker Buildx'
+        uses: docker/setup-buildx-action@v4
+
+      - name: 'Resolve component images'
+        id: components
+        env:
+          APPLICATION_IMAGE: ${{ steps.images.outputs.application }}
+          APPLICATION_IMAGE_INPUT: ${{ inputs.application_image }}
+          DATA_IMAGE: ${{ steps.images.outputs.data }}
+          DATA_IMAGE_INPUT: ${{ format('{0}@{1}', needs.build-data-image.outputs.image, needs.build-data-image.outputs.digest) }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          if [[ -n "${APPLICATION_IMAGE_INPUT}" ]]; then
+            application_digest="${APPLICATION_IMAGE_INPUT#"${APPLICATION_IMAGE}"@}"
+            if [[ "${application_digest}" == "${APPLICATION_IMAGE_INPUT}" ]] \
+              || [[ ! "${application_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "Application image must be an immutable digest reference in ${APPLICATION_IMAGE}." >&2
+              exit 1
+            fi
+            application_ref="${APPLICATION_IMAGE_INPUT}"
+          else
+            application_channel="${APPLICATION_IMAGE}:${DEPLOY_ENVIRONMENT}"
+            if ! application_digest="$(docker buildx imagetools inspect "${application_channel}" --format '{{json .Manifest}}' 2>/dev/null | jq -er '.digest')"; then
+              echo "No deployed application image found at ${application_channel}. Run the push deployment once to bootstrap it." >&2
+              exit 1
+            fi
+            application_ref="${APPLICATION_IMAGE}@${application_digest}"
+          fi
+
+          data_digest="${DATA_IMAGE_INPUT#"${DATA_IMAGE}"@}"
+          if [[ "${data_digest}" == "${DATA_IMAGE_INPUT}" ]] \
+            || [[ ! "${data_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Data image must be an immutable digest reference in ${DATA_IMAGE}." >&2
+            exit 1
+          fi
+
+          {
+            echo "application_ref=${application_ref}"
+            echo "data_ref=${DATA_IMAGE_INPUT}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: 'Prepare combined image tag'
+        id: combined
+        env:
+          APPLICATION_REF: ${{ steps.components.outputs.application_ref }}
+          COMBINED_IMAGE: ${{ steps.images.outputs.combined }}
+          DATA_REF: ${{ steps.components.outputs.data_ref }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          application_digest="${APPLICATION_REF##*@sha256:}"
+          data_digest="${DATA_REF##*@sha256:}"
+          tag="${COMBINED_IMAGE}:${DEPLOY_ENVIRONMENT}-${application_digest:0:12}-${data_digest:0:12}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: 'Build and push combined API image'
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: go/api/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.combined.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            io.explore-flights.application-image=${{ steps.components.outputs.application_ref }}
+            io.explore-flights.data-image=${{ steps.components.outputs.data_ref }}
+          build-args: |
+            APPLICATION_IMAGE=${{ steps.components.outputs.application_ref }}
+            DATA_IMAGE=${{ steps.components.outputs.data_ref }}
+
+      - name: 'Deploy API image to Dokploy'
+        env:
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_APPLICATION_ID }}
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOCKER_IMAGE: ${{ steps.combined.outputs.tag }}
+        run: |
+          : "${DOKPLOY_API_KEY:?DOKPLOY_API_KEY is required}"
+          : "${DOKPLOY_APPLICATION_ID:?DOKPLOY_APPLICATION_ID is required}"
+          : "${DOKPLOY_URL:?DOKPLOY_URL is required}"
+          : "${DOCKER_IMAGE:?DOCKER_IMAGE is required}"
+
+          update_payload="$(jq -cn \
+            --arg applicationId "${DOKPLOY_APPLICATION_ID}" \
+            --arg dockerImage "${DOCKER_IMAGE}" \
+            '{applicationId: $applicationId, dockerImage: $dockerImage}')"
+          curl --fail-with-body --show-error --silent \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header "x-api-key: ${DOKPLOY_API_KEY}" \
+            --data "${update_payload}" \
+            "${DOKPLOY_URL%/}/api/application.update"
+
+          deploy_payload="$(jq -cn \
+            --arg applicationId "${DOKPLOY_APPLICATION_ID}" \
+            --arg title "Deploy ${DOCKER_IMAGE}" \
+            '{applicationId: $applicationId, title: $title}')"
+          curl --fail-with-body --show-error --silent \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --header "x-api-key: ${DOKPLOY_API_KEY}" \
+            --data "${deploy_payload}" \
+            "${DOKPLOY_URL%/}/api/application.deploy"
+
+      - name: 'Promote deployed component and combined images'
+        env:
+          APPLICATION_REF: ${{ steps.components.outputs.application_ref }}
+          APPLICATION_IMAGE: ${{ steps.images.outputs.application }}
+          COMBINED_DIGEST: ${{ steps.build.outputs.digest }}
+          COMBINED_IMAGE: ${{ steps.images.outputs.combined }}
+          DATA_REF: ${{ steps.components.outputs.data_ref }}
+          DATA_IMAGE: ${{ steps.images.outputs.data }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          docker buildx imagetools create \
+            --tag "${APPLICATION_IMAGE}:${DEPLOY_ENVIRONMENT}" \
+            "${APPLICATION_REF}"
+          docker buildx imagetools create \
+            --tag "${DATA_IMAGE}:${DEPLOY_ENVIRONMENT}" \
+            "${DATA_REF}"
+          docker buildx imagetools create \
+            --tag "${COMBINED_IMAGE}:${DEPLOY_ENVIRONMENT}" \
+            "${COMBINED_IMAGE}@${COMBINED_DIGEST}"

@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+
+FROM --platform=$BUILDPLATFORM public.ecr.aws/aws-cli/aws-cli:latest AS download
+
+ARG AWS_REGION=eu-central-1
+ARG VERSION
+ARG PARQUET_BUCKET
+ARG PARQUET_PREFIX
+ARG DATA_BUCKET
+ARG BASE_DATA_PATH
+
+RUN test -n "${VERSION}" \
+    && test -n "${PARQUET_BUCKET}" \
+    && test -n "${PARQUET_PREFIX}" \
+    && test -n "${DATA_BUCKET}" \
+    && test -n "${BASE_DATA_PATH}"
+
+RUN --mount=type=secret,id=AWS_ACCESS_KEY_ID,env=AWS_ACCESS_KEY_ID \
+    --mount=type=secret,id=AWS_SECRET_ACCESS_KEY,env=AWS_SECRET_ACCESS_KEY \
+    --mount=type=secret,id=AWS_SESSION_TOKEN,env=AWS_SESSION_TOKEN \
+    mkdir -p /out/history /out/latest /out/updates_report \
+    && aws s3 cp "s3://${DATA_BUCKET}/${BASE_DATA_PATH}" /out/basedata.db --only-show-errors \
+    && aws s3 cp "s3://${PARQUET_BUCKET}/${PARQUET_PREFIX}variants.parquet" /out/variants.parquet --only-show-errors \
+    && aws s3 cp "s3://${PARQUET_BUCKET}/${PARQUET_PREFIX}connections.parquet" /out/connections.parquet --only-show-errors \
+    && aws s3 cp "s3://${PARQUET_BUCKET}/${PARQUET_PREFIX}airport_statistics.parquet" /out/airport_statistics.parquet --only-show-errors \
+    && aws s3 cp "s3://${PARQUET_BUCKET}/${PARQUET_PREFIX}history/" /out/history/ --recursive --only-show-errors \
+    && aws s3 cp "s3://${PARQUET_BUCKET}/${PARQUET_PREFIX}latest/" /out/latest/ --recursive --only-show-errors \
+    && aws s3 cp "s3://${PARQUET_BUCKET}/${PARQUET_PREFIX}updates_report/" /out/updates_report/ --recursive --only-show-errors \
+    && printf '%s' "${VERSION}" > /out/version.txt
+
+FROM scratch
+
+COPY --from=download --chown=65532:65532 /out/ /opt/data/

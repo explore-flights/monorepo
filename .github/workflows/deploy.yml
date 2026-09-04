@@ -57,6 +57,16 @@ jobs:
           path: 'go/api/bootstrap'
           retention-days: 1
 
+  build-api-application-image:
+    name: 'Build API application image'
+    needs:
+      - test_common
+      - build_and_test_api
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-api-application-image.yml
+
   build_and_test_cron:
     name: 'Build and test cron'
     runs-on: ubuntu-24.04-arm
@@ -289,13 +299,15 @@ jobs:
     if: github.ref == 'refs/heads/main'
     needs:
       - deploy-beta
+      - build-api-application-image
     permissions:
       contents: read
       id-token: write
       packages: write
-    uses: ./.github/workflows/update-api-image.yml
+    uses: ./.github/workflows/deploy-api-image.yml
     with:
       environment: beta
+      application_image: ${{ format('{0}@{1}', needs.build-api-application-image.outputs.image, needs.build-api-application-image.outputs.digest) }}
     secrets: inherit
 
   deploy-prod:
@@ -341,11 +353,13 @@ jobs:
     if: github.ref == 'refs/heads/main'
     needs:
       - deploy-prod
+      - build-api-application-image
     permissions:
       contents: read
       id-token: write
       packages: write
-    uses: ./.github/workflows/update-api-image.yml
+    uses: ./.github/workflows/deploy-api-image.yml
     with:
       environment: prod
+      application_image: ${{ format('{0}@{1}', needs.build-api-application-image.outputs.image, needs.build-api-application-image.outputs.digest) }}
     secrets: inherit
