@@ -289,7 +289,8 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 			return aircraftIataCode
 		}
 
-		return cmp.Or(aircraft.Name(), aircraft.IcaoCode, aircraft.IataCode())
+		icaoCode, _ := aircraft.IcaoCode()
+		return cmp.Or(aircraft.Name(), icaoCode, aircraft.IataCode())
 	}
 
 	aircraftAndConfigurationVersionName := func(airlineIataCode, aircraftIataCode, v string) string {

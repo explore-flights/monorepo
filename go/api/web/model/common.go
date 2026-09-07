@@ -135,6 +135,14 @@ func (ac Aircraft) IataCode() string {
 	return ""
 }
 
+func (ac Aircraft) IcaoCode() (string, bool) {
+	if ac.AircraftType != nil {
+		return ac.AircraftType.IcaoCode, true
+	}
+
+	return "", false
+}
+
 type AircraftType struct {
 	ParentFamilyId *string `json:"parentFamilyId,omitempty"`
 	IataCode       string  `json:"iataCode"`

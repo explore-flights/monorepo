@@ -12,6 +12,11 @@ on:
         required: false
         type: string
         default: ''
+      refresh_data_image:
+        description: 'Build the current environment data image before deployment instead of reusing the deployed environment image'
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -24,7 +29,8 @@ concurrency:
 
 jobs:
   build-data-image:
-    name: 'Build ${{ inputs.environment }} API data image'
+    name: 'Refresh ${{ inputs.environment }} API data image'
+    if: inputs.refresh_data_image
     permissions:
       contents: read
       id-token: write
@@ -36,6 +42,11 @@ jobs:
 
   deploy:
     name: 'Deploy ${{ inputs.environment }} API image'
+    if: >-
+      ${{
+        always() &&
+        (needs.build-data-image.result == 'success' || needs.build-data-image.result == 'skipped')
+      }}
     needs:
       - build-data-image
     runs-on: ubuntu-latest
@@ -85,7 +96,7 @@ jobs:
           APPLICATION_IMAGE: ${{ steps.images.outputs.application }}
           APPLICATION_IMAGE_INPUT: ${{ inputs.application_image }}
           DATA_IMAGE: ${{ steps.images.outputs.data }}
-          DATA_IMAGE_INPUT: ${{ format('{0}@{1}', needs.build-data-image.outputs.image, needs.build-data-image.outputs.digest) }}
+          DATA_IMAGE_INPUT: ${{ inputs.refresh_data_image && format('{0}@{1}', needs.build-data-image.outputs.image, needs.build-data-image.outputs.digest) || '' }}
           DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
         run: |
           if [[ -n "${APPLICATION_IMAGE_INPUT}" ]]; then
@@ -105,16 +116,26 @@ jobs:
             application_ref="${APPLICATION_IMAGE}@${application_digest}"
           fi
 
-          data_digest="${DATA_IMAGE_INPUT#"${DATA_IMAGE}"@}"
-          if [[ "${data_digest}" == "${DATA_IMAGE_INPUT}" ]] \
-            || [[ ! "${data_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "Data image must be an immutable digest reference in ${DATA_IMAGE}." >&2
-            exit 1
+          if [[ -n "${DATA_IMAGE_INPUT}" ]]; then
+            data_digest="${DATA_IMAGE_INPUT#"${DATA_IMAGE}"@}"
+            if [[ "${data_digest}" == "${DATA_IMAGE_INPUT}" ]] \
+              || [[ ! "${data_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "Data image must be an immutable digest reference in ${DATA_IMAGE}." >&2
+              exit 1
+            fi
+            data_ref="${DATA_IMAGE_INPUT}"
+          else
+            data_channel="${DATA_IMAGE}:${DEPLOY_ENVIRONMENT}"
+            if ! data_digest="$(docker buildx imagetools inspect "${data_channel}" --format '{{json .Manifest}}' 2>/dev/null | jq -er '.digest')"; then
+              echo "No deployed data image found at ${data_channel}. Run the data-image update workflow once to bootstrap it." >&2
+              exit 1
+            fi
+            data_ref="${DATA_IMAGE}@${data_digest}"
           fi
 
           {
             echo "application_ref=${application_ref}"
-            echo "data_ref=${DATA_IMAGE_INPUT}"
+            echo "data_ref=${data_ref}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: 'Prepare combined image tag'

@@ -17,6 +17,36 @@ env:
   WORKSPACE_ARTIFACT_CDK: 'explore_flights_cdk_artifact'
 
 jobs:
+  detect_api_application_changes:
+    name: 'Detect API application changes'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: 'Detect relevant changes'
+        id: changes
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "${EVENT_NAME}" == 'workflow_dispatch' ]] \
+            || [[ -z "${BEFORE_SHA}" ]] \
+            || [[ "${BEFORE_SHA}" =~ ^0+$ ]] \
+            || ! git cat-file -e "${BEFORE_SHA}^{commit}"; then
+            echo 'changed=true' >> "${GITHUB_OUTPUT}"
+          elif git diff --quiet "${BEFORE_SHA}" "${GITHUB_SHA}" -- \
+            go/api \
+            go/common \
+            .github/workflows/build-api-application-image.yml; then
+            echo 'changed=false' >> "${GITHUB_OUTPUT}"
+          else
+            echo 'changed=true' >> "${GITHUB_OUTPUT}"
+          fi
+
   test_common:
     name: 'Test common'
     runs-on: ubuntu-latest
@@ -59,7 +89,9 @@ jobs:
 
   build-api-application-image:
     name: 'Build API application image'
+    if: needs.detect_api_application_changes.outputs.changed == 'true'
     needs:
+      - detect_api_application_changes
       - test_common
       - build_and_test_api
     permissions:
@@ -296,9 +328,8 @@ jobs:
 
   update-api-image-beta:
     name: 'Update Beta API image'
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.build-api-application-image.result == 'success'
     needs:
-      - deploy-beta
       - build-api-application-image
     permissions:
       contents: read
@@ -308,6 +339,7 @@ jobs:
     with:
       environment: beta
       application_image: ${{ format('{0}@{1}', needs.build-api-application-image.outputs.image, needs.build-api-application-image.outputs.digest) }}
+      refresh_data_image: false
     secrets: inherit
 
   deploy-prod:
@@ -350,9 +382,8 @@ jobs:
 
   update-api-image-prod:
     name: 'Update Prod API image'
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.build-api-application-image.result == 'success'
     needs:
-      - deploy-prod
       - build-api-application-image
     permissions:
       contents: read
@@ -362,4 +393,5 @@ jobs:
     with:
       environment: prod
       application_image: ${{ format('{0}@{1}', needs.build-api-application-image.outputs.image, needs.build-api-application-image.outputs.digest) }}
+      refresh_data_image: false
     secrets: inherit

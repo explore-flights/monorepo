@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -119,11 +120,12 @@ func RecoverMiddleware() echo.MiddlewareFunc {
 		return func(c echo.Context) (outErr error) {
 			defer func() {
 				if r := recover(); r != nil {
+					stack := debug.Stack()
 					err, ok := r.(error)
 					if ok {
-						outErr = fmt.Errorf("panic: %w", err)
+						outErr = fmt.Errorf("panic: %w\n%s", err, stack)
 					} else {
-						outErr = fmt.Errorf("panic: %v", r)
+						outErr = fmt.Errorf("panic: %v\n%s", r, stack)
 					}
 				}
 			}()

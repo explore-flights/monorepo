@@ -1,6 +1,9 @@
 package web
 
 import (
+	"bytes"
+	"errors"
+	"log"
 	"net/http/httptest"
 	"testing"
 
@@ -46,6 +49,29 @@ func TestYearMiddlewareRejectsInvalidYears(t *testing.T) {
 			require.ErrorAs(t, err, &httpErr)
 			assert.Equal(t, 400, httpErr.code)
 			assert.False(t, called)
+		})
+	}
+}
+
+func TestRecoveredPanicLogIncludesCauseLocation(t *testing.T) {
+	for _, panicValue := range []any{errors.New("test error"), "test value"} {
+		t.Run("panic", func(t *testing.T) {
+			var logOutput bytes.Buffer
+			logger := log.New(&logOutput, "", 0)
+			e := echo.New()
+			c := e.NewContext(httptest.NewRequest("GET", "/test", nil), nil)
+
+			handler := ErrorLogAndMaskMiddleware(logger)(RecoverMiddleware()(func(echo.Context) error {
+				panic(panicValue)
+			}))
+
+			err := handler(c)
+
+			var httpErr *echo.HTTPError
+			require.ErrorAs(t, err, &httpErr)
+			assert.Equal(t, 500, httpErr.Code)
+			assert.Contains(t, logOutput.String(), "Error handling request GET /test: panic: test")
+			assert.Contains(t, logOutput.String(), "middleware_test.go:")
 		})
 	}
 }

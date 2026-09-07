@@ -6,7 +6,13 @@ WORKDIR /src/api
 
 COPY go/common/ /src/common/
 COPY go/api/go.mod go/api/go.sum ./
-RUN go mod download
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
+    if [ -n "${GITHUB_TOKEN:-}" ]; then \
+        git config --global credential.https://github.com.helper \
+            '!f() { echo "username=x-access-token"; echo "password=${GITHUB_TOKEN}"; }; f'; \
+    fi \
+    && go mod download \
+    && rm --force /root/.gitconfig
 
 COPY go/api/ ./
 RUN CGO_ENABLED=1 go test -tags vps ./...
