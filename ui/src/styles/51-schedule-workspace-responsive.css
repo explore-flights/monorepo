@@ -137,7 +137,7 @@
   .workspace-filter-grid .button {
     width: 100%;
   }
-  .scope-tabs button span {
+  .scope-tabs button > svg {
     display: none;
   }
   .facet-buttons {

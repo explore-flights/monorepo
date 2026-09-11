@@ -22,8 +22,8 @@
 .change-groups h3 {
   margin: var(--space-2) 0 0;
   font-size: var(--font-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
   color: var(--muted);
 }
 .change-groups .change-list {

@@ -235,7 +235,7 @@ export function FlightScheduleWorkspace({
   function clearAll() {
     applyDateRange('', '');
     setDateBasis('local');
-    setStatus('scheduled');
+    setStatus('all');
     setFilters({ text: '' });
     if (view === 'changes') {
       selectHashView('periods');
@@ -243,7 +243,7 @@ export function FlightScheduleWorkspace({
   }
   function removeChip(key: string) {
     if (key === 'status') {
-      setStatus('scheduled');
+      setStatus('all');
       resetPagination();
     }
     if (key === 'route') {
@@ -293,7 +293,6 @@ export function FlightScheduleWorkspace({
     <section className='schedule-workspace'>
       <header className='workspace-heading'>
         <div>
-          <span className='eyebrow'>Schedule workspace</span>
           <h2>Published schedule</h2>
           <p>
             <strong>{numberLabel(filteredDays.length)}</strong> of {numberLabel(allDays.length)}{' '}

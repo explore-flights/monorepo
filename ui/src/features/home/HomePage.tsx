@@ -1,34 +1,43 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import {
-  ArrowRight,
-  CalendarDays,
-  GitBranch,
-  Globe2,
-  History,
-  Network,
-  PlaneTakeoff,
-  Search,
-} from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import { ArrowRight, Filter, GitBranch, History, MapPin } from 'lucide-react';
+import { FormEvent, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { api } from '@/api/client';
-import type { ConnectionsSearchRequest } from '@/api/types';
-import { AircraftArtwork, type AircraftAsset } from '@/components/AircraftArtwork';
-import { AirportRouteField, MaximumFlightsField } from '@/components/ConnectionSearchFields';
 import { FlightAutocomplete } from '@/components/FlightAutocomplete';
-import type { SelectOption } from '@/components/MultiCombobox';
-import { Button, Card, ErrorState } from '@/components/primitives';
-import { ScrollRadar } from '@/components/ScrollRadar';
-import { airportSelectOptions } from '@/components/selectOptions';
-import { TemporalInput } from '@/components/TemporalInput';
-import { connectionSearchDefaults } from '@/features/connections/defaults';
-import { localDayBoundary } from '@/lib/date';
 import { normalizeFlightNumber } from '@/lib/format';
+import styles from './HomePage.module.css';
 
-const fleet: ReadonlyArray<readonly [string, string, string, AircraftAsset]> = [
-  ['Allegris', 'Lufthansa’s new cabin generation', '/allegris', 'aircraft-a350-900'],
-  ['SWISS A350', 'Follow the newest long-haul fleet', '/swiss350', 'aircraft-a350-900'],
-  ['Lufthansa A380', 'See where the superjumbo flies', '/lh380', 'aircraft-a380'],
+const tools = [
+  {
+    name: 'Flight search',
+    copy: 'Find flights by airline, date, route or aircraft.',
+    href: '/tools/flight-search',
+    icon: Filter,
+  },
+  {
+    name: 'Connections',
+    copy: 'Find routes between airports, including stopovers.',
+    href: '/connections',
+    icon: GitBranch,
+  },
+  {
+    name: 'Airports',
+    copy: 'Browse destinations and schedules by airport.',
+    href: '/airport',
+    icon: MapPin,
+  },
+  {
+    name: 'Schedule updates',
+    copy: 'See what changed in the latest schedules.',
+    href: '/updates',
+    icon: History,
+  },
+];
+
+const fleet = [
+  { name: 'Lufthansa Allegris', href: '/allegris' },
+  { name: 'SWISS A350', href: '/swiss350' },
+  { name: 'Lufthansa A380', href: '/lh380' },
+  { name: 'Lufthansa A340', href: '/lh340' },
+  { name: 'Lufthansa 747', href: '/lh747' },
 ];
 
 export function HomePage() {
@@ -36,234 +45,84 @@ export function HomePage() {
   const [flight, setFlight] = useState('');
   const navigate = useNavigate();
   const sharedSearch = searchParams.get('search');
+
   if (sharedSearch) {
     return <Navigate to={`/connections?search=${encodeURIComponent(sharedSearch)}`} replace />;
   }
+
   function submit(event: FormEvent) {
     event.preventDefault();
     const value = normalizeFlightNumber(flight);
     if (value) {
-      navigate(`/flight/${value}`);
+      navigate(`/flight/${encodeURIComponent(value)}`);
     }
   }
+
   return (
-    <div className='page home-page'>
-      <ScrollRadar />
-      <section className='home-hero'>
-        <div className='hero-copy'>
-          <h1>
-            The world’s flight schedules, made <em>explorable</em>
-            <sup>*</sup>
-          </h1>
-          <p>
-            Search routes, inspect a flight’s history, discover airport networks and follow the
-            aircraft that matter to you.
-          </p>
-          <p className='hero-fine-print'>
-            * Not every airline is on our radar yet. explore.flights supports a subset of carriers —{' '}
-            see the <Link to='/about'>About page</Link> for coverage details.
-          </p>
-          <div className='hero-actions'>
-            <Link className='button button-primary' to='/connections'>
-              <GitBranch size={18} /> Find a connection
-            </Link>
-            <Link className='button button-secondary' to='/airport'>
-              <Globe2 size={18} /> Explore airports
-            </Link>
+    <div className={`page ${styles.page}`}>
+      <header className={styles.intro}>
+        <h1>Explore flight schedules</h1>
+        <p>Routes, aircraft and schedule history, all in one place.</p>
+      </header>
+      <section className={styles.lookup} aria-labelledby='home-lookup-title'>
+        <h2 id='home-lookup-title'>Look up a flight</h2>
+        <p className={styles.lookupCopy}>
+          Start with a flight number to explore its schedule and history.
+        </p>
+        <form onSubmit={submit}>
+          <label htmlFor='home-flight'>Flight number</label>
+          <div className='input-action'>
+            <FlightAutocomplete
+              id='home-flight'
+              value={flight}
+              onChange={setFlight}
+              onSelect={(value) => navigate(`/flight/${encodeURIComponent(value)}`)}
+              placeholder='e.g. LH 400'
+            />
+            <button
+              type='submit'
+              aria-label='Open flight'
+              disabled={!normalizeFlightNumber(flight)}
+            >
+              <ArrowRight size={20} />
+            </button>
           </div>
-        </div>
-        <Card className='flight-lookup'>
-          <div className='lookup-icon'>
-            <PlaneTakeoff size={26} />
-          </div>
-          <div>
-            <span className='eyebrow'>Quick lookup</span>
-            <h2>Open a flight schedule</h2>
-            <p>Enter a marketing flight number to see operating details, aircraft and changes.</p>
-          </div>
-          <form onSubmit={submit}>
-            <label htmlFor='home-flight'>Flight number</label>
-            <div className='input-action'>
-              <FlightAutocomplete
-                id='home-flight'
-                value={flight}
-                onChange={setFlight}
-                onSelect={(value) => navigate(`/flight/${encodeURIComponent(value)}`)}
-                placeholder='LH 400'
-              />
-              <button type='submit' aria-label='Open flight' disabled={!flight.trim()}>
-                <ArrowRight size={20} strokeWidth={2.5} />
-              </button>
-            </div>
-          </form>
-          <div className='quick-flights'>
-            <span>Try</span>
-            {['LH400', 'LX16'].map((item) => (
-              <button key={item} onClick={() => navigate(`/flight/${item}`)}>
-                {item}
-              </button>
-            ))}
-          </div>
-        </Card>
+        </form>
+        <p className={styles.examples}>
+          Try <Link to='/flight/LH400'>LH 400</Link> or <Link to='/flight/LX16'>LX 16</Link>
+        </p>
       </section>
-      <section id='connection-search' className='home-section home-connections-section'>
-        <div className='section-heading home-connections-heading'>
-          <div>
-            <span className='eyebrow'>Connection finder</span>
-            <h2>Where do you want to go?</h2>
-            <p>
-              Choose your route and departure window. We’ll open the full connection finder with
-              your search ready.
-            </p>
-          </div>
-        </div>
-        <HomeConnectionsSearch />
-      </section>
-      <section className='feature-grid home-feature-grid'>
-        <Link to='/updates' className='feature-card'>
-          <span className='feature-icon green'>
-            <History />
-          </span>
-          <div>
-            <h2>Schedule updates</h2>
-            <p>
-              Track how many schedule records were added, changed or removed in each data import.
-            </p>
-          </div>
-          <ArrowRight />
-        </Link>
-        <Link to='/airport' className='feature-card'>
-          <span className='feature-icon amber'>
-            <Network />
-          </span>
-          <div>
-            <h2>Airport networks</h2>
-            <p>Browse airports, inspect destinations and understand each hub’s reach.</p>
-          </div>
-          <ArrowRight />
-        </Link>
-      </section>
-      <section className='home-section'>
-        <div className='section-heading'>
-          <div>
-            <span className='eyebrow'>Fleet watch</span>
-            <h2>Follow distinctive aircraft</h2>
-          </div>
-          <Link to='/allegris'>
-            Open fleet watch <ArrowRight size={16} />
-          </Link>
-        </div>
-        <div className='fleet-preview'>
-          {fleet.map(([name, copy, href, asset], index) => (
-            <Link key={name} to={href} className={`fleet-preview-card fleet-${index}`}>
-              <AircraftArtwork asset={asset} className='fleet-preview-aircraft' />
-              <span>0{index + 1}</span>
+      <section className={styles.explore} aria-labelledby='home-tools-title'>
+        <h2 id='home-tools-title'>Explore schedules</h2>
+        <nav className={styles.tools} aria-label='Explore schedules'>
+          {tools.map(({ name, copy, href, icon: Icon }) => (
+            <Link key={href} to={href} className={styles.tool}>
+              <span className={styles.toolIcon}>
+                <Icon size={20} aria-hidden='true' />
+              </span>
               <div>
                 <h3>{name}</h3>
                 <p>{copy}</p>
               </div>
-              <ArrowRight />
+              <ArrowRight size={18} aria-hidden='true' />
+            </Link>
+          ))}
+        </nav>
+      </section>
+      <section className={styles.fleet} aria-labelledby='home-fleet-title'>
+        <h2 id='home-fleet-title'>Fleet watch</h2>
+        <div className={styles.fleetLinks}>
+          {fleet.map(({ name, href }) => (
+            <Link key={href} to={href}>
+              {name}
+              <ArrowRight size={14} aria-hidden='true' />
             </Link>
           ))}
         </div>
       </section>
+      <p className={styles.coverage}>
+        Schedules cover selected airlines. <Link to='/about'>View data coverage</Link>
+      </p>
     </div>
-  );
-}
-
-function HomeConnectionsSearch() {
-  const airportsQuery = useQuery({ queryKey: ['airports'], queryFn: api.airports });
-  const [origins, setOrigins] = useState<string[]>([]);
-  const [destinations, setDestinations] = useState<string[]>([]);
-  const [start, setStart] = useState(() => localDayBoundary(new Date(), false));
-  const [end, setEnd] = useState(() => localDayBoundary(new Date(), true));
-  const [maxFlights, setMaxFlights] = useState<number>(connectionSearchDefaults.maxFlights);
-  const airportOptions = useMemo<SelectOption[]>(
-    () => airportSelectOptions(airportsQuery.data ?? []),
-    [airportsQuery.data],
-  );
-  const shareMutation = useMutation({
-    mutationFn: (request: ConnectionsSearchRequest) => api.shareConnections(request),
-    onSuccess: (shared) => window.location.assign(shared.htmlUrl),
-  });
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!origins.length || !destinations.length || !start || !end) {
-      return;
-    }
-    shareMutation.mutate({
-      ...connectionSearchDefaults,
-      origins,
-      destinations,
-      minDeparture: new Date(start).toISOString(),
-      maxDeparture: new Date(end).toISOString(),
-      maxFlights,
-    });
-  }
-
-  return (
-    <>
-      <Card className='search-card home-connections-card'>
-        <form onSubmit={submit}>
-          <div className='route-fields'>
-            <AirportRouteField
-              label='From'
-              endpoint='origin'
-              values={origins}
-              onChange={setOrigins}
-              options={airportOptions}
-            />
-            <div className='route-arrow'>
-              <ArrowRight size={18} />
-            </div>
-            <AirportRouteField
-              label='To'
-              endpoint='destination'
-              values={destinations}
-              onChange={setDestinations}
-              options={airportOptions}
-            />
-          </div>
-          <div className='search-grid'>
-            <label>
-              <span>
-                <CalendarDays size={15} />
-                Depart after
-              </span>
-              <TemporalInput
-                type='datetime-local'
-                value={start}
-                onChange={(event) => setStart(event.target.value)}
-              />
-            </label>
-            <label>
-              <span>
-                <CalendarDays size={15} />
-                Depart before
-              </span>
-              <TemporalInput
-                type='datetime-local'
-                value={end}
-                onChange={(event) => setEnd(event.target.value)}
-              />
-            </label>
-            <MaximumFlightsField value={maxFlights} onChange={setMaxFlights} />
-            <Button
-              type='submit'
-              disabled={
-                !origins.length || !destinations.length || !start || !end || shareMutation.isPending
-              }
-            >
-              <Search size={17} />
-              {shareMutation.isPending ? 'Opening search…' : 'Search connections'}
-            </Button>
-          </div>
-        </form>
-      </Card>
-      {shareMutation.error && (
-        <ErrorState error={shareMutation.error} title='Could not open the connection search' />
-      )}
-    </>
   );
 }

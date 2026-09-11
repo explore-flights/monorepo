@@ -65,7 +65,6 @@ export function FlightHistoryPage() {
         <span>Version history</span>
       </div>
       <PageHeader
-        eyebrow='Version history'
         title={
           <>
             {flightNumber.toUpperCase()}{' '}

@@ -8,20 +8,6 @@
   .page {
     padding: var(--space-10) var(--space-8) var(--space-18);
   }
-  .home-hero {
-    grid-template-columns: 1fr var(--layout-card);
-    gap: var(--space-10);
-  }
-  .hero-copy h1 {
-    font-size: var(--font-5xl);
-  }
-  .feature-grid {
-    grid-template-columns: 1fr;
-    margin-top: var(--space-10);
-  }
-  .home-feature-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
   .airport-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -92,31 +78,6 @@
     min-height: calc(100vh - var(--mobile-header-height));
     padding: var(--space-7) var(--space-5) var(--space-16);
   }
-  .home-page {
-    padding-top: var(--space-10);
-  }
-  .home-hero {
-    grid-template-columns: 1fr;
-    min-height: 0;
-  }
-  .hero-copy h1 {
-    font-size: clamp(var(--font-4xl), 11vw, var(--font-display-md));
-  }
-  .flight-lookup {
-    max-width: 600px;
-  }
-  .feature-grid {
-    margin-bottom: var(--space-12);
-  }
-  .home-connections-section {
-    margin-top: var(--space-10);
-  }
-  .fleet-preview {
-    grid-template-columns: 1fr;
-  }
-  .fleet-preview-card {
-    min-height: 120px;
-  }
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -135,28 +96,6 @@
   }
   .fleet-overview-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .fleet-hero {
-    grid-template-columns: 160px 1fr;
-  }
-  .fleet-hero > .fleet-hero-actions {
-    grid-column: 1/-1;
-    display: flex;
-    width: 100%;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .fleet-hero-action {
-    flex: 1;
-  }
-  .fleet-hero-action + .fleet-hero-action {
-    margin-top: 0;
-    margin-left: var(--space-3);
-    padding-top: 0;
-    padding-left: var(--space-3);
-    border-top: 0;
-    border-left: var(--border-width) solid
-      color-mix(in srgb, var(--fleet-hero-text) 13%, transparent);
   }
   .airport-grid {
     grid-template-columns: 1fr 1fr;
@@ -225,62 +164,20 @@
   .page-actions > * {
     width: fit-content;
   }
-  .home-hero {
-    gap: var(--space-7);
-  }
-  .hero-copy h1 {
-    font-size: var(--font-4xl);
-    line-height: 1.05;
-  }
-  .hero-copy h1 sup {
-    position: relative;
-    top: calc(-1 * var(--space-1-5));
-    margin-left: var(--space-0-5);
-    font-size: var(--font-lg);
-    line-height: 1;
-    vertical-align: baseline;
-  }
-  .hero-copy > p {
-    font-size: var(--font-md);
-  }
-  .hero-actions {
-    flex-direction: column;
-  }
-  .hero-actions .button {
-    width: 100%;
-  }
-  .flight-lookup {
-    padding: var(--space-5);
-  }
-  .feature-card {
-    grid-template-columns: auto 1fr;
-  }
-  .home-connections-heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .home-feature-grid {
-    grid-template-columns: 1fr;
-  }
-  .feature-card > svg {
-    display: none;
-  }
   .section-heading {
     align-items: flex-start;
   }
-  .fleet-preview-card {
-    min-height: 115px;
-  }
-  .fleet-preview-card > .fleet-preview-aircraft {
-    display: none;
-  }
   .stats-grid {
     grid-template-columns: 1fr 1fr;
-    gap: var(--space-2);
+    gap: 0 var(--space-4);
+    padding: var(--space-1) var(--space-4);
   }
   .stat {
     min-height: var(--space-24);
-    padding: var(--space-3);
+    padding: var(--space-4) 0;
+  }
+  .stat:nth-child(n + 3) {
+    border-top: var(--border-width) solid var(--border);
   }
   .stat > strong {
     font-size: var(--font-xl);
@@ -307,23 +204,20 @@
   }
   .toolbar-actions {
     width: 100%;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
-  .view-tabs span {
-    display: none;
+  .view-tabs {
+    width: 100%;
+  }
+  .view-tabs button {
+    flex: 1;
   }
   .share-result {
     grid-template-columns: 1fr;
   }
   .connection-graph {
     height: 450px;
-  }
-  .flight-search-panel {
-    grid-template-columns: 1fr;
-    padding: var(--space-4-5);
-  }
-  .flight-search-visual {
-    height: 90px;
   }
   .explain-grid {
     grid-template-columns: 1fr;
@@ -390,13 +284,6 @@
   .subnav a,
   .subnav button {
     flex: 0 0 auto;
-  }
-  .fleet-hero {
-    grid-template-columns: 1fr;
-    padding: var(--space-6);
-  }
-  .fleet-plane {
-    display: none;
   }
   .fleet-page .subnav a {
     margin-left: 0;

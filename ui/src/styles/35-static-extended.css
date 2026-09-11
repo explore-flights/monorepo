@@ -1,18 +1,11 @@
 /* Long-form static pages */
 .prose-page {
-  max-width: 1000px;
-}
-.about-page {
-  position: relative;
-  isolation: isolate;
-}
-.about-page > .page-header,
-.about-page > .prose-card {
-  position: relative;
-  z-index: var(--layer-content);
+  max-width: var(--content-narrow);
 }
 .prose-page > .prose-card {
-  margin-top: var(--space-3);
+  margin-top: var(--space-8);
+  padding: var(--space-8) 0 0;
+  border-top: var(--border-width) solid var(--border);
 }
 .prose-card h2 {
   margin-top: 0;
@@ -24,10 +17,14 @@
   margin-top: var(--space-2-5);
 }
 .prose-card ul {
+  list-style: disc;
   padding-left: var(--space-5);
   color: var(--text-2);
-  font-size: var(--font-sm);
+  font-size: var(--font-lg);
   line-height: 1.7;
+}
+.prose-card li + li {
+  margin-top: var(--space-2);
 }
 .prose-card a {
   color: var(--primary);
@@ -39,14 +36,14 @@
   margin-top: var(--space-3);
 }
 .storage-grid > div {
-  padding: var(--space-3);
-  background: var(--surface-2);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  border-top: var(--border-width) solid var(--border);
 }
 .storage-grid code {
+  overflow-wrap: anywhere;
   color: var(--primary);
-  font-weight: 750;
+  font-weight: 600;
 }
 .storage-grid dl {
   display: flex;
@@ -60,10 +57,16 @@
 .storage-grid dt {
   color: var(--muted);
   font-size: var(--font-xs);
-  text-transform: uppercase;
+  text-transform: none;
 }
 .storage-grid dd {
   margin: 0;
   font-size: var(--font-xs);
   font-weight: 650;
+}
+
+@media (max-width: 640px) {
+  .storage-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

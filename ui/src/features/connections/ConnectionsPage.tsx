@@ -173,9 +173,8 @@ function ConnectionsWorkspace({
   return (
     <div className='page connections-page'>
       <PageHeader
-        eyebrow='Connection finder'
-        title='Build a journey'
-        description='Search one or many origins and destinations, then shape the result with connection and equipment rules.'
+        title='Connections'
+        description='Find routes between airports. Set departure times, stopovers and aircraft preferences.'
       />
       <Card className='search-card'>
         <form onSubmit={submit}>

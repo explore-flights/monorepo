@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import type { Airport, AirportMovementDirection, AirportSummary } from '@/api/types';
 import { Card, EmptyState, Stat } from '@/components/primitives';
-import { airportCode, airportName, duration, numberLabel } from '@/lib/format';
+import { airportCode, airportName, airportTypeLabel, duration, numberLabel } from '@/lib/format';
 import { AirportDirectionControl } from './AirportDirectionControl';
 import { AirportMonthlyChart } from './AirportMonthlyChart';
 import { aggregateAirportRoutes, directionStatistics } from './airportData';
@@ -137,7 +137,7 @@ export function AirportFacts({ airport }: { airport: Airport }) {
       </div>
       <div>
         <dt>Airport type</dt>
-        <dd>{airport.type}</dd>
+        <dd>{airportTypeLabel(airport.type)}</dd>
       </div>
       <div>
         <dt>Time zone</dt>

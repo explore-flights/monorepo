@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   CheckCircle2,
@@ -61,7 +61,12 @@ export function AppShell() {
   const menuCloseButtonRef = useRef<HTMLButtonElement>(null);
   const settingsReturnFocusRef = useRef<HTMLElement>(null);
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { effectiveTheme, setTheme } = usePreferences();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [pathname]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -125,6 +130,17 @@ export function AppShell() {
   return (
     <div className='app-frame'>
       <RouteSeo />
+      <a
+        className='skip-link'
+        href='#main-content'
+        inert={menuOpen ? true : undefined}
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById('main-content')?.focus();
+        }}
+      >
+        Skip to content
+      </a>
       <header className='mobile-header' inert={menuOpen ? true : undefined}>
         <Button
           ref={menuButtonRef}
@@ -193,7 +209,7 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <div className='nav-section'>
+        <nav className='nav-section' aria-label='Fleet watch'>
           <div className='nav-label'>
             <Network size={14} /> Fleet watch
           </div>
@@ -207,7 +223,7 @@ export function AppShell() {
               {item.label}
             </NavLink>
           ))}
-        </div>
+        </nav>
         <div className='sidebar-footer'>
           <button className='settings-row' onClick={openSettings}>
             <span className='theme-icon'>
@@ -235,7 +251,7 @@ export function AppShell() {
           </div>
         </div>
       </aside>
-      <main className='content' inert={menuOpen ? true : undefined}>
+      <main id='main-content' className='content' tabIndex={-1} inert={menuOpen ? true : undefined}>
         <NotificationsPanel />
         <Outlet />
       </main>
@@ -424,7 +440,7 @@ function ConsentBanner({
       inert={backgroundInert ? true : undefined}
     >
       <div>
-        <strong>Your data, your choice</strong>
+        <strong>Privacy preferences</strong>
         <p>
           Essential storage keeps the site working. Functional storage remembers appearance and read
           notifications; map consent loads tiles from VersaTiles.
@@ -506,8 +522,7 @@ function SettingsDialog({
       <section className='dialog'>
         <header>
           <div>
-            <span className='eyebrow'>Preferences</span>
-            <h2 id='settings-title'>Make it yours</h2>
+            <h2 id='settings-title'>Settings</h2>
           </div>
           <Button variant='ghost' aria-label='Close' autoFocus onClick={onClose}>
             <X size={20} />

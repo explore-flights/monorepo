@@ -24,26 +24,6 @@
   .schedule-results-year {
     justify-content: space-between;
   }
-  .fleet-hero {
-    min-height: 0;
-    padding: var(--space-4-5);
-  }
-  .fleet-hero > .fleet-hero-actions {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .fleet-hero-action {
-    width: 100%;
-  }
-  .fleet-hero-action + .fleet-hero-action {
-    margin-top: var(--space-2);
-    margin-left: 0;
-    padding-top: var(--space-2);
-    padding-left: 0;
-    border-top: var(--border-width) solid
-      color-mix(in srgb, var(--fleet-hero-text) 13%, transparent);
-    border-left: 0;
-  }
   .activity-chart-heading .calendar-highlight-controls {
     justify-content: flex-start;
   }

@@ -3,8 +3,7 @@ import { Rss } from 'lucide-react';
 import { useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/api/client';
-import { AircraftArtwork, type AircraftAsset } from '@/components/AircraftArtwork';
-import { EmptyState, ErrorState, Loading } from '@/components/primitives';
+import { EmptyState, ErrorState, Loading, PageHeader } from '@/components/primitives';
 import { YearSwitcher } from '@/components/ScheduleControls';
 import { ScheduleResults } from '@/features/schedules/ScheduleResults';
 import { discoverYearlyData, loadYearlyData, type YearSelection } from '@/lib/yearlyData';
@@ -18,49 +17,42 @@ const fleetConfig: Record<
     short: string;
     description: string;
     accent: string;
-    artwork: AircraftAsset[];
   }
 > = {
   allegris: {
     identifier: 'allegris',
     title: 'Lufthansa Allegris',
     short: 'Allegris',
-    description: 'Follow flights scheduled with Lufthansa’s newest long-haul cabin generation.',
+    description: 'Published routes and schedules for Lufthansa Allegris cabins.',
     accent: 'var(--fleet-accent-allegris)',
-    artwork: ['aircraft-a350-900', 'aircraft-787-dreamliner'],
   },
   swiss350: {
     identifier: 'swiss350',
     title: 'SWISS Airbus A350',
     short: 'SWISS A350',
-    description: 'Track the planned network for the newest aircraft in the SWISS long-haul fleet.',
+    description: 'Published routes and schedules for the SWISS A350 fleet.',
     accent: 'var(--fleet-accent-swiss-a350)',
-    artwork: ['aircraft-a350-900'],
   },
   lh380: {
     identifier: 'lh380',
     title: 'Lufthansa Airbus A380',
     short: 'LH A380',
-    description: 'See where Lufthansa plans to deploy its returning superjumbo fleet.',
+    description: 'Published routes and schedules for the Lufthansa A380 fleet.',
     accent: 'var(--fleet-accent-lufthansa-a380)',
-    artwork: ['aircraft-a380'],
   },
   lh340: {
     identifier: 'lh340',
     title: 'Lufthansa Airbus A340',
     short: 'LH A340',
-    description:
-      'Explore the remaining published operation of Lufthansa’s four-engine Airbus fleet.',
+    description: 'Published routes and schedules for the Lufthansa A340 fleet.',
     accent: 'var(--fleet-accent-lufthansa-a340)',
-    artwork: ['aircraft-a340-300', 'aircraft-a340-600'],
   },
   lh747: {
     identifier: 'lh747',
     title: 'Lufthansa Boeing 747',
     short: 'LH 747',
-    description: 'Follow scheduled passenger flights on Lufthansa’s iconic Queen of the Skies.',
+    description: 'Published routes and schedules for the Lufthansa 747 fleet.',
     accent: 'var(--fleet-accent-lufthansa-747)',
-    artwork: ['aircraft-747-400', 'aircraft-747-8'],
   },
 };
 
@@ -119,8 +111,6 @@ function FleetPageForId({ fleetId }: { fleetId: string }) {
     );
   }
 
-  const artworkLayout = config.artwork.length > 1 ? 'stacked' : 'single';
-
   const data = query.data?.data;
   const year = query.data?.year ?? selectedYear;
   const pageStyle: CSSProperties & { '--fleet-accent': string } = {
@@ -134,49 +124,44 @@ function FleetPageForId({ fleetId }: { fleetId: string }) {
         <span>/</span>
         <span>{config.short}</span>
       </div>
-      <div className='fleet-hero'>
-        <div className='fleet-plane' data-layout={artworkLayout}>
-          {config.artwork.map((asset) => (
-            <AircraftArtwork key={asset} asset={asset} className='fleet-plane-artwork' />
-          ))}
-        </div>
-        <div>
-          <h1>{config.title}</h1>
-          <p>{config.description}</p>
-        </div>
-        <div className='fleet-hero-actions'>
-          {['allegris', 'swiss350'].includes(config.identifier) && (
-            <div className='fleet-hero-action'>
-              <span>Follow schedule</span>
-              <div className='fleet-feed-actions' aria-label='Schedule feeds'>
-                <a
-                  href={`/data/schedule/${config.identifier}/feed.rss`}
-                  target='_blank'
-                  rel='nofollow noreferrer'
-                  type='application/rss+xml'
-                >
-                  <Rss size={14} /> RSS
-                </a>
-                <a
-                  href={`/data/schedule/${config.identifier}/feed.atom`}
-                  target='_blank'
-                  rel='nofollow noreferrer'
-                  type='application/atom+xml'
-                >
-                  <Rss size={14} /> Atom
-                </a>
+      <PageHeader
+        title={config.title}
+        description={config.description}
+        actions={
+          <div className='fleet-hero-actions'>
+            {['allegris', 'swiss350'].includes(config.identifier) && (
+              <div className='fleet-hero-action'>
+                <span>Follow schedule</span>
+                <div className='fleet-feed-actions' aria-label='Schedule feeds'>
+                  <a
+                    href={`/data/schedule/${config.identifier}/feed.rss`}
+                    target='_blank'
+                    rel='nofollow noreferrer'
+                    type='application/rss+xml'
+                  >
+                    <Rss size={14} /> RSS
+                  </a>
+                  <a
+                    href={`/data/schedule/${config.identifier}/feed.atom`}
+                    target='_blank'
+                    rel='nofollow noreferrer'
+                    type='application/atom+xml'
+                  >
+                    <Rss size={14} /> Atom
+                  </a>
+                </div>
               </div>
+            )}
+            <div className='fleet-hero-action'>
+              <span>Schedule year</span>
+              <YearSwitcher
+                year={year}
+                onChange={(nextYear) => setSelection({ mode: 'single', year: nextYear })}
+              />
             </div>
-          )}
-          <div className='fleet-hero-action'>
-            <span>Schedule year</span>
-            <YearSwitcher
-              year={year}
-              onChange={(nextYear) => setSelection({ mode: 'single', year: nextYear })}
-            />
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {query.isLoading && <Loading label={`Loading ${config.short} schedules…`} />}
       {query.error && <ErrorState error={query.error} />}

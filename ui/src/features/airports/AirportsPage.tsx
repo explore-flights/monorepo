@@ -5,9 +5,10 @@ import { Link } from 'react-router-dom';
 import { api } from '@/api/client';
 import { FlightMap } from '@/components/FlightMap';
 import { filterSelectOptions } from '@/components/picker/selectOptions';
-import { Card, EmptyState, ErrorState, Loading, PageHeader } from '@/components/primitives';
+import { Button, Card, EmptyState, ErrorState, Loading, PageHeader } from '@/components/primitives';
 import { airportSelectOptions } from '@/components/selectOptions';
 import { SimpleSelect } from '@/components/SimpleSelect';
+import { airportTypeLabel, numberLabel } from '@/lib/format';
 import { useHashView } from '@/lib/useHashView';
 
 const airportViews = ['directory', 'map'] as const;
@@ -35,9 +36,8 @@ export function AirportsPage() {
   return (
     <div className='page airports-page'>
       <PageHeader
-        eyebrow='Airport directory'
-        title='Explore the network'
-        description='Find an airport, see its published destinations and switch between route lists and a geographic network view.'
+        title='Airports'
+        description='Browse airports and their published routes and schedules.'
         actions={
           <span className='airport-count'>
             <Globe2 size={17} />
@@ -46,14 +46,17 @@ export function AirportsPage() {
         }
       />
       <Card className='directory-toolbar'>
-        <label className='search-input'>
-          <Search size={18} />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            aria-label='Search airports'
-            placeholder='Search by code, airport or city'
-          />
+        <label className='directory-search'>
+          <span>Airport or city</span>
+          <div className='search-input'>
+            <Search size={18} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label='Search airports'
+              placeholder='Search by code, airport or city'
+            />
+          </div>
         </label>
         <label>
           <span>Country</span>
@@ -65,25 +68,45 @@ export function AirportsPage() {
           </SimpleSelect>
         </label>
       </Card>
-      <nav className='subnav airport-directory-tabs' aria-label='Airport directory view'>
-        <Link
-          to={hrefFor('directory')}
-          className={view === 'directory' ? 'active' : ''}
-          aria-current={view === 'directory' ? 'page' : undefined}
-        >
-          <List size={16} />
-          Directory
-        </Link>
-        <Link
-          id='map'
-          to={hrefFor('map')}
-          className={view === 'map' ? 'active' : ''}
-          aria-current={view === 'map' ? 'page' : undefined}
-        >
-          <MapIcon size={16} />
-          Map
-        </Link>
-      </nav>
+      <div className='directory-results-heading'>
+        <nav className='subnav airport-directory-tabs' aria-label='Airport directory view'>
+          <Link
+            to={hrefFor('directory')}
+            className={view === 'directory' ? 'active' : ''}
+            aria-current={view === 'directory' ? 'page' : undefined}
+          >
+            <List size={16} />
+            Directory
+          </Link>
+          <Link
+            id='map'
+            to={hrefFor('map')}
+            className={view === 'map' ? 'active' : ''}
+            aria-current={view === 'map' ? 'page' : undefined}
+          >
+            <MapIcon size={16} />
+            Map
+          </Link>
+        </nav>
+        {query.data && (
+          <div className='directory-results-summary'>
+            <span role='status'>
+              {numberLabel(airports.length)} of {numberLabel(query.data.length)} airports
+            </span>
+            {(search || country !== 'all') && (
+              <Button
+                variant='ghost'
+                onClick={() => {
+                  setSearch('');
+                  setCountry('all');
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
       {query.isLoading && <Loading label='Loading airport directory…' />}
       {query.error && <ErrorState error={query.error} />}
       {view === 'directory' && (
@@ -97,7 +120,7 @@ export function AirportsPage() {
                   <MapPin size={14} />
                   {airport.cityCode} · {airport.countryCode}
                 </p>
-                <span>{airport.icaoCode ?? airport.type}</span>
+                <span>{airport.icaoCode ?? airportTypeLabel(airport.type)}</span>
               </div>
               <ArrowRight className='airport-open' size={19} />
             </Link>

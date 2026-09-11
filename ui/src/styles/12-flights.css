@@ -1,90 +1,81 @@
 /* Flights and tables */
 .flight-search-panel {
-  display: grid;
-  grid-template-columns: 180px 1fr;
-  align-items: center;
-  gap: var(--space-8);
-  padding: var(--space-8);
-}
-.flight-search-visual {
-  position: relative;
-  display: grid;
-  height: 150px;
-  place-items: center;
-  color: var(--primary);
-  background: var(--primary-soft);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-}
-.flight-search-visual svg {
-  position: relative;
-  z-index: var(--layer-content);
-  transform: rotate(5deg);
-}
-.flight-path {
-  position: absolute;
-  width: 190px;
-  height: 80px;
-  border-top: var(--border-width) dashed color-mix(in srgb, var(--primary) 40%, transparent);
-  border-radius: 50%;
-  transform: rotate(-16deg);
+  max-width: var(--content-form);
+  padding-block: var(--space-5);
 }
 .flight-search-panel label {
   display: block;
   margin-bottom: var(--space-2);
-  font-size: var(--font-xs);
-  font-weight: 750;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.large-input {
-  min-height: calc(var(--control-height-2xl) + var(--space-3));
-}
-.large-input [role='combobox'] {
-  min-height: calc(var(--control-height-2xl) + var(--space-2-5));
-  padding: var(--space-4);
-  font-size: var(--font-xl);
-}
-.large-input > button {
-  flex-basis: calc(var(--control-height-2xl) + var(--space-3));
-}
-.flight-search-panel form > p {
-  margin: var(--space-2) 0 0;
-  font-size: var(--font-xs);
-  color: var(--muted);
+  font-size: var(--font-label);
+  font-weight: 600;
 }
 .explain-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
-  margin-top: var(--space-3-5);
-}
-.explain-grid .card {
-  padding: var(--space-5);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-8);
+  max-width: var(--content-form);
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: var(--border-width) solid var(--border);
 }
 .explain-grid h2 {
-  margin: var(--space-3) 0 var(--space-1-25);
+  margin: 0 0 var(--space-2);
   font-size: var(--font-lg);
+  font-weight: 600;
 }
 .explain-grid p {
   margin: 0;
-  font-size: var(--font-xs);
-  line-height: 1.55;
+  font-size: var(--font-body);
+  line-height: 1.6;
   color: var(--muted);
 }
 .popular-row {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  gap: var(--space-3);
   margin-top: var(--space-6);
-  font-size: var(--font-xs);
+  font-size: var(--font-supporting);
   color: var(--muted);
 }
-.popular-row button {
-  padding: 0;
-  background: transparent;
-  border: 0;
+.popular-row a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target);
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: var(--space-0-75);
+}
+.flight-search-alternative {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  max-width: var(--content-form);
+  margin-top: var(--space-8);
+  padding: var(--space-5);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.flight-search-alternative:hover {
+  border-color: var(--primary);
+}
+.flight-search-alternative > div {
+  display: grid;
+  gap: var(--space-2);
+}
+.flight-search-alternative > div > span {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.flight-search-alternative > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--primary);
+  font-weight: 600;
 }
 .year-switcher {
   display: flex;
@@ -121,8 +112,8 @@
   color: var(--muted);
   font-size: var(--font-xs);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  text-transform: none;
+  letter-spacing: normal;
 }
 .table-card {
   overflow: hidden;
@@ -139,9 +130,9 @@
   padding: var(--space-3) var(--space-3-5);
   text-align: left;
   font-size: var(--font-xs);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
   color: var(--muted);
   background: var(--surface-2);
   border-bottom: var(--border-width) solid var(--border);

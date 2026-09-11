@@ -15,6 +15,7 @@
 .query-section-heading h2 {
   margin: var(--space-0-75) 0 0;
   font-size: var(--font-lg);
+  font-weight: 600;
 }
 .query-section-heading > svg {
   color: var(--primary);
@@ -41,9 +42,9 @@
   margin-bottom: var(--space-1-25);
   color: var(--muted);
   font-size: var(--font-xs);
-  font-weight: 780;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .query-grid > label > input {
   width: 100%;
@@ -105,4 +106,10 @@
 .query-search-card form > footer small {
   color: var(--muted);
   font-size: var(--font-xs);
+}
+
+@media (min-width: 641px) and (max-width: 1200px) {
+  .query-grid:not(.two) > .query-field:first-child {
+    grid-column: 1 / -1;
+  }
 }

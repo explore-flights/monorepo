@@ -79,9 +79,9 @@
   margin-bottom: var(--space-0-75);
   color: var(--muted);
   font-size: var(--font-xs);
-  font-weight: 780;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .schedule-details dd {
   margin: 0;

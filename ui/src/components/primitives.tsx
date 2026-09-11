@@ -94,7 +94,6 @@ export function ErrorState({ error, title = 'Could not load this view' }: ErrorS
 export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
     <div className='empty-state'>
-      <div className='empty-mark'>✦</div>
       <h3>{title}</h3>
       <p>{description}</p>
       {action}
@@ -106,10 +105,10 @@ export function Stat({ label, value, hint }: StatProps) {
   const displayValue = typeof value === 'number' ? numberLabel(value) : value;
 
   return (
-    <Card className='stat'>
+    <div className='stat'>
       <span>{label}</span>
       <strong>{displayValue}</strong>
       {hint && <small>{hint}</small>}
-    </Card>
+    </div>
   );
 }

@@ -2,8 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Code2, Mail, Plane } from 'lucide-react';
 import { api } from '@/api/client';
-import { Button, Card, PageHeader } from '@/components/primitives';
-import { ScrollRadar } from '@/components/ScrollRadar';
+import { Button, PageHeader } from '@/components/primitives';
 
 export function AboutPage() {
   const airlines = useQuery({ queryKey: ['airlines'], queryFn: api.airlines }).data ?? [];
@@ -14,11 +13,9 @@ export function AboutPage() {
 
   return (
     <div className='page prose-page about-page'>
-      <ScrollRadar />
       <PageHeader
-        eyebrow='About'
         title='About explore.flights'
-        description='Why this project exists, how it operates, and what its data can — and cannot — show.'
+        description='Background, data sources and coverage.'
       />
       <ProseSection title='Motivation'>
         <p>
@@ -139,7 +136,7 @@ export function AboutPage() {
 export function LegalPage() {
   return (
     <div className='page prose-page'>
-      <PageHeader eyebrow='Legal' title='Legal' description='Last updated: 4 May 2024' />
+      <PageHeader title='Legal' description='Last updated: 4 May 2024' />
       <ProseSection title='Contact'>
         <p>
           Send us an email at <a href='mailto:contact@explore.flights'>contact@explore.flights</a>.
@@ -175,11 +172,7 @@ export function LegalPage() {
 export function PrivacyPolicyPage() {
   return (
     <div className='page prose-page'>
-      <PageHeader
-        eyebrow='Privacy'
-        title='Privacy Policy'
-        description='Last updated: 11 Aug 2026'
-      />
+      <PageHeader title='Privacy Policy' description='Last updated: 11 Aug 2026' />
       <ProseSection title='Human version'>
         <ul>
           <li>
@@ -333,10 +326,10 @@ export function PrivacyPolicyPage() {
 
 function ProseSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Card className='prose-card'>
+    <section className='prose-card'>
       <h2>{title}</h2>
       {children}
-    </Card>
+    </section>
   );
 }
 function Storage({
@@ -374,8 +367,8 @@ export function NotFoundPage() {
       <div className='logo-mark'>
         <Plane size={22} />
       </div>
-      <span className='eyebrow'>404 / Off route</span>
-      <h1>This page isn’t on the schedule.</h1>
+      <span className='eyebrow'>404</span>
+      <h1>Page not found</h1>
       <p>The link may be old, or this route may no longer exist.</p>
       <Button onClick={() => history.back()} variant='secondary'>
         <ArrowLeft size={17} />

@@ -237,15 +237,6 @@
   box-shadow: none;
 }
 
-:global(.large-input) .root {
-  --autocomplete-menu-offset: 0px;
-}
-
-:global(.large-input) .root input,
-:global(.large-input) .mobileLauncher {
-  min-height: calc(var(--control-height-2xl) + var(--space-2-5));
-}
-
 .mobileDialog {
   width: 100%;
   max-width: none;

@@ -12,6 +12,7 @@
 .workspace-heading h2 {
   margin: var(--space-1) 0 0;
   font-size: var(--font-2xl);
+  font-weight: 600;
   letter-spacing: -0.035em;
 }
 .workspace-heading p {
@@ -22,8 +23,7 @@
 .workspace-heading p strong {
   color: var(--text);
 }
-.scope-tabs,
-.workspace-view-tabs {
+.scope-tabs {
   display: flex;
   gap: var(--space-0-75);
   padding: var(--space-1);
@@ -35,24 +35,44 @@
 .workspace-view-tabs button,
 .workspace-view-tabs a {
   display: flex;
-  min-height: var(--control-height-compact);
+  min-height: var(--tap-target);
   align-items: center;
   justify-content: center;
   gap: var(--space-1-5);
   padding: var(--space-2) var(--space-3);
   color: var(--muted);
   font-size: var(--font-sm);
-  font-weight: 720;
+  font-weight: 600;
   background: transparent;
   border: 0;
   border-radius: var(--radius-md);
 }
-.scope-tabs button.active,
-.workspace-view-tabs button.active,
-.workspace-view-tabs a.active {
+.scope-tabs button.active {
   color: var(--text);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
+}
+.workspace-view-tabs {
+  display: flex;
+  gap: var(--space-3);
+  padding: 0;
+  border-bottom: var(--border-width) solid var(--border);
+}
+.workspace-view-tabs button,
+.workspace-view-tabs a {
+  min-height: var(--tap-target);
+  padding-inline: var(--space-1);
+  border-bottom: var(--border-width-strong) solid transparent;
+  border-radius: 0;
+}
+.workspace-view-tabs button:hover,
+.workspace-view-tabs a:hover {
+  color: var(--text);
+}
+.workspace-view-tabs button.active,
+.workspace-view-tabs a.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
 }
 .workspace-controls {
   overflow: hidden;
@@ -73,9 +93,9 @@
 .workspace-filter-grid label > span:not(.temporal-control) {
   color: var(--muted);
   font-size: var(--font-xs);
-  font-weight: 780;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .workspace-filter-grid select,
 .workspace-filter-grid input {
@@ -179,24 +199,21 @@
   padding: var(--space-3);
   text-align: left;
   color: var(--text);
-  background: var(--surface);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xs);
+  background: transparent;
+  border: var(--border-width) solid transparent;
+  border-bottom-color: var(--border);
+  border-radius: var(--radius-sm);
   transition: var(--duration-fast);
 }
 .schedule-insight:hover {
   border-color: var(--primary);
-  transform: translateY(-1px);
 }
 .schedule-insight > span {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: var(--space-5);
+  height: var(--space-5);
   place-items: center;
-  color: var(--primary);
-  background: var(--primary-soft);
-  border-radius: var(--radius-md);
+  color: var(--muted);
 }
 .schedule-insight > span svg {
   width: 17px;
@@ -209,15 +226,14 @@
 .schedule-insight small {
   color: var(--muted);
   font-size: var(--font-xs);
-  font-weight: 780;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .schedule-insight strong,
 .schedule-insight em {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
 }
 .schedule-insight strong {
   font-size: var(--font-sm);
@@ -413,7 +429,7 @@
 .weekly-pattern-caption {
   color: var(--text-2);
   font-size: var(--font-sm);
-  font-weight: 750;
+  font-weight: 600;
 }
 .journey-snapshot.aggregate {
   width: 100%;
@@ -442,7 +458,7 @@
   padding: var(--space-1) 0;
   color: var(--primary);
   font-size: var(--font-xs);
-  font-weight: 750;
+  font-weight: 600;
   background: transparent;
   border: 0;
 }
@@ -539,7 +555,7 @@
 .snapshot-route span {
   color: var(--text-2);
   font-size: var(--font-sm);
-  font-weight: 720;
+  font-weight: 600;
 }
 .snapshot-route svg {
   align-self: center;
@@ -585,7 +601,7 @@
 }
 .variable-property-value {
   color: var(--amber);
-  font-weight: 750;
+  font-weight: 600;
 }
 .snapshot-route .variable-property-value,
 .snapshot-operation .variable-property-value,
@@ -698,9 +714,9 @@
   min-width: 0;
   color: var(--primary);
   font-size: var(--font-xs);
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .journey-leg-heading > svg {
   flex: none;
@@ -801,9 +817,9 @@
   margin-bottom: var(--space-0-75);
   color: var(--muted);
   font-size: var(--font-xs);
-  font-weight: 780;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .journey-leg-details dd {
   margin: 0;
@@ -814,7 +830,7 @@
 }
 .journey-leg-details dd.variable-property-value {
   color: var(--amber);
-  font-weight: 750;
+  font-weight: 600;
 }
 .journey-leg-detail-group {
   min-width: 0;
@@ -1058,8 +1074,8 @@
 }
 .calendar-highlight-controls strong {
   font-size: var(--font-xs);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .calendar-highlight-controls .facet-buttons {
   flex-wrap: wrap;
@@ -1283,7 +1299,7 @@
   padding: var(--space-1-5) var(--space-2);
   color: var(--red);
   font-size: var(--font-xs);
-  font-weight: 720;
+  font-weight: 600;
   background: var(--red-soft);
   border-radius: var(--radius-sm);
 }
@@ -1339,9 +1355,9 @@
 .journey-change-leg > header > div:first-child span {
   color: var(--primary);
   font-size: var(--font-xs);
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .journey-change-leg > header > div:first-child strong {
   font-size: var(--font-sm);
@@ -1401,9 +1417,9 @@
 .journey-change-details > section > small {
   color: var(--muted);
   font-size: var(--font-xs);
-  font-weight: 780;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
 }
 .journey-change-summary > svg,
 .journey-change-details > svg,

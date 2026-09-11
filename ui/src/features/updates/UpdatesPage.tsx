@@ -26,9 +26,8 @@ export function UpdatesPage() {
   return (
     <div className='page updates-page'>
       <PageHeader
-        eyebrow='Data activity'
         title='Schedule updates'
-        description='A transparent view of how the underlying schedule dataset changes between imports.'
+        description='Records added, changed and removed in each schedule import.'
       />
       {query.isLoading && <Loading label='Loading update history…' />}
       {query.error && <ErrorState error={query.error} />}
@@ -67,7 +66,6 @@ export function UpdatesPage() {
           <section className='minor-section'>
             <div className='section-heading'>
               <div>
-                <span className='eyebrow'>Import log</span>
                 <h2>Recent reports</h2>
               </div>
             </div>

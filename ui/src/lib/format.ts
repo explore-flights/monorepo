@@ -13,6 +13,11 @@ export function airportName(id: string, airports: ReferenceLookup<Airport>) {
   return airport?.name || airport?.iataCode || id;
 }
 
+export function airportTypeLabel(type: string) {
+  const label = type.replaceAll('_', ' ');
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export function airportLabel(id: string, airports: ReferenceLookup<Airport>) {
   const code = airportCode(id, airports);
   const name = airportName(id, airports);

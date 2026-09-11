@@ -1099,8 +1099,8 @@ export function activeFilterChips(
   data: FlightSchedules,
 ) {
   const chips: Array<{ key: string; label: string }> = [];
-  if (status === 'cancelled') {
-    chips.push({ key: 'status', label: 'Cancelled' });
+  if (status !== 'all') {
+    chips.push({ key: 'status', label: status === 'scheduled' ? 'Scheduled' : 'Cancelled' });
   }
   if (filters.route) {
     chips.push({ key: 'route', label: routeLabel(filters.route, data) });

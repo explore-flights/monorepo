@@ -80,9 +80,9 @@
 .dialog legend {
   margin-bottom: var(--space-2);
   font-size: var(--font-xs);
-  font-weight: 780;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
   color: var(--muted);
 }
 .segmented {
@@ -145,14 +145,15 @@
 }
 .prose-card h2 {
   margin: var(--space-6) 0 var(--space-2);
-  font-size: var(--font-lg);
+  font-size: var(--font-xl);
+  font-weight: 600;
 }
 .prose-card h2:first-child {
   margin-top: 0;
 }
 .prose-card p {
   margin: 0;
-  font-size: var(--font-sm);
+  font-size: var(--font-lg);
   line-height: 1.7;
   color: var(--text-2);
 }

@@ -32,10 +32,10 @@ textarea {
   gap: var(--space-1-5);
   margin-bottom: var(--space-2);
   font-size: var(--font-xs);
-  font-weight: 750;
+  font-weight: 600;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  text-transform: none;
+  letter-spacing: normal;
 }
 .route-dot {
   width: 7px;
@@ -73,7 +73,7 @@ textarea {
   margin-top: var(--space-4);
   padding: var(--space-3) var(--space-0-5) 0;
   font-size: var(--font-xs);
-  font-weight: 720;
+  font-weight: 600;
   color: var(--muted);
   background: transparent;
   border: 0;
@@ -140,7 +140,9 @@ textarea {
 }
 .view-tabs button {
   display: flex;
+  min-height: var(--tap-target);
   align-items: center;
+  justify-content: center;
   gap: var(--space-1-5);
   padding: var(--space-2) var(--space-2-5);
   font-size: var(--font-xs);
@@ -207,7 +209,7 @@ textarea {
 }
 .journey-number {
   font-size: var(--font-xs);
-  font-weight: 800;
+  font-weight: 600;
   color: var(--primary);
 }
 .journey-summary strong {

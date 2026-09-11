@@ -336,7 +336,6 @@ export function FleetScheduleWorkspace({
     <section className='schedule-workspace fleet-schedule-workspace'>
       <div className='workspace-heading'>
         <div>
-          <span className='eyebrow'>Schedule workspace</span>
           <h2>{title}</h2>
           <p>
             <strong>{numberLabel(filtered.length)}</strong> of {numberLabel(records.length)}{' '}

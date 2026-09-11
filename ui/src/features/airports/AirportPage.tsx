@@ -8,6 +8,7 @@ import { YearSwitcher } from '@/components/ScheduleControls';
 import { Card, EmptyState, ErrorState, Loading, PageHeader } from '@/components/primitives';
 import { discoverYearlyData, loadYearlyData, type YearSelection } from '@/lib/yearlyData';
 import { useCurrentDate } from '@/lib/useCurrentDate';
+import { airportTypeLabel } from '@/lib/format';
 import { useHashView } from '@/lib/useHashView';
 import { AirportFlights } from './AirportFlights';
 import { AirportMap } from './AirportMap';
@@ -106,7 +107,7 @@ function AirportPageForAirport({
         <span>{airport.iataCode}</span>
       </div>
       <PageHeader
-        eyebrow={`${airport.type} · ${airport.countryCode}`}
+        eyebrow={`${airportTypeLabel(airport.type)} · ${airport.countryCode}`}
         title={
           <>
             <span className='airport-title-code'>{airport.iataCode}</span>

@@ -77,9 +77,8 @@ export function FlightSearchPage() {
   return (
     <div className='page flight-search-page'>
       <PageHeader
-        eyebrow='Tools'
         title='Flight search'
-        description='Search the complete published schedule using airlines, time, equipment and route rules.'
+        description='Filter published flights by airline, departure date, route and aircraft.'
       />
       {loading && <Loading label='Loading search filters…' />}
       {queryError && <ErrorState error={queryError} />}
@@ -89,7 +88,6 @@ export function FlightSearchPage() {
             <section>
               <div className='query-section-heading'>
                 <div>
-                  <span className='eyebrow'>Who and when</span>
                   <h2>Airlines and departure window</h2>
                 </div>
                 <CalendarRange size={20} />
@@ -127,7 +125,6 @@ export function FlightSearchPage() {
             <section>
               <div className='query-section-heading'>
                 <div>
-                  <span className='eyebrow'>Network</span>
                   <h2>Airport and route filters</h2>
                 </div>
               </div>
@@ -216,7 +213,6 @@ export function FlightSearchPage() {
             <section>
               <div className='query-section-heading'>
                 <div>
-                  <span className='eyebrow'>Equipment</span>
                   <h2>Aircraft and configurations</h2>
                 </div>
               </div>
@@ -297,7 +293,11 @@ export function FlightSearchPage() {
                 <strong>
                   {filterCount} active filter {filterCount === 1 ? 'group' : 'groups'}
                 </strong>
-                <small>The backend requires at least two groups.</small>
+                <small>
+                  {filterCount < 2
+                    ? 'Choose at least two filter groups to search.'
+                    : 'Ready to search published schedules.'}
+                </small>
               </div>
               <Button type='submit' disabled={filterCount < 2 || search.isPending}>
                 <Search size={16} />

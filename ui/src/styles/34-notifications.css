@@ -32,8 +32,7 @@
   background: color-mix(in srgb, var(--surface) 96%, transparent);
   border: var(--border-width) solid var(--border-strong);
   border-radius: 50%;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
+  box-shadow: none;
   pointer-events: auto;
 }
 .global-status-controls {
@@ -122,13 +121,19 @@
   font-size: var(--font-xs);
 }
 @media (max-width: 1024px) {
+  .global-status-nudge {
+    color: var(--sidebar-text);
+    background: var(--sidebar);
+    border-color: var(--sidebar-border);
+  }
   .global-status {
-    top: calc(var(--mobile-header-height) + var(--space-3));
+    top: var(--space-2);
+    right: var(--space-16);
+    z-index: var(--layer-mobile-header);
   }
 }
 @media (max-width: 640px) {
   .global-status {
-    right: var(--space-3);
-    width: min(420px, calc(100% - var(--space-6)));
+    width: calc(100% - var(--space-20));
   }
 }

@@ -1,10 +1,4 @@
 /* Readable content type scale */
-.fleet-hero p,
-.prose-card p,
-.prose-card ul {
-  font-size: var(--font-body);
-}
-
 .button {
   min-height: var(--control-height-md);
   font-size: var(--font-sm);
@@ -15,7 +9,6 @@
 }
 .eyebrow,
 .stat > span,
-.flight-lookup label,
 .airport-field > span,
 .search-grid label > span:not(.temporal-control),
 .flight-search-panel label,
@@ -34,15 +27,10 @@
 
 .section-heading p,
 .card-heading p,
-.quick-flights,
-.quick-flights button,
-.fleet-preview-card > span,
-.fleet-preview-card p,
 .advanced-toggle,
 .advanced-grid label,
 .journey-number,
 .journey-summary div > span,
-.flight-search-panel form > p,
 .popular-row,
 .timeline-head p,
 .airport-info p,
@@ -108,10 +96,6 @@
   font-size: var(--font-sm);
 }
 
-.flight-lookup p,
-.feature-card p {
-  font-size: var(--font-sm);
-}
 .stat small {
   font-size: var(--font-supporting);
 }
