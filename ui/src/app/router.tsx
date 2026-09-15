@@ -15,6 +15,11 @@ export const router = createBrowserRouter([
     hydrateFallbackElement: <RouteFallback />,
     children: [
       {
+        path: 'live',
+        lazy: () =>
+          import('@/features/live/LivePage').then((module) => ({ Component: module.LivePage })),
+      },
+      {
         index: true,
         lazy: () =>
           import('@/features/home/HomePage').then((module) => ({ Component: module.HomePage })),

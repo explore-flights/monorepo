@@ -15,6 +15,7 @@ import { Link } from 'react-router-dom';
 import type { Airport } from '@/api/types';
 import { usePreferences } from '@/app/preferences';
 import { classNames } from '@/lib/format';
+import { geometryCoordinates, getMapBounds, mapFitPadding, type MapCoordinate } from './mapBounds';
 import { Button, Card } from './primitives';
 import styles from './FlightMap.module.css';
 
@@ -28,7 +29,6 @@ interface AirportMarkerGroup {
   airports: Airport[];
   location: Airport['location'];
 }
-type Coordinate = [number, number];
 type FlightMapStyle = CSSProperties & { '--flight-map-height': string };
 const emptyAirports: Airport[] = [];
 const airportMarkerGroupRadiusKm = 0.5;
@@ -99,8 +99,8 @@ export function FlightMap({
   );
   const bounds = useMemo(
     () =>
-      getBounds([
-        ...airports.map((airport): Coordinate => [airport.location.lng, airport.location.lat]),
+      getMapBounds([
+        ...airports.map((airport): MapCoordinate => [airport.location.lng, airport.location.lat]),
         ...features.flatMap((feature) => geometryCoordinates(feature.geometry.coordinates)),
       ]),
     [airports, features],
@@ -110,7 +110,7 @@ export function FlightMap({
       return;
     }
 
-    mapRef.current?.fitBounds(bounds, { padding: 70, duration: 500 });
+    mapRef.current?.fitBounds(bounds, { padding: mapFitPadding, duration: 500 });
   }, [bounds]);
   if (!canUseMaps) {
     return (
@@ -133,7 +133,7 @@ export function FlightMap({
         key={effectiveTheme}
         initialViewState={
           bounds
-            ? { bounds, fitBoundsOptions: { padding: 70 } }
+            ? { bounds, fitBoundsOptions: { padding: mapFitPadding } }
             : { longitude: 8, latitude: 35, zoom: 1.5 }
         }
         mapStyle={mapStyle}
@@ -321,60 +321,4 @@ function airportDistanceKm(left: Airport, right: Airport) {
 
 function toRadians(value: number) {
   return (value * Math.PI) / 180;
-}
-
-function geometryCoordinates(coordinates: number[][] | number[][][]): Coordinate[] {
-  const lines = isLineCoordinates(coordinates) ? [coordinates] : coordinates;
-  return lines.flatMap((line) => line.map(([lng, lat]): Coordinate => [lng, lat]));
-}
-
-function isLineCoordinates(coordinates: number[][] | number[][][]): coordinates is number[][] {
-  return typeof coordinates[0]?.[0] === 'number';
-}
-
-function getBounds(coordinates: Coordinate[]): [[number, number], [number, number]] | undefined {
-  if (!coordinates.length) {
-    return;
-  }
-  const [minLng, maxLng] = longitudeBounds(coordinates.map(([lng]) => lng));
-  const lats = coordinates.map(([, lat]) => lat);
-  const minLat = Math.min(...lats),
-    maxLat = Math.max(...lats);
-  return [
-    [minLng === maxLng ? minLng - 1 : minLng, minLat === maxLat ? minLat - 1 : minLat],
-    [minLng === maxLng ? maxLng + 1 : maxLng, maxLat === minLat ? maxLat + 1 : maxLat],
-  ];
-}
-
-function longitudeBounds(longitudes: number[]): [number, number] {
-  const sorted = longitudes
-    .map((value) => ((value % 360) + 360) % 360)
-    .sort((left, right) => left - right);
-  if (sorted.length === 1) {
-    return [sorted[0], sorted[0]];
-  }
-  let largestGap = -1,
-    gapIndex = 0;
-  for (let index = 0; index < sorted.length; index++) {
-    const next = index === sorted.length - 1 ? sorted[0] + 360 : sorted[index + 1];
-    const gap = next - sorted[index];
-    if (gap > largestGap) {
-      largestGap = gap;
-      gapIndex = index;
-    }
-  }
-  let min = sorted[(gapIndex + 1) % sorted.length];
-  let max = sorted[gapIndex];
-  if (max < min) {
-    max += 360;
-  }
-  while ((min + max) / 2 > 180) {
-    min -= 360;
-    max -= 360;
-  }
-  while ((min + max) / 2 < -180) {
-    min += 360;
-    max += 360;
-  }
-  return [min, max];
 }

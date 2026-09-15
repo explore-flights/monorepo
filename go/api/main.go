@@ -64,6 +64,7 @@ func main() {
 
 		searchHandler := web.NewSearchHandler(fr)
 		group.GET("/search", searchHandler.Search)
+		group.GET("/live", web.NewLiveHandler(fr).Flights)
 
 		group.GET("/schedule/search", sshHandler.Query)
 

@@ -282,3 +282,19 @@ export interface NotificationsResponse {
   notifications: ReadonlyArray<Notification>;
   dataVersion: string | undefined;
 }
+
+export interface LiveFlight {
+  id: string;
+  flightNumber: FlightNumber;
+  departureAirportId: AirportId;
+  arrivalAirportId: AirportId;
+  departureTime: string;
+  arrivalTime: string;
+}
+
+export interface LiveFlightsResponse {
+  timestamp: string;
+  nextDepartureTime: string | null;
+  flights: ReadonlyArray<LiveFlight>;
+  airports: Readonly<Record<AirportId, Airport>>;
+}

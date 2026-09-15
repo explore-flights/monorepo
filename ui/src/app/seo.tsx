@@ -12,6 +12,11 @@ type SeoConfig = {
 };
 
 const staticRoutes: Readonly<Record<string, Omit<SeoConfig, 'robots' | 'canonicalPath'>>> = {
+  '/live': {
+    title: 'Live flights • explore.flights',
+    description:
+      'See flights estimated to be in the air from published schedules, moving along great-circle routes.',
+  },
   '/': {
     title: 'explore.flights',
     description: defaultDescription,

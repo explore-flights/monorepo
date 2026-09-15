@@ -74,6 +74,11 @@ function readCookie(name: string) {
 }
 
 export const api = {
+  liveFlights: (timestamp: string, signal: AbortSignal) =>
+    request<import('./types').LiveFlightsResponse>(
+      `/api/live?${new URLSearchParams({ timestamp })}`,
+      { signal },
+    ),
   airlines: () => request<ReadonlyArray<import('./types').Airline>>('/data/airlines.json?v=2'),
   airports: () => request<ReadonlyArray<Airport>>('/data/airports.json?v=2'),
   aircraft: () => request<ReadonlyArray<Aircraft>>('/data/aircraft.json?v=4'),
