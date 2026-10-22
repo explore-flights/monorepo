@@ -99,7 +99,7 @@ def _init_connection(conn: duckdb.DuckDBPyConnection, ddb_home_dir: Path, tmp_db
         f"SET extension_directory = '{ddb_home_dir.joinpath("extensions")}'",
         f"SET temp_directory = '{ddb_home_dir.joinpath("tmp")}'",
         "SET allow_persistent_secrets = false",
-        "SET memory_limit = '22GB'",
+        "SET memory_limit = '28GB'",
         "SET partitioned_write_max_open_files = 1",
         "SET partitioned_write_flush_threshold = 10000",
         "SET TimeZone = 'UTC'",
