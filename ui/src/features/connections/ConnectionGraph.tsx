@@ -9,10 +9,13 @@ import { zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom
 import { Maximize2, Minus, Plus } from 'lucide-react';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ConnectionBranch, ConnectionsData } from '@/api/types';
-import { airportCode, duration, flightName, timeLabel } from '@/lib/format';
+import { aircraftConfigurationNames } from '@/lib/aircraftConfigurations';
+import { daysBetween } from '@/lib/date';
+import { dayDeltaLabel } from '@/lib/time';
+import { aircraftName, airportCode, duration, flightName, timeLabel } from '@/lib/format';
 
-const nodeWidth = 190;
-const nodeHeight = 104;
+const nodeWidth = 240;
+const nodeHeight = 148;
 const graphPadding = 32;
 const horizontalNodeSeparation = 180;
 const minZoom = 0.2;
@@ -49,10 +52,14 @@ interface FlightGraphNode {
   flightY: number;
   routeY: number;
   timeY: number;
+  aircraftY: number;
+  configurationY: number;
   flight: string;
   route: string;
   departure: string;
   arrival: string;
+  aircraft: string;
+  configuration: string;
 }
 
 type FlightGraphNodePresentation = 'default' | 'connected' | 'active' | 'muted';
@@ -481,6 +488,28 @@ function InteractiveConnectionGraph({ layout }: { layout: FlightGraphLayout }) {
               fontSize: 12,
             }),
           ),
+          decorative(
+            text(graphView.nodes, {
+              x: 'x',
+              y: 'aircraftY',
+              text: 'aircraft',
+              key: 'id',
+              anchor: 'middle',
+              fill: nodeRouteTextFill,
+              fontSize: 12,
+            }),
+          ),
+          decorative(
+            text(graphView.nodes, {
+              x: 'x',
+              y: 'configurationY',
+              text: 'configuration',
+              key: 'id',
+              anchor: 'middle',
+              fill: 'var(--muted)',
+              fontSize: 12,
+            }),
+          ),
         ],
         scales: {
           x: { scale: scaleLinear().domain([0, layout.width]) },
@@ -533,9 +562,10 @@ function InteractiveConnectionGraph({ layout }: { layout: FlightGraphLayout }) {
       >
         {layout.nodes.map((node) => {
           const selected = node.id === activeNodeId;
+          const description = `${node.flight} ${node.route}, ${node.departure} to ${node.arrival}, ${node.aircraft}, ${node.configuration}`;
           const actionLabel = selected
-            ? `Show all connections; ${node.flight} ${node.route} is selected`
-            : `Show connections for ${node.flight} ${node.route}`;
+            ? `Show all connections; ${description} is selected`
+            : `Show connections for ${description}`;
 
           return (
             <button
@@ -545,7 +575,7 @@ function InteractiveConnectionGraph({ layout }: { layout: FlightGraphLayout }) {
               style={{
                 left: node.left,
                 top: node.top,
-                width: nodeWidth,
+                width: node.right - node.left,
                 height: nodeHeight,
               }}
               title={actionLabel}
@@ -729,7 +759,10 @@ function nodeRouteTextFill(node: PresentedFlightGraphNode) {
 function buildGraph(data: ConnectionsData): FlightGraphLayout {
   const nodeData = new Map<
     string,
-    Pick<FlightGraphNode, 'id' | 'flight' | 'route' | 'departure' | 'arrival'>
+    Pick<
+      FlightGraphNode,
+      'id' | 'flight' | 'route' | 'departure' | 'arrival' | 'aircraft' | 'configuration'
+    >
   >();
   const edgePairs = new Map<string, { id: string; source: string; target: string }>();
 
@@ -747,7 +780,23 @@ function buildGraph(data: ConnectionsData): FlightGraphLayout {
         flight: flightName(flight.flightNumber, data.airlines),
         route: `${from}  →  ${to}`,
         departure: timeLabel(flight.departureTime),
-        arrival: timeLabel(flight.arrivalTime),
+        arrival: [
+          timeLabel(flight.arrivalTime),
+          dayDeltaLabel(
+            daysBetween(flight.departureTime.slice(0, 10), flight.arrivalTime.slice(0, 10)),
+          ),
+        ]
+          .filter(Boolean)
+          .join(' '),
+        aircraft: aircraftName(flight.aircraftId, data.aircraft),
+        configuration:
+          aircraftConfigurationNames(
+            data.airlines[flight.flightNumber.airlineId]?.iataCode || flight.flightNumber.airlineId,
+            data.aircraft[flight.aircraftId]?.iataCode || flight.aircraftId,
+            flight.aircraftConfiguration,
+          )?.name ||
+          flight.aircraftConfiguration ||
+          'No configuration',
       });
     }
 
@@ -770,7 +819,15 @@ function buildGraph(data: ConnectionsData): FlightGraphLayout {
       marginx: graphPadding,
       marginy: graphPadding,
     });
-  nodeData.forEach((_, id) => graph.setNode(id, { width: nodeWidth, height: nodeHeight }));
+  nodeData.forEach((node, id) =>
+    graph.setNode(id, {
+      width: Math.max(
+        nodeWidth,
+        Math.max(node.aircraft.length, node.configuration.length) * 7 + 24,
+      ),
+      height: nodeHeight,
+    }),
+  );
   edgePairs.forEach((edge) => graph.setEdge(edge.source, edge.target));
   dagre.layout(graph);
 
@@ -781,7 +838,7 @@ function buildGraph(data: ConnectionsData): FlightGraphLayout {
     const position = graph.node(node.id);
     const x = position.x;
     const y = position.y;
-    const left = x - nodeWidth / 2;
+    const left = x - position.width / 2;
     const top = y - nodeHeight / 2;
 
     return {
@@ -789,13 +846,15 @@ function buildGraph(data: ConnectionsData): FlightGraphLayout {
       x,
       y,
       left,
-      right: x + nodeWidth / 2,
+      right: x + position.width / 2,
       top,
       bottom: y + nodeHeight / 2,
       headerBottom: top + 30,
       flightY: top + 19,
       routeY: top + 58,
       timeY: top + 84,
+      aircraftY: top + 110,
+      configurationY: top + 132,
     };
   });
   const nodesById = new Map(nodes.map((node) => [node.id, node]));

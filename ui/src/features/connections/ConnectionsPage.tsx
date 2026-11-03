@@ -39,6 +39,8 @@ import {
   timeLabel,
 } from '@/lib/format';
 import { ConnectionGraph } from './ConnectionGraph';
+import { ConnectionDateNavigation } from './ConnectionDateNavigation';
+import { connectionDepartureDates, connectionsOnDepartureDate } from './connectionDates';
 import { connectionSearchDefaults } from './defaults';
 import { createDepartureWindow, updateDepartureWindow } from './departureWindow';
 
@@ -127,10 +129,14 @@ function ConnectionsWorkspace({
     ...(initialRequest?.excludeAircraft ?? []),
   ]);
   const [view, setView] = useState<View>('journeys');
+  const [departureDate, setDepartureDate] = useState('');
   const [results, setResults] = useState<ConnectionsData | undefined>(() => sharedResponse?.data);
   const searchMutation = useMutation({
     mutationFn: api.connections,
-    onSuccess: (response) => setResults(response.data),
+    onSuccess: (response) => {
+      setResults(response.data);
+      setDepartureDate('');
+    },
   });
   const shareMutation = useMutation({ mutationFn: api.shareConnections });
   const airportOptions = useMemo<SelectOption[]>(
@@ -168,7 +174,21 @@ function ConnectionsWorkspace({
       searchMutation.mutate(buildRequest());
     }
   }
-  const journeys = useMemo(() => (results ? flattenJourneys(results.connections) : []), [results]);
+  const departureDates = useMemo(
+    () => (results ? connectionDepartureDates(results) : []),
+    [results],
+  );
+  const selectedDate = departureDates.includes(departureDate)
+    ? departureDate
+    : (departureDates[0] ?? '');
+  const datedResults = useMemo(
+    () => (results ? connectionsOnDepartureDate(results, selectedDate) : undefined),
+    [results, selectedDate],
+  );
+  const journeys = useMemo(
+    () => (datedResults ? flattenJourneys(datedResults.connections) : []),
+    [datedResults],
+  );
 
   return (
     <div className='page connections-page'>
@@ -339,7 +359,7 @@ function ConnectionsWorkspace({
         </form>
       </Card>
       {queryError && <ErrorState error={queryError} />}
-      {results && (
+      {datedResults && (
         <section className='results-section'>
           <div className='results-toolbar'>
             <div>
@@ -349,6 +369,13 @@ function ConnectionsWorkspace({
               </h2>
             </div>
             <div className='toolbar-actions'>
+              {departureDates.length > 0 && (
+                <ConnectionDateNavigation
+                  dates={departureDates}
+                  value={selectedDate}
+                  onChange={setDepartureDate}
+                />
+              )}
               <div className='view-tabs'>
                 {(
                   [
@@ -389,7 +416,7 @@ function ConnectionsWorkspace({
                   <JourneyCard
                     key={journey.map((branch) => branch.flightId).join(':')}
                     journey={journey}
-                    data={results}
+                    data={datedResults}
                     index={index}
                   />
                 ))}
@@ -400,14 +427,14 @@ function ConnectionsWorkspace({
                 description='Try a broader time range, another airport, or allow one more flight.'
               />
             ))}
-          {view === 'graph' && <ConnectionGraph data={results} />}
+          {view === 'graph' && <ConnectionGraph data={datedResults} />}
           {view === 'map' && (
             <FlightMap
-              routes={Object.values(results.flights)
+              routes={Object.values(datedResults.flights)
                 .map((flight) => ({
-                  from: results.airports[flight.departureAirportId],
-                  to: results.airports[flight.arrivalAirportId],
-                  label: flightName(flight.flightNumber, results.airlines),
+                  from: datedResults.airports[flight.departureAirportId],
+                  to: datedResults.airports[flight.arrivalAirportId],
+                  label: flightName(flight.flightNumber, datedResults.airlines),
                 }))
                 .filter((route) => route.from && route.to)}
             />
