@@ -40,11 +40,9 @@ import {
 } from '@/lib/format';
 import { ConnectionGraph } from './ConnectionGraph';
 import { connectionSearchDefaults } from './defaults';
+import { createDepartureWindow, updateDepartureWindow } from './departureWindow';
 
 type View = 'journeys' | 'graph' | 'map';
-const today = new Date();
-const initialStart = utcDayBoundary(today, false);
-const initialEnd = utcDayBoundary(today, true);
 
 export function ConnectionsPage() {
   const [searchParams] = useSearchParams();
@@ -86,12 +84,14 @@ function ConnectionsWorkspace({
   const [destinations, setDestinations] = useState<string[]>(() => [
     ...(initialRequest?.destinations ?? []),
   ]);
-  const [start, setStart] = useState(() =>
-    initialRequest ? toUtcInput(initialRequest.minDeparture) : initialStart,
-  );
-  const [end, setEnd] = useState(() =>
-    initialRequest ? toUtcInput(initialRequest.maxDeparture) : initialEnd,
-  );
+  const [departureWindow, setDepartureWindow] = useState(() => {
+    const today = new Date();
+    return createDepartureWindow(
+      initialRequest ? toUtcInput(initialRequest.minDeparture) : utcDayBoundary(today, false),
+      initialRequest ? toUtcInput(initialRequest.maxDeparture) : utcDayBoundary(today, true),
+    );
+  });
+  const { start, end } = departureWindow;
   const [maxFlights, setMaxFlights] = useState(
     initialRequest?.maxFlights ?? connectionSearchDefaults.maxFlights,
   );
@@ -206,7 +206,20 @@ function ConnectionsWorkspace({
               <TemporalInput
                 type='datetime-local'
                 value={start}
-                onChange={(event) => setStart(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setDepartureWindow((current) => ({ ...current, start: value }));
+                }}
+                onBlur={(event) => {
+                  const value = event.currentTarget.value;
+                  setDepartureWindow((current) => updateDepartureWindow(current, 'start', value));
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
+                }}
               />
             </label>
             <label>
@@ -217,7 +230,20 @@ function ConnectionsWorkspace({
               <TemporalInput
                 type='datetime-local'
                 value={end}
-                onChange={(event) => setEnd(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setDepartureWindow((current) => ({ ...current, end: value }));
+                }}
+                onBlur={(event) => {
+                  const value = event.currentTarget.value;
+                  setDepartureWindow((current) => updateDepartureWindow(current, 'end', value));
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
+                }}
               />
             </label>
             <MaximumFlightsField value={maxFlights} onChange={setMaxFlights} />
@@ -229,17 +255,6 @@ function ConnectionsWorkspace({
               {searchMutation.isPending ? 'Searching…' : 'Search connections'}
             </Button>
           </div>
-          <label className='connection-toggle'>
-            <input
-              type='checkbox'
-              checked={countMultiLeg}
-              onChange={(event) => setCountMultiLeg(event.target.checked)}
-            />
-            <span>
-              <strong>Count multi-leg flights separately</strong>
-              <small>Each leg of a multi-leg service counts toward the maximum.</small>
-            </span>
-          </label>
           <button
             type='button'
             className='advanced-toggle'
@@ -253,6 +268,17 @@ function ConnectionsWorkspace({
           </button>
           {advanced && (
             <div className='connection-advanced' id='advanced-connection-rules'>
+              <label className='connection-toggle'>
+                <input
+                  type='checkbox'
+                  checked={countMultiLeg}
+                  onChange={(event) => setCountMultiLeg(event.target.checked)}
+                />
+                <span>
+                  <strong>Count multi-leg flights separately</strong>
+                  <small>Each leg of a multi-leg service counts toward the maximum.</small>
+                </span>
+              </label>
               <div className='advanced-grid'>
                 <Range
                   label='Minimum layover'
@@ -522,6 +548,7 @@ function ShareLinkField({ label, url }: { label: string; url: string }) {
 
 function hasAdvancedFilters(request: ConnectionsSearchRequest | undefined): boolean {
   return Boolean(
+    request?.countMultiLeg ||
     request?.includeAirport ||
     request?.excludeAirport ||
     request?.includeFlightNumber ||
