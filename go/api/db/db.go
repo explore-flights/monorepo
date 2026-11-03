@@ -277,7 +277,9 @@ func connInit(ctx context.Context) func(execer driver.ExecerContext) error {
 	return func(execer driver.ExecerContext) error {
 		bootQueries := []common.Tuple[string, []driver.NamedValue]{
 			{
-				`SET threads TO 8`,
+				// Work around DuckDB 2.0.0's dictionary-cache failure with parallel queries.
+				// https://github.com/duckdb/duckdb/issues/28268
+				`SET threads TO 1`,
 				[]driver.NamedValue{},
 			},
 		}
