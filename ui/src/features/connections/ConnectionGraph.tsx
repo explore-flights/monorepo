@@ -13,8 +13,13 @@ import { aircraftConfigurationNames } from '@/lib/aircraftConfigurations';
 import { daysBetween } from '@/lib/date';
 import { dayDeltaLabel } from '@/lib/time';
 import { aircraftName, airportCode, duration, flightName, timeLabel } from '@/lib/format';
+import {
+  ConnectionGraphCard,
+  type ConnectionGraphCardData,
+  type ConnectionGraphCardPresentation,
+} from './ConnectionGraphCard';
 
-const nodeWidth = 240;
+const nodeWidth = 320;
 const nodeHeight = 148;
 const graphPadding = 32;
 const horizontalNodeSeparation = 180;
@@ -40,7 +45,7 @@ interface GraphViewport {
   camera: GraphCamera;
 }
 
-interface FlightGraphNode {
+interface FlightGraphNode extends ConnectionGraphCardData {
   id: string;
   x: number;
   y: number;
@@ -48,24 +53,11 @@ interface FlightGraphNode {
   right: number;
   top: number;
   bottom: number;
-  headerBottom: number;
-  flightY: number;
-  routeY: number;
-  timeY: number;
-  aircraftY: number;
-  configurationY: number;
-  flight: string;
   route: string;
-  departure: string;
-  arrival: string;
-  aircraft: string;
-  configuration: string;
 }
 
-type FlightGraphNodePresentation = 'default' | 'connected' | 'active' | 'muted';
-
 interface PresentedFlightGraphNode extends FlightGraphNode {
-  presentation: FlightGraphNodePresentation;
+  presentation: ConnectionGraphCardPresentation;
 }
 
 interface FlightGraphEdge {
@@ -363,153 +355,6 @@ function InteractiveConnectionGraph({ layout }: { layout: FlightGraphLayout }) {
               fontWeight: 700,
             }),
           ),
-          decorative(
-            rect(
-              graphView.nodes.filter((node) => node.presentation !== 'muted'),
-              {
-                x1: 'left',
-                x2: 'right',
-                y1: 'top',
-                y2: 'bottom',
-                key: 'id',
-                fill: 'var(--surface)',
-                stroke: 'var(--border-strong)',
-                strokeWidth: 1,
-                radius: 8,
-              },
-            ),
-          ),
-          decorative(
-            rect(
-              graphView.nodes.filter((node) => node.presentation === 'muted'),
-              {
-                x1: 'left',
-                x2: 'right',
-                y1: 'top',
-                y2: 'bottom',
-                key: 'id',
-                fill: 'var(--surface-2)',
-                stroke: 'var(--border)',
-                strokeWidth: 1,
-                radius: 8,
-              },
-            ),
-          ),
-          decorative(
-            rect(
-              graphView.nodes.filter((node) => node.presentation !== 'muted'),
-              {
-                x1: 'left',
-                x2: 'right',
-                y1: 'top',
-                y2: 'headerBottom',
-                key: 'id',
-                fill: 'var(--primary-soft)',
-                radius: 8,
-              },
-            ),
-          ),
-          decorative(
-            rect(
-              graphView.nodes.filter((node) => node.presentation === 'muted'),
-              {
-                x1: 'left',
-                x2: 'right',
-                y1: 'top',
-                y2: 'headerBottom',
-                key: 'id',
-                fill: 'var(--surface-3)',
-                radius: 8,
-              },
-            ),
-          ),
-          decorative(
-            rect(
-              graphView.nodes.filter((node) => node.presentation === 'active'),
-              {
-                x1: 'left',
-                x2: 'right',
-                y1: 'top',
-                y2: 'bottom',
-                key: 'id',
-                fill: 'transparent',
-                stroke: 'var(--primary)',
-                strokeWidth: 3,
-                radius: 8,
-              },
-            ),
-          ),
-          decorative(
-            text(graphView.nodes, {
-              x: 'left',
-              y: 'flightY',
-              text: 'flight',
-              key: 'id',
-              dx: 10,
-              anchor: 'start',
-              fill: nodeFlightTextFill,
-              fontSize: 12,
-              fontWeight: 750,
-            }),
-          ),
-          decorative(
-            text(graphView.nodes, {
-              x: 'x',
-              y: 'routeY',
-              text: 'route',
-              key: 'id',
-              anchor: 'middle',
-              fill: nodeRouteTextFill,
-              fontSize: 16,
-              fontWeight: 750,
-            }),
-          ),
-          decorative(
-            text(graphView.nodes, {
-              x: 'left',
-              y: 'timeY',
-              text: 'departure',
-              key: 'id',
-              dx: 12,
-              anchor: 'start',
-              fill: 'var(--muted)',
-              fontSize: 12,
-            }),
-          ),
-          decorative(
-            text(graphView.nodes, {
-              x: 'right',
-              y: 'timeY',
-              text: 'arrival',
-              key: 'id',
-              dx: -12,
-              anchor: 'end',
-              fill: 'var(--muted)',
-              fontSize: 12,
-            }),
-          ),
-          decorative(
-            text(graphView.nodes, {
-              x: 'x',
-              y: 'aircraftY',
-              text: 'aircraft',
-              key: 'id',
-              anchor: 'middle',
-              fill: nodeRouteTextFill,
-              fontSize: 12,
-            }),
-          ),
-          decorative(
-            text(graphView.nodes, {
-              x: 'x',
-              y: 'configurationY',
-              text: 'configuration',
-              key: 'id',
-              anchor: 'middle',
-              fill: 'var(--muted)',
-              fontSize: 12,
-            }),
-          ),
         ],
         scales: {
           x: { scale: scaleLinear().domain([0, layout.width]) },
@@ -560,30 +405,38 @@ function InteractiveConnectionGraph({ layout }: { layout: FlightGraphLayout }) {
           transform: chartTransform,
         }}
       >
-        {layout.nodes.map((node) => {
+        {graphView.nodes.map((node) => {
           const selected = node.id === activeNodeId;
-          const description = `${node.flight} ${node.route}, ${node.departure} to ${node.arrival}, ${node.aircraft}, ${node.configuration}`;
+          const arrivalDescription = [node.arrival, dayDeltaLabel(node.arrivalDayDelta)]
+            .filter(Boolean)
+            .join(' ');
+          const description = `${node.flight} ${node.route}, ${node.departure} to ${arrivalDescription}, ${node.duration}, ${node.aircraft}, ${node.configuration}`;
           const actionLabel = selected
             ? `Show all connections; ${description} is selected`
             : `Show connections for ${description}`;
 
           return (
-            <button
+            <div
               key={node.id}
-              type='button'
-              className='connection-graph-node-action'
+              className='connection-graph-node'
               style={{
                 left: node.left,
                 top: node.top,
                 width: node.right - node.left,
                 height: nodeHeight,
               }}
-              title={actionLabel}
-              aria-label={actionLabel}
-              aria-pressed={selected}
-              onClick={() => toggleNode(node.id)}
-              onKeyDown={(event) => handleNodeKeyDown(event, node.id)}
-            />
+            >
+              <ConnectionGraphCard data={node} presentation={node.presentation} />
+              <button
+                type='button'
+                className='connection-graph-node-action'
+                title={actionLabel}
+                aria-label={actionLabel}
+                aria-pressed={selected}
+                onClick={() => toggleNode(node.id)}
+                onKeyDown={(event) => handleNodeKeyDown(event, node.id)}
+              />
+            </div>
           );
         })}
       </div>
@@ -740,7 +593,7 @@ function nodePresentation(
   nodeId: string,
   activeNodeId: string,
   connectedNodeIds: ReadonlySet<string>,
-): FlightGraphNodePresentation {
+): ConnectionGraphCardPresentation {
   if (nodeId === activeNodeId) {
     return 'active';
   }
@@ -748,22 +601,8 @@ function nodePresentation(
   return connectedNodeIds.has(nodeId) ? 'connected' : 'muted';
 }
 
-function nodeFlightTextFill(node: PresentedFlightGraphNode) {
-  return node.presentation === 'muted' ? 'var(--muted)' : 'var(--primary)';
-}
-
-function nodeRouteTextFill(node: PresentedFlightGraphNode) {
-  return node.presentation === 'muted' ? 'var(--muted)' : 'var(--text)';
-}
-
 function buildGraph(data: ConnectionsData): FlightGraphLayout {
-  const nodeData = new Map<
-    string,
-    Pick<
-      FlightGraphNode,
-      'id' | 'flight' | 'route' | 'departure' | 'arrival' | 'aircraft' | 'configuration'
-    >
-  >();
+  const nodeData = new Map<string, ConnectionGraphCardData & { id: string; route: string }>();
   const edgePairs = new Map<string, { id: string; source: string; target: string }>();
 
   function visit(branch: ConnectionBranch, parent: string | undefined) {
@@ -780,14 +619,16 @@ function buildGraph(data: ConnectionsData): FlightGraphLayout {
         flight: flightName(flight.flightNumber, data.airlines),
         route: `${from}  →  ${to}`,
         departure: timeLabel(flight.departureTime),
-        arrival: [
-          timeLabel(flight.arrivalTime),
-          dayDeltaLabel(
-            daysBetween(flight.departureTime.slice(0, 10), flight.arrivalTime.slice(0, 10)),
-          ),
-        ]
-          .filter(Boolean)
-          .join(' '),
+        departureAirport: from,
+        arrivalAirport: to,
+        arrival: timeLabel(flight.arrivalTime),
+        arrivalDayDelta: daysBetween(
+          flight.departureTime.slice(0, 10),
+          flight.arrivalTime.slice(0, 10),
+        ),
+        duration: duration(
+          (Date.parse(flight.arrivalTime) - Date.parse(flight.departureTime)) / 1000,
+        ),
         aircraft: aircraftName(flight.aircraftId, data.aircraft),
         configuration:
           aircraftConfigurationNames(
@@ -849,12 +690,6 @@ function buildGraph(data: ConnectionsData): FlightGraphLayout {
       right: x + position.width / 2,
       top,
       bottom: y + nodeHeight / 2,
-      headerBottom: top + 30,
-      flightY: top + 19,
-      routeY: top + 58,
-      timeY: top + 84,
-      aircraftY: top + 110,
-      configurationY: top + 132,
     };
   });
   const nodesById = new Map(nodes.map((node) => [node.id, node]));

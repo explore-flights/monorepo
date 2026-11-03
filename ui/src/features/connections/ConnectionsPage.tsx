@@ -28,7 +28,7 @@ import { Button, Card, EmptyState, ErrorState, Loading, PageHeader } from '@/com
 import { aircraftSelectOptions, airportSelectOptions } from '@/components/selectOptions';
 import { TagInput } from '@/components/TagInput';
 import { TemporalInput } from '@/components/TemporalInput';
-import { utcDateTime, utcDayBoundary } from '@/lib/date';
+import { daysBetween, utcDateTime, utcDayBoundary } from '@/lib/date';
 import {
   aircraftName,
   airportCode,
@@ -648,6 +648,10 @@ function JourneyCard({
               )}
               arrivalAirport={airportCode(flight.arrivalAirportId, data.airports)}
               arrivalTime={timeLabel(flight.arrivalTime)}
+              arrivalDayDelta={daysBetween(
+                flight.departureTime.slice(0, 10),
+                flight.arrivalTime.slice(0, 10),
+              )}
               operation={{
                 primary: aircraftName(flight.aircraftId, data.aircraft),
                 secondary: flight.aircraftConfiguration || 'No configuration',

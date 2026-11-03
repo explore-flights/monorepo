@@ -916,16 +916,8 @@ function VariantSnapshot({
         'arrivalAirport',
         airportCode(variant.arrivalAirportId, data.airports),
       )}
-      arrivalTime={
-        variableProperties?.has('arrivalSchedule') ? (
-          'Varies'
-        ) : (
-          <>
-            {arrival.time}
-            <sup>{dayDeltaLabel(arrival.dayDelta)}</sup>
-          </>
-        )
-      }
+      arrivalTime={variablePropertyValue(variableProperties, 'arrivalSchedule', arrival.time)}
+      arrivalDayDelta={variableProperties?.has('arrivalSchedule') ? undefined : arrival.dayDelta}
       operation={
         showEquipment
           ? {

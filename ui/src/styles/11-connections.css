@@ -298,8 +298,14 @@ textarea {
   transform-origin: 0 0;
   will-change: transform;
 }
+.connection-graph-node {
+  position: absolute;
+}
 .connection-graph-node-action {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   padding: 0;
   pointer-events: auto;
   touch-action: manipulation;

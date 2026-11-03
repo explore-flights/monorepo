@@ -1,0 +1,44 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--surface);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.heading {
+  display: block;
+  padding: var(--space-2) var(--space-2-5);
+  color: var(--primary);
+  font-size: var(--font-xs);
+  background: var(--primary-soft);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  padding: var(--space-3);
+}
+
+.card[data-presentation='active'] {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 var(--space-0-5) var(--primary);
+}
+
+.card[data-presentation='muted'] {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.card[data-presentation='muted'] .heading {
+  color: var(--muted);
+  background: var(--surface-3);
+}
+
+.card .mutedValue {
+  color: var(--muted);
+}

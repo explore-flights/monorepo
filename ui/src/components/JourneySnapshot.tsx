@@ -1,6 +1,7 @@
 import { ArrowRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { classNames } from '@/lib/format';
+import { dayDeltaLabel } from '@/lib/time';
 
 interface JourneyConnection {
   label: ReactNode;
@@ -64,6 +65,7 @@ export function JourneyRouteSnapshot({
   duration,
   arrivalAirport,
   arrivalTime,
+  arrivalDayDelta,
   operation,
   valueClassNames,
   compact = false,
@@ -73,6 +75,7 @@ export function JourneyRouteSnapshot({
   duration: ReactNode;
   arrivalAirport: ReactNode;
   arrivalTime: ReactNode;
+  arrivalDayDelta: number | undefined;
   operation: JourneyRouteOperation | undefined;
   valueClassNames?: JourneyRouteValueClassNames;
   compact?: boolean;
@@ -87,7 +90,12 @@ export function JourneyRouteSnapshot({
           <span className={valueClassNames?.duration}>{duration}</span>
         </span>
         <strong className={valueClassNames?.arrivalAirport}>{arrivalAirport}</strong>
-        <span className={valueClassNames?.arrivalTime}>{arrivalTime}</span>
+        <span className={valueClassNames?.arrivalTime}>
+          {arrivalTime}
+          {arrivalDayDelta !== undefined && arrivalDayDelta !== 0 && (
+            <sup>{dayDeltaLabel(arrivalDayDelta)}</sup>
+          )}
+        </span>
       </div>
       {operation && (
         <div className='snapshot-operation'>
