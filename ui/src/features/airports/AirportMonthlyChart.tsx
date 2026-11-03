@@ -36,17 +36,19 @@ export function AirportMonthlyChart({ summary }: { summary: AirportSummary }) {
           radius: 2,
         }),
       ],
-      x: {
-        scale: () =>
-          scaleBand<string>()
-            .domain(rows.filter((row) => row.movement === 'Departures').map((row) => row.month))
-            .padding(0.16),
-      },
-      y: {
-        scale: scaleLinear,
-        nice: true,
-        grid: true,
-        axis: { ticks: { count: 4, format: compactNumberLabel } },
+      scales: {
+        x: {
+          scale: () =>
+            scaleBand<string>()
+              .domain(rows.filter((row) => row.movement === 'Departures').map((row) => row.month))
+              .padding(0.16),
+        },
+        y: {
+          scale: scaleLinear,
+          nice: true,
+          grid: true,
+          axis: { ticks: { count: 4, format: compactNumberLabel } },
+        },
       },
       color: {
         domain: ['Departures', 'Arrivals'],

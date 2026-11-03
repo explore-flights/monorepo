@@ -482,8 +482,10 @@ function InteractiveConnectionGraph({ layout }: { layout: FlightGraphLayout }) {
             }),
           ),
         ],
-        x: { scale: scaleLinear().domain([0, layout.width]) },
-        y: { scale: scaleLinear().domain([layout.height, 0]) },
+        scales: {
+          x: { scale: scaleLinear().domain([0, layout.width]) },
+          y: { scale: scaleLinear().domain([layout.height, 0]) },
+        },
         guides: false,
         margin: 0,
         keyboard: false,

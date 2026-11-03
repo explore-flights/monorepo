@@ -8,7 +8,6 @@ import MapCanvas, {
   type MapRef,
 } from 'react-map-gl/maplibre';
 import { MapPin } from 'lucide-react';
-import { colorful } from '@versatiles/style';
 import { greatCircle } from '@turf/great-circle';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
@@ -16,7 +15,8 @@ import type { Airport } from '@/api/types';
 import { usePreferences } from '@/app/preferences';
 import { classNames } from '@/lib/format';
 import { geometryCoordinates, getMapBounds, mapFitPadding, type MapCoordinate } from './mapBounds';
-import { Button, Card } from './primitives';
+import { Button, Card, ErrorState, Loading } from './primitives';
+import { useMapStyle } from './useMapStyle';
 import styles from './FlightMap.module.css';
 
 interface RouteLine {
@@ -48,15 +48,7 @@ export function FlightMap({
   const { canUseMaps, saveConsent, consent, effectiveTheme } = usePreferences();
   const [selectedAirportId, setSelectedAirportId] = useState<string>();
   const dark = effectiveTheme === 'dark';
-  const mapStyle = useMemo(
-    () =>
-      colorful({
-        baseUrl: 'https://tiles.versatiles.org',
-        language: 'en',
-        recolor: { invertBrightness: dark },
-      }),
-    [dark],
-  );
+  const mapStyle = useMapStyle();
   const displayedAirports = useMemo(
     () => uniqueAirports([...airports, ...routes.flatMap((route) => [route.from, route.to])]),
     [airports, routes],
@@ -124,6 +116,12 @@ export function FlightMap({
       </Card>
     );
   }
+  if (mapStyle.error) {
+    return <ErrorState error={mapStyle.error} title='Unable to load map' />;
+  }
+  if (!mapStyle.data) {
+    return <Loading label='Loading map…' />;
+  }
   const geojson = { type: 'FeatureCollection' as const, features };
   const mapContainerStyle: FlightMapStyle = { '--flight-map-height': `${height}px` };
   return (
@@ -136,7 +134,7 @@ export function FlightMap({
             ? { bounds, fitBoundsOptions: { padding: mapFitPadding } }
             : { longitude: 8, latitude: 35, zoom: 1.5 }
         }
-        mapStyle={mapStyle}
+        mapStyle={mapStyle.data}
         workerUrl={workerUrl}
       >
         <NavigationControl position='top-right' />

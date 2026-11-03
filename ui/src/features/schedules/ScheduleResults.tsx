@@ -279,15 +279,17 @@ function ScheduleOverview({
           radius: 2,
         }),
       ],
-      x: {
-        scale: () => scaleBand<string>().domain(monthLabels).padding(0.2),
-      },
-      y: {
-        scale: scaleLinear,
-        nice: true,
-        grid: true,
-        axis: {
-          ticks: { count: 4, format: compactNumberLabel },
+      scales: {
+        x: {
+          scale: () => scaleBand<string>().domain(monthLabels).padding(0.2),
+        },
+        y: {
+          scale: scaleLinear,
+          nice: true,
+          grid: true,
+          axis: {
+            ticks: { count: 4, format: compactNumberLabel },
+          },
         },
       },
       color: { domain: colorDomain, range: colorRange },

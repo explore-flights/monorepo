@@ -68,18 +68,23 @@ jobs:
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v7
-      - name: 'Build'
-        uses: explore-flights/libduckdb/.github/actions/build_go_provided@v1.5.5-v1+parquet.json.icu.httpfs.aws
+      - name: 'Setup go'
+        uses: actions/setup-go@v7
         with:
-          file: 'libduckdb_bundle-arm64-linux.a'
-          platform: 'linux/arm64'
-          image_arch: 'aarch64'
-          go_os: 'linux'
-          go_arch: 'arm64'
-          go_version: '1.26.5'
-          go_build_tags: 'lambda'
-          go_build_relative_dir: 'go/api'
-          go_build_output_file: 'go/api/bootstrap'
+          go-version-file: 'go/api/go.mod'
+          cache-dependency-path: |
+            go/api/go.sum
+            go/common/go.sum
+      - name: 'Test'
+        working-directory: 'go/api'
+        run: |
+          go test ./...
+          go test -tags vps ./...
+      - name: 'Build'
+        working-directory: 'go/api'
+        env:
+          CGO_ENABLED: '1'
+        run: 'go build -o bootstrap -tags lambda .'
       - name: 'Store API artifact'
         uses: actions/upload-artifact@v7
         with:

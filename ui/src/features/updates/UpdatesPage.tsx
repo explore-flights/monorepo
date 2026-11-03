@@ -143,26 +143,28 @@ function UpdateChart({ data }: { data: UpdateReportItem[] }) {
           strokeWidth: 2.4,
         }),
       ],
-      x: {
-        scale: () =>
-          scalePoint<string>()
-            .domain(data.map((report) => report.version))
-            .padding(0.1),
-        axis: {
-          ticks: {
-            count: 5,
-            format: (value) => dateLabel(value, { month: 'short', day: 'numeric' }),
+      scales: {
+        x: {
+          scale: () =>
+            scalePoint<string>()
+              .domain(data.map((report) => report.version))
+              .padding(0.1),
+          axis: {
+            ticks: {
+              count: 5,
+              format: (value) => dateLabel(value, { month: 'short', day: 'numeric' }),
+            },
           },
         },
-      },
-      y: {
-        scale: scaleLinear,
-        nice: true,
-        grid: true,
-        axis: {
-          ticks: {
-            count: 5,
-            format: compactNumberLabel,
+        y: {
+          scale: scaleLinear,
+          nice: true,
+          grid: true,
+          axis: {
+            ticks: {
+              count: 5,
+              format: compactNumberLabel,
+            },
           },
         },
       },

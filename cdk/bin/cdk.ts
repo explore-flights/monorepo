@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-import 'source-map-support/register';
+import { setSourceMapsEnabled } from 'node:process';
 import * as cdk from 'aws-cdk-lib';
 import { Route53Stack } from '../lib/stacks/route53-stack';
 import { WebsiteStack } from '../lib/stacks/website-stack';
 import { DataStack } from '../lib/stacks/data-stack';
 import { CronStack } from '../lib/stacks/cron-stack';
 import { TelegramStack } from '../lib/stacks/telegram-stack';
+
+setSourceMapsEnabled(true);
 
 const app = new cdk.App();
 

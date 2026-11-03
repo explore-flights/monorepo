@@ -8,11 +8,11 @@ import MapCanvas, {
   Source,
   type MapRef,
 } from 'react-map-gl/maplibre';
-import { colorful } from '@versatiles/style';
 import { Plane } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePreferences } from '@/app/preferences';
+import { useMapStyle } from '@/components/useMapStyle';
 import { geometryCoordinates, getMapBounds, mapFitPadding } from '@/components/mapBounds';
 import { Button, Card, ErrorState, Loading, PageHeader } from '@/components/primitives';
 import { dateTimeLabel } from '@/lib/format';
@@ -29,15 +29,7 @@ export function LivePage() {
   const [selectedId, setSelectedId] = useState<string>();
   const { canUseMaps, saveConsent, consent, effectiveTheme } = usePreferences();
   const dark = effectiveTheme === 'dark';
-  const mapStyle = useMemo(
-    () =>
-      colorful({
-        baseUrl: 'https://tiles.versatiles.org',
-        language: 'en',
-        recolor: { invertBrightness: dark },
-      }),
-    [dark],
-  );
+  const mapStyle = useMapStyle();
   const flights = (query.data?.flights ?? [])
     .filter(
       (flight) => Date.parse(flight.departureTime) <= now && Date.parse(flight.arrivalTime) > now,
@@ -119,6 +111,10 @@ export function LivePage() {
       />
       {query.isPending && <Loading label='Loading flights in the air…' />}
       {query.error && <ErrorState error={query.error} />}
+      {canUseMaps && mapStyle.error && (
+        <ErrorState error={mapStyle.error} title='Unable to load map' />
+      )}
+      {canUseMaps && mapStyle.isPending && <Loading label='Loading map…' />}
       {query.data && !query.error && flights.length === 0 && (
         <p role='status'>No flights are scheduled to be in the air at this time.</p>
       )}
@@ -131,95 +127,99 @@ export function LivePage() {
         </Card>
       ) : (
         <div className={styles.map} data-map-theme={effectiveTheme}>
-          <MapCanvas
-            ref={mapRef}
-            key={effectiveTheme}
-            initialViewState={{ longitude: 8, latitude: 35, zoom: 1.5 }}
-            mapStyle={mapStyle}
-            workerUrl={workerUrl}
-            onLoad={() => setMapBearing(0)}
-            onRotate={(event) => setMapBearing(event.viewState.bearing)}
-            onClick={clearSelection}
-          >
-            <NavigationControl position='top-right' />
-            <FullscreenControl position='top-right' />
-            <div className={styles.mapControls} onClick={(event) => event.stopPropagation()}>
-              <PlaybackControls
-                now={now}
-                speed={query.speed}
-                seek={(time) => {
-                  clearSelection();
-                  query.seek(time);
-                }}
-                setSpeed={query.setSpeed}
-                goLive={() => {
-                  clearSelection();
-                  query.goLive();
-                }}
-                flightCount={flights.length}
-              />
-            </div>
-            <Source id='live-route' type='geojson' data={route}>
-              <Layer
-                id='live-flown'
-                type='line'
-                filter={['==', ['get', 'flown'], true]}
-                paint={{ 'line-color': dark ? '#a8c5ff' : '#1457e6', 'line-width': 3 }}
-              />
-              <Layer
-                id='live-remaining'
-                type='line'
-                filter={['==', ['get', 'flown'], false]}
-                layout={{ 'line-cap': 'round' }}
-                paint={{
-                  'line-color': dark ? '#a8c5ff' : '#1457e6',
-                  'line-width': 3,
-                  'line-dasharray': [0.2, 2],
-                }}
-              />
-            </Source>
-            {(selected ? [selected] : flights).map((flight) => (
-              <Marker
-                key={flight.id}
-                longitude={flight.position[0]}
-                latitude={flight.position[1]}
-                anchor='left'
-                offset={[-14, 0]}
-                style={{ zIndex: selectedId === flight.id ? 1 : 0 }}
-              >
-                <button
-                  type='button'
-                  className={styles.aircraft}
-                  aria-pressed={selectedId === flight.id}
-                  aria-label={`${flight.label}, ${flight.departureAirport.iataCode} to ${flight.arrivalAirport.iataCode}. ${selectedId === flight.id ? 'Hide' : 'Show'} route`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (selectedId === flight.id) {
-                      clearSelection();
-                      return;
-                    }
-
-                    setSelectedId(flight.id);
-                    fitCoordinates(
-                      geometryCoordinates(routeGeometry(flight.from, flight.to, 0, 1).coordinates),
-                    );
+          {mapStyle.data && (
+            <MapCanvas
+              ref={mapRef}
+              key={effectiveTheme}
+              initialViewState={{ longitude: 8, latitude: 35, zoom: 1.5 }}
+              mapStyle={mapStyle.data}
+              workerUrl={workerUrl}
+              onLoad={() => setMapBearing(0)}
+              onRotate={(event) => setMapBearing(event.viewState.bearing)}
+              onClick={clearSelection}
+            >
+              <NavigationControl position='top-right' />
+              <FullscreenControl position='top-right' />
+              <div className={styles.mapControls} onClick={(event) => event.stopPropagation()}>
+                <PlaybackControls
+                  now={now}
+                  speed={query.speed}
+                  seek={(time) => {
+                    clearSelection();
+                    query.seek(time);
                   }}
+                  setSpeed={query.setSpeed}
+                  goLive={() => {
+                    clearSelection();
+                    query.goLive();
+                  }}
+                  flightCount={flights.length}
+                />
+              </div>
+              <Source id='live-route' type='geojson' data={route}>
+                <Layer
+                  id='live-flown'
+                  type='line'
+                  filter={['==', ['get', 'flown'], true]}
+                  paint={{ 'line-color': dark ? '#a8c5ff' : '#1457e6', 'line-width': 3 }}
+                />
+                <Layer
+                  id='live-remaining'
+                  type='line'
+                  filter={['==', ['get', 'flown'], false]}
+                  layout={{ 'line-cap': 'round' }}
+                  paint={{
+                    'line-color': dark ? '#a8c5ff' : '#1457e6',
+                    'line-width': 3,
+                    'line-dasharray': [0.2, 2],
+                  }}
+                />
+              </Source>
+              {(selected ? [selected] : flights).map((flight) => (
+                <Marker
+                  key={flight.id}
+                  longitude={flight.position[0]}
+                  latitude={flight.position[1]}
+                  anchor='left'
+                  offset={[-14, 0]}
+                  style={{ zIndex: selectedId === flight.id ? 1 : 0 }}
                 >
-                  <Plane
-                    size={18}
-                    fill='currentColor'
-                    style={{ transform: `rotate(${flight.heading - mapBearing - 45}deg)` }}
-                  />
-                  <span>
-                    <strong>{flight.label}</strong>
+                  <button
+                    type='button'
+                    className={styles.aircraft}
+                    aria-pressed={selectedId === flight.id}
+                    aria-label={`${flight.label}, ${flight.departureAirport.iataCode} to ${flight.arrivalAirport.iataCode}. ${selectedId === flight.id ? 'Hide' : 'Show'} route`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (selectedId === flight.id) {
+                        clearSelection();
+                        return;
+                      }
+
+                      setSelectedId(flight.id);
+                      fitCoordinates(
+                        geometryCoordinates(
+                          routeGeometry(flight.from, flight.to, 0, 1).coordinates,
+                        ),
+                      );
+                    }}
+                  >
+                    <Plane
+                      size={18}
+                      fill='currentColor'
+                      style={{ transform: `rotate(${flight.heading - mapBearing - 45}deg)` }}
+                    />
                     <span>
-                      {flight.departureAirport.iataCode} → {flight.arrivalAirport.iataCode}
+                      <strong>{flight.label}</strong>
+                      <span>
+                        {flight.departureAirport.iataCode} → {flight.arrivalAirport.iataCode}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              </Marker>
-            ))}
-          </MapCanvas>
+                  </button>
+                </Marker>
+              ))}
+            </MapCanvas>
+          )}
         </div>
       )}
       <div className={styles.details} aria-live='polite'>

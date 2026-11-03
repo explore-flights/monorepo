@@ -67,7 +67,7 @@ class UpdateScript:
 
         stmt_result = -1
         if assign_from == "result":
-            result = conn.query(query, params=params)
+            result = conn.execute(query, params)
             stmt_result = int(result.fetchone()[0])
         else:
             conn.execute(query, params)
