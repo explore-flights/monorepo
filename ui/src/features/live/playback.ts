@@ -23,16 +23,14 @@ export function changePlaybackSpeed(
 }
 
 export function simulationInputValue(time: number): string {
-  const date = new Date(time);
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${String(date.getFullYear()).padStart(4, '0')}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  return new Date(time).toISOString().slice(0, 19);
 }
 
 export function parseSimulationInput(value: string): number | undefined {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) {
     return;
   }
-  const time = new Date(value).getTime();
+  const time = new Date(`${value}Z`).getTime();
   const normalized = value.length === 16 ? `${value}:00` : value;
   if (
     !Number.isFinite(time) ||

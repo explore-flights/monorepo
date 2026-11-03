@@ -29,7 +29,7 @@ import {
 import { countBy, isDefined } from '@/lib/collections';
 import { aircraftConfigurationLabel } from '@/lib/aircraftConfigurations';
 import {
-  calendarDateForBasis,
+  utcDate,
   daysBetween,
   matchingScheduleScope as matchingScope,
   rangeForYearScope as rangeForScope,
@@ -108,11 +108,11 @@ export function FleetScheduleWorkspace({
 }) {
   const records = useMemo(() => operatingRecords(data), [data]);
   const currentDate = useCurrentDate();
-  const localToday = calendarDateForBasis(currentDate, 'local');
-  const initialUpcoming = rangeForScope('upcoming', year, localToday);
+  const today = utcDate(currentDate);
+  const initialUpcoming = rangeForScope('upcoming', year, today);
   const hasUpcoming = countInRange(records, initialUpcoming, 'local') > 0;
   const initialScope: ScheduleScope = hasUpcoming ? 'upcoming' : 'historical';
-  const initialRange = rangeForScope(initialScope, year, localToday) ?? {
+  const initialRange = rangeForScope(initialScope, year, today) ?? {
     from: `${year}-01-01`,
     to: `${year}-12-31`,
   };
@@ -127,9 +127,8 @@ export function FleetScheduleWorkspace({
   const [configuration, setConfiguration] = useState('');
   const [weekday, setWeekday] = useState('');
 
-  const basisToday = calendarDateForBasis(currentDate, dateBasis);
-  const upcomingRange = rangeForScope('upcoming', year, basisToday);
-  const historicalRange = rangeForScope('historical', year, basisToday);
+  const upcomingRange = rangeForScope('upcoming', year, today);
+  const historicalRange = rangeForScope('historical', year, today);
   const upcomingCount = countInRange(records, upcomingRange, dateBasis);
   const historicalCount = countInRange(records, historicalRange, dateBasis);
   const activeScope = matchingScope(dateFrom, dateTo, upcomingRange, historicalRange);
@@ -257,7 +256,7 @@ export function FleetScheduleWorkspace({
   ].filter(isDefined);
 
   function applyScope(scope: ScheduleScope, basis = dateBasis) {
-    const range = rangeForScope(scope, year, calendarDateForBasis(currentDate, basis));
+    const range = rangeForScope(scope, year, today);
     if (!range) {
       return;
     }

@@ -10,22 +10,17 @@ export interface DateRange {
 
 const DAY_MS = 86_400_000;
 
-export function localDate(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+// Global controls use UTC; flight-local dates come from the API's dates and offsets.
+export function utcDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
 }
 
-export function localDateTime(date: Date): string {
-  return `${localDate(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+export function utcDateTime(date: Date): string {
+  return date.toISOString().slice(0, 16);
 }
 
-export function localDayBoundary(date: Date, end: boolean): string {
-  return localDateTime(
-    new Date(date.getFullYear(), date.getMonth(), date.getDate(), end ? 23 : 0, end ? 59 : 0),
-  );
-}
-
-export function calendarDateForBasis(date: Date, basis: DateBasis): string {
-  return basis === 'local' ? localDate(date) : date.toISOString().slice(0, 10);
+export function utcDayBoundary(date: Date, end: boolean): string {
+  return `${utcDate(date)}T${end ? '23:59' : '00:00'}`;
 }
 
 export function addDays(value: string, amount: number): string {
@@ -74,8 +69,4 @@ export function matchingScheduleScope(
     return 'historical';
   }
   return undefined;
-}
-
-function pad(value: number): string {
-  return String(value).padStart(2, '0');
 }

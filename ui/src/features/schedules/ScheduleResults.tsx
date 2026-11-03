@@ -31,7 +31,7 @@ import {
 
 type ResultsTab = 'overview' | 'map' | 'schedule';
 const resultsTabs = ['overview', 'map', 'schedule'] as const satisfies readonly ResultsTab[];
-const monthShortFormatter = new Intl.DateTimeFormat(undefined, { month: 'short' });
+const monthShortFormatter = new Intl.DateTimeFormat(undefined, { month: 'short', timeZone: 'UTC' });
 const calendarHighlightColors = Array.from(
   { length: calendarColorCount },
   (_, index) => `var(--calendar-highlight-${index})`,
@@ -231,7 +231,7 @@ function ScheduleOverview({
   }, [data, highlight, rows]);
   const chartDefinition = useMemo(() => {
     const monthLabels = monthly.map((month) =>
-      monthShortFormatter.format(new Date(2020, month.month - 1)),
+      monthShortFormatter.format(new Date(Date.UTC(2020, month.month - 1, 1))),
     );
     const seriesLabels = new Map(highlightValues);
     const chartRows = monthly.flatMap((month) => {
@@ -303,7 +303,7 @@ function ScheduleOverview({
   function openMonth(month: number) {
     onOpenSchedule({
       from: `${year}-${String(month).padStart(2, '0')}-01`,
-      to: `${year}-${String(month).padStart(2, '0')}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`,
+      to: `${year}-${String(month).padStart(2, '0')}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, '0')}`,
     });
   }
 
@@ -493,7 +493,7 @@ function scheduleResultYears(data: QuerySchedulesResponse): number[] {
 }
 
 function preferredResultYear(years: number[]): number {
-  const currentYear = new Date().getFullYear();
+  const currentYear = new Date().getUTCFullYear();
   return years.includes(currentYear) ? currentYear : (years[0] ?? currentYear);
 }
 

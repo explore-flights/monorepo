@@ -58,17 +58,25 @@ export function compactNumberLabel(value: number) {
 }
 
 export function dateLabel(value: string, options?: Intl.DateTimeFormatOptions) {
-  const calendarDate = /^\d{4}-\d{2}-\d{2}$/.test(value);
-  const date = new Date(calendarDate ? `${value}T00:00:00Z` : value);
+  // Preserve the wall date/time carried by API timestamps, including their UTC offset.
+  // Date-only and unzoned values are calendar values, never browser-local instants.
+  const resolvedOptions = options ?? { dateStyle: 'medium' };
+  let input = value;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    input = `${value}T00:00:00Z`;
+  } else if (resolvedOptions.timeZone === undefined) {
+    input = `${value.replace(/(?:Z|[+-]\d{2}:\d{2})$/, '')}Z`;
+  } else if (!/(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    input = `${value}Z`;
+  }
+  const date = new Date(input);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  const resolvedOptions = options ?? { dateStyle: 'medium' };
-  const stableOptions =
-    calendarDate && resolvedOptions.timeZone === undefined
-      ? { ...resolvedOptions, timeZone: 'UTC' }
-      : resolvedOptions;
-  return new Intl.DateTimeFormat(undefined, stableOptions).format(date);
+  return new Intl.DateTimeFormat(undefined, {
+    ...resolvedOptions,
+    timeZone: resolvedOptions.timeZone ?? 'UTC',
+  }).format(date);
 }
 
 export function fullDateLabel(value: string) {

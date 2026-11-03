@@ -105,7 +105,7 @@ export function FlightSearchPage() {
                   />
                 </div>
                 <label>
-                  <span>Depart after</span>
+                  <span>Depart after (UTC)</span>
                   <TemporalInput
                     type='datetime-local'
                     value={start}
@@ -113,7 +113,7 @@ export function FlightSearchPage() {
                   />
                 </label>
                 <label>
-                  <span>Depart before</span>
+                  <span>Depart before (UTC)</span>
                   <TemporalInput
                     type='datetime-local'
                     value={end}
@@ -357,8 +357,8 @@ function buildRequest(value: {
     airlineId: value.airlines.length ? value.airlines : undefined,
     departureAirportId: value.departures.length ? value.departures : undefined,
     arrivalAirportId: value.arrivals.length ? value.arrivals : undefined,
-    minDepartureTime: value.start ? new Date(value.start).toISOString() : undefined,
-    maxDepartureTime: value.end ? new Date(value.end).toISOString() : undefined,
+    minDepartureTime: value.start ? new Date(`${value.start}Z`).toISOString() : undefined,
+    maxDepartureTime: value.end ? new Date(`${value.end}Z`).toISOString() : undefined,
     aircraftId: aircraftId.length ? aircraftId : undefined,
     aircraft: aircraft.length ? aircraft : undefined,
     aircraftConfigurationVersion: configurations.length ? configurations : undefined,

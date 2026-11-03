@@ -1,3 +1,4 @@
+import { dateLabel } from '@/lib/format';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -91,7 +92,7 @@ function MonthCalendar({
 
   return (
     <section className='month-calendar'>
-      <h3>{new Intl.DateTimeFormat(undefined, { month: 'long' }).format(first)}</h3>
+      <h3>{dateLabel(`${year}-${pad(month + 1)}-01`, { month: 'long' })}</h3>
       <div className='calendar-weekdays'>
         {weekdays.map((weekday) => (
           <span key={weekday}>{weekday}</span>

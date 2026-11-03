@@ -29,12 +29,12 @@ test('manual time anchors remain historical after a long background interval', (
   );
 });
 
-test('datetime input round-trips local time with seconds and rejects invalid dates', () => {
+test('datetime input round-trips UTC time with seconds and rejects invalid dates', () => {
   const value = '2026-09-12T14:23:45';
   const time = parseSimulationInput(value);
-  assert.equal(time, new Date(value).getTime());
+  assert.equal(time, Date.parse(`${value}Z`));
   assert.equal(simulationInputValue(time ?? 0), value);
-  assert.equal(parseSimulationInput('2026-09-12T14:23'), new Date('2026-09-12T14:23:00').getTime());
+  assert.equal(parseSimulationInput('2026-09-12T14:23'), Date.parse('2026-09-12T14:23:00Z'));
   for (const invalid of ['', '2026-02-30T14:23:00', '2026-09-12', 'invalid']) {
     assert.equal(parseSimulationInput(invalid), undefined);
   }

@@ -29,7 +29,7 @@ export function FlightPage() {
 }
 
 function FlightPageForNumber({ flightNumber: normalized }: { flightNumber: string }) {
-  const currentYear = useCurrentDate().getFullYear();
+  const currentYear = useCurrentDate().getUTCFullYear();
   const [selection, setSelection] = useState<YearSelection>({ mode: 'discover' });
   const selectedYear = selection.mode === 'single' ? selection.year : currentYear;
   const query = useQuery({

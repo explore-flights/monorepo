@@ -9,6 +9,7 @@ import styles from './LivePage.module.css';
 const simulationTimeFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
   timeStyle: 'medium',
+  timeZone: 'UTC',
 });
 
 export function PlaybackControls({
@@ -28,7 +29,6 @@ export function PlaybackControls({
 }) {
   const [draft, setDraft] = useState<{ value: string; initialValue: string }>();
   const [error, setError] = useState(false);
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   function apply(value: string) {
     const time = parseSimulationInput(value);
     if (time === undefined) {
@@ -45,7 +45,7 @@ export function PlaybackControls({
     <details className={styles.secondaryControls}>
       <summary>
         <time className={styles.collapsedTime} dateTime={new Date(now).toISOString()}>
-          {simulationTimeFormatter.format(now)}
+          {simulationTimeFormatter.format(now)} UTC
         </time>
         <span className={styles.expandedSummary}>Hide controls</span>
         <ChevronDown size={16} aria-hidden='true' />
@@ -53,7 +53,7 @@ export function PlaybackControls({
       <div className={styles.secondaryControlsBody}>
         <div className={styles.timeField}>
           <label htmlFor='simulation-time'>
-            Simulation time <small>({timezone})</small>
+            Simulation time <small>(UTC)</small>
           </label>
           <TemporalInput
             id='simulation-time'
@@ -102,7 +102,7 @@ export function PlaybackControls({
           />
           {error && (
             <span id='simulation-time-help' className={styles.timeHelp}>
-              Enter a valid local date and time.
+              Enter a valid UTC date and time.
             </span>
           )}
         </div>

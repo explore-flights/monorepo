@@ -28,7 +28,7 @@ import { Button, Card, EmptyState, ErrorState, Loading, PageHeader } from '@/com
 import { aircraftSelectOptions, airportSelectOptions } from '@/components/selectOptions';
 import { TagInput } from '@/components/TagInput';
 import { TemporalInput } from '@/components/TemporalInput';
-import { localDateTime, localDayBoundary } from '@/lib/date';
+import { utcDateTime, utcDayBoundary } from '@/lib/date';
 import {
   aircraftName,
   airportCode,
@@ -43,8 +43,8 @@ import { connectionSearchDefaults } from './defaults';
 
 type View = 'journeys' | 'graph' | 'map';
 const today = new Date();
-const initialStart = localDayBoundary(today, false);
-const initialEnd = localDayBoundary(today, true);
+const initialStart = utcDayBoundary(today, false);
+const initialEnd = utcDayBoundary(today, true);
 
 export function ConnectionsPage() {
   const [searchParams] = useSearchParams();
@@ -87,10 +87,10 @@ function ConnectionsWorkspace({
     ...(initialRequest?.destinations ?? []),
   ]);
   const [start, setStart] = useState(() =>
-    initialRequest ? toLocalInput(initialRequest.minDeparture) : initialStart,
+    initialRequest ? toUtcInput(initialRequest.minDeparture) : initialStart,
   );
   const [end, setEnd] = useState(() =>
-    initialRequest ? toLocalInput(initialRequest.maxDeparture) : initialEnd,
+    initialRequest ? toUtcInput(initialRequest.maxDeparture) : initialEnd,
   );
   const [maxFlights, setMaxFlights] = useState(
     initialRequest?.maxFlights ?? connectionSearchDefaults.maxFlights,
@@ -147,8 +147,8 @@ function ConnectionsWorkspace({
     return {
       origins,
       destinations,
-      minDeparture: new Date(start).toISOString(),
-      maxDeparture: new Date(end).toISOString(),
+      minDeparture: new Date(`${start}Z`).toISOString(),
+      maxDeparture: new Date(`${end}Z`).toISOString(),
       maxFlights,
       minLayoverMS: minLayover * 60_000,
       maxLayoverMS: maxLayover * 60_000,
@@ -201,7 +201,7 @@ function ConnectionsWorkspace({
             <label>
               <span>
                 <CalendarDays size={15} />
-                Depart after
+                Depart after (UTC)
               </span>
               <TemporalInput
                 type='datetime-local'
@@ -212,7 +212,7 @@ function ConnectionsWorkspace({
             <label>
               <span>
                 <CalendarDays size={15} />
-                Depart before
+                Depart before (UTC)
               </span>
               <TemporalInput
                 type='datetime-local'
@@ -531,12 +531,12 @@ function hasAdvancedFilters(request: ConnectionsSearchRequest | undefined): bool
   );
 }
 
-function toLocalInput(value: string) {
+function toUtcInput(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value.slice(0, 16);
   }
-  return localDateTime(date);
+  return utcDateTime(date);
 }
 function flattenJourneys(roots: readonly ConnectionBranch[]) {
   const result: ConnectionBranch[][] = [];

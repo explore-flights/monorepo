@@ -82,7 +82,7 @@ export function Lufthansa747Page() {
 
 function FleetPageForId({ fleetId }: { fleetId: string }) {
   const config = fleetConfig[fleetId];
-  const currentYear = useCurrentDate().getFullYear();
+  const currentYear = useCurrentDate().getUTCFullYear();
   const [selection, setSelection] = useState<YearSelection>({ mode: 'discover' });
   const selectedYear = selection.mode === 'single' ? selection.year : currentYear;
   const query = useQuery({

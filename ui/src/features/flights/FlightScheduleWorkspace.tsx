@@ -25,7 +25,7 @@ import { SimpleSelect } from '@/components/SimpleSelect';
 import { TemporalInput } from '@/components/TemporalInput';
 import { countBy, isOneOf } from '@/lib/collections';
 import {
-  calendarDateForBasis,
+  utcDate,
   matchingScheduleScope,
   rangeForYearScope as rangeForPreset,
   type DateBasis,
@@ -86,7 +86,7 @@ export function FlightScheduleWorkspace({
     selectView: selectHashView,
   } = useHashView<ScheduleView>('periods', scheduleViews);
   const currentDate = useCurrentDate();
-  const today = calendarDateForBasis(currentDate, 'local');
+  const today = utcDate(currentDate);
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year}-12-31`;
   const defaultRange = rangeForPreset('upcoming', year, today) ?? { from: yearStart, to: yearEnd };
@@ -98,9 +98,8 @@ export function FlightScheduleWorkspace({
   const [visible, setVisible] = useState(100);
   const [highlightedBlock, setHighlightedBlock] = useState<string>();
   const highlightTimerRef = useRef<number | undefined>(undefined);
-  const presetToday = calendarDateForBasis(currentDate, dateBasis);
-  const upcomingRange = rangeForPreset('upcoming', year, presetToday);
-  const historicalRange = rangeForPreset('historical', year, presetToday);
+  const upcomingRange = rangeForPreset('upcoming', year, today);
+  const historicalRange = rangeForPreset('historical', year, today);
   const allDays = useMemo(() => groupJourneyDays(data.items, data), [data]);
   const departureDateByDay = useMemo(
     () =>
