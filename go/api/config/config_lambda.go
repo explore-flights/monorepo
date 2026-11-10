@@ -7,12 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strconv"
 
 	"github.com/explore-flights/monorepo/go/api/db"
 	lwamw "github.com/its-felix/aws-lwa-go-middleware"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 var (
@@ -28,10 +29,19 @@ func (accessor) EchoPort() int {
 }
 
 func (accessor) Middleware() echo.MiddlewareFunc {
-	return lwamw.EchoMiddleware(
-		lwamw.WithMaskError(),
-		lwamw.WithRemoveHeaders(),
-	)
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c *echo.Context) error {
+			req, cancel, err := lwamw.DecorateRequest(c.Request(), func(headers http.Header, name string) {
+				headers.Del(name)
+			})
+			defer cancel()
+			if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, "")
+			}
+			c.SetRequest(req)
+			return next(c)
+		}
+	}
 }
 
 func (a accessor) Database() (*db.Database, error) {

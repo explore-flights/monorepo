@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type notificationType string
@@ -34,7 +34,7 @@ func NewNotificationHandler(version string) *NotificationHandler {
 	return &NotificationHandler{version: version}
 }
 
-func (nh *NotificationHandler) Notifications(c echo.Context) error {
+func (nh *NotificationHandler) Notifications(c *echo.Context) error {
 	const showNotificationAfter = time.Hour * 36
 
 	now := time.Now()

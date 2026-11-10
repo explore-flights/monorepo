@@ -20,7 +20,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/gorilla/feeds"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -50,7 +50,7 @@ func NewDataHandler(repo dataHandlerRepo) *DataHandler {
 	}
 }
 
-func (dh *DataHandler) Airlines(c echo.Context) error {
+func (dh *DataHandler) Airlines(c *echo.Context) error {
 	airlines, err := dh.repo.Airlines(c.Request().Context())
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ func (dh *DataHandler) Airlines(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
-func (dh *DataHandler) Airports(c echo.Context) error {
+func (dh *DataHandler) Airports(c *echo.Context) error {
 	airports, err := dh.repo.Airports(c.Request().Context())
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func (dh *DataHandler) Airports(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
-func (dh *DataHandler) Aircraft(c echo.Context) error {
+func (dh *DataHandler) Aircraft(c *echo.Context) error {
 	aircraft, err := dh.repo.Aircraft(c.Request().Context())
 	if err != nil {
 		return err
@@ -92,7 +92,7 @@ func (dh *DataHandler) Aircraft(c echo.Context) error {
 	return c.JSON(http.StatusOK, resp)
 }
 
-func (dh *DataHandler) FlightSchedule(c echo.Context) error {
+func (dh *DataHandler) FlightSchedule(c *echo.Context) error {
 	ctx := c.Request().Context()
 	fnRaw := c.Param("fn")
 	versionRaw := c.Param("version")
@@ -229,7 +229,7 @@ func (dh *DataHandler) FlightSchedule(c echo.Context) error {
 	return c.JSON(http.StatusOK, fs)
 }
 
-func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
+func (dh *DataHandler) FlightScheduleVersions(c *echo.Context) error {
 	ctx := c.Request().Context()
 	fnRaw := c.Param("fn")
 	departureAirportRaw := c.Param("departureAirport")
@@ -244,15 +244,15 @@ func (dh *DataHandler) FlightScheduleVersions(c echo.Context) error {
 	return c.JSON(http.StatusOK, fs)
 }
 
-func (dh *DataHandler) FlightScheduleVersionsRSSFeed(c echo.Context) error {
+func (dh *DataHandler) FlightScheduleVersionsRSSFeed(c *echo.Context) error {
 	return dh.flightScheduleVersionsFeed(c, "application/rss+xml", (*feeds.Feed).WriteRss)
 }
 
-func (dh *DataHandler) FlightScheduleVersionsAtomFeed(c echo.Context) error {
+func (dh *DataHandler) FlightScheduleVersionsAtomFeed(c *echo.Context) error {
 	return dh.flightScheduleVersionsFeed(c, "application/atom+xml", (*feeds.Feed).WriteAtom)
 }
 
-func (dh *DataHandler) flightScheduleVersionsFeed(c echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
+func (dh *DataHandler) flightScheduleVersionsFeed(c *echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
 	ctx := c.Request().Context()
 	fnRaw := c.Param("fn")
 	departureAirportRaw := c.Param("departureAirport")
@@ -501,7 +501,7 @@ func (dh *DataHandler) buildFlightScheduleVersionsFeed(fs model.FlightScheduleVe
 	return feed
 }
 
-func (dh *DataHandler) Destinations(c echo.Context) error {
+func (dh *DataHandler) Destinations(c *echo.Context) error {
 	ctx := c.Request().Context()
 	departureAirportRaw := c.Param("departureAirport")
 	departureAirportIataCode, err := dh.parseAirport(ctx, departureAirportRaw)
@@ -540,7 +540,7 @@ func (dh *DataHandler) Destinations(c echo.Context) error {
 	return c.JSON(http.StatusOK, responseAirports)
 }
 
-func (dh *DataHandler) GlobalUpdates(c echo.Context) error {
+func (dh *DataHandler) GlobalUpdates(c *echo.Context) error {
 	reportItems, err := dh.repo.GlobalUpdatesReport(c.Request().Context())
 	if err != nil {
 		return err
@@ -560,15 +560,15 @@ func (dh *DataHandler) GlobalUpdates(c echo.Context) error {
 	return c.JSON(http.StatusOK, result)
 }
 
-func (dh *DataHandler) LegacyFlightScheduleVersionsRSSFeed(c echo.Context) error {
+func (dh *DataHandler) LegacyFlightScheduleVersionsRSSFeed(c *echo.Context) error {
 	return dh.legacyFlightScheduleVersionsFeed(c, "application/rss+xml", (*feeds.Feed).WriteRss)
 }
 
-func (dh *DataHandler) LegacyFlightScheduleVersionsAtomFeed(c echo.Context) error {
+func (dh *DataHandler) LegacyFlightScheduleVersionsAtomFeed(c *echo.Context) error {
 	return dh.legacyFlightScheduleVersionsFeed(c, "application/atom+xml", (*feeds.Feed).WriteAtom)
 }
 
-func (dh *DataHandler) legacyFlightScheduleVersionsFeed(c echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
+func (dh *DataHandler) legacyFlightScheduleVersionsFeed(c *echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
 	buildFeedId := func(fn common.FlightNumber, departureDateUtc xtime.LocalDate, departureAirport string) string {
 		q := make(url.Values)
 		q.Set("departure_airport", departureAirport)

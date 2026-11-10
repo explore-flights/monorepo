@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,7 +15,7 @@ import (
 	"github.com/explore-flights/monorepo/go/api/config"
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func main() {
@@ -39,7 +38,6 @@ func main() {
 	sshHandler := web.NewScheduleSearchHandler(fr, schedulesearch.NewSearch(fr))
 
 	e := echo.New()
-	defer e.Close()
 	e.Use(
 		config.Config.Middleware(),
 		web.ErrorLogAndMaskMiddleware(log.New(os.Stderr, "", log.Ldate|log.Ltime|log.Lmicroseconds|log.Lshortfile)),
@@ -47,7 +45,7 @@ func main() {
 		web.VersionHeaderMiddleware(version),
 		web.NoCacheOnErrorMiddleware(),
 	)
-	e.GET("/healthz", func(c echo.Context) error {
+	e.GET("/healthz", func(c *echo.Context) error {
 		return c.NoContent(http.StatusNoContent)
 	})
 
@@ -124,23 +122,9 @@ func main() {
 }
 
 func run(ctx context.Context, e *echo.Echo) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	go func() {
-		<-ctx.Done()
-		if err := e.Shutdown(context.Background()); err != nil {
-			slog.Error("error shutting down the echo server", slog.String("err", err.Error()))
-		}
-	}()
-
-	if err := e.Start(fmt.Sprintf(":%d", config.Config.EchoPort())); err != nil {
-		if errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
-
+	server := echo.StartConfig{Address: fmt.Sprintf(":%d", config.Config.EchoPort())}
+	if err := server.Start(ctx, e); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
-
 	return nil
 }

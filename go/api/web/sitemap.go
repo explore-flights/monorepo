@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type xmlSitemapUrl struct {
@@ -33,7 +33,7 @@ func NewSitemapHandler(repo sitemapHandlerRepo) *SitemapHandler {
 	}
 }
 
-func (sh *SitemapHandler) SitemapIndex(c echo.Context) error {
+func (sh *SitemapHandler) SitemapIndex(c *echo.Context) error {
 	const ttl = time.Hour * 3
 
 	ctx := c.Request().Context()
@@ -89,7 +89,7 @@ func (sh *SitemapHandler) SitemapIndex(c echo.Context) error {
 	})
 }
 
-func (sh *SitemapHandler) SitemapAirports(c echo.Context) error {
+func (sh *SitemapHandler) SitemapAirports(c *echo.Context) error {
 	const ttl = time.Hour * 3
 	ctx := c.Request().Context()
 	airports, err := sh.repo.Airports(ctx)
@@ -126,7 +126,7 @@ func (sh *SitemapHandler) SitemapAirports(c echo.Context) error {
 	return enc.EncodeToken(xml.EndElement{Name: sitemapStartElement("urlset").Name})
 }
 
-func (sh *SitemapHandler) SitemapAirline(c echo.Context) error {
+func (sh *SitemapHandler) SitemapAirline(c *echo.Context) error {
 	const ttl = time.Hour * 3
 	ctx := c.Request().Context()
 

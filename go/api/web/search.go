@@ -11,7 +11,7 @@ import (
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type searchHandlerRepo interface {
@@ -27,7 +27,7 @@ func NewSearchHandler(repo searchHandlerRepo) *SearchHandler {
 	return &SearchHandler{repo: repo}
 }
 
-func (sh *SearchHandler) Search(c echo.Context) error {
+func (sh *SearchHandler) Search(c *echo.Context) error {
 	ctx := c.Request().Context()
 	resp, err := sh.search(ctx, strings.TrimSpace(c.QueryParam("q")))
 

@@ -17,7 +17,7 @@ import (
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xtime"
 	"github.com/gorilla/feeds"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -39,7 +39,7 @@ func NewScheduleSearchHandler(repo scheduleSearchHandlerRepo, search *schedulese
 	}
 }
 
-func (h *ScheduleSearchHandler) Query(c echo.Context) error {
+func (h *ScheduleSearchHandler) Query(c *echo.Context) error {
 	ctx := c.Request().Context()
 	conditions := make([]schedulesearch.Condition, 0)
 
@@ -127,7 +127,7 @@ func (h *ScheduleSearchHandler) Query(c echo.Context) error {
 	return c.JSON(http.StatusOK, result)
 }
 
-func (h *ScheduleSearchHandler) Allegris(c echo.Context) error {
+func (h *ScheduleSearchHandler) Allegris(c *echo.Context) error {
 	ctx := c.Request().Context()
 	result, err := h.queryAllegris(ctx)
 	if err != nil {
@@ -139,15 +139,15 @@ func (h *ScheduleSearchHandler) Allegris(c echo.Context) error {
 	return c.JSON(http.StatusOK, result)
 }
 
-func (h *ScheduleSearchHandler) AllegrisRSSFeed(c echo.Context) error {
+func (h *ScheduleSearchHandler) AllegrisRSSFeed(c *echo.Context) error {
 	return h.allegrisFeed(c, "application/rss+xml", (*feeds.Feed).WriteRss)
 }
 
-func (h *ScheduleSearchHandler) AllegrisAtomFeed(c echo.Context) error {
+func (h *ScheduleSearchHandler) AllegrisAtomFeed(c *echo.Context) error {
 	return h.allegrisFeed(c, "application/atom+xml", (*feeds.Feed).WriteAtom)
 }
 
-func (h *ScheduleSearchHandler) allegrisFeed(c echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
+func (h *ScheduleSearchHandler) allegrisFeed(c *echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
 	ctx := c.Request().Context()
 	result, err := h.queryAllegris(ctx)
 	if err != nil {
@@ -165,7 +165,7 @@ func (h *ScheduleSearchHandler) allegrisFeed(c echo.Context, contentType string,
 	)
 }
 
-func (h *ScheduleSearchHandler) SwissA350(c echo.Context) error {
+func (h *ScheduleSearchHandler) SwissA350(c *echo.Context) error {
 	ctx := c.Request().Context()
 	result, err := h.querySwissA350(ctx)
 	if err != nil {
@@ -177,15 +177,15 @@ func (h *ScheduleSearchHandler) SwissA350(c echo.Context) error {
 	return c.JSON(http.StatusOK, result)
 }
 
-func (h *ScheduleSearchHandler) SwissA350RSSFeed(c echo.Context) error {
+func (h *ScheduleSearchHandler) SwissA350RSSFeed(c *echo.Context) error {
 	return h.swissA350Feed(c, "application/rss+xml", (*feeds.Feed).WriteRss)
 }
 
-func (h *ScheduleSearchHandler) SwissA350AtomFeed(c echo.Context) error {
+func (h *ScheduleSearchHandler) SwissA350AtomFeed(c *echo.Context) error {
 	return h.swissA350Feed(c, "application/atom+xml", (*feeds.Feed).WriteAtom)
 }
 
-func (h *ScheduleSearchHandler) swissA350Feed(c echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
+func (h *ScheduleSearchHandler) swissA350Feed(c *echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
 	ctx := c.Request().Context()
 	result, err := h.querySwissA350(ctx)
 	if err != nil {
@@ -203,7 +203,7 @@ func (h *ScheduleSearchHandler) swissA350Feed(c echo.Context, contentType string
 	)
 }
 
-func (h *ScheduleSearchHandler) specialAircraftFeed(c echo.Context, result model.FlightSchedulesMany, feedId, feedTitle, shortName, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
+func (h *ScheduleSearchHandler) specialAircraftFeed(c *echo.Context, result model.FlightSchedulesMany, feedId, feedTitle, shortName, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
 	fnName := func(fn model.FlightNumber) string {
 		return fmt.Sprintf("%s%d%s", fn.AirlineIataCode, fn.Number, fn.Suffix)
 	}
@@ -441,7 +441,7 @@ func (h *ScheduleSearchHandler) querySwissA350(ctx context.Context) (model.Fligh
 	)
 }
 
-func (h *ScheduleSearchHandler) LHA380(c echo.Context) error {
+func (h *ScheduleSearchHandler) LHA380(c *echo.Context) error {
 	ctx := c.Request().Context()
 	result, err := h.querySpecialAircraft(ctx, "LH", common.Set[string]{"388": struct{}{}})
 	if err != nil {
@@ -453,7 +453,7 @@ func (h *ScheduleSearchHandler) LHA380(c echo.Context) error {
 	return c.JSON(http.StatusOK, result)
 }
 
-func (h *ScheduleSearchHandler) LHA340(c echo.Context) error {
+func (h *ScheduleSearchHandler) LHA340(c *echo.Context) error {
 	ctx := c.Request().Context()
 	result, err := h.querySpecialAircraft(ctx, "LH", common.Set[string]{"343": struct{}{}, "346": struct{}{}})
 	if err != nil {
@@ -465,7 +465,7 @@ func (h *ScheduleSearchHandler) LHA340(c echo.Context) error {
 	return c.JSON(http.StatusOK, result)
 }
 
-func (h *ScheduleSearchHandler) LH747(c echo.Context) error {
+func (h *ScheduleSearchHandler) LH747(c *echo.Context) error {
 	ctx := c.Request().Context()
 	result, err := h.querySpecialAircraft(ctx, "LH", common.Set[string]{"747": struct{}{}, "744": struct{}{}, "74H": struct{}{}})
 	if err != nil {

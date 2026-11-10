@@ -9,25 +9,25 @@ import (
 	"time"
 
 	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 const xRobotsTagHeader = "X-Robots-Tag"
 
-func noIndex(c echo.Context) {
+func noIndex(c *echo.Context) {
 	c.Response().Header().Set(xRobotsTagHeader, "noindex")
 }
 
-func noIndexFollow(c echo.Context) {
+func noIndexFollow(c *echo.Context) {
 	c.Response().Header().Set(xRobotsTagHeader, "noindex, follow")
 }
 
-func baseUrl(c echo.Context) string {
+func baseUrl(c *echo.Context) string {
 	scheme, host := contextSchemeAndHost(c)
 	return scheme + "://" + host
 }
 
-func contextSchemeAndHost(c echo.Context) (string, string) {
+func contextSchemeAndHost(c *echo.Context) (string, string) {
 	req := c.Request()
 	if forwarded := req.Header.Get("Forwarded"); forwarded != "" {
 		var host string
@@ -55,7 +55,7 @@ func contextSchemeAndHost(c echo.Context) (string, string) {
 	return c.Scheme(), req.Host
 }
 
-func addExpirationHeaders(c echo.Context, now time.Time, expiration time.Duration) {
+func addExpirationHeaders(c *echo.Context, now time.Time, expiration time.Duration) {
 	now = now.UTC()
 	expiresAt := now.Add(expiration)
 
@@ -65,7 +65,7 @@ func addExpirationHeaders(c echo.Context, now time.Time, expiration time.Duratio
 	res.Header().Set(echo.HeaderCacheControl, fmt.Sprintf("public, max-age=%d, must-revalidate", int(expiration.Seconds())))
 }
 
-func noCache(c echo.Context) {
+func noCache(c *echo.Context) {
 	res := c.Response()
 	res.Header().Del("Expires")
 	res.Header().Set(echo.HeaderCacheControl, "private, no-cache, no-store, max-age=0, must-revalidate")

@@ -8,7 +8,7 @@ import (
 
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web/model"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -21,7 +21,7 @@ type LiveHandler struct{ repo liveHandlerRepo }
 
 func NewLiveHandler(repo liveHandlerRepo) *LiveHandler { return &LiveHandler{repo: repo} }
 
-func (h *LiveHandler) Flights(c echo.Context) error {
+func (h *LiveHandler) Flights(c *echo.Context) error {
 	timestamp, err := time.Parse(time.RFC3339Nano, c.QueryParam("timestamp"))
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithMessage("timestamp must be an ISO 8601 timestamp with a timezone"))

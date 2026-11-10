@@ -12,7 +12,7 @@ import (
 	"github.com/explore-flights/monorepo/go/api/db"
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common/xtime"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type gameHandlerRepo interface {
@@ -29,7 +29,7 @@ func NewGameHandler(repo gameHandlerRepo) *GameHandler {
 	}
 }
 
-func (gh *GameHandler) ConnectionGame(c echo.Context) error {
+func (gh *GameHandler) ConnectionGame(c *echo.Context) error {
 	minFlights := 4
 	maxFlights := math.MaxInt32
 

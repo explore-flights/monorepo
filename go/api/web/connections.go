@@ -25,7 +25,7 @@ import (
 	"github.com/goccy/go-graphviz"
 	"github.com/goccy/go-graphviz/cgraph"
 	"github.com/gofrs/uuid/v5"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -50,15 +50,15 @@ func NewConnectionsHandler(repo connectionsHandlerFlightRepo, search *connection
 	}
 }
 
-func (ch *ConnectionsHandler) ConnectionsJSON(c echo.Context) error {
+func (ch *ConnectionsHandler) ConnectionsJSON(c *echo.Context) error {
 	return ch.connections(c, "json")
 }
 
-func (ch *ConnectionsHandler) ConnectionsPNG(c echo.Context) error {
+func (ch *ConnectionsHandler) ConnectionsPNG(c *echo.Context) error {
 	return ch.connections(c, "png")
 }
 
-func (ch *ConnectionsHandler) connections(c echo.Context, export string) error {
+func (ch *ConnectionsHandler) connections(c *echo.Context, export string) error {
 	ctx := c.Request().Context()
 	airports, err := ch.repo.Airports(ctx)
 	if err != nil {
@@ -131,7 +131,7 @@ func (ch *ConnectionsHandler) connections(c echo.Context, export string) error {
 	}
 }
 
-func (ch *ConnectionsHandler) ConnectionsShareCreate(c echo.Context) error {
+func (ch *ConnectionsHandler) ConnectionsShareCreate(c *echo.Context) error {
 	req, err := ch.parseAndValidateRequest(c)
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
@@ -151,7 +151,7 @@ func (ch *ConnectionsHandler) ConnectionsShareCreate(c echo.Context) error {
 	})
 }
 
-func (ch *ConnectionsHandler) ConnectionsShareHTML(c echo.Context) error {
+func (ch *ConnectionsHandler) ConnectionsShareHTML(c *echo.Context) error {
 	req, err := ch.parseAndValidateRequest(c)
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
@@ -205,7 +205,7 @@ func (ch *ConnectionsHandler) shareImageUrl(scheme, host, payload string) string
 	return scheme + "://" + host + "/api/connections/png/" + url.PathEscape(payload) + "/c.png"
 }
 
-func (ch *ConnectionsHandler) parseAndValidateRequest(c echo.Context) (model.ConnectionsSearchRequest, error) {
+func (ch *ConnectionsHandler) parseAndValidateRequest(c *echo.Context) (model.ConnectionsSearchRequest, error) {
 	req, err := ch.parseRequest(c)
 	if err != nil {
 		return model.ConnectionsSearchRequest{}, err
@@ -218,7 +218,7 @@ func (ch *ConnectionsHandler) parseAndValidateRequest(c echo.Context) (model.Con
 	return req, nil
 }
 
-func (ch *ConnectionsHandler) parseRequest(c echo.Context) (model.ConnectionsSearchRequest, error) {
+func (ch *ConnectionsHandler) parseRequest(c *echo.Context) (model.ConnectionsSearchRequest, error) {
 	payloadB64 := c.Param("payload")
 
 	var req model.ConnectionsSearchRequest

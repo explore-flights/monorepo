@@ -2,7 +2,7 @@ package config
 
 import (
 	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type Accessor interface {

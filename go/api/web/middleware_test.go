@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,11 +16,10 @@ import (
 func TestYearMiddleware(t *testing.T) {
 	e := echo.New()
 	c := e.NewContext(httptest.NewRequest("GET", "/data/2026/flight/LH400", nil), nil)
-	c.SetParamNames("year")
-	c.SetParamValues("2026")
+	c.SetPathValues(echo.PathValues{{Name: "year", Value: "2026"}})
 
 	called := false
-	err := YearMiddleware()(func(c echo.Context) error {
+	err := YearMiddleware()(func(c *echo.Context) error {
 		called = true
 		year, ok := requestContextYear(c.Request().Context())
 		assert.True(t, ok)
@@ -36,11 +36,10 @@ func TestYearMiddlewareRejectsInvalidYears(t *testing.T) {
 		t.Run(year, func(t *testing.T) {
 			e := echo.New()
 			c := e.NewContext(httptest.NewRequest("GET", "/data/"+year+"/flight/LH400", nil), nil)
-			c.SetParamNames("year")
-			c.SetParamValues(year)
+			c.SetPathValues(echo.PathValues{{Name: "year", Value: year}})
 
 			called := false
-			err := YearMiddleware()(func(c echo.Context) error {
+			err := YearMiddleware()(func(c *echo.Context) error {
 				called = true
 				return nil
 			})(c)
@@ -61,7 +60,7 @@ func TestRecoveredPanicLogIncludesCauseLocation(t *testing.T) {
 			e := echo.New()
 			c := e.NewContext(httptest.NewRequest("GET", "/test", nil), nil)
 
-			handler := ErrorLogAndMaskMiddleware(logger)(RecoverMiddleware()(func(echo.Context) error {
+			handler := ErrorLogAndMaskMiddleware(logger)(RecoverMiddleware()(func(*echo.Context) error {
 				panic(panicValue)
 			}))
 
@@ -72,6 +71,42 @@ func TestRecoveredPanicLogIncludesCauseLocation(t *testing.T) {
 			assert.Equal(t, 500, httpErr.Code)
 			assert.Contains(t, logOutput.String(), "Error handling request GET /test: panic: test")
 			assert.Contains(t, logOutput.String(), "middleware_test.go:")
+		})
+	}
+}
+
+func TestErrorResponsesAfterEchoMigration(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		method  string
+		path    string
+		status  int
+		message string
+	}{
+		{"missing route", http.MethodGet, "/missing", 404, "Not Found"},
+		{"method not allowed", http.MethodPost, "/test", 405, "Method Not Allowed"},
+		{"custom error", http.MethodGet, "/test", 400, "Invalid input"},
+		{"internal error", http.MethodGet, "/internal", 500, "Internal Server Error"},
+		{"panic", http.MethodGet, "/panic", 500, "Internal Server Error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var logOutput bytes.Buffer
+			e := echo.New()
+			e.Use(ErrorLogAndMaskMiddleware(log.New(&logOutput, "", 0)), RecoverMiddleware(), NoCacheOnErrorMiddleware())
+			e.GET("/test", func(c *echo.Context) error {
+				return NewHTTPError(http.StatusBadRequest, WithMessage("Invalid input"), WithCause(errors.New("private cause")))
+			})
+			e.GET("/internal", func(c *echo.Context) error {
+				return errors.New("private cause")
+			})
+			e.GET("/panic", func(c *echo.Context) error {
+				panic("private cause")
+			})
+			recorder := httptest.NewRecorder()
+			e.ServeHTTP(recorder, httptest.NewRequest(tc.method, tc.path, nil))
+			assert.Equal(t, tc.status, recorder.Code)
+			assert.JSONEq(t, `{"message":"`+tc.message+`"}`, recorder.Body.String())
+			assert.NotContains(t, recorder.Body.String(), "private cause")
 		})
 	}
 }

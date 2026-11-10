@@ -13,7 +13,7 @@ import (
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xtime"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func TestAirportStatisticsHandlerResolvesAirportAndReferences(t *testing.T) {
@@ -41,8 +41,7 @@ func TestAirportStatisticsHandlerResolvesAirportAndReferences(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/data/airport/EDDF/2026/summary", nil)
 	c := e.NewContext(request, recorder)
 	c.SetPath("/data/airport/:airport/:year/summary")
-	c.SetParamNames("airport", "year")
-	c.SetParamValues("EDDF", "2026")
+	c.SetPathValues(echo.PathValues{{Name: "airport", Value: "EDDF"}, {Name: "year", Value: "2026"}})
 
 	handler := YearMiddleware()(NewAirportHandler(repo).Statistics)
 	if err := handler(c); err != nil {
@@ -95,8 +94,7 @@ func TestAirportTimetableHandlerReturnsLocalTimes(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/data/airport/FRA/2026-01-01/departures", nil)
 	c := e.NewContext(request, recorder)
 	c.SetPath("/data/airport/:airport/:date/departures")
-	c.SetParamNames("airport", "date")
-	c.SetParamValues("FRA", "2026-01-01")
+	c.SetPathValues(echo.PathValues{{Name: "airport", Value: "FRA"}, {Name: "date", Value: "2026-01-01"}})
 
 	if err := NewAirportHandler(repo).Departures(c); err != nil {
 		t.Fatalf("Departures returned an error: %v", err)

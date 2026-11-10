@@ -11,14 +11,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type yearRequestContextKey struct{}
 
 func YearMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			yearRaw := c.Param("year")
 			if len(yearRaw) != 4 {
 				return NewHTTPError(http.StatusBadRequest, WithMessage("Invalid year format"))
@@ -52,7 +52,7 @@ func VersionHeaderMiddleware(version string) echo.MiddlewareFunc {
 	})
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			version, err := readVersion()
 			if err == nil {
 				c.Response().Header().Add("Ef-Data-Version", version.Format(time.RFC3339))
@@ -65,7 +65,7 @@ func VersionHeaderMiddleware(version string) echo.MiddlewareFunc {
 
 func NoCacheOnErrorMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			err := next(c)
 			if err != nil {
 				noCache(c)
@@ -78,7 +78,7 @@ func NoCacheOnErrorMiddleware() echo.MiddlewareFunc {
 
 func ErrorLogAndMaskMiddleware(logger *log.Logger) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			err := next(c)
 			if err != nil {
 				req := c.Request()
@@ -98,16 +98,16 @@ func ErrorLogAndMaskMiddleware(logger *log.Logger) echo.MiddlewareFunc {
 					if msg != "" {
 						return echo.NewHTTPError(httpErr.code, msg)
 					} else {
-						return echo.NewHTTPError(httpErr.code)
+						return echo.NewHTTPError(httpErr.code, "")
 					}
 				}
 
-				var echoHttpError *echo.HTTPError
-				if errors.As(err, &echoHttpError) {
-					return echoHttpError
+				var statusError echo.HTTPStatusCoder
+				if errors.As(err, &statusError) {
+					return err
 				}
 
-				return echo.NewHTTPError(http.StatusInternalServerError)
+				return echo.NewHTTPError(http.StatusInternalServerError, "")
 			}
 
 			return err
@@ -117,7 +117,7 @@ func ErrorLogAndMaskMiddleware(logger *log.Logger) echo.MiddlewareFunc {
 
 func RecoverMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) (outErr error) {
+		return func(c *echo.Context) (outErr error) {
 			defer func() {
 				if r := recover(); r != nil {
 					stack := debug.Stack()
@@ -138,7 +138,7 @@ func RecoverMiddleware() echo.MiddlewareFunc {
 
 func DefaultNoCacheMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			noCache(c)
 			return next(c)
 		}
@@ -147,7 +147,7 @@ func DefaultNoCacheMiddleware() echo.MiddlewareFunc {
 
 func NeverCacheMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			noCache(c)
 			err := next(c)
 			noCache(c)

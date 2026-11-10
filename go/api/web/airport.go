@@ -10,7 +10,7 @@ import (
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xtime"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -30,7 +30,7 @@ func NewAirportHandler(repo airportHandlerRepo) *AirportHandler {
 	return &AirportHandler{repo: repo}
 }
 
-func (ah *AirportHandler) Statistics(c echo.Context) error {
+func (ah *AirportHandler) Statistics(c *echo.Context) error {
 	ctx := c.Request().Context()
 	airportIataCode, err := util{}.parseAirport(ctx, c.Param("airport"), ah.repo.Airports)
 	if err != nil {
@@ -99,15 +99,15 @@ func (ah *AirportHandler) Statistics(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-func (ah *AirportHandler) Departures(c echo.Context) error {
+func (ah *AirportHandler) Departures(c *echo.Context) error {
 	return ah.timetable(c, db.AirportMovementDirectionDeparture)
 }
 
-func (ah *AirportHandler) Arrivals(c echo.Context) error {
+func (ah *AirportHandler) Arrivals(c *echo.Context) error {
 	return ah.timetable(c, db.AirportMovementDirectionArrival)
 }
 
-func (ah *AirportHandler) timetable(c echo.Context, direction db.AirportMovementDirection) error {
+func (ah *AirportHandler) timetable(c *echo.Context, direction db.AirportMovementDirection) error {
 	ctx := c.Request().Context()
 	airportIataCode, err := util{}.parseAirport(ctx, c.Param("airport"), ah.repo.Airports)
 	if err != nil {

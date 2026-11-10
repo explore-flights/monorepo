@@ -10,7 +10,7 @@ require (
 	github.com/gorilla/feeds v1.2.0
 	github.com/its-felix/aws-lwa-go-middleware v0.1.1
 	github.com/jxskiss/base62 v1.1.0
-	github.com/labstack/echo/v4 v4.16.3
+	github.com/labstack/echo/v5 v5.4.4
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/sync v0.25.0
 	google.golang.org/protobuf v1.36.12
@@ -30,6 +30,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.20.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.2 // indirect
+	github.com/labstack/echo/v4 v4.16.3 // indirect
 	github.com/labstack/gommon v0.5.0 // indirect
 	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
