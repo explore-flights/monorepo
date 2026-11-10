@@ -5,9 +5,9 @@ description = "ECS task skeleton for DuckDB-based data update jobs."
 readme = "README.md"
 requires-python = ">=3.15"
 dependencies = [
-    "boto3==1.43.123",
+    "boto3==1.44.0",
     "duckdb[all]==2.0.0",
-    "sqlglot==30.29.0",
+    "sqlglot==30.31.0",
 ]
 
 [project.scripts]
