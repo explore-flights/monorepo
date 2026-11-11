@@ -88,6 +88,13 @@ export const router = createBrowserRouter([
           })),
       },
       {
+        path: 'lh351',
+        lazy: () =>
+          import('@/features/fleet/FleetPage').then((module) => ({
+            Component: module.LufthansaA350Page,
+          })),
+      },
+      {
         path: 'lh380',
         lazy: () =>
           import('@/features/fleet/FleetPage').then((module) => ({

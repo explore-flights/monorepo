@@ -203,6 +203,44 @@ func (h *ScheduleSearchHandler) swissA350Feed(c *echo.Context, contentType strin
 	)
 }
 
+func (h *ScheduleSearchHandler) LHA350(c *echo.Context) error {
+	ctx := c.Request().Context()
+	result, err := h.queryLHA350(ctx)
+	if err != nil {
+		return err
+	}
+
+	addExpirationHeaders(c, time.Now(), time.Hour)
+
+	return c.JSON(http.StatusOK, result)
+}
+
+func (h *ScheduleSearchHandler) LHA350RSSFeed(c *echo.Context) error {
+	return h.lhA350Feed(c, "application/rss+xml", (*feeds.Feed).WriteRss)
+}
+
+func (h *ScheduleSearchHandler) LHA350AtomFeed(c *echo.Context) error {
+	return h.lhA350Feed(c, "application/atom+xml", (*feeds.Feed).WriteAtom)
+}
+
+func (h *ScheduleSearchHandler) lhA350Feed(c *echo.Context, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
+	ctx := c.Request().Context()
+	result, err := h.queryLHA350(ctx)
+	if err != nil {
+		return err
+	}
+
+	return h.specialAircraftFeed(
+		c,
+		result,
+		"https://explore.flights/lh351",
+		"Lufthansa A350-1000 Flights",
+		"Lufthansa A350-1000",
+		contentType,
+		writer,
+	)
+}
+
 func (h *ScheduleSearchHandler) specialAircraftFeed(c *echo.Context, result model.FlightSchedulesMany, feedId, feedTitle, shortName, contentType string, writer func(*feeds.Feed, io.Writer) error) error {
 	fnName := func(fn model.FlightNumber) string {
 		return fmt.Sprintf("%s%d%s", fn.AirlineIataCode, fn.Number, fn.Suffix)
@@ -439,6 +477,10 @@ func (h *ScheduleSearchHandler) querySwissA350(ctx context.Context) (model.Fligh
 			schedulesearch.WithAircraftIataCode("359"),
 		),
 	)
+}
+
+func (h *ScheduleSearchHandler) queryLHA350(ctx context.Context) (model.FlightSchedulesMany, error) {
+	return h.querySpecialAircraft(ctx, "LH", common.Set[string]{"351": struct{}{}})
 }
 
 func (h *ScheduleSearchHandler) LHA380(c *echo.Context) error {

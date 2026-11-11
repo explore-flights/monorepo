@@ -40,6 +40,7 @@ const primaryNav = [
 const fleetNav = [
   { to: '/allegris', label: 'Lufthansa Allegris' },
   { to: '/swiss350', label: 'SWISS A350' },
+  { to: '/lh351', label: 'Lufthansa A350-1000' },
   { to: '/lh380', label: 'Lufthansa A380' },
   { to: '/lh340', label: 'Lufthansa A340' },
   { to: '/lh747', label: 'Lufthansa 747' },

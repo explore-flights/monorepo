@@ -33,6 +33,13 @@ const fleetConfig: Record<
     description: 'Published routes and schedules for the SWISS A350 fleet.',
     accent: 'var(--fleet-accent-swiss-a350)',
   },
+  lh351: {
+    identifier: 'lh351',
+    title: 'Lufthansa Airbus A350-1000',
+    short: 'LH A350-1000',
+    description: 'Published routes and schedules for the Lufthansa A350-1000 fleet.',
+    accent: 'var(--primary)',
+  },
   lh380: {
     identifier: 'lh380',
     title: 'Lufthansa Airbus A380',
@@ -66,6 +73,10 @@ export function AllegrisPage() {
 
 export function SwissA350Page() {
   return <FleetPage fleetId='swiss350' />;
+}
+
+export function LufthansaA350Page() {
+  return <FleetPage fleetId='lh351' />;
 }
 
 export function LufthansaA380Page() {
@@ -129,7 +140,7 @@ function FleetPageForId({ fleetId }: { fleetId: string }) {
         description={config.description}
         actions={
           <div className='fleet-hero-actions'>
-            {['allegris', 'swiss350'].includes(config.identifier) && (
+            {['allegris', 'swiss350', 'lh351'].includes(config.identifier) && (
               <div className='fleet-hero-action'>
                 <span>Follow schedule</span>
                 <div className='fleet-feed-actions' aria-label='Schedule feeds'>

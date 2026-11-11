@@ -35,6 +35,7 @@ const tools = [
 const fleet = [
   { name: 'Lufthansa Allegris', href: '/allegris' },
   { name: 'SWISS A350', href: '/swiss350' },
+  { name: 'Lufthansa A350-1000', href: '/lh351' },
   { name: 'Lufthansa A380', href: '/lh380' },
   { name: 'Lufthansa A340', href: '/lh340' },
   { name: 'Lufthansa 747', href: '/lh747' },

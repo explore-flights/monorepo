@@ -49,6 +49,10 @@ const staticRoutes: Readonly<Record<string, Omit<SeoConfig, 'robots' | 'canonica
     title: 'SWISS A350 • explore.flights',
     description: 'Track the planned network for the SWISS Airbus A350 fleet.',
   },
+  '/lh351': {
+    title: 'Lufthansa A350-1000 • explore.flights',
+    description: 'Explore Lufthansa Airbus A350-1000 routes and published schedules.',
+  },
   '/lh380': {
     title: 'Lufthansa A380 • explore.flights',
     description: 'Explore Lufthansa Airbus A380 routes and published schedules.',
