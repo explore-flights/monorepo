@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/duckdb/duckdb-go/v2"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/explore-flights/monorepo/go/common/xsql"
 	"github.com/explore-flights/monorepo/go/common/xsync"
@@ -70,6 +72,16 @@ func NewFlightRepo(db flightRepoDatabase) *FlightRepo {
 	return &fr
 }
 
+func (fr *FlightRepo) IterFlights(ctx context.Context, departureDateUtc xtime.LocalDate, outErr *error) iter.Seq[Flight] {
+	return func(yield func(Flight) bool) {
+		for f := range fr.iterFlightsInternal(ctx, departureDateUtc, outErr) {
+			if !yield(f) {
+				return
+			}
+		}
+	}
+}
+
 func (fr *FlightRepo) Flights(ctx context.Context, start, end xtime.LocalDate) (map[xtime.LocalDate][]Flight, error) {
 	var mtx sync.Mutex
 	result := make(map[xtime.LocalDate][]Flight)
@@ -80,7 +92,8 @@ func (fr *FlightRepo) Flights(ctx context.Context, start, end xtime.LocalDate) (
 	for curr <= end {
 		d := curr
 		g.Go(func() error {
-			flights, err := fr.flightsInternal(ctx, d)
+			var err error
+			flights := slices.Collect(fr.iterFlightsInternal(ctx, d, &err))
 			if err != nil {
 				return err
 			}
@@ -1004,17 +1017,19 @@ WHERE :filter
 	return variants, rows.Err()
 }
 
-func (fr *FlightRepo) flightsInternal(ctx context.Context, d xtime.LocalDate) ([]Flight, error) {
-	conn, err := fr.db.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
+func (fr *FlightRepo) iterFlightsInternal(ctx context.Context, departureDateUtc xtime.LocalDate, outErr *error) iter.Seq[Flight] {
+	return func(yield func(Flight) bool) {
+		conn, err := fr.db.Conn(ctx)
+		if err != nil {
+			*outErr = err
+			return
+		}
+		defer conn.Close()
 
-	year, month, day := d.Date()
-	rows, err := conn.QueryContext(
-		ctx,
-		`
+		year, month, day := departureDateUtc.Date()
+		rows, err := conn.QueryContext(
+			ctx,
+			`
 SELECT
     airline_iata_code,
     number,
@@ -1040,68 +1055,86 @@ WHERE year_utc = ?
 AND month_utc = ?
 AND day_utc = ?
 `,
-		year,
-		int(month),
-		day,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	return scanFlights(rows)
-}
-
-func scanFlights(rows *sql.Rows) ([]Flight, error) {
-	flights := make([]Flight, 0)
-	for rows.Next() {
-		var f Flight
-		var departureUtcOffsetSeconds, arrivalUtcOffsetSeconds, durationSeconds int
-		var codeShares xsql.SQLArray[FlightNumber, *FlightNumber]
-		var dataElements DuckDBMap[xsql.Int64, *xsql.Int64, xsql.String, *xsql.String]
-		err := rows.Scan(
-			&f.AirlineIataCode,
-			&f.Number,
-			&f.Suffix,
-			&f.DepartureTime,
-			&departureUtcOffsetSeconds,
-			&f.DepartureAirportIataCode,
-			&durationSeconds,
-			&arrivalUtcOffsetSeconds,
-			&f.ArrivalAirportIataCode,
-			&f.ServiceType,
-			&f.AircraftOwner,
-			&f.AircraftIataCode,
-			&f.SeatsFirst,
-			&f.SeatsBusiness,
-			&f.SeatsPremium,
-			&f.SeatsEconomy,
-			&f.AircraftConfigurationVersion,
-			&codeShares,
-			&dataElements,
+			year,
+			int(month),
+			day,
 		)
 		if err != nil {
-			return nil, err
+			// DuckDB can return a native interrupt while preparing a canceled query.
+			var queryErr *duckdb.Error
+			if ctxErr := ctx.Err(); ctxErr != nil && errors.As(err, &queryErr) && queryErr.Type == duckdb.ErrorTypeInterrupt {
+				err = errors.Join(ctxErr, err)
+			}
+			*outErr = err
+			return
 		}
+		defer rows.Close()
 
-		f.DepartureTime = f.DepartureTime.In(time.FixedZone("", departureUtcOffsetSeconds))
-		f.ArrivalTime = f.DepartureTime.Add(time.Duration(durationSeconds) * time.Second)
-		f.ArrivalTime = f.ArrivalTime.In(time.FixedZone("", arrivalUtcOffsetSeconds))
-		f.CodeShares = make(common.Set[FlightNumber])
-		f.DataElements = make(map[int64]string)
-
-		for _, codeShareFn := range codeShares {
-			f.CodeShares.Add(codeShareFn)
+		for f := range iterFlights(rows, outErr) {
+			if !yield(f) {
+				return
+			}
 		}
-
-		for k, v := range dataElements {
-			f.DataElements[int64(k)] = string(v)
-		}
-
-		flights = append(flights, f)
 	}
+}
 
-	return flights, rows.Err()
+func iterFlights(rows *sql.Rows, outErr *error) iter.Seq[Flight] {
+	return func(yield func(Flight) bool) {
+		for rows.Next() {
+			var f Flight
+			var departureUtcOffsetSeconds, arrivalUtcOffsetSeconds, durationSeconds int
+			var codeShares xsql.SQLArray[FlightNumber, *FlightNumber]
+			var dataElements DuckDBMap[xsql.Int64, *xsql.Int64, xsql.String, *xsql.String]
+			err := rows.Scan(
+				&f.AirlineIataCode,
+				&f.Number,
+				&f.Suffix,
+				&f.DepartureTime,
+				&departureUtcOffsetSeconds,
+				&f.DepartureAirportIataCode,
+				&durationSeconds,
+				&arrivalUtcOffsetSeconds,
+				&f.ArrivalAirportIataCode,
+				&f.ServiceType,
+				&f.AircraftOwner,
+				&f.AircraftIataCode,
+				&f.SeatsFirst,
+				&f.SeatsBusiness,
+				&f.SeatsPremium,
+				&f.SeatsEconomy,
+				&f.AircraftConfigurationVersion,
+				&codeShares,
+				&dataElements,
+			)
+			if err != nil {
+				*outErr = err
+				return
+			}
+
+			f.DepartureTime = f.DepartureTime.In(time.FixedZone("", departureUtcOffsetSeconds))
+			f.ArrivalTime = f.DepartureTime.Add(time.Duration(durationSeconds) * time.Second)
+			f.ArrivalTime = f.ArrivalTime.In(time.FixedZone("", arrivalUtcOffsetSeconds))
+			f.CodeShares = make(common.Set[FlightNumber])
+			f.DataElements = make(map[int64]string)
+
+			for _, codeShareFn := range codeShares {
+				f.CodeShares.Add(codeShareFn)
+			}
+
+			for k, v := range dataElements {
+				f.DataElements[int64(k)] = string(v)
+			}
+
+			if !yield(f) {
+				return
+			}
+		}
+
+		if err := rows.Err(); err != nil {
+			*outErr = err
+			return
+		}
+	}
 }
 
 func (fr *FlightRepo) Destinations(ctx context.Context, departureAirportIataCode string) ([]string, error) {

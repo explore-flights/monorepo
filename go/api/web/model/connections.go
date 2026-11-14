@@ -1,35 +1,45 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/explore-flights/monorepo/go/api/pb"
+	pbv2 "github.com/explore-flights/monorepo/go/api/pb/v2"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type ConnectionsSearchRequest struct {
-	Origins             []string  `json:"origins"`
-	Destinations        []string  `json:"destinations"`
-	MinDeparture        time.Time `json:"minDeparture"`
-	MaxDeparture        time.Time `json:"maxDeparture"`
-	MaxFlights          uint32    `json:"maxFlights"`
-	MinLayoverMS        uint64    `json:"minLayoverMS"`
-	MaxLayoverMS        uint64    `json:"maxLayoverMS"`
-	MaxDurationMS       uint64    `json:"maxDurationMS"`
-	CountMultiLeg       bool      `json:"countMultiLeg"`
-	IncludeAirport      []string  `json:"includeAirport,omitempty"`
-	ExcludeAirport      []string  `json:"excludeAirport,omitempty"`
-	IncludeFlightNumber []string  `json:"includeFlightNumber,omitempty"`
-	ExcludeFlightNumber []string  `json:"excludeFlightNumber,omitempty"`
-	IncludeAircraft     []string  `json:"includeAircraft,omitempty"`
-	ExcludeAircraft     []string  `json:"excludeAircraft,omitempty"`
+	APIVersion          *uint32                        `json:"apiVersion,omitempty"`
+	V2                  *pbv2.ConnectionsSearchRequest `json:"-"`
+	Origins             []string                       `json:"origins"`
+	Destinations        []string                       `json:"destinations"`
+	MinDeparture        time.Time                      `json:"minDeparture"`
+	MaxDeparture        time.Time                      `json:"maxDeparture"`
+	MaxFlights          uint32                         `json:"maxFlights"`
+	MinLayoverMS        uint64                         `json:"minLayoverMS"`
+	MaxLayoverMS        uint64                         `json:"maxLayoverMS"`
+	MaxDurationMS       uint64                         `json:"maxDurationMS"`
+	CountMultiLeg       bool                           `json:"countMultiLeg"`
+	IncludeAirport      []string                       `json:"includeAirport,omitempty"`
+	ExcludeAirport      []string                       `json:"excludeAirport,omitempty"`
+	IncludeFlightNumber []string                       `json:"includeFlightNumber,omitempty"`
+	ExcludeFlightNumber []string                       `json:"excludeFlightNumber,omitempty"`
+	IncludeAircraft     []string                       `json:"includeAircraft,omitempty"`
+	ExcludeAircraft     []string                       `json:"excludeAircraft,omitempty"`
 }
 
 func (req ConnectionsSearchRequest) ToPb() proto.Message {
+	if req.V2 != nil {
+		version := uint32(2)
+		return &pb.ConnectionsSearchRequest{ApiVersion: &version, V2: req.V2}
+	}
 	countMultiLeg := req.CountMultiLeg
 	return &pb.ConnectionsSearchRequest{
+		ApiVersion:          req.APIVersion,
 		Origins:             req.Origins,
 		Destinations:        req.Destinations,
 		MinDeparture:        timestamppb.New(req.MinDeparture),
@@ -74,6 +84,22 @@ type ConnectionFlightResponse struct {
 }
 
 type ConnectionsSearchResponse struct {
-	Data   ConnectionsResponse       `json:"data"`
-	Search *ConnectionsSearchRequest `json:"search,omitempty"`
+	Data         ConnectionsResponse       `json:"data"`
+	Search       *ConnectionsSearchRequest `json:"search,omitempty"`
+	Continuation *ConnectionsContinuation  `json:"continuation"`
+}
+
+func (req ConnectionsSearchRequest) MarshalJSON() ([]byte, error) {
+	if req.V2 != nil {
+		value, err := protojson.Marshal(req.V2)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(struct {
+			APIVersion uint32          `json:"apiVersion"`
+			V2         json.RawMessage `json:"v2"`
+		}{2, value})
+	}
+	type legacy ConnectionsSearchRequest
+	return json.Marshal(legacy(req))
 }

@@ -3,6 +3,7 @@ package explore_flights.protobuf;
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
+import "connection_search_v2.proto";
 
 option go_package = "go/api/pb";
 
@@ -22,4 +23,8 @@ message ConnectionsSearchRequest {
   repeated string exclude_flight_number = 12;
   repeated string include_aircraft = 13;
   repeated string exclude_aircraft = 14;
+
+  // Absent (or 1) selects the legacy fields above; 2 selects the v2 payload.
+  optional uint32 api_version = 100;
+  explore_flights.protobuf.v2.ConnectionsSearchRequest v2 = 101;
 }

@@ -305,7 +305,12 @@ ORDER BY %s, airline_iata_code, number, suffix
 	}
 	defer rows.Close()
 
-	return scanFlights(rows)
+	var scanErr error
+	flights := make([]Flight, 0)
+	for flight := range iterFlights(rows, &scanErr) {
+		flights = append(flights, flight)
+	}
+	return flights, scanErr
 }
 
 func airportMovementUtcDateRange(ctx context.Context, conn *sql.Conn, airportIataCode string, dateLocal xtime.LocalDate, direction AirportMovementDirection) (xtime.LocalDate, xtime.LocalDate, bool, error) {

@@ -12,14 +12,13 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
-	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/explore-flights/monorepo/go/api/business/connections"
 	"github.com/explore-flights/monorepo/go/api/db"
-	"github.com/explore-flights/monorepo/go/api/pb"
 	"github.com/explore-flights/monorepo/go/api/web/model"
 	"github.com/explore-flights/monorepo/go/common"
 	"github.com/goccy/go-graphviz"
@@ -31,6 +30,8 @@ import (
 
 //go:embed share.gohtml
 var shareTemplateHtml string
+
+const connectionSearchTimeout = 25 * time.Second
 
 type connectionsHandlerFlightRepo interface {
 	Airlines(ctx context.Context) (map[string]db.Airline, error)
@@ -60,48 +61,48 @@ func (ch *ConnectionsHandler) ConnectionsPNG(c *echo.Context) error {
 
 func (ch *ConnectionsHandler) connections(c *echo.Context, export string) error {
 	ctx := c.Request().Context()
-	airports, err := ch.repo.Airports(ctx)
-	if err != nil {
-		return err
-	}
-
 	req, err := ch.parseAndValidateRequest(c)
 	if err != nil {
 		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
 	}
 
-	minLayover := time.Duration(req.MinLayoverMS) * time.Millisecond
-	maxLayover := time.Duration(req.MaxLayoverMS) * time.Millisecond
-	maxDuration := time.Duration(req.MaxDurationMS) * time.Millisecond
+	airports, err := ch.repo.Airports(ctx)
+	if err != nil {
+		return err
+	}
+	airlines, err := ch.repo.Airlines(ctx)
+	if err != nil {
+		return err
+	}
+	aircraft, err := ch.repo.Aircraft(ctx)
+	if err != nil {
+		return err
+	}
+	query, pageSize, err := connectionQuery(req, airlines, airports, aircraft)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
+	}
+	after, err := connectionContinuation(c.QueryParam("continuation"), query.MinDeparture, query.MaxDeparture)
+	if err != nil {
+		return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
+	}
+	ctx, cancel := context.WithTimeout(ctx, connectionSearchTimeout)
+	defer cancel()
 
-	options := make([]connections.SearchOption, 0)
-	options = append(options, connections.WithCountMultiLeg(req.CountMultiLeg))
-	options = appendStringOptions[connections.WithIncludeAirport, connections.WithIncludeAirportGlob](options, req.IncludeAirport)
-	options = appendSliceOptions[connections.WithExcludeAirport, connections.WithExcludeAirportGlob](options, req.ExcludeAirport)
-	options = appendStringOptions[connections.WithIncludeFlightNumber, connections.WithIncludeFlightNumberGlob](options, req.IncludeFlightNumber)
-	options = appendSliceOptions[connections.WithExcludeFlightNumber, connections.WithExcludeFlightNumberGlob](options, req.ExcludeFlightNumber)
-	options = appendStringOptions[connections.WithIncludeAircraft, connections.WithIncludeAircraftGlob](options, req.IncludeAircraft)
-	options = appendSliceOptions[connections.WithExcludeAircraft, connections.WithExcludeAircraftGlob](options, req.ExcludeAircraft)
-
-	conns, err := ch.search.FindConnections(
-		ctx,
-		req.Origins,
-		req.Destinations,
-		req.MinDeparture,
-		req.MaxDeparture,
-		req.MaxFlights,
-		minLayover,
-		maxLayover,
-		maxDuration,
-		options...,
-	)
-
+	journeys, next, err := ch.search.FindConnections(ctx, query, pageSize, after)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return NewHTTPError(http.StatusRequestTimeout, WithCause(err))
 		}
-
+		if _, ok := errors.AsType[*connections.ExpressionError](err); ok {
+			return NewHTTPError(http.StatusBadRequest, WithCause(err), WithUnmaskedCause())
+		}
 		return err
+	}
+	conns := connectionTree(journeys)
+	var continuation *model.ConnectionsContinuation
+	if next != nil {
+		continuation = &model.ConnectionsContinuation{Departure: next.Departure, Consumed: next.Consumed}
 	}
 
 	switch export {
@@ -112,7 +113,8 @@ func (ch *ConnectionsHandler) connections(c *echo.Context, export string) error 
 		}
 
 		res := model.ConnectionsSearchResponse{
-			Data: data,
+			Data:         data,
+			Continuation: continuation,
 		}
 
 		if c.QueryParams().Has("includeSearch") {
@@ -122,6 +124,9 @@ func (ch *ConnectionsHandler) connections(c *echo.Context, export string) error 
 		return c.JSON(http.StatusOK, res)
 
 	case "png":
+		if continuation != nil {
+			c.Response().Header().Set("X-Connections-Continuation", continuation.String())
+		}
 		c.Response().Header().Set(echo.HeaderContentType, "image/png")
 		c.Response().WriteHeader(http.StatusOK)
 		return ch.exportConnectionsImage(ctx, airports, conns, c.Response())
@@ -183,6 +188,10 @@ func (ch *ConnectionsHandler) ConnectionsShareHTML(c *echo.Context) error {
 		),
 	}
 
+	if req.V2 != nil {
+		data["title"] = "Flight connections • explore.flights"
+		data["description"] = "Explore flight connections departing from " + req.V2.GetQuery().GetMinDeparture().AsTime().Format(time.RFC3339)
+	}
 	noIndexFollow(c)
 
 	var buf bytes.Buffer
@@ -211,60 +220,14 @@ func (ch *ConnectionsHandler) parseAndValidateRequest(c *echo.Context) (model.Co
 		return model.ConnectionsSearchRequest{}, err
 	}
 
-	if err = ch.validateRequest(req); err != nil {
+	if err = ch.validateRequest(c.Request().Context(), req); err != nil {
 		return model.ConnectionsSearchRequest{}, err
 	}
 
 	return req, nil
 }
 
-func (ch *ConnectionsHandler) parseRequest(c *echo.Context) (model.ConnectionsSearchRequest, error) {
-	payloadB64 := c.Param("payload")
-
-	var req model.ConnectionsSearchRequest
-	if payloadB64 == "" {
-		if err := c.Bind(&req); err != nil {
-			return model.ConnectionsSearchRequest{}, err
-		}
-	} else {
-		b, err := base64.RawURLEncoding.DecodeString(payloadB64)
-		if err != nil {
-			return model.ConnectionsSearchRequest{}, err
-		}
-
-		var pbReq pb.ConnectionsSearchRequest
-		if err = proto.Unmarshal(b, &pbReq); err != nil {
-			return model.ConnectionsSearchRequest{}, err
-		}
-
-		countMultiLeg := true // multi-leg flights were counted before this option was added
-		if pbReq.CountMultiLeg != nil {
-			countMultiLeg = *pbReq.CountMultiLeg
-		}
-
-		req = model.ConnectionsSearchRequest{
-			Origins:             pbReq.Origins,
-			Destinations:        pbReq.Destinations,
-			MinDeparture:        pbReq.MinDeparture.AsTime(),
-			MaxDeparture:        pbReq.MaxDeparture.AsTime(),
-			MaxFlights:          pbReq.MaxFlights,
-			MinLayoverMS:        uint64(pbReq.MinLayover.AsDuration().Milliseconds()),
-			MaxLayoverMS:        uint64(pbReq.MaxLayover.AsDuration().Milliseconds()),
-			MaxDurationMS:       uint64(pbReq.MaxDuration.AsDuration().Milliseconds()),
-			CountMultiLeg:       countMultiLeg,
-			IncludeAirport:      pbReq.IncludeAirport,
-			ExcludeAirport:      pbReq.ExcludeAirport,
-			IncludeFlightNumber: pbReq.IncludeFlightNumber,
-			ExcludeFlightNumber: pbReq.ExcludeFlightNumber,
-			IncludeAircraft:     pbReq.IncludeAircraft,
-			ExcludeAircraft:     pbReq.ExcludeAircraft,
-		}
-	}
-
-	return req, nil
-}
-
-func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns []connections.Connection, airports map[string]db.Airport) (model.ConnectionsResponse, error) {
+func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns []connectionNode, airports map[string]db.Airport) (model.ConnectionsResponse, error) {
 	flights := make(map[model.UUID]model.ConnectionFlightResponse)
 	referencedAirlines := make(common.Set[string])
 	referencedAirports := make(common.Set[string])
@@ -305,25 +268,17 @@ func (ch *ConnectionsHandler) exportConnectionsJSON(ctx context.Context, conns [
 	return r, nil
 }
 
-func (ch *ConnectionsHandler) buildConnectionsResponse(conns []connections.Connection, flights map[model.UUID]model.ConnectionFlightResponse, uuidByFlight map[*connections.Flight]model.UUID, referencedAirlines, referencedAirports, referencedAircraft common.Set[string]) ([]model.ConnectionResponse, error) {
+func (ch *ConnectionsHandler) buildConnectionsResponse(conns []connectionNode, flights map[model.UUID]model.ConnectionFlightResponse, uuidByFlight map[*connections.Flight]model.UUID, referencedAirlines, referencedAirports, referencedAircraft common.Set[string]) ([]model.ConnectionResponse, error) {
 	r := make([]model.ConnectionResponse, 0, len(conns))
 
 	for _, conn := range conns {
 		fid, ok := uuidByFlight[conn.Flight]
 		if !ok {
-			var u uuid.UUID
-			for {
-				var err error
-				if u, err = uuid.NewV4(); err != nil {
-					return nil, err
-				}
-
-				if _, exists := flights[model.UUID(u)]; !exists {
-					break
-				}
+			id, err := uuid.NewV4()
+			if err != nil {
+				return nil, err
 			}
-
-			fid = model.UUID(u)
+			fid = model.UUID(id)
 			uuidByFlight[conn.Flight] = fid
 		}
 
@@ -367,10 +322,13 @@ func (ch *ConnectionsHandler) convertCodeShares(inp common.Set[db.FlightNumber],
 		r = append(r, model.FlightNumberFromDb(fn))
 	}
 
+	slices.SortFunc(r, func(a, b model.FlightNumber) int {
+		return strings.Compare(fmt.Sprintf("%s%d%s", a.AirlineIataCode, a.Number, a.Suffix), fmt.Sprintf("%s%d%s", b.AirlineIataCode, b.Number, b.Suffix))
+	})
 	return r
 }
 
-func (ch *ConnectionsHandler) exportConnectionsImage(ctx context.Context, airports map[string]db.Airport, conns []connections.Connection, w io.Writer) error {
+func (ch *ConnectionsHandler) exportConnectionsImage(ctx context.Context, airports map[string]db.Airport, conns []connectionNode, w io.Writer) error {
 	airlines, err := ch.repo.Airlines(ctx)
 	if err != nil {
 		return err
@@ -401,7 +359,7 @@ func (ch *ConnectionsHandler) exportConnectionsImage(ctx context.Context, airpor
 	return g.Render(ctx, graph, graphviz.PNG, w)
 }
 
-func (ch *ConnectionsHandler) buildGraph(parent *connections.Flight, airlines map[string]db.Airline, airports map[string]db.Airport, aircraft map[string]db.Aircraft, conns []connections.Connection, graph *cgraph.Graph, lookup map[*connections.Flight]*cgraph.Node, nodeId *graphviz.ID, edgeId *graphviz.ID) error {
+func (ch *ConnectionsHandler) buildGraph(parent *connections.Flight, airlines map[string]db.Airline, airports map[string]db.Airport, aircraft map[string]db.Aircraft, conns []connectionNode, graph *cgraph.Graph, lookup map[*connections.Flight]*cgraph.Node, nodeId *graphviz.ID, edgeId *graphviz.ID) error {
 	var err error
 	for _, conn := range conns {
 		airline, ok := airlines[conn.Flight.AirlineIataCode]
@@ -467,7 +425,22 @@ func (ch *ConnectionsHandler) buildNodeLabel(f *connections.Flight, airline db.A
 	return fmt.Sprintf("%s\n%s\u2014%s\n%s", f.FlightNumber.String(), departureAirport.IataCode, arrivalAirport.IataCode, aircraftStr)
 }
 
-func (ch *ConnectionsHandler) validateRequest(req model.ConnectionsSearchRequest) error {
+func (ch *ConnectionsHandler) validateRequest(ctx context.Context, req model.ConnectionsSearchRequest) error {
+	if req.V2 != nil {
+		_, _, err := connectionQuery(req, nil, nil, nil)
+		return err
+	}
+	const maximumMS = uint64(14 * 24 * time.Hour / time.Millisecond)
+	if req.MinLayoverMS > maximumMS || req.MaxLayoverMS > maximumMS || req.MaxDurationMS > maximumMS {
+		return errors.New("durations must be <=14d")
+	}
+	if req.MinDeparture.IsZero() || req.MaxDeparture.IsZero() || req.MaxDeparture.Before(req.MinDeparture) {
+		return errors.New("invalid departure range")
+	}
+	if req.MinLayoverMS > req.MaxLayoverMS {
+		return errors.New("minLayover must not exceed maxLayover")
+	}
+
 	maxDuration := time.Duration(req.MaxDurationMS) * time.Millisecond
 
 	if len(req.Origins) < 1 || len(req.Origins) > 10 {
@@ -493,73 +466,4 @@ func (ch *ConnectionsHandler) validateRequest(req model.ConnectionsSearchRequest
 	}
 
 	return nil
-}
-
-type stringSliceRestr interface {
-	~[]string
-	connections.SearchOption
-}
-
-func appendSliceOptions[Reg stringSliceRestr, Glob stringSliceRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
-	unique := make(map[string]struct{})
-	regular := make(Reg, 0)
-	glob := make(Glob, 0)
-
-	for _, v := range values {
-		if _, ok := unique[v]; ok {
-			continue
-		}
-
-		if hasMeta(v) && isValidGlob(v) {
-			glob = append(glob, v)
-		} else {
-			regular = append(regular, v)
-		}
-
-		unique[v] = struct{}{}
-	}
-
-	if len(regular) > 0 {
-		options = append(options, regular)
-	}
-
-	if len(glob) > 0 {
-		options = append(options, glob)
-	}
-
-	return options
-}
-
-type stringRestr interface {
-	~string
-	connections.SearchOption
-}
-
-func appendStringOptions[Reg stringRestr, Glob stringRestr](options []connections.SearchOption, values []string) []connections.SearchOption {
-	unique := make(map[string]struct{})
-
-	for _, v := range values {
-		if _, ok := unique[v]; ok {
-			continue
-		}
-
-		if hasMeta(v) && isValidGlob(v) {
-			options = append(options, Glob(v))
-		} else {
-			options = append(options, Reg(v))
-		}
-
-		unique[v] = struct{}{}
-	}
-
-	return options
-}
-
-func hasMeta(pattern string) bool {
-	return strings.ContainsAny(pattern, "*?[\\")
-}
-
-func isValidGlob(pattern string) bool {
-	_, err := path.Match(pattern, "")
-	return err == nil
 }

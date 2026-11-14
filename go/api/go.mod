@@ -3,6 +3,7 @@ module github.com/explore-flights/monorepo/go/api
 go 1.27
 
 require (
+	cel.dev/cel-go v0.33.2
 	github.com/duckdb/duckdb-go/v2 v2.20000.0
 	github.com/explore-flights/monorepo/go/common v0.0.0
 	github.com/goccy/go-graphviz v0.2.10
@@ -17,6 +18,8 @@ require (
 )
 
 require (
+	cel.dev/expr v0.25.1 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apache/arrow-go/v18 v18.8.0 // indirect
 	github.com/aws/aws-lambda-go v1.55.1 // indirect
 	github.com/disintegration/imaging v1.6.2 // indirect
@@ -51,6 +54,8 @@ require (
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.44.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240826202546-f6391c0de4c7 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 )
 
 replace github.com/explore-flights/monorepo/go/common v0.0.0 => ../common

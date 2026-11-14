@@ -1,9 +1,11 @@
 package connections
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
-	"path"
+	"iter"
 	"slices"
 	"time"
 
@@ -12,83 +14,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type predicateContext struct {
-	airlines map[string]db.Airline
-	airports map[string]db.Airport
-	aircraft map[string]db.Aircraft
-}
-
-func (pctx *predicateContext) globMatchAirline(airlineIataCode string, pattern string) bool {
-	airline, ok := pctx.airlines[airlineIataCode]
-	if !ok {
-		return false
-	}
-
-	return pctx.globMatch(airline.IataCode, pattern) ||
-		(airline.IcaoCode.Valid && pctx.globMatch(airline.IcaoCode.String, pattern))
-}
-
-func (pctx *predicateContext) globMatchAirport(airportIataCode string, pattern string) bool {
-	airport, ok := pctx.airports[airportIataCode]
-	if !ok {
-		return false
-	}
-
-	return pctx.globMatch(airport.IataCode, pattern) ||
-		(airport.IcaoCode.Valid && pctx.globMatch(airport.IcaoCode.String, pattern))
-}
-
-func (pctx *predicateContext) globMatchAircraft(aircraftIataCode string, pattern string) bool {
-	aircraft, ok := pctx.aircraft[aircraftIataCode]
-	if !ok {
-		return false
-	}
-
-	return pctx.globMatch(aircraft.IataCode, pattern) ||
-		(aircraft.IcaoCode.Valid && pctx.globMatch(aircraft.IcaoCode.String, pattern)) ||
-		pctx.globMatch(aircraft.Name, pattern)
-}
-
-func (pctx *predicateContext) anyMatchFlightNumber(f *Flight, predicate func(fn string) bool) bool {
-	if predicate(f.FlightNumber.String()) {
-		return true
-	}
-
-	airline, ok := pctx.airlines[f.AirlineIataCode]
-	if !ok {
-		return false
-	}
-
-	if airline.IcaoCode.Valid && predicate(fmt.Sprintf("%s%d%s", airline.IcaoCode.String, f.Number, f.Suffix)) {
-		return true
-	}
-
-	return false
-}
-
-func (pctx *predicateContext) globMatch(v, pattern string) bool {
-	match, _ := path.Match(pattern, v)
-	return match
-}
-
-type flightPredicate func(pctx *predicateContext, f *Flight) bool
+var (
+	canceledPageFull        = errors.New("canceled: page full")
+	canceledInternalTimeout = errors.New("canceled: internal timeout")
+)
 
 type searchRepo interface {
-	Flights(ctx context.Context, start, end xtime.LocalDate) (map[xtime.LocalDate][]db.Flight, error)
-	Airlines(ctx context.Context) (map[string]db.Airline, error)
-	Airports(ctx context.Context) (map[string]db.Airport, error)
-	Aircraft(ctx context.Context) (map[string]db.Aircraft, error)
-}
-
-type Options struct {
-	countMultiLeg bool
-	all           []flightPredicate
-	any           []flightPredicate
-}
-
-type Connection struct {
-	Flight   *Flight
-	Outgoing []Connection
+	IterFlights(context.Context, xtime.LocalDate, *error) iter.Seq[db.Flight]
+	Airports(context.Context) (map[string]db.Airport, error)
 }
 
 type Search struct {
@@ -96,270 +29,320 @@ type Search struct {
 }
 
 func NewSearch(repo searchRepo) *Search {
-	return &Search{repo}
+	return &Search{repo: repo}
 }
 
-func (ch *Search) FindConnections(ctx context.Context, origins, destinations []string, minDeparture, maxDeparture time.Time, maxFlights uint32, minLayover, maxLayover, maxDuration time.Duration, options ...SearchOption) ([]Connection, error) {
-	var f Options
-	for _, opt := range options {
-		opt.Apply(&f)
+func (s *Search) FindConnections(ctx context.Context, query Query, pageSize uint, after *Continuation) ([]Connection, *Continuation, error) {
+	if pageSize == 0 {
+		return nil, after, nil
 	}
 
-	minDate := xtime.NewLocalDate(minDeparture.UTC())
-	maxDate := xtime.NewLocalDate(maxDeparture.Add(maxDuration).UTC())
+	baseCtx := ctx
+	if deadline, ok := ctx.Deadline(); ok {
+		// cancel 1s earlier to allow for continuation across requests
+		internalTimeout := time.Until(deadline) - (time.Second * 1)
+		if internalTimeout > 0 {
+			var timeoutCtxCancel context.CancelFunc
+			ctx, timeoutCtxCancel = context.WithTimeoutCause(ctx, internalTimeout, canceledInternalTimeout)
+			defer timeoutCtxCancel()
+		}
+	}
 
-	var pctx predicateContext
-	var flightsByDeparture map[Departure][]*Flight
-	{
-		var flightsByDate map[xtime.LocalDate][]db.Flight
-		var airlines map[string]db.Airline
-		var airports map[string]db.Airport
-		var aircraft map[string]db.Aircraft
+	minDeparture := query.MinDeparture
+	skipN := uint32(0)
+	if after != nil {
+		minDeparture = after.Departure
+		skipN = after.Consumed
+	}
 
-		g, ctx := errgroup.WithContext(ctx)
-		g.Go(func() error {
-			var err error
-			flightsByDate, err = ch.repo.Flights(ctx, minDate, maxDate)
+	chResult := make(chan Connection)
+
+	// use the unmodified baseCtx: tightened timeout should only be propagated to the collecting goroutine
+	// the collecting goroutine then cancels the childContext
+	childContext, cancel := context.WithCancelCause(baseCtx)
+	defer cancel(nil)
+
+	g, childContext := errgroup.WithContext(childContext)
+	g.Go(func() error {
+		defer close(chResult)
+
+		origins, err := s.loadAirports(childContext, query.DepartureAirportFilter)
+		if err != nil {
 			return err
-		})
+		}
 
-		g.Go(func() error {
-			var err error
-			airlines, err = ch.repo.Airlines(ctx)
+		fl := flightLoader{
+			repo:         s.repo,
+			watermark:    minDeparture,
+			flightsCache: make(map[xtime.LocalDate]map[string][]*Flight),
+		}
+
+		return s.findConnections(
+			childContext,
+			&fl,
+			fl.moveWatermark,
+			minDeparture,
+			query.MaxDeparture,
+			origins,
+			nil,
+			query.ConnectionEvaluator,
+			chResult,
+		)
+	})
+
+	results := make([]Connection, 0)
+	newContinuation := &Continuation{
+		Departure: minDeparture,
+		Consumed:  skipN,
+	}
+
+loop:
+	for i := range uint64(skipN) + uint64(pageSize) {
+		select {
+		case conn, ok := <-chResult:
+			if !ok {
+				// channel was closed, results are complete, no more pages
+				newContinuation = nil
+				break loop
+			}
+
+			if i >= uint64(skipN) {
+				results = append(results, conn)
+
+				if conn[0].DepartureTime.Equal(newContinuation.Departure) {
+					newContinuation.Consumed++
+				} else {
+					newContinuation.Departure = conn[0].DepartureTime
+					newContinuation.Consumed = 1
+				}
+			}
+
+		case <-ctx.Done():
+			if errors.Is(context.Cause(ctx), canceledInternalTimeout) {
+				// ctx was canceled by our internal tightened timeout: break loop and return continuation
+				break loop
+			}
+
+			_ = g.Wait()
+			return nil, nil, ctx.Err()
+		}
+	}
+
+	cancel(canceledPageFull)
+
+	if err := g.Wait(); err != nil {
+		if !(errors.Is(err, context.Canceled) && errors.Is(context.Cause(childContext), canceledPageFull)) {
+			return nil, nil, err
+		}
+	}
+
+	return results, newContinuation, nil
+}
+
+func (s *Search) findConnections(
+	ctx context.Context,
+	fl *flightLoader,
+	moveWatermark func(time.Time),
+	minDeparture, maxDeparture time.Time,
+	origins []string,
+	parentConn Connection,
+	connectionEvaluator ConnectionEvaluator,
+	chResult chan<- Connection) error {
+
+	var loadFlightErr error
+	for f := range fl.iterFlights(ctx, minDeparture, maxDeparture, origins, &loadFlightErr) {
+		conn := make(Connection, len(parentConn), len(parentConn)+1)
+		copy(conn, parentConn)
+		conn = append(conn, f)
+
+		evaluation, err := connectionEvaluator.Evaluate(ctx, conn)
+		if err != nil {
 			return err
-		})
+		}
 
-		g.Go(func() error {
-			var err error
-			airports, err = ch.repo.Airports(ctx)
-			return err
-		})
+		if evaluation.Yield {
+			select {
+			case chResult <- conn:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
 
-		g.Go(func() error {
-			var err error
-			aircraft, err = ch.repo.Aircraft(ctx)
-			return err
-		})
+		if window := evaluation.Next; window != nil {
+			if window.MinLayover < 0 {
+				return fmt.Errorf("MinLayover can not be negative (got %s)", window.MaxLayover)
+			}
 
-		if err := g.Wait(); err != nil {
+			var nextFlightMaxDeparture time.Time
+			if window.MaxLayover != nil {
+				maxLayover := *window.MaxLayover
+				if maxLayover < 0 {
+					return fmt.Errorf("MaxLayover can not be negative (got %s)", maxLayover)
+				}
+
+				nextFlightMaxDeparture = f.ArrivalTime.Add(maxLayover)
+			} else {
+				nextFlightMaxDeparture = maxSupportedTime()
+			}
+
+			if err := s.findConnections(
+				ctx,
+				fl,
+				func(time.Time) {},
+				f.ArrivalTime.Add(window.MinLayover),
+				nextFlightMaxDeparture,
+				[]string{f.ArrivalAirportIataCode},
+				conn,
+				connectionEvaluator,
+				chResult,
+			); err != nil {
+				return err
+			}
+		}
+
+		moveWatermark(f.DepartureTime)
+	}
+
+	if loadFlightErr != nil {
+		return loadFlightErr
+	}
+
+	return nil
+}
+
+func (s *Search) loadAirports(ctx context.Context, filter AirportFilter) ([]string, error) {
+	airports, err := s.repo.Airports(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]string, 0)
+	for _, a := range airports {
+		ok, err := filter.Apply(ctx, &Airport{a})
+		if err != nil {
 			return nil, err
 		}
 
-		pctx = predicateContext{
-			airlines: airlines,
-			airports: airports,
-			aircraft: aircraft,
+		if ok {
+			result = append(result, a.IataCode)
 		}
-
-		flightsByDeparture = mapAndGroupByDepartureUTC(&pctx, flightsByDate, f.all)
 	}
 
-	return collectCtx(ctx, findConnections(
-		ctx,
-		flightsByDeparture,
-		origins,
-		destinations,
-		minDeparture,
-		maxDeparture,
-		maxFlights,
-		minLayover,
-		maxLayover,
-		maxDuration,
-		&pctx,
-		f.any,
-		f.countMultiLeg,
-		nil,
-	))
+	return result, nil
 }
 
-func findConnections(
-	ctx context.Context,
-	flightsByDeparture map[Departure][]*Flight,
-	origins,
-	destinations []string,
-	minDeparture,
-	maxDeparture time.Time,
-	maxFlights uint32,
-	minLayover,
-	maxLayover,
-	maxDuration time.Duration,
-	pctx *predicateContext,
-	predicates []flightPredicate,
-	countMultiLeg bool,
-	incomingFn *db.FlightNumber,
-) <-chan Connection {
-
-	if (countMultiLeg && maxFlights < 1) || maxDuration < 1 {
-		ch := make(chan Connection)
-		close(ch)
-		return ch
+type flightLoader struct {
+	repo interface {
+		IterFlights(context.Context, xtime.LocalDate, *error) iter.Seq[db.Flight]
 	}
+	watermark    time.Time
+	flightsCache map[xtime.LocalDate]map[string][]*Flight
+}
 
-	ch := make(chan Connection, 256)
-	go func() {
-		defer close(ch)
+func (fl *flightLoader) moveWatermark(watermark time.Time) {
+	oldWatermarkDate := xtime.NewLocalDate(fl.watermark.UTC())
+	watermarkDate := xtime.NewLocalDate(watermark.UTC())
 
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		working := make([]struct {
-			f  *Flight
-			ch <-chan Connection
-		}, 0)
-
-		currDate := xtime.NewLocalDate(minDeparture.UTC())
-		maxDate := xtime.NewLocalDate(maxDeparture.UTC())
-
-		for currDate <= maxDate {
-			for _, origin := range origins {
-				d := Departure{
-					AirportIataCode: origin,
-					Date:            currDate,
-				}
-
-				for _, f := range flightsByDeparture[d] {
-					minDeparture := minDeparture
-					maxDuration := maxDuration
-					sameFlightNumber := false
-
-					if incomingFn != nil {
-						// subtract (actual) layover duration
-						maxDuration = maxDuration - f.DepartureTime.Sub(minDeparture)
-
-						// ignore minLayover for flights continuing on the same number (multi-leg)
-						if *incomingFn != f.FlightNumber {
-							minDeparture = minDeparture.Add(minLayover)
-						} else {
-							sameFlightNumber = true
-						}
-					}
-
-					// J = regular flight
-					// U = Rail&Fly
-					if (f.ServiceType != "J" && f.ServiceType != "U") || (maxFlights < 1 && !sameFlightNumber) || f.Duration() > maxDuration || f.DepartureTime.Compare(minDeparture) < 0 || f.DepartureTime.Compare(maxDeparture) > 0 {
-						continue
-					}
-
-					remPredicates := make([]flightPredicate, 0, len(predicates))
-					for _, p := range predicates {
-						if !p(pctx, f) {
-							remPredicates = append(remPredicates, p)
-						}
-					}
-
-					if slices.Contains(destinations, f.ArrivalAirportIataCode) {
-						if len(remPredicates) < 1 {
-							conn := Connection{
-								Flight:   f,
-								Outgoing: nil,
-							}
-
-							select {
-							case ch <- conn:
-								break
-
-							case <-ctx.Done():
-								return
-							}
-						}
-					} else {
-						consumeFlights := uint32(1)
-
-						if !countMultiLeg && sameFlightNumber {
-							consumeFlights = 0
-						}
-
-						subConns := findConnections(
-							ctx,
-							flightsByDeparture,
-							[]string{f.ArrivalAirportIataCode},
-							destinations,
-							f.ArrivalTime,
-							f.ArrivalTime.Add(maxLayover),
-							maxFlights-consumeFlights,
-							minLayover,
-							maxLayover,
-							maxDuration-f.Duration(),
-							pctx,
-							remPredicates,
-							countMultiLeg,
-							&f.FlightNumber,
-						)
-
-						working = append(working, struct {
-							f  *Flight
-							ch <-chan Connection
-						}{f: f, ch: subConns})
-					}
-				}
+	if watermarkDate > oldWatermarkDate {
+		for d := range fl.flightsCache {
+			if d < watermarkDate {
+				delete(fl.flightsCache, d)
 			}
-
-			currDate += 1
 		}
 
-		for _, w := range working {
-			subConns, err := collectCtx(ctx, w.ch)
-			if err != nil {
-				return
-			}
+		fl.watermark = watermark
+	}
+}
 
-			if len(subConns) > 0 {
-				conn := Connection{
-					Flight:   w.f,
-					Outgoing: subConns,
+func (fl *flightLoader) iterFlights(ctx context.Context, minDeparture, maxDeparture time.Time, origins []string, outErr *error) iter.Seq[*Flight] {
+	if minDeparture.Before(minSupportedTime()) {
+		minDeparture = minSupportedTime()
+	}
+
+	if maxDeparture.After(maxSupportedTime()) {
+		maxDeparture = maxSupportedTime()
+	}
+
+	minDepartureDate := xtime.NewLocalDate(minDeparture.UTC())
+	maxDepartureDate := xtime.NewLocalDate(maxDeparture.UTC())
+
+	return func(yield func(*Flight) bool) {
+		if minDeparture.Before(fl.watermark) {
+			*outErr = fmt.Errorf("minDeparture=%s can not be before watermark=%s", minDeparture, fl.watermark)
+			return
+		}
+
+		for date := range (xtime.LocalDateRange{minDepartureDate, maxDepartureDate}).Iter {
+			flightsByOrigin, ok := fl.flightsCache[date]
+			if !ok {
+				// date is not present in cache, load from db
+				flightsByOrigin = make(map[string][]*Flight)
+				var err error
+				for f := range fl.repo.IterFlights(ctx, date, &err) {
+					flightsByOrigin[f.DepartureAirportIataCode] = append(flightsByOrigin[f.DepartureAirportIataCode], &Flight{f})
 				}
 
-				select {
-				case ch <- conn:
-					break
+				if err != nil {
+					*outErr = err
+					return
+				}
 
-				case <-ctx.Done():
+				for _, flights := range flightsByOrigin {
+					slices.SortStableFunc(flights, fl.compareFlights)
+				}
+
+				fl.flightsCache[date] = flightsByOrigin
+			}
+
+			relevantFlights := make([]*Flight, 0)
+			for _, origin := range origins {
+				if flights, ok := flightsByOrigin[origin]; ok {
+					startIncl := slices.IndexFunc(flights, func(f *Flight) bool {
+						return !f.DepartureTime.Before(minDeparture)
+					})
+
+					if startIncl != -1 {
+						endIncl := -1
+						for i, f := range slices.Backward(flights) {
+							if !f.DepartureTime.After(maxDeparture) {
+								endIncl = i
+								break
+							}
+						}
+
+						if endIncl >= startIncl {
+							relevantFlights = append(relevantFlights, flights[startIncl:endIncl+1]...)
+						}
+					}
+				}
+			}
+
+			slices.SortStableFunc(relevantFlights, fl.compareFlights)
+
+			for _, f := range relevantFlights {
+				if !yield(f) {
 					return
 				}
 			}
 		}
-	}()
-
-	return ch
+	}
 }
 
-func mapAndGroupByDepartureUTC(pctx *predicateContext, flightsByDate map[xtime.LocalDate][]db.Flight, predicates []flightPredicate) map[Departure][]*Flight {
-	result := make(map[Departure][]*Flight)
-	for _, flights := range flightsByDate {
-		for _, f := range flights {
-			f := &Flight{f}
-			if allMatch(pctx, f, predicates) {
-				d := f.DepartureUTC()
-				result[d] = append(result[d], f)
-			}
-		}
-	}
-
-	return result
+func (fl *flightLoader) compareFlights(a, b *Flight) int {
+	return cmp.Or(
+		a.DepartureTime.Compare(b.DepartureTime),
+		cmp.Compare(a.DepartureAirportIataCode, b.DepartureAirportIataCode),
+		cmp.Compare(a.ArrivalAirportIataCode, b.ArrivalAirportIataCode),
+		cmp.Compare(a.AirlineIataCode, b.AirlineIataCode),
+		cmp.Compare(a.Number, b.Number),
+		cmp.Compare(a.Suffix, b.Suffix),
+	)
 }
 
-func allMatch(pctx *predicateContext, f *Flight, predicates []flightPredicate) bool {
-	for _, p := range predicates {
-		if !p(pctx, f) {
-			return false
-		}
-	}
-
-	return true
+func minSupportedTime() time.Time {
+	return time.Date(2024, time.March, 4, 0, 0, 0, 0, time.UTC)
 }
 
-func collectCtx[T any](ctx context.Context, ch <-chan T) ([]T, error) {
-	var r []T
-	for {
-		select {
-		case v, ok := <-ch:
-			if ok {
-				r = append(r, v)
-			} else {
-				return r, nil
-			}
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-	}
+func maxSupportedTime() time.Time {
+	return time.Now().Add(time.Hour * 24 * 366)
 }

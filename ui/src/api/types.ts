@@ -257,6 +257,7 @@ export interface ConnectionsData extends ReferenceData {
 }
 export interface ConnectionsResponse {
   data: ConnectionsData;
+  continuation: string | null;
 }
 export interface ConnectionShare {
   htmlUrl: string;

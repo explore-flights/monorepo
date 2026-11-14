@@ -1,0 +1,22 @@
+syntax = "proto3";
+package explore_flights.protobuf.v2;
+option go_package = "github.com/explore-flights/monorepo/go/api/pb/v2;pbv2";
+
+import "google/protobuf/timestamp.proto";
+
+message ConnectionsSearchRequest {
+  ConnectionQuery query = 1;
+  PageRequest page = 2;
+}
+message ConnectionQuery {
+  google.protobuf.Timestamp min_departure = 1;
+  google.protobuf.Timestamp max_departure = 2;
+  Expressions expressions = 3;
+}
+message Expressions {
+  string connection_evaluation = 1;
+  string departure_airport_filter = 2;
+}
+message PageRequest {
+  uint32 size = 1; // Zero defaults to 50; maximum 500.
+}
