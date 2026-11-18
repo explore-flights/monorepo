@@ -102,11 +102,14 @@ export const api = {
     request<AirportTimetable>(
       `/data/airport/${encodeURIComponent(airport)}/${encodeURIComponent(date)}/arrivals?v=1`,
     ),
-  connections: (body: ConnectionsSearchRequest) =>
-    request<ConnectionsResponse>('/api/connections/json', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
+  connections: (body: ConnectionsSearchRequest, continuation?: string) =>
+    request<ConnectionsResponse>(
+      `/api/connections/json${continuation ? `?${new URLSearchParams({ continuation })}` : ''}`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      },
+    ),
   sharedConnections: (id: string) =>
     request<SharedConnectionsResponse>(
       `/api/connections/json/${encodeURIComponent(id)}?includeSearch=true`,

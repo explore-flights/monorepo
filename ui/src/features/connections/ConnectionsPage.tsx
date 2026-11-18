@@ -17,6 +17,7 @@ import { api } from '@/api/client';
 import type {
   ConnectionBranch,
   ConnectionsData,
+  ConnectionsResponse,
   ConnectionsSearchRequest,
   SharedConnectionsResponse,
 } from '@/api/types';
@@ -45,6 +46,7 @@ import { connectionSearchDefaults } from './defaults';
 import { createDepartureWindow, updateDepartureWindow } from './departureWindow';
 
 type View = 'journeys' | 'graph' | 'map';
+type ConnectionResults = ConnectionsResponse & { search: ConnectionsSearchRequest };
 
 export function ConnectionsPage() {
   const [searchParams] = useSearchParams();
@@ -130,14 +132,33 @@ function ConnectionsWorkspace({
   ]);
   const [view, setView] = useState<View>('journeys');
   const [departureDate, setDepartureDate] = useState('');
-  const [results, setResults] = useState<ConnectionsData | undefined>(() => sharedResponse?.data);
+  const [connectionResults, setConnectionResults] = useState<ConnectionResults | undefined>(
+    sharedResponse,
+  );
+  const results = connectionResults?.data;
+  const continuation = connectionResults?.continuation;
   const searchMutation = useMutation({
-    mutationFn: api.connections,
-    onSuccess: (response) => {
-      setResults(response.data);
-      setDepartureDate('');
+    mutationFn: ({ search, cursor }: { search: ConnectionsSearchRequest; cursor?: string }) =>
+      api.connections(search, cursor),
+    onSuccess: (response, { search, cursor }) => {
+      if (!cursor) {
+        setConnectionResults({ ...response, search });
+        setDepartureDate('');
+        return;
+      }
+
+      setConnectionResults(
+        (current) =>
+          current && {
+            ...current,
+            continuation: response.continuation,
+            data: appendConnections(current.data, response.data),
+          },
+      );
     },
   });
+  const loadingMore = searchMutation.isPending && !!searchMutation.variables.cursor;
+  const showMoreError = searchMutation.variables?.cursor ? searchMutation.error : null;
   const shareMutation = useMutation({ mutationFn: api.shareConnections });
   const airportOptions = useMemo<SelectOption[]>(
     () => airportSelectOptions(airportsQuery.data ?? []),
@@ -148,7 +169,7 @@ function ConnectionsWorkspace({
     [aircraftQuery.data],
   );
   const shareResult = shareMutation.data;
-  const queryError = searchMutation.error ?? sharedError;
+  const queryError = (showMoreError ? null : searchMutation.error) ?? sharedError;
   function buildRequest(): ConnectionsSearchRequest {
     return {
       origins,
@@ -170,8 +191,8 @@ function ConnectionsWorkspace({
   }
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (origins.length && destinations.length) {
-      searchMutation.mutate(buildRequest());
+    if (origins.length && destinations.length && !searchMutation.isPending) {
+      searchMutation.mutate({ search: buildRequest() });
     }
   }
   const departureDates = useMemo(
@@ -272,7 +293,7 @@ function ConnectionsWorkspace({
               disabled={!origins.length || !destinations.length || searchMutation.isPending}
             >
               <Search size={17} />
-              {searchMutation.isPending ? 'Searching…' : 'Search connections'}
+              {searchMutation.isPending && !loadingMore ? 'Searching…' : 'Search connections'}
             </Button>
           </div>
           <button
@@ -359,12 +380,12 @@ function ConnectionsWorkspace({
         </form>
       </Card>
       {queryError && <ErrorState error={queryError} />}
-      {datedResults && (
+      {connectionResults && datedResults && (
         <section className='results-section'>
           <div className='results-toolbar'>
             <div>
               <span className='eyebrow'>Results</span>
-              <h2>
+              <h2 aria-live='polite'>
                 {journeys.length} {journeys.length === 1 ? 'journey' : 'journeys'} found
               </h2>
             </div>
@@ -396,7 +417,10 @@ function ConnectionsWorkspace({
                   </button>
                 ))}
               </div>
-              <Button variant='secondary' onClick={() => shareMutation.mutate(buildRequest())}>
+              <Button
+                variant='secondary'
+                onClick={() => shareMutation.mutate(connectionResults.search)}
+              >
                 <Share2 size={16} />
                 Share
               </Button>
@@ -423,8 +447,12 @@ function ConnectionsWorkspace({
               </div>
             ) : (
               <EmptyState
-                title='No connections found'
-                description='Try a broader time range, another airport, or allow one more flight.'
+                title={continuation ? 'No connections found yet' : 'No connections found'}
+                description={
+                  continuation
+                    ? 'Show more to continue this search.'
+                    : 'Try a broader time range, another airport, or allow one more flight.'
+                }
               />
             ))}
           {view === 'graph' && <ConnectionGraph data={datedResults} />}
@@ -438,6 +466,25 @@ function ConnectionsWorkspace({
                 }))
                 .filter((route) => route.from && route.to)}
             />
+          )}
+          {showMoreError && (
+            <div role='alert'>
+              <ErrorState error={showMoreError} title='Could not load more connections' />
+            </div>
+          )}
+          {continuation && (
+            <div className='load-more'>
+              <Button
+                variant='secondary'
+                disabled={searchMutation.isPending}
+                onClick={() =>
+                  searchMutation.mutate({ search: connectionResults.search, cursor: continuation })
+                }
+              >
+                <ChevronDown size={16} />
+                {loadingMore ? 'Loading more…' : 'Show more'}
+              </Button>
+            </div>
           )}
         </section>
       )}
@@ -592,6 +639,17 @@ function toUtcInput(value: string) {
   }
   return utcDateTime(date);
 }
+
+function appendConnections(current: ConnectionsData, next: ConnectionsData): ConnectionsData {
+  return {
+    connections: [...current.connections, ...next.connections],
+    flights: { ...current.flights, ...next.flights },
+    airlines: { ...current.airlines, ...next.airlines },
+    airports: { ...current.airports, ...next.airports },
+    aircraft: { ...current.aircraft, ...next.aircraft },
+  };
+}
+
 function flattenJourneys(roots: readonly ConnectionBranch[]) {
   const result: ConnectionBranch[][] = [];
   function walk(node: ConnectionBranch, path: ConnectionBranch[]) {
